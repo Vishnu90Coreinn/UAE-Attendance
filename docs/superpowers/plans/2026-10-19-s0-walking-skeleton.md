@@ -554,6 +554,8 @@ public class ExceptionHandlingMiddlewareTests
         Assert.DoesNotContain("InvalidOperationException", body);
 
         using var json = JsonDocument.Parse(body);
+        var propertyNames = json.RootElement.EnumerateObject().Select(property => property.Name).Order().ToArray();
+        Assert.Equal(["correlationId", "status", "title", "type"], propertyNames);
         Assert.Equal(500, json.RootElement.GetProperty("status").GetInt32());
         Assert.Equal("An unexpected error occurred.", json.RootElement.GetProperty("title").GetString());
         Assert.Equal("test-correlation-id", json.RootElement.GetProperty("correlationId").GetString());
