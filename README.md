@@ -12,6 +12,9 @@ Plans live in `docs/superpowers/plans/`. Start with `2026-10-19-hr-payroll-verti
 - .NET SDK 10 (see `global.json`)
 - Node.js 22.13+ or 24+
 - SQL Server LocalDB (included with Visual Studio) for development and tests
+- .NET EF Core CLI: `dotnet tool install --global dotnet-ef` (or `dotnet tool update --global dotnet-ef`)
+
+LocalDB is Windows-only. On Linux/macOS, set `ConnectionStrings__Default` for the API and `TEST_SQL_CONNECTION` for tests to point at any SQL Server.
 
 ## Run it
 
@@ -46,9 +49,17 @@ Integration tests create and drop their own throw-away database. To use a differ
 Settings come from `appsettings*.json` and are overridden by environment variables (`__` replaces `:`).
 See `.env.example`. Production must set `ConnectionStrings__Default`; the API refuses to start without it.
 
+.NET does not read `.env` files. `.env.example` only documents the variables; set them in the real environment (IIS/service settings, or `$env:NAME = "value"` in PowerShell).
+
 ## Database migrations
 
 ```bash
 dotnet ef migrations add <Name> --project apps/api --output-dir Data/Migrations
 ConnectionStrings__Default="<connection string>" dotnet ef database update --project apps/api
 ```
+
+```powershell
+$env:ConnectionStrings__Default = "<connection string>"; dotnet ef database update --project apps/api
+```
+
+The command prints the target server and database before touching it.
