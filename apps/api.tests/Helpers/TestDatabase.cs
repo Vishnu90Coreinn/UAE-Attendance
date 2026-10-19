@@ -8,6 +8,7 @@ namespace HrPayroll.Api.Tests.Helpers;
 /// Creates a throw-away SQL Server database, applies the real EF migrations to it, and drops it
 /// afterwards. Uses LocalDB by default; set TEST_SQL_CONNECTION to point at another SQL Server
 /// (the Database/Initial Catalog part is ignored).
+/// A remote server with an untrusted certificate needs TrustServerCertificate=True in that string.
 /// </summary>
 public sealed class TestDatabase : IAsyncLifetime
 {
@@ -21,7 +22,8 @@ public sealed class TestDatabase : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var serverConnection = Environment.GetEnvironmentVariable("TEST_SQL_CONNECTION") ?? DefaultServerConnection;
+        var configured = Environment.GetEnvironmentVariable("TEST_SQL_CONNECTION");
+        var serverConnection = string.IsNullOrWhiteSpace(configured) ? DefaultServerConnection : configured;
         _masterConnectionString = new SqlConnectionStringBuilder(serverConnection) { InitialCatalog = "master" }.ConnectionString;
         ConnectionString = new SqlConnectionStringBuilder(serverConnection) { InitialCatalog = _databaseName }.ConnectionString;
 
@@ -36,7 +38,7 @@ public sealed class TestDatabase : IAsyncLifetime
     {
         SqlConnection.ClearAllPools();
         await ExecuteOnMasterAsync(
-            $"ALTER DATABASE [{_databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{_databaseName}];");
+            $"IF DB_ID(N'{_databaseName}') IS NOT NULL BEGIN ALTER DATABASE [{_databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{_databaseName}]; END");
     }
 
     private async Task ExecuteOnMasterAsync(string sql)

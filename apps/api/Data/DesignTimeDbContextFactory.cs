@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -22,6 +23,9 @@ public sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<App
         var connectionString = configuration.GetConnectionString("Default")
             ?? throw new InvalidOperationException(
                 "ConnectionStrings:Default is not configured. Set the ConnectionStrings__Default environment variable.");
+
+        var target = new SqlConnectionStringBuilder(connectionString);
+        Console.WriteLine($"EF design-time target: server '{target.DataSource}', database '{target.InitialCatalog}'.");
 
         var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
         return new AppDbContext(options);

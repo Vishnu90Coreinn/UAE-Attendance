@@ -701,6 +701,7 @@ namespace HrPayroll.Api.Tests.Helpers;
 /// Creates a throw-away SQL Server database, applies the real EF migrations to it, and drops it
 /// afterwards. Uses LocalDB by default; set TEST_SQL_CONNECTION to point at another SQL Server
 /// (the Database/Initial Catalog part is ignored).
+/// A remote server with an untrusted certificate needs TrustServerCertificate=True in that string.
 /// </summary>
 public sealed class TestDatabase : IAsyncLifetime
 {
@@ -714,7 +715,8 @@ public sealed class TestDatabase : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var serverConnection = Environment.GetEnvironmentVariable("TEST_SQL_CONNECTION") ?? DefaultServerConnection;
+        var configured = Environment.GetEnvironmentVariable("TEST_SQL_CONNECTION");
+        var serverConnection = string.IsNullOrWhiteSpace(configured) ? DefaultServerConnection : configured;
         _masterConnectionString = new SqlConnectionStringBuilder(serverConnection) { InitialCatalog = "master" }.ConnectionString;
         ConnectionString = new SqlConnectionStringBuilder(serverConnection) { InitialCatalog = _databaseName }.ConnectionString;
 
@@ -729,7 +731,7 @@ public sealed class TestDatabase : IAsyncLifetime
     {
         SqlConnection.ClearAllPools();
         await ExecuteOnMasterAsync(
-            $"ALTER DATABASE [{_databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{_databaseName}];");
+            $"IF DB_ID(N'{_databaseName}') IS NOT NULL BEGIN ALTER DATABASE [{_databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{_databaseName}]; END");
     }
 
     private async Task ExecuteOnMasterAsync(string sql)
@@ -791,6 +793,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 Create `apps/api/Data/DesignTimeDbContextFactory.cs`:
 
 ```csharp
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -815,6 +818,9 @@ public sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<App
         var connectionString = configuration.GetConnectionString("Default")
             ?? throw new InvalidOperationException(
                 "ConnectionStrings:Default is not configured. Set the ConnectionStrings__Default environment variable.");
+
+        var target = new SqlConnectionStringBuilder(connectionString);
+        Console.WriteLine($"EF design-time target: server '{target.DataSource}', database '{target.InitialCatalog}'.");
 
         var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
         return new AppDbContext(options);
