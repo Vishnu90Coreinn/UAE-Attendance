@@ -1,0 +1,33 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+
+# Logs
+logs/
+*.log
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+
+# Environment and secrets (the .example file is the only one that is committed)
+.env
+.env.*
+!.env.example
+appsettings.Production.json
+appsettings.*.local.json
+
+# Local tooling and editors
+.idea/
+.vscode/
+.claude/settings.local.json
+.claude/worktrees/
+publish/
+.DS_Store
+Thumbs.db
