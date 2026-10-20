@@ -60,6 +60,71 @@ namespace HrPayroll.Api.Data.Migrations
                     b.ToTable("AuditLogs");
                 });
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.PayrollSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ApprovedByLabel")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("CompanyName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("ContactEmail")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<decimal>("MaxBasicHoursPerDay")
+                        .HasPrecision(4, 2)
+                        .HasColumnType("decimal(4,2)");
+
+                    b.Property<decimal>("OvertimeRatePerHour")
+                        .HasPrecision(9, 2)
+                        .HasColumnType("decimal(9,2)");
+
+                    b.Property<string>("PreparedByLabel")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("ShiftDescription")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("Tagline")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PayrollSettings", t =>
+                        {
+                            t.HasCheckConstraint("CK_PayrollSettings_SingleRow", "[Id] = 1");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            ApprovedByLabel = "General Manager",
+                            CompanyName = "DE AKS BE GLASS & ALUMINIUM CO. L.L.C S.O.C",
+                            ContactEmail = "hr@dxbaluminium.ae",
+                            MaxBasicHoursPerDay = 8m,
+                            OvertimeRatePerHour = 2.22m,
+                            PreparedByLabel = "HR Department",
+                            ShiftDescription = "06:00 AM - 05:30 PM",
+                            Tagline = "Glass & Aluminum Installation & Maintenance Services"
+                        });
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.User", b =>
                 {
                     b.Property<int>("Id")
@@ -108,6 +173,56 @@ namespace HrPayroll.Api.Data.Migrations
                     b.ToTable("Users", t =>
                         {
                             t.HasCheckConstraint("CK_Users_Role", "[Role] IN ('Administrator', 'HR Staff', 'Viewer')");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.Worker", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Designation")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<decimal>("HourlyRate")
+                        .HasPrecision(9, 2)
+                        .HasColumnType("decimal(9,2)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("WorkerCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .UseCollation("SQL_Latin1_General_CP1_CI_AS");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkerCode")
+                        .IsUnique();
+
+                    b.ToTable("Workers", t =>
+                        {
+                            t.HasCheckConstraint("CK_Workers_HourlyRate", "[HourlyRate] > 0");
                         });
                 });
 #pragma warning restore 612, 618
