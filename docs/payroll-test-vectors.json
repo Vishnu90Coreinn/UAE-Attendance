@@ -1,0 +1,160 @@
+{
+  "daily": [
+    {
+      "name": "standard",
+      "status": "Present",
+      "basicHours": 8,
+      "overtimeHours": 2,
+      "hourlyRate": 12.5,
+      "companyOvertimeRate": 2.22,
+      "workerOvertimeRate": null,
+      "expected": {
+        "basicPay": 100,
+        "overtimePay": 4.44,
+        "totalPay": 104.44,
+        "daysWorked": 1
+      }
+    },
+    {
+      "name": "absent",
+      "status": "Absent",
+      "basicHours": 8,
+      "overtimeHours": 2,
+      "hourlyRate": 12.5,
+      "companyOvertimeRate": 2.22,
+      "workerOvertimeRate": null,
+      "expected": {
+        "basicPay": 0,
+        "overtimePay": 0,
+        "totalPay": 0,
+        "daysWorked": 0
+      }
+    },
+    {
+      "name": "not-recorded",
+      "status": null,
+      "basicHours": 0,
+      "overtimeHours": 0,
+      "hourlyRate": 12.5,
+      "companyOvertimeRate": 2.22,
+      "workerOvertimeRate": null,
+      "expected": {
+        "basicPay": 0,
+        "overtimePay": 0,
+        "totalPay": 0,
+        "daysWorked": 0
+      }
+    },
+    {
+      "name": "basic-half",
+      "status": "Present",
+      "basicHours": 7.75,
+      "overtimeHours": 0,
+      "hourlyRate": 10.5,
+      "companyOvertimeRate": 2.22,
+      "workerOvertimeRate": null,
+      "expected": {
+        "basicPay": 81.38,
+        "overtimePay": 0,
+        "totalPay": 81.38,
+        "daysWorked": 1
+      }
+    },
+    {
+      "name": "overtime-half",
+      "status": "Present",
+      "basicHours": 8,
+      "overtimeHours": 0.25,
+      "hourlyRate": 12.5,
+      "companyOvertimeRate": 2.22,
+      "workerOvertimeRate": null,
+      "expected": {
+        "basicPay": 100,
+        "overtimePay": 0.56,
+        "totalPay": 100.56,
+        "daysWorked": 1
+      }
+    },
+    {
+      "name": "override",
+      "status": "Present",
+      "basicHours": 8,
+      "overtimeHours": 2,
+      "hourlyRate": 12.5,
+      "companyOvertimeRate": 2.22,
+      "workerOvertimeRate": 3,
+      "expected": {
+        "basicPay": 100,
+        "overtimePay": 6,
+        "totalPay": 106,
+        "daysWorked": 1
+      }
+    },
+    {
+      "name": "zero-override",
+      "status": "Present",
+      "basicHours": 8,
+      "overtimeHours": 2,
+      "hourlyRate": 12.5,
+      "companyOvertimeRate": 2.22,
+      "workerOvertimeRate": 0,
+      "expected": {
+        "basicPay": 100,
+        "overtimePay": 0,
+        "totalPay": 100,
+        "daysWorked": 1
+      }
+    }
+  ],
+  "monthly": [
+    {
+      "name": "22-working-days",
+      "days": [
+        {
+          "status": "Present",
+          "basicHours": 8,
+          "overtimeHours": 0,
+          "hourlyRate": 12.5,
+          "companyOvertimeRate": 2.22,
+          "workerOvertimeRate": null,
+          "repeat": 21
+        },
+        {
+          "status": "Present",
+          "basicHours": 8,
+          "overtimeHours": 10,
+          "hourlyRate": 12.5,
+          "companyOvertimeRate": 2.22,
+          "workerOvertimeRate": null,
+          "repeat": 1
+        }
+      ],
+      "expected": {
+        "basicPay": 2200,
+        "overtimePay": 22.2,
+        "totalPay": 2222.2,
+        "daysWorked": 22
+      }
+    },
+    {
+      "name": "sum-rounded-days",
+      "days": [
+        {
+          "status": "Present",
+          "basicHours": 7.75,
+          "overtimeHours": 0,
+          "hourlyRate": 10.5,
+          "companyOvertimeRate": 2.22,
+          "workerOvertimeRate": null,
+          "repeat": 2
+        }
+      ],
+      "expected": {
+        "basicPay": 162.76,
+        "overtimePay": 0,
+        "totalPay": 162.76,
+        "daysWorked": 2
+      }
+    }
+  ]
+}
