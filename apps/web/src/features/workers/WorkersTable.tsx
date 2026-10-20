@@ -57,6 +57,11 @@ function WorkerRow({ worker, actions, busy }: { worker: Worker; actions?: RowAct
       <td className="p-4 font-semibold text-gray-800">{worker.fullName}</td>
       <td className="p-4 text-gray-600">{worker.designation}</td>
       <td className="p-4 font-medium text-gray-800">{formatRate(worker.hourlyRate)}</td>
+      <td className="whitespace-nowrap p-4 font-medium text-gray-800">
+        {worker.overtimeRate === null
+          ? `Company rate (${formatRate(worker.effectiveOvertimeRate)})`
+          : formatRate(worker.overtimeRate)}
+      </td>
       <td className="p-4">
         <WorkerStatusBadge isActive={worker.isActive} />
       </td>
@@ -117,6 +122,7 @@ export function WorkersTable({ workers, actions, busyId }: WorkersTableProps) {
               <th scope="col" className="p-4">Full Name</th>
               <th scope="col" className="p-4">Designation</th>
               <th scope="col" className="whitespace-nowrap p-4">Base Rate (AED/hr)</th>
+              <th scope="col" className="whitespace-nowrap p-4">Overtime Rate (AED/hr)</th>
               <th scope="col" className="p-4">Status</th>
               {actions && (
                 <th scope="col" className="p-4 text-right">

@@ -51,18 +51,22 @@ afterEach(() => {
 });
 
 describe("Layout", () => {
-  it("shows the five module tabs in order to an Administrator", async () => {
+  it("shows the module tabs and Settings in order to an Administrator", async () => {
     await renderLayout("Administrator");
 
-    expect(tabLabels()).toEqual([...MODULES, "User Manager"]);
+    expect(tabLabels()).toEqual([...MODULES, "User Manager", "Settings"]);
   });
 
-  it("renders Worker Directory as a link and keeps the other tabs as disabled placeholders", async () => {
+  it("renders Worker Directory and Settings as links and keeps the other tabs as disabled placeholders", async () => {
     await renderLayout("Administrator");
     const nav = screen.getByRole("navigation", { name: "Main" });
 
-    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["Worker Directory"]);
+    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Worker Directory",
+      "Settings",
+    ]);
     expect(within(nav).getByRole("link", { name: "Worker Directory" })).toHaveAttribute("href", "/workers");
+    expect(within(nav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
     const placeholders = within(nav).getAllByRole("button");
     expect(placeholders.map((tab) => tab.textContent)).toEqual([
       "Daily Attendance",
@@ -102,16 +106,18 @@ describe("Layout", () => {
     expect(await screen.findByText("page content")).toBeInTheDocument();
   });
 
-  it("hides User Manager from HR Staff", async () => {
+  it("hides User Manager and Settings from HR Staff", async () => {
     await renderLayout("HR Staff", "hr.jane");
 
     expect(tabLabels()).toEqual(MODULES);
+    expect(screen.queryByRole("link", { name: "Settings" })).not.toBeInTheDocument();
   });
 
-  it("hides User Manager from a Viewer", async () => {
+  it("hides User Manager and Settings from a Viewer", async () => {
     await renderLayout("Viewer", "view.only");
 
     expect(tabLabels()).toEqual(MODULES);
+    expect(screen.queryByRole("link", { name: "Settings" })).not.toBeInTheDocument();
   });
 
   it("shows who is logged in and their role in the header", async () => {

@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import * as authApi from "./api/auth";
+import * as settingsApi from "./api/settings";
 import * as workersApi from "./api/workers";
 import { setAuthToken } from "./api/client";
 import { AuthProvider, TOKEN_STORAGE_KEY } from "./contexts/AuthContext";
@@ -11,8 +12,20 @@ import { AuthProvider, TOKEN_STORAGE_KEY } from "./contexts/AuthContext";
 vi.mock("./components/HealthChip", () => ({ HealthChip: () => <div>health chip</div> }));
 vi.mock("./api/auth");
 vi.mock("./api/workers");
+vi.mock("./api/settings");
 
 const admin = { id: 1, username: "admin", role: "Administrator" as const };
+
+const payrollSettings: settingsApi.PayrollSettings = {
+  companyName: "Gulf Glass LLC",
+  tagline: "",
+  contactEmail: "hr@gulfglass.example",
+  overtimeRatePerHour: 2.22,
+  maxBasicHoursPerDay: 8,
+  shiftDescription: "06:00 AM - 05:30 PM",
+  preparedByLabel: "HR Department",
+  approvedByLabel: "General Manager",
+};
 
 function renderAt(path: string) {
   render(
@@ -24,14 +37,15 @@ function renderAt(path: string) {
   );
 }
 
-function signInWithStoredToken() {
+function signInWithStoredToken(role: "Administrator" | "HR Staff" | "Viewer" = "Administrator") {
   sessionStorage.setItem(TOKEN_STORAGE_KEY, "stored-tok");
-  vi.mocked(authApi.getMe).mockResolvedValue(admin);
+  vi.mocked(authApi.getMe).mockResolvedValue({ ...admin, role });
 }
 
 beforeEach(() => {
   sessionStorage.clear();
   vi.mocked(workersApi.listWorkers).mockResolvedValue([]);
+  vi.mocked(settingsApi.getPayrollSettings).mockResolvedValue(payrollSettings);
 });
 
 afterEach(() => {
@@ -70,6 +84,38 @@ describe("App", () => {
 
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
     expect(workersApi.listWorkers).not.toHaveBeenCalled();
+  });
+
+  it("serves Settings at /settings to an Administrator, inside the layout, with its tab current", async () => {
+    signInWithStoredToken("Administrator");
+    renderAt("/settings");
+
+    expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
+    expect(await screen.findByLabelText("Company name")).toHaveValue("Gulf Glass LLC");
+    expect(screen.getByText("health chip")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it.each(["HR Staff", "Viewer"] as const)(
+    "tells %s who types /settings that they have no access, without loading or showing the form",
+    async (role) => {
+      signInWithStoredToken(role);
+      renderAt("/settings");
+
+      expect(await screen.findByText("You do not have access to this page")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Company name")).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Settings" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Settings" })).not.toBeInTheDocument();
+      expect(settingsApi.getPayrollSettings).not.toHaveBeenCalled();
+      expect(screen.getByText("health chip")).toBeInTheDocument();
+    },
+  );
+
+  it("sends a signed-out visit to /settings to the login page", async () => {
+    renderAt("/settings");
+
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(settingsApi.getPayrollSettings).not.toHaveBeenCalled();
   });
 
   it("shows a not-found page for unknown routes when signed in", async () => {

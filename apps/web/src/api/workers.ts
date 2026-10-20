@@ -7,15 +7,21 @@ export interface Worker {
   designation: string;
   /** AED per hour; a JSON number with at most two decimal places. */
   hourlyRate: number;
+  /** The worker's own overtime rate in AED per hour; null means the company rate applies. */
+  overtimeRate: number | null;
+  /** The overtime rate that actually applies: the worker's own, or the company rate. */
+  effectiveOvertimeRate: number;
   isActive: boolean;
 }
 
-/** The four editable fields, sent as the body of create and update. */
+/** The editable fields, sent as the body of create and update. */
 export interface WorkerInput {
   workerCode: string;
   fullName: string;
   designation: string;
   hourlyRate: number;
+  /** Null or omitted means the worker uses the company overtime rate. */
+  overtimeRate?: number | null;
 }
 
 export function listWorkers(includeInactive: boolean): Promise<Worker[]> {

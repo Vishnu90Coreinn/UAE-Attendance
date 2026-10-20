@@ -3,12 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Role } from "../../api/auth";
 import { ApiError } from "../../api/client";
+import * as settingsApi from "../../api/settings";
 import * as workersApi from "../../api/workers";
 import type { Worker } from "../../api/workers";
 import { useAuth } from "../../contexts/AuthContext";
 import { WorkersPage } from "./WorkersPage";
 
 vi.mock("../../api/workers");
+vi.mock("../../api/settings");
 vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
 
 const ahmed: Worker = {
@@ -17,6 +19,8 @@ const ahmed: Worker = {
   fullName: "Ahmed Khan",
   designation: "Glass Installer",
   hourlyRate: 12.5,
+  overtimeRate: null,
+  effectiveOvertimeRate: 2.22,
   isActive: true,
 };
 const sara: Worker = {
@@ -25,6 +29,8 @@ const sara: Worker = {
   fullName: "Sara Ali",
   designation: "Fabricator",
   hourlyRate: 9,
+  overtimeRate: 3,
+  effectiveOvertimeRate: 3,
   isActive: false,
 };
 
@@ -53,6 +59,16 @@ async function renderLoaded(role: Role = "HR Staff", workers: Worker[] = [ahmed]
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(workersApi.getNextWorkerCode).mockResolvedValue("EMP-005");
+  vi.mocked(settingsApi.getPayrollSettings).mockResolvedValue({
+    companyName: "Company",
+    tagline: "",
+    contactEmail: "hr@example.com",
+    overtimeRatePerHour: 2.22,
+    maxBasicHoursPerDay: 8,
+    shiftDescription: "06:00 AM - 05:30 PM",
+    preparedByLabel: "HR Department",
+    approvedByLabel: "General Manager",
+  });
 });
 
 describe("WorkersPage - content", () => {
@@ -88,13 +104,39 @@ describe("WorkersPage - content", () => {
     await renderLoaded("Administrator");
 
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers).toEqual(["ID", "Full Name", "Designation", "Base Rate (AED/hr)", "Status", "Actions"]);
+    expect(headers).toEqual([
+      "ID",
+      "Full Name",
+      "Designation",
+      "Base Rate (AED/hr)",
+      "Overtime Rate (AED/hr)",
+      "Status",
+      "Actions",
+    ]);
     const row = screen.getByRole("row", { name: /EMP-001/ });
     expect(within(row).getByText("EMP-001")).toBeInTheDocument();
     expect(within(row).getByText("Ahmed Khan")).toBeInTheDocument();
     expect(within(row).getByText("Glass Installer")).toBeInTheDocument();
     expect(within(row).getByText("12.50")).toBeInTheDocument();
     expect(within(row).getByText("Active")).toBeInTheDocument();
+  });
+
+  it("shows the company overtime rate for a worker without their own, and their own rate otherwise", async () => {
+    await renderLoaded("Administrator", [ahmed, { ...sara, isActive: true }]);
+
+    const ahmedRow = screen.getByRole("row", { name: /EMP-001/ });
+    expect(within(ahmedRow).getByText("Company rate (2.22)")).toBeInTheDocument();
+    const saraRow = screen.getByRole("row", { name: /EMP-002/ });
+    expect(within(saraRow).getByText("3.00")).toBeInTheDocument();
+    expect(within(saraRow).queryByText(/Company rate/)).not.toBeInTheDocument();
+  });
+
+  it("shows an own overtime rate of 0 as 0.00, not as the company rate", async () => {
+    await renderLoaded("Viewer", [{ ...ahmed, overtimeRate: 0, effectiveOvertimeRate: 0 }]);
+
+    const row = screen.getByRole("row", { name: /EMP-001/ });
+    expect(within(row).getByText("0.00")).toBeInTheDocument();
+    expect(within(row).queryByText(/Company rate/)).not.toBeInTheDocument();
   });
 
   it("keeps the table inside its own horizontal scroll container", async () => {
@@ -203,6 +245,7 @@ describe("WorkersPage - add and edit", () => {
       fullName: "Omar",
       designation: "Helper",
       hourlyRate: 8,
+      overtimeRate: null,
     });
     await waitFor(() => expect(screen.getByText("EMP-005", { selector: "td" })).toBeInTheDocument());
     expect(workersApi.listWorkers).toHaveBeenCalledTimes(2);

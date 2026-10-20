@@ -11,13 +11,14 @@ export interface NavItem {
 
 const ALL_ROLES: readonly Role[] = ["Administrator", "HR Staff", "Viewer"];
 
-/** The five prototype tabs, in prototype order. Each becomes a real route in its own slice. */
+/** The five prototype tabs in prototype order, then Settings. Each becomes a real route in its own slice. */
 export const NAV_ITEMS: readonly NavItem[] = [
   { key: "workers", label: "Worker Directory", roles: ALL_ROLES, path: "/workers" },
   { key: "attendance", label: "Daily Attendance", roles: ALL_ROLES },
   { key: "payroll", label: "Payroll Summary", roles: ALL_ROLES },
   { key: "leave", label: "Leave Management", roles: ALL_ROLES },
   { key: "users", label: "User Manager", roles: ["Administrator"] },
+  { key: "settings", label: "Settings", roles: ["Administrator"], path: "/settings" },
 ];
 
 export function navItemsForRole(role: Role): NavItem[] {

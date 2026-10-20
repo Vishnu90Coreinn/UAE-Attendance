@@ -1,9 +1,15 @@
 import type { WorkerInput } from "../../api/workers";
 
-export type WorkerField = "workerCode" | "fullName" | "designation" | "hourlyRate";
+export type WorkerField = "workerCode" | "fullName" | "designation" | "hourlyRate" | "overtimeRate";
 
 /** Form order, which is also the order errors are listed and the first invalid field is focused. */
-export const FIELD_ORDER: readonly WorkerField[] = ["workerCode", "fullName", "designation", "hourlyRate"];
+export const FIELD_ORDER: readonly WorkerField[] = [
+  "workerCode",
+  "fullName",
+  "designation",
+  "hourlyRate",
+  "overtimeRate",
+];
 
 export type WorkerFormValues = Record<WorkerField, string>;
 export type FieldMessages = Partial<Record<WorkerField, string>>;
@@ -41,6 +47,27 @@ function validateRate(text: string): string | undefined {
   return undefined;
 }
 
+/** The overtime rate is optional: blank means "use the company rate", and 0 means no overtime pay. */
+function validateOvertimeRate(text: string): string | undefined {
+  if (text === "") {
+    return undefined;
+  }
+  if (!NUMBER_PATTERN.test(text)) {
+    return "Enter the overtime rate as a number, for example 2.50.";
+  }
+  const rate = Number(text);
+  if (rate < 0) {
+    return "Overtime rate cannot be negative.";
+  }
+  if ((text.split(".")[1]?.length ?? 0) > 2) {
+    return "Overtime rate can have at most 2 decimal places.";
+  }
+  if (rate > MAX_RATE) {
+    return `Overtime rate must be at most ${MAX_RATE}.`;
+  }
+  return undefined;
+}
+
 /** Client-side mirror of the server's worker rules (W1); the server stays the authority. */
 export function validateWorker(values: WorkerFormValues): FieldMessages {
   const errors: FieldMessages = {};
@@ -72,15 +99,22 @@ export function validateWorker(values: WorkerFormValues): FieldMessages {
   if (rateError) {
     errors.hourlyRate = rateError;
   }
+
+  const overtimeError = validateOvertimeRate(values.overtimeRate.trim());
+  if (overtimeError) {
+    errors.overtimeRate = overtimeError;
+  }
   return errors;
 }
 
-/** Only call this for values that passed validateWorker. */
+/** Only call this for values that passed validateWorker. A blank overtime rate becomes null (company rate). */
 export function toWorkerInput(values: WorkerFormValues): WorkerInput {
+  const overtime = values.overtimeRate.trim();
   return {
     workerCode: values.workerCode.trim(),
     fullName: values.fullName.trim(),
     designation: values.designation.trim(),
     hourlyRate: Number(values.hourlyRate.trim()),
+    overtimeRate: overtime === "" ? null : Number(overtime),
   };
 }

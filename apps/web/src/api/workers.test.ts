@@ -20,6 +20,8 @@ const worker: Worker = {
   fullName: "Ahmed Khan",
   designation: "Glass Installer",
   hourlyRate: 12.5,
+  overtimeRate: null,
+  effectiveOvertimeRate: 2.22,
   isActive: true,
 };
 
@@ -28,6 +30,7 @@ const input: WorkerInput = {
   fullName: "Ahmed Khan",
   designation: "Glass Installer",
   hourlyRate: 12.5,
+  overtimeRate: null,
 };
 
 beforeEach(() => {
@@ -65,6 +68,16 @@ describe("workers api", () => {
     await expect(createWorker(input)).resolves.toEqual(worker);
 
     expect(client.apiPost).toHaveBeenCalledWith("/api/workers", input);
+  });
+
+  it("sends an own overtime rate when creating, and null to use the company rate", async () => {
+    vi.mocked(client.apiPost).mockResolvedValue(worker);
+
+    await createWorker({ ...input, overtimeRate: 3 });
+    await createWorker({ ...input, overtimeRate: null });
+
+    expect(client.apiPost).toHaveBeenNthCalledWith(1, "/api/workers", { ...input, overtimeRate: 3 });
+    expect(client.apiPost).toHaveBeenNthCalledWith(2, "/api/workers", { ...input, overtimeRate: null });
   });
 
   it("updates a worker with PUT on its id", async () => {

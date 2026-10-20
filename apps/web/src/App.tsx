@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { LoginPage } from "./features/auth/LoginPage";
 import { ProtectedRoute } from "./features/auth/ProtectedRoute";
+import { RequireRole } from "./features/auth/RequireRole";
+import { SettingsPage } from "./features/settings/SettingsPage";
 import { WorkersPage } from "./features/workers/WorkersPage";
 import { NotFound } from "./pages/NotFound";
 
@@ -14,6 +16,14 @@ export default function App() {
         <Route element={<Layout />}>
           <Route index element={<Navigate to="/workers" replace />} />
           <Route path="workers" element={<WorkersPage />} />
+          <Route
+            path="settings"
+            element={
+              <RequireRole roles={["Administrator"]}>
+                <SettingsPage />
+              </RequireRole>
+            }
+          />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Route>

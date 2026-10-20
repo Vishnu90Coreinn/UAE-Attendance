@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from "react";
 import { Loader2, Save } from "lucide-react";
 import { ApiError } from "../../api/client";
+import { getPayrollSettings } from "../../api/settings";
 import { createWorker, getNextWorkerCode, updateWorker, type Worker } from "../../api/workers";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
@@ -22,8 +23,9 @@ function initialValues(worker: Worker | null): WorkerFormValues {
         fullName: worker.fullName,
         designation: worker.designation,
         hourlyRate: formatRate(worker.hourlyRate),
+        overtimeRate: worker.overtimeRate === null ? "" : formatRate(worker.overtimeRate),
       }
-    : { workerCode: "", fullName: "", designation: "", hourlyRate: "" };
+    : { workerCode: "", fullName: "", designation: "", hourlyRate: "", overtimeRate: "" };
 }
 
 interface FormProps {
@@ -38,11 +40,13 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
   const nameRef = useRef<HTMLInputElement>(null);
   const designationRef = useRef<HTMLInputElement>(null);
   const rateRef = useRef<HTMLInputElement>(null);
+  const overtimeRef = useRef<HTMLInputElement>(null);
   const refs: Record<WorkerField, RefObject<HTMLInputElement | null>> = {
     workerCode: firstFieldRef,
     fullName: nameRef,
     designation: designationRef,
     hourlyRate: rateRef,
+    overtimeRate: overtimeRef,
   };
 
   const [values, setValues] = useState<WorkerFormValues>(() => initialValues(worker));
@@ -50,6 +54,25 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
   const [serverErrors, setServerErrors] = useState<FieldMessages>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // The company overtime rate, shown in the hint; stays null when it cannot be read.
+  const [companyRate, setCompanyRate] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const settings = await getPayrollSettings();
+        if (!cancelled) {
+          setCompanyRate(settings.overtimeRatePerHour);
+        }
+      } catch {
+        // The hint simply omits the rate.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // A new worker gets the next free ID suggested; it never overwrites something the user already typed.
   useEffect(() => {
@@ -115,7 +138,7 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
     if (pending) {
       return;
     }
-    setTouched({ workerCode: true, fullName: true, designation: true, hourlyRate: true });
+    setTouched(Object.fromEntries(FIELD_ORDER.map((name) => [name, true])));
     setGeneralError(null);
 
     const firstInvalid = FIELD_ORDER.find((field) => clientErrors[field]);
@@ -159,6 +182,18 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
         {...field("designation")}
       />
       <TextField label="Base hourly rate (AED)" type="text" inputMode="decimal" autoComplete="off" {...field("hourlyRate")} />
+      <TextField
+        label="Overtime rate (AED/hr) - optional"
+        type="text"
+        inputMode="decimal"
+        autoComplete="off"
+        hint={
+          companyRate === null
+            ? "Leave blank to use the company rate"
+            : `Leave blank to use the company rate (${formatRate(companyRate)})`
+        }
+        {...field("overtimeRate")}
+      />
 
       {summary.length > 0 && (
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

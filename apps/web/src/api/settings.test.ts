@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "./client";
-import { getPayrollSettings, type PayrollSettings } from "./settings";
+import { getPayrollSettings, updatePayrollSettings, type PayrollSettings } from "./settings";
 
 vi.mock("./client");
 
@@ -26,5 +26,14 @@ describe("settings api", () => {
     await expect(getPayrollSettings()).resolves.toEqual(settings);
 
     expect(client.apiGet).toHaveBeenCalledWith("/api/settings/payroll");
+  });
+
+  it("saves the payroll settings with PUT and returns what the server stored", async () => {
+    const saved = { ...settings, overtimeRatePerHour: 2.5 };
+    vi.mocked(client.apiPut).mockResolvedValue(saved);
+
+    await expect(updatePayrollSettings(saved)).resolves.toEqual(saved);
+
+    expect(client.apiPut).toHaveBeenCalledWith("/api/settings/payroll", saved);
   });
 });

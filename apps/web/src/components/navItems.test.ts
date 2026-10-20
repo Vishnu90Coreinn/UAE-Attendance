@@ -8,19 +8,19 @@ function labelsFor(role: Parameters<typeof navItemsForRole>[0]) {
 }
 
 describe("navItemsForRole", () => {
-  it("gives an Administrator the four modules plus User Manager, in prototype order", () => {
-    expect(labelsFor("Administrator")).toEqual([...MODULES, "User Manager"]);
+  it("gives an Administrator the four modules plus User Manager and Settings, in order", () => {
+    expect(labelsFor("Administrator")).toEqual([...MODULES, "User Manager", "Settings"]);
   });
 
-  it("gives HR Staff the four modules without User Manager", () => {
+  it("gives HR Staff the four modules without User Manager or Settings", () => {
     expect(labelsFor("HR Staff")).toEqual(MODULES);
   });
 
-  it("gives a Viewer the four modules without User Manager", () => {
+  it("gives a Viewer the four modules without User Manager or Settings", () => {
     expect(labelsFor("Viewer")).toEqual(MODULES);
   });
 
-  it("gives only Worker Directory a route for now; the other tabs stay placeholders", () => {
+  it("gives Worker Directory and Settings a route; the other tabs stay placeholders", () => {
     const paths = Object.fromEntries(navItemsForRole("Administrator").map((item) => [item.label, item.path]));
 
     expect(paths).toEqual({
@@ -29,6 +29,7 @@ describe("navItemsForRole", () => {
       "Payroll Summary": undefined,
       "Leave Management": undefined,
       "User Manager": undefined,
+      Settings: "/settings",
     });
   });
 });

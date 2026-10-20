@@ -2,11 +2,24 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../api/client";
+import * as settingsApi from "../../api/settings";
 import * as workersApi from "../../api/workers";
 import type { Worker } from "../../api/workers";
 import { WorkerFormDialog } from "./WorkerFormDialog";
 
 vi.mock("../../api/workers");
+vi.mock("../../api/settings");
+
+const companySettings: settingsApi.PayrollSettings = {
+  companyName: "Company",
+  tagline: "",
+  contactEmail: "hr@example.com",
+  overtimeRatePerHour: 2.22,
+  maxBasicHoursPerDay: 8,
+  shiftDescription: "06:00 AM - 05:30 PM",
+  preparedByLabel: "HR Department",
+  approvedByLabel: "General Manager",
+};
 
 const existing: Worker = {
   id: 7,
@@ -14,6 +27,8 @@ const existing: Worker = {
   fullName: "Ahmed Khan",
   designation: "Glass Installer",
   hourlyRate: 12.5,
+  overtimeRate: null,
+  effectiveOvertimeRate: 2.22,
   isActive: true,
 };
 
@@ -29,6 +44,7 @@ const code = () => screen.getByLabelText("Worker ID");
 const name = () => screen.getByLabelText("Full name");
 const role = () => screen.getByLabelText("Designation");
 const rate = () => screen.getByLabelText("Base hourly rate (AED)");
+const overtime = () => screen.getByLabelText("Overtime rate (AED/hr) - optional");
 const save = () => screen.getByRole("button", { name: "Save worker" });
 
 async function fillValid(user: ReturnType<typeof userEvent.setup>) {
@@ -43,6 +59,7 @@ async function fillValid(user: ReturnType<typeof userEvent.setup>) {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(workersApi.getNextWorkerCode).mockResolvedValue("EMP-005");
+  vi.mocked(settingsApi.getPayrollSettings).mockResolvedValue(companySettings);
 });
 
 describe("WorkerFormDialog - add", () => {
@@ -104,6 +121,7 @@ describe("WorkerFormDialog - add", () => {
       fullName: "Sara Ali",
       designation: "Fabricator",
       hourlyRate: 11.5,
+      overtimeRate: null,
     });
     expect(workersApi.updateWorker).not.toHaveBeenCalled();
   });
@@ -157,8 +175,138 @@ describe("WorkerFormDialog - edit", () => {
       fullName: "Ahmed Khan",
       designation: "Glass Installer",
       hourlyRate: 14,
+      overtimeRate: null,
     });
     expect(workersApi.createWorker).not.toHaveBeenCalled();
+  });
+
+  it("prefills the worker's own overtime rate to two decimals", async () => {
+    setup({ ...existing, overtimeRate: 3 });
+
+    await screen.findByRole("dialog", { name: "Edit Worker Profile" });
+    expect(overtime()).toHaveValue("3.00");
+  });
+
+  it("leaves the overtime rate blank for a worker who uses the company rate", async () => {
+    setup(existing);
+
+    await screen.findByRole("dialog", { name: "Edit Worker Profile" });
+    expect(overtime()).toHaveValue("");
+  });
+
+  it("sends null when the overtime rate is cleared so the worker falls back to the company rate", async () => {
+    vi.mocked(workersApi.updateWorker).mockResolvedValue(existing);
+    const { user, onSaved } = setup({ ...existing, overtimeRate: 3 });
+
+    await user.clear(overtime());
+    await user.click(save());
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(workersApi.updateWorker).toHaveBeenCalledWith(7, expect.objectContaining({ overtimeRate: null }));
+  });
+});
+
+describe("WorkerFormDialog - overtime rate", () => {
+  it("is an optional, labelled decimal field with the company rate in its hint", async () => {
+    setup();
+
+    expect(overtime()).toHaveAttribute("inputmode", "decimal");
+    expect(overtime()).toHaveValue("");
+    expect(overtime()).not.toBeRequired();
+    expect(await screen.findByText("Leave blank to use the company rate (2.22)")).toBeInTheDocument();
+    expect(overtime()).toHaveAccessibleDescription("Leave blank to use the company rate (2.22)");
+    expect(settingsApi.getPayrollSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the company rate with two decimals", async () => {
+    vi.mocked(settingsApi.getPayrollSettings).mockResolvedValue({ ...companySettings, overtimeRatePerHour: 2.5 });
+    setup();
+
+    expect(await screen.findByText("Leave blank to use the company rate (2.50)")).toBeInTheDocument();
+  });
+
+  it("shows the hint without a rate when the company settings cannot be read, and still works", async () => {
+    vi.mocked(settingsApi.getPayrollSettings).mockRejectedValue(new ApiError(0, "Unable to reach the server."));
+    vi.mocked(workersApi.createWorker).mockResolvedValue(existing);
+    const { user } = setup();
+    await fillValid(user);
+
+    await waitFor(() => expect(settingsApi.getPayrollSettings).toHaveBeenCalled());
+    expect(screen.getByText("Leave blank to use the company rate")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await user.click(save());
+    await waitFor(() => expect(workersApi.createWorker).toHaveBeenCalled());
+  });
+
+  it("sends the typed overtime rate as a number", async () => {
+    vi.mocked(workersApi.createWorker).mockResolvedValue(existing);
+    const { user } = setup();
+    await fillValid(user);
+    await user.type(overtime(), " 3.5 ");
+
+    await user.click(save());
+
+    await waitFor(() => expect(workersApi.createWorker).toHaveBeenCalledTimes(1));
+    expect(workersApi.createWorker).toHaveBeenCalledWith(expect.objectContaining({ overtimeRate: 3.5 }));
+  });
+
+  it("accepts 0 (no overtime pay) and sends it as 0, not null", async () => {
+    vi.mocked(workersApi.createWorker).mockResolvedValue(existing);
+    const { user } = setup();
+    await fillValid(user);
+    await user.type(overtime(), "0");
+
+    await user.click(save());
+
+    await waitFor(() => expect(workersApi.createWorker).toHaveBeenCalledTimes(1));
+    expect(workersApi.createWorker).toHaveBeenCalledWith(expect.objectContaining({ overtimeRate: 0 }));
+  });
+
+  it.each([
+    ["abc", "Enter the overtime rate as a number, for example 2.50."],
+    ["-1", "Overtime rate cannot be negative."],
+    ["1000", "Overtime rate must be at most 999.99."],
+    ["2.345", "Overtime rate can have at most 2 decimal places."],
+  ])("rejects the overtime rate %s without calling the API", async (value, message) => {
+    const { user } = setup();
+    await fillValid(user);
+    await user.type(overtime(), value);
+
+    await user.click(save());
+
+    expect(overtime()).toHaveAccessibleDescription(expect.stringContaining(message));
+    expect(overtime()).toHaveAttribute("aria-invalid", "true");
+    expect(overtime()).toHaveFocus();
+    expect(screen.getByRole("alert")).toHaveTextContent(message);
+    expect(workersApi.createWorker).not.toHaveBeenCalled();
+  });
+
+  it("shows the overtime error as soon as the user leaves the field", async () => {
+    const { user } = setup();
+    await user.type(overtime(), "-4");
+    await user.tab();
+
+    expect(overtime()).toHaveAccessibleDescription(expect.stringContaining("Overtime rate cannot be negative."));
+  });
+
+  it("shows a server overtimeRate error under the field and keeps the form open", async () => {
+    vi.mocked(workersApi.createWorker).mockRejectedValue(
+      new ApiError(400, "Overtime rate is too high.", undefined, undefined, {
+        overtimeRate: ["Overtime rate is too high."],
+      }),
+    );
+    const { user, onSaved } = setup();
+    await fillValid(user);
+    await user.type(overtime(), "5");
+
+    await user.click(save());
+
+    await screen.findByText("Overtime rate is too high.", { selector: "p[id]" });
+    expect(overtime()).toHaveAccessibleDescription(expect.stringContaining("Overtime rate is too high."));
+    expect(overtime()).toHaveAttribute("aria-invalid", "true");
+    expect(overtime()).toHaveFocus();
+    expect(screen.getByRole("alert")).toHaveTextContent("Overtime rate is too high.");
+    expect(onSaved).not.toHaveBeenCalled();
   });
 });
 
