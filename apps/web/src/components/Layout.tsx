@@ -1,4 +1,5 @@
 import { Outlet } from "react-router-dom";
+import { COMPANY_NAME } from "../branding";
 import { HealthChip } from "./HealthChip";
 import { NAV_ITEMS } from "./navItems";
 
@@ -15,7 +16,7 @@ export function Layout() {
       <header className="bg-slate-900 text-white shadow-md">
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4">
           <div>
-            <h1 className="text-lg font-bold leading-tight">DE AKS BE GLASS &amp; ALUMINIUM CO. L.L.C S.O.C</h1>
+            <h1 className="text-lg font-bold leading-tight">{COMPANY_NAME}</h1>
             <p className="text-xs text-blue-300">Official HR &amp; Payroll System</p>
           </div>
           <HealthChip />

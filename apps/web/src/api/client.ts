@@ -5,10 +5,30 @@ export class ApiError extends Error {
     message: string,
     public readonly correlationId?: string,
     public readonly body?: unknown,
+    /** Validation errors from a ValidationProblemDetails response, keyed by (camelCase) field name. */
+    public readonly fieldErrors?: Record<string, string[]>,
   ) {
     super(message);
     this.name = "ApiError";
   }
+}
+
+export interface RequestOptions {
+  /** Do not treat a 401 as an expired session (used by the login call itself). */
+  skipUnauthorizedHandler?: boolean;
+}
+
+let authToken: string | null = null;
+let unauthorizedHandler: (() => void) | null = null;
+
+/** Sets (or clears, with null) the bearer token sent with every request. */
+export function setAuthToken(token: string | null): void {
+  authToken = token;
+}
+
+/** Registers the callback run when the API answers 401 (session expired or token rejected). */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -23,22 +43,47 @@ async function readJson(response: Response): Promise<unknown> {
   return response.json().catch(() => undefined);
 }
 
+function parseFieldErrors(problem: Record<string, unknown> | undefined): Record<string, string[]> | undefined {
+  if (!isRecord(problem?.errors)) {
+    return undefined;
+  }
+  const result: Record<string, string[]> = {};
+  for (const [field, messages] of Object.entries(problem.errors)) {
+    if (Array.isArray(messages)) {
+      const texts = messages.filter((m): m is string => typeof m === "string");
+      if (texts.length > 0) {
+        result[field] = texts;
+      }
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 function toApiError(response: Response, body: unknown): ApiError {
   const problem = isRecord(body) ? body : undefined;
+  const fieldErrors = parseFieldErrors(problem);
+  const firstFieldError = fieldErrors ? Object.values(fieldErrors)[0][0] : undefined;
   const message =
-    typeof problem?.title === "string" ? problem.title : `Request failed (${response.status})`;
+    firstFieldError ??
+    (typeof problem?.title === "string" ? problem.title : `Request failed (${response.status})`);
   const correlationId =
     typeof problem?.correlationId === "string"
       ? problem.correlationId
       : (response.headers.get("X-Correlation-ID") ?? undefined);
 
-  return new ApiError(response.status, message, correlationId, body);
+  return new ApiError(response.status, message, correlationId, body, fieldErrors);
 }
 
-export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+async function send<T>(path: string, init: RequestInit, options?: RequestOptions): Promise<T> {
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
+    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+  };
+
   let response: Response;
   try {
-    response = await fetch(path, { method: "GET", headers: { Accept: "application/json" }, signal });
+    response = await fetch(path, { ...init, headers });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw error;
@@ -46,9 +91,29 @@ export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> 
     throw new ApiError(0, "Unable to reach the server.");
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   const body = await readJson(response);
   if (!response.ok) {
+    if (response.status === 401 && !options?.skipUnauthorizedHandler) {
+      unauthorizedHandler?.();
+    }
     throw toApiError(response, body);
   }
   return body as T;
+}
+
+export function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return send<T>(path, { method: "GET", signal });
+}
+
+export function apiPost<T = void>(
+  path: string,
+  body: unknown,
+  signal?: AbortSignal,
+  options?: RequestOptions,
+): Promise<T> {
+  return send<T>(path, { method: "POST", body: JSON.stringify(body), signal }, options);
 }
