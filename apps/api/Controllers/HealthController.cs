@@ -1,11 +1,13 @@
 using HrPayroll.Api.Data;
 using HrPayroll.Api.Dtos;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace HrPayroll.Api.Controllers;
 
 [ApiController]
+[AllowAnonymous]
 [Route("api/health")]
 public sealed class HealthController(AppDbContext db) : ControllerBase
 {

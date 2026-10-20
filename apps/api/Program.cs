@@ -1,7 +1,16 @@
+using System.Security.Claims;
+using System.Text;
+using HrPayroll.Api.Auth;
 using HrPayroll.Api.Data;
+using HrPayroll.Api.Data.Entities;
 using HrPayroll.Api.Middleware;
 using HrPayroll.Api.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Serilog.Events;
 
@@ -34,8 +43,47 @@ builder.Host.UseSerilog((context, logger) =>
 builder.Services.AddDbContext<AppDbContext>((services, options) =>
     options.UseSqlServer(services.GetRequiredService<IConfiguration>().GetConnectionString("Default")));
 
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuditLogger, AuditLogger>();
+
+// Authentication. Jwt settings are read lazily (when first needed) so test hosts and environment variables can
+// override them; the startup check below refuses to run without a usable key.
+builder.Services.AddOptions<JwtOptions>().Configure<IConfiguration>(
+    (options, configuration) => configuration.GetSection(JwtOptions.SectionName).Bind(options));
+builder.Services.AddSingleton<JwtTokenService>();
+builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
+builder.Services.AddScoped<AuthService>();
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<IOptions<JwtOptions>>((bearer, jwtOptions) =>
+    {
+        var jwt = jwtOptions.Value;
+        bearer.MapInboundClaims = false; // keep "sub" as "sub"; name and role are already the long ClaimTypes URIs
+        bearer.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwt.Issuer,
+            ValidateAudience = true,
+            ValidAudience = jwt.Audience,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(1),
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key)),
+            ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
+            NameClaimType = ClaimTypes.Name,
+            RoleClaimType = ClaimTypes.Role,
+        };
+    });
+
+builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, UnmatchedRouteFriendlyAuthorizationResultHandler>();
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy(Policies.AnyUser, policy => policy.RequireAuthenticatedUser())
+    .AddPolicy(Policies.HrOrAdmin, policy => policy.RequireAuthenticatedUser().RequireRole(Roles.Administrator, Roles.HrStaff))
+    .AddPolicy(Policies.AdminOnly, policy => policy.RequireAuthenticatedUser().RequireRole(Roles.Administrator))
+    // Secure by default: any endpoint without its own authorization metadata needs a signed-in user.
+    .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
 builder.Services.AddControllers();
 
@@ -47,6 +95,13 @@ if (string.IsNullOrWhiteSpace(app.Configuration.GetConnectionString("Default")))
         "ConnectionStrings:Default is not configured. Set the ConnectionStrings__Default environment variable.");
 }
 
+var jwtKey = app.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < JwtOptions.MinimumKeyLength)
+{
+    throw new InvalidOperationException(
+        $"Jwt:Key must be at least {JwtOptions.MinimumKeyLength} characters. Set the Jwt__Key environment variable.");
+}
+
 if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 {
     using var scope = app.Services.CreateScope();
@@ -56,6 +111,8 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseSerilogRequestLogging();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 
