@@ -59,6 +59,7 @@ builder.Services.AddOptions<JwtOptions>().Configure<IConfiguration>(
 builder.Services.AddSingleton<JwtTokenService>();
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<AdminSeeder>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
@@ -164,6 +165,12 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 {
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+}
+
+// First run (A12): create the initial administrator once the database is reachable and migrated.
+using (var scope = app.Services.CreateScope())
+{
+    await scope.ServiceProvider.GetRequiredService<AdminSeeder>().SeedWhenReadyAsync();
 }
 
 app.UseMiddleware<CorrelationIdMiddleware>();

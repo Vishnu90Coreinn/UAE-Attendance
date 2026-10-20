@@ -6,6 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>HrPayroll.Api</RootNamespace>
     <AssemblyName>HrPayroll.Api</AssemblyName>
+    <!-- Holds the development-only Seed:AdminUsername and Seed:AdminPassword (see README, First run) -->
+    <UserSecretsId>hrpayroll-api-3f6b1c8e-5a47-4d2e-9b0a-7c1d2e4f8a90</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
