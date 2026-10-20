@@ -69,7 +69,7 @@ Everything the prototype does, including behaviour that is only implied by its c
 | P8 | File name `Payroll_YYYY-MM.pdf` | KEEP | |
 | P9 | Pay uses each worker's current rate, so history changes when a rate changes | FIX | Month can be finalised: figures frozen in a snapshot |
 | P10 | Overtime rate hardcoded `2.22` in code | FIX | `PayrollSettings.OvertimeRatePerHour` |
-| P11 | Column titled "Total Net Salary" but it is basic + OT only | FIX | Relabel "Total Salary" (no deductions exist) — confirm wording |
+| P11 | Column titled "Total Net Salary" (basic + OT only; no deductions exist) | KEEP | Owner decision 2026-10-20: keep the prototype wording "Total Net Salary" |
 
 ### Leave Management
 
@@ -117,7 +117,7 @@ Everything the prototype does, including behaviour that is only implied by its c
 |----|----------|---------------------------|
 | O1 | "Mark all present (8 h)" button on the attendance screen. Fills the form; nothing is saved until Save day. Keeps the prototype's convenience without the silent default | Not built |
 | O2 | "Show inactive workers" toggle in the directory | Built (needed if deactivation is chosen) |
-| O3 | Administrator settings screen for overtime rate and company details | Not built. Values live in `PayrollSettings`; changing them is a developer task. The quote treats rule changes as change requests |
+| O3 | Administrator settings screen for overtime rate and company details | **Approved 2026-10-20 — built as slice S2b**, together with an optional per-worker overtime rate that overrides the company rate. (Worker hourly rate was already editable per worker in S2.) |
 
 **Not delivering (quote exclusions and YAGNI).**
 Leave accrual or entitlement balances · deductions, advances, loans · public-holiday rules · WPS file export · biometric, WhatsApp or any third-party integration · multi-company or multi-tenant · import of existing worker/attendance records · user training · native mobile app · email notifications · password-reset by email · MFA · audit-log screen · report builder or Excel export · attendance calendar or bulk-month entry.
@@ -218,10 +218,10 @@ UAE-Attendance/
 | `Users` | Id, Username, PasswordHash, Role, IsActive, FailedLoginCount, LockoutEndUtc, CreatedUtc | Unique `Username` (case-insensitive); `Role` check in (Administrator, HR Staff, Viewer) | S1 |
 | `AuditLogs` | Id, TimestampUtc, ActorUsername, Action, EntityType, EntityId, DetailsJson | No FK to Users (survives user deletion) | S1 |
 | `PayrollSettings` | Id (=1), CompanyName, Tagline, ContactEmail, OvertimeRatePerHour, MaxBasicHoursPerDay, ShiftDescription, PreparedByLabel, ApprovedByLabel | Single-row check | S2 |
-| `Workers` | Id, WorkerCode, FullName, Designation, HourlyRate, IsActive, CreatedUtc, UpdatedUtc | Unique `WorkerCode` (case-insensitive); `HourlyRate` > 0 | S2 |
+| `Workers` | Id, WorkerCode, FullName, Designation, HourlyRate, **OvertimeRate (nullable)**, IsActive, CreatedUtc, UpdatedUtc | Unique `WorkerCode` (case-insensitive); `HourlyRate` > 0; `OvertimeRate` is NULL (= company rate) or ≥ 0 (added in S2b) | S2 / S2b |
 | `Attendance` | Id, WorkerId, WorkDate, Status, BasicHours, OvertimeHours, UpdatedUtc, UpdatedBy | Unique (`WorkerId`, `WorkDate`); `Status` in (Present, Absent); hours ≥ 0; absent ⇒ hours 0; index on `WorkDate`; FK restrict | S3 |
 | `PayrollPeriods` | Id, Year, Month, OvertimeRateApplied, FinalisedUtc, FinalisedBy | Unique (`Year`, `Month`). A row exists only for finalised months | S5 |
-| `PayrollDetails` | Id, PeriodId, WorkerId, WorkerCode, WorkerName, Designation, HourlyRate, DaysWorked, BasicHours, OvertimeHours, BasicPay, OvertimePay, TotalPay | FK `PeriodId` cascade; unique (`PeriodId`, `WorkerId`) | S5 |
+| `PayrollDetails` | Id, PeriodId, WorkerId, WorkerCode, WorkerName, Designation, HourlyRate, **OvertimeRate** (the effective rate used), DaysWorked, BasicHours, OvertimeHours, BasicPay, OvertimePay, TotalPay | FK `PeriodId` cascade; unique (`PeriodId`, `WorkerId`) | S5 |
 | `LeaveRequests` | Id, WorkerId, LeaveType, StartDate, EndDate, Days, Status, CreatedBy, CreatedUtc, DecidedBy, DecidedUtc | Check `EndDate >= StartDate`; `LeaveType` in the four types; `Status` in (Pending, Approved, Rejected); FK restrict | S6 |
 
 ---
@@ -233,14 +233,14 @@ These rules are implemented once in `PayrollCalculator` and covered by `docs/pay
 | # | Rule |
 |---|------|
 | R1 | Daily basic pay = `BasicHours × WorkerHourlyRate`, rounded to 2 dp (half away from zero) |
-| R2 | Daily overtime pay = `OvertimeHours × OvertimeRatePerHour`, rounded to 2 dp |
+| R2 | Daily overtime pay = `OvertimeHours × effective overtime rate`, rounded to 2 dp. Effective rate = the worker's own `OvertimeRate` if set, otherwise the company `OvertimeRatePerHour` from `PayrollSettings` (both user-editable from S2b) |
 | R3 | Daily total = R1 + R2. **Absent or Not recorded = 0.00** |
 | R4 | Days worked = count of days with Status = Present |
 | R5 | Month basic / OT / total = sum of the rounded daily figures; grand totals = sum of the rounded worker rows |
 | R6 | Present requires basic hours > 0. Absent forces both hours to 0 |
 | R7 | Basic hours ≤ `MaxBasicHoursPerDay` (8). Basic + overtime ≤ 24 |
 | R8 | A finalised month rejects any attendance write for a date inside it (HTTP 409) |
-| R9 | Draft payroll uses the worker's current rate and the current overtime rate. Finalising copies both into the snapshot; the finalised view and PDF read only the snapshot |
+| R9 | Draft payroll uses the worker's current hourly rate and current effective overtime rate, so a rate change recalculates every month that is **not finalised**. Finalising copies both rates (per worker) into the snapshot; the finalised view and PDF read only the snapshot |
 | R10 | Payroll lists every active worker, plus any inactive worker with attendance in that month |
 | R11 | Leave days = `EndDate − StartDate + 1` (calendar days). End before start is rejected. A worker cannot have two overlapping non-rejected requests |
 
@@ -317,6 +317,16 @@ A slice is complete only when a user can do the thing in the browser, backed by 
 - [ ] `DevSeeder` loads the four prototype workers (development environment only)
 - [ ] Web: `features/workers` list, form with client-side validation mirroring server rules, role-aware buttons
 - [ ] `utils/money.ts` formatter (2 dp, "AED")
+
+### S2b — Settings and overtime rates (0.5–0.75 day; added 2026-10-20, built before S3)
+
+**Why:** the owner wants the salary and overtime amounts to be user-defined. A worker's hourly rate is already editable (S2); the overtime rate was fixed at AED 2.22. This slice makes overtime configurable at two levels so `PayrollCalculator` (S3) is built on final rules.
+
+**Demo:** the Administrator opens **Settings**, changes the company overtime rate from 2.22 to 2.50 and saves; on a worker, sets an overtime rate of 3.00 (blank = company rate); the worker list shows the effective overtime rate; HR Staff and Viewer cannot open Settings or change the company rate.
+
+**Rules:** `PUT /api/settings/payroll` (**Administrator only**; reads stay `AnyUser`) updates `companyName`, `tagline`, `contactEmail`, `overtimeRatePerHour` (0–999.99, ≤ 2 dp), `maxBasicHoursPerDay` (> 0, ≤ 24), `shiftDescription`, `preparedByLabel`, `approvedByLabel`; every field validated and trimmed; an audit row `SettingsChanged` holds only changed fields as `{old,new}`; nothing changed → no audit row. `Workers.OvertimeRate` nullable decimal(9,2), NULL or ≥ 0 (0 = no overtime pay); create/update accept an optional `overtimeRate` (blank/null = use the company rate); changes are audited like the hourly rate; worker JSON gains `overtimeRate` (nullable) and `effectiveOvertimeRate`. Migration `AddOvertimeRates`. R2/R9 as above.
+**UI:** a **Settings** tab (Administrator only) with labelled fields, a note "Changing the overtime rate recalculates every month that is not finalised", success/error feedback; the worker form gets "Overtime rate (AED/hr) — optional" with the hint "Leave blank to use the company rate (X)"; the worker table gets an "Overtime Rate (AED/hr)" column showing the value or "Company rate (X)".
+**Tests:** role matrix for the PUT (HR/Viewer 403), validation matrix, audit rows, worker override round-trip, constraint (negative override rejected), existing worker tests keep passing, web tests for the Settings screen, tab visibility by role and the worker form/table changes.
 
 ### S3 — Daily attendance (1–1.5 days)
 

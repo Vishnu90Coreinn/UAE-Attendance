@@ -64,7 +64,7 @@ Integration tests create and drop their own database (`HrPayroll_Test_<guid>`); 
 | `Users` | `Id` int identity · `Username` nvarchar(50) unique, case-insensitive (`SQL_Latin1_General_CP1_CI_AS`) · `PasswordHash` nvarchar(256) (PBKDF2 via `PasswordHasher<User>`) · `Role` nvarchar(20) CHECK in (`Administrator`,`HR Staff`,`Viewer`) · `IsActive` · `FailedLoginCount` · `LockoutEndUtc` · `CreatedUtc` |
 | `AuditLogs` | `Id` bigint · `TimestampUtc` · `ActorUsername` · `Action` · `EntityType` · `EntityId` · `DetailsJson`. No FK to Users (rows must survive user deletion). Index on `TimestampUtc` |
 | `Workers` | `Id` · `WorkerCode` nvarchar(20) unique case-insensitive · `FullName`(120) · `Designation`(80) · `HourlyRate` decimal(9,2) CHECK > 0 · `IsActive` · `CreatedUtc` · `UpdatedUtc` |
-| `PayrollSettings` | single row, `Id`=1 (CHECK). `CompanyName`, `Tagline`, `ContactEmail`, `OvertimeRatePerHour` decimal(9,2) = **2.22**, `MaxBasicHoursPerDay` decimal(4,2) = **8**, `ShiftDescription` = "06:00 AM - 05:30 PM", `PreparedByLabel` = "HR Department", `ApprovedByLabel` = "General Manager". Seeded by the migration; read-only through the API |
+| `PayrollSettings` | single row, `Id`=1 (CHECK). `CompanyName`, `Tagline`, `ContactEmail`, `OvertimeRatePerHour` decimal(9,2) = **2.22**, `MaxBasicHoursPerDay` decimal(4,2) = **8**, `ShiftDescription` = "06:00 AM - 05:30 PM", `PreparedByLabel` = "HR Department", `ApprovedByLabel` = "General Manager". Seeded by the migration; read-only through the API until slice **S2b** makes it editable by the Administrator |
 
 **API** (all JSON, camelCase; errors are RFC 9457 problem documents, validation errors carry a camelCase `errors` map):
 
@@ -85,7 +85,7 @@ Integration tests create and drop their own database (`HrPayroll_Test_<guid>`); 
 
 **Security and API**
 1. **Secure by default:** the authorization `FallbackPolicy` requires a signed-in user. Only login and health are `[AllowAnonymous]`. Every new controller action must carry an explicit `[Authorize(Policy = Policies.AnyUser | HrOrAdmin | AdminOnly)]`. Unknown routes must stay 404 (a custom authorization result handler handles that).
-2. **Role matrix** (master plan C6, proposed default): Viewer = read-only everywhere (view workers, attendance, payroll, leave; print/export payroll); HR Staff = everything operational (workers, attendance, leave submit/approve/reject, delete a *Pending* leave) but **not** finalise/reopen payroll and **not** user management; Administrator = everything. Every slice must add a role-matrix test for each route (anonymous 401, forbidden role 403, allowed role success).
+2. **Role matrix** (master plan C6, proposed default): Viewer = read-only everywhere (view workers, attendance, payroll, leave; print/export payroll); HR Staff = everything operational (workers, attendance, leave submit/approve/reject, delete a *Pending* leave) but **not** finalise/reopen payroll, **not** user management and **not** the company payroll settings (overtime rate, company details — Administrator only); Administrator = everything. Every slice must add a role-matrix test for each route (anonymous 401, forbidden role 403, allowed role success).
 3. Controllers stay thin; rules live in services (`Services/XService.cs`); DTOs in `Dtos/`; **money and payroll arithmetic only in one `PayrollCalculator`** (S3) — never in controllers, never decided by the browser. Money is `decimal` (SQL `decimal(9,2)`), hours `decimal(4,2)`. Never `double`.
 4. **Audit:** `IAuditLogger.Write(action, actor?, entityType?, entityId?, details?)` only *adds* a row to the `DbContext`; the calling service calls `SaveChangesAsync` so the audit row commits with the change (use a transaction when the entity id is only known after insert, as `WorkerService.Create` does). Audit details must never contain passwords, tokens or hashes.
 5. Validation: DataAnnotations plus service rules; field errors come back as `ValidationProblemDetails` with **camelCase keys** (a global `InvalidModelStateResponseFactory` guarantees this). Unique-index races are caught (SQL 2601/2627) and returned as the same field error.
@@ -108,11 +108,21 @@ Integration tests create and drop their own database (`HrPayroll_Test_<guid>`); 
 
 ## 7. Decisions already made (do not reopen without the owner)
 
-D1 server-side PDF with **QuestPDF** (check Community licence eligibility) · D2 JWT bearer, 8 h, no refresh tokens, PBKDF2 · D3 schema: no `Roles` table (checked column), no `EmployeePayRates` table (rate snapshot at finalise + audited rate changes), table is `Workers` · D4 attendance saved as one **batch per day** with an explicit Save button · D5 integration tests on real SQL Server · D6 rounding: **half away from zero to 2 dp per day, per component; month = sum of rounded days; grand totals = sum of rounded worker rows**.
+D1 server-side PDF with **QuestPDF** (check Community licence eligibility) · D2 JWT bearer, 8 h, no refresh tokens, PBKDF2 · D3 schema: no `Roles` table (checked column), no `EmployeePayRates` table (rate snapshot at finalise + audited rate changes), table is `Workers` · D4 attendance saved as one **batch per day** with an explicit Save button · D5 integration tests on real SQL Server · D6 rounding: **half away from zero to 2 dp per day, per component; month = sum of rounded days; grand totals = sum of rounded worker rows** · D7 (2026-10-20, owner) salary and overtime amounts are **user-defined**: worker hourly rate (already editable), company overtime rate (Administrator, Settings screen) and an optional per-worker overtime rate that overrides it (slice S2b) · D8 (owner) the payroll column stays **"Total Net Salary"** as in the prototype.
 
 ## 8. Remaining work — build in this order
 
-Estimated 6.75–11 engineering days in total across S3–S8. Each slice must be demonstrable end to end (database → API → UI → tests).
+Build **S2b first, then S3–S8** (S3's `PayrollCalculator` depends on the final overtime rules). Estimated 7.25–11.75 engineering days in total. Each slice must be demonstrable end to end (database → API → UI → tests).
+
+### S2b — Settings and overtime rates (branch `slice/s2b-settings`, from `slice/s2-workers`)
+
+**Why:** salary and overtime amounts must be user-defined. A worker's hourly rate is already editable (S2). The overtime rate was fixed at AED 2.22; this slice makes it configurable at two levels.
+
+- **API:** `PUT /api/settings/payroll` (**Administrator only**; `GET` stays any user) updates `companyName`, `tagline`, `contactEmail`, `overtimeRatePerHour` (0–999.99, ≤ 2 decimals), `maxBasicHoursPerDay` (> 0 and ≤ 24), `shiftDescription`, `preparedByLabel`, `approvedByLabel`; trim and validate every field (camelCase field errors); audit `SettingsChanged` with only the changed fields as `{old,new}` (no row if nothing changed).
+- **Workers:** new nullable column `Workers.OvertimeRate` decimal(9,2), CHECK `NULL OR >= 0` (0 means no overtime pay); `POST/PUT /api/workers` accept optional `overtimeRate` (null/blank = use the company rate); changes are audited like the hourly rate (old/new); worker JSON gains `overtimeRate` (nullable) and `effectiveOvertimeRate`. Migration `AddOvertimeRates`.
+- **Rule:** effective overtime rate = worker `OvertimeRate` if set, else `PayrollSettings.OvertimeRatePerHour`. Changing either recalculates **every month that is not finalised** (finalised months are frozen by S5).
+- **UI:** a **Settings** tab (Administrator only; add it to `navItems.ts` with `roles: ["Administrator"]` and a `path`) with labelled fields and the note "Changing the overtime rate recalculates every month that is not finalised"; the worker form gets "Overtime rate (AED/hr) — optional" with the hint "Leave blank to use the company rate (X)"; the worker table gets an "Overtime Rate (AED/hr)" column showing the number or "Company rate (X)". Follow the design system.
+- **Tests:** role matrix for the PUT (HR Staff and Viewer 403, anonymous 401); validation matrix; audit rows; override round-trip; negative override rejected by the API and by the DB constraint; all existing worker/settings tests still pass; web tests for the Settings screen, tab visibility per role, and the worker form/table changes.
 
 ### S3 — Daily attendance (branch `slice/s3-attendance`)
 
@@ -121,7 +131,7 @@ Estimated 6.75–11 engineering days in total across S3–S8. Each slice must be
 **Table `Attendance`:** `Id`, `WorkerId` FK (ON DELETE RESTRICT), `WorkDate` date, `Status` nvarchar(10) CHECK in (`Present`,`Absent`), `BasicHours` decimal(4,2), `OvertimeHours` decimal(4,2), `UpdatedUtc`, `UpdatedBy`. UNIQUE (`WorkerId`,`WorkDate`); CHECK hours ≥ 0; CHECK Absent ⇒ both hours 0; index on `WorkDate`. Also add the **test promised in S2**: deleting a worker that has attendance returns 409 with the "Deactivate instead" message.
 
 **Rules (implemented once in `Services/PayrollCalculator.cs`, pure, no DB):**
-- R1 daily basic pay = `BasicHours × WorkerHourlyRate`, rounded to 2 dp (half away from zero) · R2 daily OT pay = `OvertimeHours × OvertimeRatePerHour`, rounded · R3 daily total = R1 + R2; **Absent or Not recorded = 0.00**.
+- R1 daily basic pay = `BasicHours × WorkerHourlyRate`, rounded to 2 dp (half away from zero) · R2 daily OT pay = `OvertimeHours × effective overtime rate` (worker override, else company rate — see S2b), rounded · R3 daily total = R1 + R2; **Absent or Not recorded = 0.00**.
 - R6 Present requires basic hours > 0; Absent forces both hours to 0. R7 `BasicHours ≤ MaxBasicHoursPerDay` and `BasicHours + OvertimeHours ≤ 24`.
 - Future dates → 400. A date inside a **finalised month** → 409 (S5 supplies the check; add a stub/interface now).
 - Inactive workers appear for a date only if they already have a record on that date.
@@ -130,11 +140,11 @@ Estimated 6.75–11 engineering days in total across S3–S8. Each slice must be
 
 **UI:** statuses Not recorded / Present / Absent; hour inputs enabled only for Present; live pay preview uses a TypeScript function that implements the same formula, tested against the **shared vector file** `docs/payroll-test-vectors.json` that the xUnit tests also read (so browser and server cannot drift); server value is authoritative after save; unsaved-changes indicator; optional "Mark all present (8 h)" button is **not approved** — do not build it. Viewer sees read-only values.
 
-**Vectors (put in `docs/payroll-test-vectors.json`):** rate 12.50 Present 8h basic 2h OT → basic 100.00, OT 4.44, total 104.44 · Absent → 0.00 · Not recorded → 0.00 and not a worked day · rate 10.50 × 7.75h → 81.375 → **81.38** · OT 0.25h × 2.22 → 0.555 → **0.56** · month: 22 present days × 8h at 12.50 with 10 OT hours → basic 2200.00, OT 22.20, total 2222.20, days 22.
+**Vectors (put in `docs/payroll-test-vectors.json`):** rate 12.50 Present 8h basic 2h OT → basic 100.00, OT 4.44, total 104.44 · Absent → 0.00 · Not recorded → 0.00 and not a worked day · rate 10.50 × 7.75h → 81.375 → **81.38** · OT 0.25h × 2.22 → 0.555 → **0.56** · month: 22 present days × 8h at 12.50 with 10 OT hours → basic 2200.00, OT 22.20, total 2222.20, days 22 · override: worker overtime rate 3.00 × 2h → 6.00 · no override → company rate · override 0.00 → 0.00 overtime pay.
 
 ### S4 — Monthly payroll, print and PDF (`slice/s4-payroll`)
 
-**Prototype to keep:** month picker (default current month); table per worker: Worker Name, Designation, Days Worked, Basic Pay, OT Pay, Total Salary; **TOTAL PAYROLL** footer; letterhead (company name, tagline, `Email: … • United Arab Emirates`, "Monthly Payroll Report", `Month: YYYY-MM`); signature blocks "Prepared By: HR Department / Signature & Date" and "Approved By: General Manager / Signature & Stamp" (labels from `PayrollSettings`); Print button; Export PDF `Payroll_YYYY-MM.pdf`. Relabel "Total Net Salary" → **"Total Salary"** (there are no deductions) — flag this to the owner.
+**Prototype to keep:** month picker (default current month); table per worker: Worker Name, Designation, Days Worked, Basic Pay, OT Pay, Total Net Salary; **TOTAL PAYROLL** footer; letterhead (company name, tagline, `Email: … • United Arab Emirates`, "Monthly Payroll Report", `Month: YYYY-MM`); signature blocks "Prepared By: HR Department / Signature & Date" and "Approved By: General Manager / Signature & Stamp" (labels from `PayrollSettings`); Print button; Export PDF `Payroll_YYYY-MM.pdf`. The last column keeps the prototype's wording **"Total Net Salary"** (owner decision D8), even though there are no deductions.
 
 **Rules:** R4 days worked = count of Present days · R5 month figures = sum of the rounded daily figures; grand totals = sum of the rounded worker rows · R9 draft uses the worker's *current* rate and the current OT rate · R10 list every active worker plus any inactive worker with attendance in that month (0 days / 0.00 if none).
 
@@ -142,8 +152,8 @@ Estimated 6.75–11 engineering days in total across S3–S8. Each slice must be
 
 ### S5 — Finalise and lock a month (`slice/s5-finalise`)
 
-**Tables:** `PayrollPeriods` (`Id`, `Year`, `Month`, `OvertimeRateApplied`, `FinalisedUtc`, `FinalisedBy`; UNIQUE (`Year`,`Month`); rows exist only for finalised months) and `PayrollDetails` (`Id`, `PeriodId` FK cascade, `WorkerId` FK RESTRICT, `WorkerCode`, `WorkerName`, `Designation`, `HourlyRate`, `DaysWorked`, `BasicHours`, `OvertimeHours`, `BasicPay`, `OvertimePay`, `TotalPay`; UNIQUE (`PeriodId`,`WorkerId`)).
-**Rules:** R8 attendance writes inside a finalised month → 409 · R9 finalising copies each worker's rate and the OT rate into the snapshot (single SQL transaction); finalised views and the PDF read **only** the snapshot; a later rate change must not move a finalised report · cannot finalise a future month; finalising twice → 409 · **reopen** = delete the period and its details (audited with the reason and the previous totals in `DetailsJson`); **Administrator only** (default for confirmation C5). Endpoints: `POST /api/payroll/{month}/finalise` and `DELETE /api/payroll/{month}/finalise` (body: reason) — Administrator. UI: Finalise button with a confirm dialog that restates the totals; "Finalised by X on DATE" banner; Reopen with a required reason; lock notice on the attendance screen. HR Staff and Viewer must get 403.
+**Tables:** `PayrollPeriods` (`Id`, `Year`, `Month`, `OvertimeRateApplied`, `FinalisedUtc`, `FinalisedBy`; UNIQUE (`Year`,`Month`); rows exist only for finalised months) and `PayrollDetails` (`Id`, `PeriodId` FK cascade, `WorkerId` FK RESTRICT, `WorkerCode`, `WorkerName`, `Designation`, `HourlyRate`, `OvertimeRate` (the effective rate used), `DaysWorked`, `BasicHours`, `OvertimeHours`, `BasicPay`, `OvertimePay`, `TotalPay`; UNIQUE (`PeriodId`,`WorkerId`)).
+**Rules:** R8 attendance writes inside a finalised month → 409 · R9 finalising copies each worker's hourly rate and effective overtime rate into the snapshot (single SQL transaction); finalised views and the PDF read **only** the snapshot; a later rate change must not move a finalised report · cannot finalise a future month; finalising twice → 409 · **reopen** = delete the period and its details (audited with the reason and the previous totals in `DetailsJson`); **Administrator only** (default for confirmation C5). Endpoints: `POST /api/payroll/{month}/finalise` and `DELETE /api/payroll/{month}/finalise` (body: reason) — Administrator. UI: Finalise button with a confirm dialog that restates the totals; "Finalised by X on DATE" banner; Reopen with a required reason; lock notice on the attendance screen. HR Staff and Viewer must get 403.
 
 ### S6 — Leave management (`slice/s6-leave`)
 
@@ -169,7 +179,7 @@ Do not assume Windows/IIS or Linux/Nginx. The owner must confirm in writing: per
 
 | ID | Question | Default |
 |----|----------|---------|
-| C1 | Is overtime a flat AED 2.22/hr? Any cap? (UAE labour law generally requires ≥125% of the basic hourly wage for overtime — the owner must verify before go-live) | Flat 2.22 from `PayrollSettings`; limit only basic+OT ≤ 24 h |
+| C1 | What overtime amount does the client use, and is there a cap? Now **configurable** (company rate and per-worker override, S2b); the shipped default is AED 2.22. UAE labour law generally requires ≥125% of the basic hourly wage for overtime — the owner must verify the amounts before go-live | Company rate 2.22 from `PayrollSettings`; limit only basic+OT ≤ 24 h |
 | C2 | Pay treatment of each leave type | Leave informational only |
 | C3 | Does approved leave fill attendance? Calendar vs working days? | No link; calendar days |
 | C4 | Weekly off day, paid? | Not modelled |
@@ -210,4 +220,4 @@ Open questions:           <bullets>
 
 ## 12. First message to send yourself (checklist)
 
-1. Read this file, the master plan and `docs/design-system.md`. 2. `git fetch --all`, check out `slice/s2-workers`, run `dotnet test` and `npm test` and confirm they pass (296 and 172). 3. Create `slice/s3-attendance` and start S3 with `docs/payroll-test-vectors.json` and the `PayrollCalculator` unit tests. 4. Report back at the end of S3 before starting S4.
+1. Read this file, the master plan and `docs/design-system.md`. 2. `git fetch --all`, check out `slice/s2-workers`, run `dotnet test` and `npm test` and confirm they pass (296 and 172). 3. Create `slice/s2b-settings` and build S2b; report back. Then create `slice/s3-attendance` from it and start S3 with `docs/payroll-test-vectors.json` and the `PayrollCalculator` unit tests. 4. Report back at the end of S3 before starting S4.
