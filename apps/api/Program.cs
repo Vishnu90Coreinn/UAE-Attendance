@@ -59,6 +59,7 @@ builder.Services.AddOptions<JwtOptions>().Configure<IConfiguration>(
 builder.Services.AddSingleton<JwtTokenService>();
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<AdminSeeder>();
 builder.Services.AddScoped<WorkerService>();
 builder.Services.AddScoped<SettingsService>();
@@ -87,6 +88,36 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
             ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
             NameClaimType = ClaimTypes.Name,
             RoleClaimType = ClaimTypes.Role,
+        };
+        bearer.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var subject = context.Principal?.FindFirstValue("sub");
+                var tokenName = context.Principal?.Identity?.Name;
+                if (!int.TryParse(subject, out var userId) || string.IsNullOrWhiteSpace(tokenName))
+                {
+                    context.Fail("Invalid account.");
+                    return;
+                }
+
+                var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+                var current = await db.Users.AsNoTracking()
+                    .Where(user => user.Id == userId)
+                    .Select(user => new { user.Username, user.Role, user.IsActive })
+                    .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
+                if (current is null || !current.IsActive || !string.Equals(current.Username, tokenName, StringComparison.OrdinalIgnoreCase))
+                {
+                    context.Fail("Invalid account.");
+                    return;
+                }
+
+                var identity = new ClaimsIdentity(context.Scheme.Name, ClaimTypes.Name, ClaimTypes.Role);
+                identity.AddClaim(new Claim("sub", userId.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                identity.AddClaim(new Claim(ClaimTypes.Name, current.Username));
+                identity.AddClaim(new Claim(ClaimTypes.Role, current.Role));
+                context.Principal = new ClaimsPrincipal(identity);
+            },
         };
     });
 
