@@ -1,9 +1,13 @@
 import { Check, Trash2, X } from "lucide-react";
+import type { Role } from "../../api/auth";
 import type { LeaveRequest } from "../../api/leave";
+import { isManagement } from "../../permissions";
 
 interface Props {
   rows: LeaveRequest[];
-  role: string | undefined;
+  role: Role | undefined;
+  /** Signed-in username; a Supervisor may delete only their own pending requests. */
+  username: string | undefined;
   busy: boolean;
   onApprove: (row: LeaveRequest) => void;
   onReject: (row: LeaveRequest) => void;
@@ -16,21 +20,33 @@ const statusClass = {
   Approved: "bg-green-100 text-green-900",
   Rejected: "bg-red-100 text-red-900",
 };
+/** On phones each row becomes a labelled card; from md up it is an ordinary table row. */
+const cellClass =
+  "flex items-center justify-between gap-3 px-4 py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-gray-600 md:table-cell md:py-3 md:before:content-none";
+
 export function LeaveTable({
   rows,
   role,
+  username,
   busy,
   onApprove,
   onReject,
   onDelete,
 }: Props) {
-  const manage = role === "Administrator" || role === "HR Staff";
+  const manage = isManagement(role);
+  const canDelete = (row: LeaveRequest) =>
+    manage ||
+    (role === "Supervisor" &&
+      row.status === "Pending" &&
+      !!username &&
+      row.createdBy === username);
+  const showActions = manage || rows.some(canDelete);
   return (
-    <div className="max-w-full overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-      <table className="w-full min-w-[850px] text-left text-sm">
+    <div className="max-w-full rounded-lg border-gray-200 md:overflow-x-auto md:border md:bg-white md:shadow-sm">
+      <table className="block w-full text-left text-sm md:table">
         <caption className="sr-only">Leave requests</caption>
-        <thead className="border-b border-gray-200 bg-gray-50">
-          <tr>
+        <thead className="sr-only border-b border-gray-200 bg-gray-50 md:not-sr-only md:table-header-group">
+          <tr className="md:table-row">
             {[
               "Worker",
               "Leave Type",
@@ -38,7 +54,7 @@ export function LeaveTable({
               "End Date",
               "Days",
               "Status",
-              ...(manage ? ["Actions"] : []),
+              ...(showActions ? ["Actions"] : []),
             ].map((label) => (
               <th key={label} scope="col" className="px-4 py-3 font-semibold">
                 {label}
@@ -46,58 +62,72 @@ export function LeaveTable({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-200">
+        <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-gray-200">
           {rows.map((row) => (
-            <tr key={row.id}>
+            <tr
+              key={row.id}
+              className="block rounded-lg border border-gray-200 bg-white py-1 shadow-sm md:table-row md:rounded-none md:border-0 md:py-0 md:shadow-none"
+            >
               <th
                 scope="row"
-                className="max-w-64 break-words px-4 py-3 font-medium"
+                data-label="Worker"
+                className={`${cellClass} break-words text-left font-medium md:max-w-64`}
               >
-                {row.workerName}
-                <span className="block text-xs font-normal text-gray-600">
-                  {row.workerCode}
-                  {!row.workerIsActive && " · Inactive"}
+                <span className="text-right md:text-left">
+                  {row.workerName}
+                  <span className="block text-xs font-normal text-gray-600">
+                    {row.workerCode}
+                    {!row.workerIsActive && " · Inactive"}
+                  </span>
                 </span>
               </th>
-              <td className="whitespace-nowrap px-4 py-3">{row.leaveType}</td>
-              <td className="whitespace-nowrap px-4 py-3 tabular-nums">
+              <td data-label="Leave type" className={`${cellClass} md:whitespace-nowrap`}>
+                {row.leaveType}
+              </td>
+              <td data-label="Start" className={`${cellClass} tabular-nums md:whitespace-nowrap`}>
                 {row.startDate}
               </td>
-              <td className="whitespace-nowrap px-4 py-3 tabular-nums">
+              <td data-label="End" className={`${cellClass} tabular-nums md:whitespace-nowrap`}>
                 {row.endDate}
               </td>
-              <td className="px-4 py-3 tabular-nums">{row.days}</td>
-              <td className="px-4 py-3">
+              <td data-label="Days" className={`${cellClass} tabular-nums`}>
+                {row.days}
+              </td>
+              <td data-label="Status" className={cellClass}>
                 <span
                   className={`rounded-full px-3 py-1 font-semibold ${statusClass[row.status]}`}
                 >
                   {row.status}
                 </span>
               </td>
-              {manage && (
-                <td className="px-4 py-2">
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => onApprove(row)}
-                      className={`${actionClass} text-green-800`}
-                      aria-label={`Approve leave for ${row.workerName} starting ${row.startDate}`}
-                    >
-                      <Check aria-hidden="true" size={16} />
-                      Approve
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => onReject(row)}
-                      className={`${actionClass} text-red-700`}
-                      aria-label={`Reject leave for ${row.workerName} starting ${row.startDate}`}
-                    >
-                      <X aria-hidden="true" size={16} />
-                      Reject
-                    </button>
-                    {(role === "Administrator" || row.status === "Pending") && (
+              {showActions && (
+                <td className="px-4 py-2 md:table-cell">
+                  <div className="flex flex-wrap gap-2">
+                    {manage && (
+                      <>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => onApprove(row)}
+                          className={`${actionClass} text-green-800`}
+                          aria-label={`Approve leave for ${row.workerName} starting ${row.startDate}`}
+                        >
+                          <Check aria-hidden="true" size={16} />
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => onReject(row)}
+                          className={`${actionClass} text-red-700`}
+                          aria-label={`Reject leave for ${row.workerName} starting ${row.startDate}`}
+                        >
+                          <X aria-hidden="true" size={16} />
+                          Reject
+                        </button>
+                      </>
+                    )}
+                    {canDelete(row) && (
                       <button
                         type="button"
                         disabled={busy}

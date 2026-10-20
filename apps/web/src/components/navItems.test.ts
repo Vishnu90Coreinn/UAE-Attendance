@@ -21,12 +21,16 @@ describe("navItemsForRole", () => {
     ]);
   });
 
-  it("gives HR Staff the four modules without User Manager or Settings", () => {
-    expect(labelsFor("HR Staff")).toEqual(MODULES);
+  it("gives a Manager the same tabs as an Administrator", () => {
+    expect(labelsFor("Manager")).toEqual([...MODULES, "User Manager", "Settings"]);
   });
 
-  it("gives a Viewer the four modules without User Manager or Settings", () => {
-    expect(labelsFor("Viewer")).toEqual(MODULES);
+  it("gives a Supervisor only Worker Directory, Daily Attendance and Leave Management", () => {
+    expect(labelsFor("Supervisor")).toEqual([
+      "Worker Directory",
+      "Daily Attendance",
+      "Leave Management",
+    ]);
   });
 
   it("gives all implemented modules a route", () => {

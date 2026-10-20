@@ -32,7 +32,6 @@ const selectClass =
   "mt-1 min-h-11 max-w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-60";
 export function LeavePage() {
   const { user } = useAuth();
-  const manage = user?.role === "Administrator" || user?.role === "HR Staff";
   const [rows, setRows] = useState<LeaveRequest[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [workersReady, setWorkersReady] = useState(false);
@@ -170,7 +169,7 @@ export function LeavePage() {
             dates.
           </p>
         </div>
-        {manage && (
+        {user && (
           <button
             type="button"
             disabled={busy || !workersReady || !workers.some((w) => w.isActive)}
@@ -226,7 +225,7 @@ export function LeavePage() {
           onRetry={() => setWorkersAttempt((n) => n + 1)}
         />
       )}
-      {manage && workersReady && !workers.some((w) => w.isActive) && (
+      {user && workersReady && !workers.some((w) => w.isActive) && (
         <p className="text-sm text-gray-600">
           Add an active worker before requesting leave.
         </p>
@@ -246,6 +245,7 @@ export function LeavePage() {
         <LeaveTable
           rows={rows}
           role={user?.role}
+          username={user?.username}
           busy={busy}
           onApprove={(row) => act("approve", row)}
           onReject={(row) => act("reject", row)}
@@ -260,7 +260,7 @@ export function LeavePage() {
           No leave requests match these filters.
         </p>
       )}
-      {manage && formOpen && (
+      {user && formOpen && (
         <LeaveFormDialog
           workers={workers}
           pending={pending}

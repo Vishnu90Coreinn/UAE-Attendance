@@ -5,12 +5,12 @@ export interface Worker {
   workerCode: string;
   fullName: string;
   designation: string;
-  /** AED per hour; a JSON number with at most two decimal places. */
-  hourlyRate: number;
-  /** The worker's own overtime rate in AED per hour; null means the company rate applies. */
+  /** AED per hour; null for Supervisors, who never see wages. */
+  hourlyRate: number | null;
+  /** The worker's own overtime rate in AED per hour; null means the company rate applies (or hidden from Supervisors). */
   overtimeRate: number | null;
-  /** The overtime rate that actually applies: the worker's own, or the company rate. */
-  effectiveOvertimeRate: number;
+  /** The overtime rate that actually applies; null for Supervisors. */
+  effectiveOvertimeRate: number | null;
   isActive: boolean;
 }
 

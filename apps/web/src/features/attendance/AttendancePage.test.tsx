@@ -41,7 +41,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(useAuth).mockReturnValue({
     status: "signedIn",
-    user: { id: 1, username: "hr", role: "HR Staff" },
+    user: { id: 1, username: "mgr", role: "Manager" },
     token: "t",
     login: vi.fn(),
     logout: vi.fn(),
@@ -158,20 +158,107 @@ it("clears recorded attendance in the same batch", async () => {
     { workerId: 1, status: null, basicHours: 0, overtimeHours: 0 },
   ]);
 });
-it("Viewer has read-only values and no save controls", async () => {
+function signInAs(role: "Supervisor" | "Administrator") {
   vi.mocked(useAuth).mockReturnValue({
     status: "signedIn",
-    user: { id: 1, username: "view", role: "Viewer" },
+    user: { id: 1, username: "sup.omar", role },
     token: "t",
     login: vi.fn(),
     logout: vi.fn(),
   });
+}
+/** What the API returns to a Supervisor: no wages and no pay. */
+const supervisorDay: AttendanceDay = {
+  ...day,
+  rows: [
+    {
+      ...day.rows[0],
+      worker: {
+        ...day.rows[0].worker,
+        hourlyRate: null,
+        overtimeRate: null,
+        effectiveOvertimeRate: null,
+      },
+      dailyPay: null,
+    },
+  ],
+};
+it("a Manager sees the Total Pay column and the overtime rate in the shift note", async () => {
   await loaded();
-  expect(screen.getByText("Not recorded")).toBeInTheDocument();
-  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   expect(
-    screen.queryByRole("button", { name: "Save day" }),
-  ).not.toBeInTheDocument();
+    screen.getByRole("columnheader", { name: "Total Pay (AED)" }),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/Standard Shift/)).toHaveTextContent(
+    "Overtime Rate: 2.22 AED/hr",
+  );
+});
+it("a Supervisor records attendance without any pay column, overtime rate or live pay preview", async () => {
+  signInAs("Supervisor");
+  vi.mocked(api.getAttendance).mockResolvedValue(supervisorDay);
+  vi.mocked(getPayrollSettings).mockResolvedValue({
+    companyName: "Company",
+    tagline: "",
+    contactEmail: "hr@example.com",
+    overtimeRatePerHour: null,
+    maxBasicHoursPerDay: 8,
+    shiftDescription: "06:00 AM - 05:30 PM",
+    preparedByLabel: "HR Department",
+    approvedByLabel: "General Manager",
+  });
+  const user = await loaded();
+  expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+    "Worker",
+    "Status",
+    "Basic Hours",
+    "Overtime Hours",
+  ]);
+  expect(screen.getByText(/Standard Shift: 06:00 AM/)).not.toHaveTextContent(
+    /Overtime Rate|AED/,
+  );
+  await user.selectOptions(
+    screen.getByLabelText("Status for Ahmed Khan"),
+    "Present",
+  );
+  fireEvent.change(screen.getByLabelText("Basic hours for Ahmed Khan"), {
+    target: { value: "8" },
+  });
+  fireEvent.change(screen.getByLabelText("Overtime hours for Ahmed Khan"), {
+    target: { value: "2" },
+  });
+  expect(document.body).not.toHaveTextContent(/null|NaN|undefined|AED/);
+  vi.mocked(api.saveAttendance).mockResolvedValue({
+    ...supervisorDay,
+    rows: [
+      {
+        ...supervisorDay.rows[0],
+        record: { status: "Present", basicHours: 8, overtimeHours: 2 },
+      },
+    ],
+  });
+  await user.click(screen.getByRole("button", { name: "Save day" }));
+  expect(api.saveAttendance).toHaveBeenCalledWith(expect.any(String), [
+    { workerId: 1, status: "Present", basicHours: 8, overtimeHours: 2 },
+  ]);
+  expect(await screen.findByText("Attendance saved.")).toBeInTheDocument();
+  expect(document.body).not.toHaveTextContent(/null|NaN|undefined/);
+});
+it("gives Supervisor inputs a thumb-sized touch target", async () => {
+  signInAs("Supervisor");
+  vi.mocked(api.getAttendance).mockResolvedValue(supervisorDay);
+  await loaded();
+  for (const label of [
+    "Status for Ahmed Khan",
+    "Basic hours for Ahmed Khan",
+    "Overtime hours for Ahmed Khan",
+    "Work date",
+  ]) {
+    expect(screen.getByLabelText(label).className).toContain("min-h-11");
+  }
+});
+it("an Administrator can also record attendance", async () => {
+  signInAs("Administrator");
+  await loaded();
+  expect(screen.getByLabelText("Status for Ahmed Khan")).toBeEnabled();
 });
 it("locked days disable editing", async () => {
   vi.mocked(api.getAttendance).mockResolvedValue({ ...day, isFinalised: true });

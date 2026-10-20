@@ -15,9 +15,9 @@ vi.mock("../../api/leave", async (importOriginal) => ({
   deleteLeave: vi.fn(),
 }));
 vi.mock("../../api/workers");
-const auth = vi.hoisted(() => ({ role: "Administrator" }));
+const auth = vi.hoisted(() => ({ role: "Administrator", username: "admin" }));
 vi.mock("../../contexts/AuthContext", () => ({
-  useAuth: () => ({ user: { role: auth.role } }),
+  useAuth: () => ({ user: { role: auth.role, username: auth.username } }),
 }));
 const row: LeaveRequest = {
   id: 1,
@@ -38,6 +38,7 @@ const row: LeaveRequest = {
 beforeEach(() => {
   vi.resetAllMocks();
   auth.role = "Administrator";
+  auth.username = "admin";
   vi.mocked(api.listLeave).mockResolvedValue([row]);
   vi.mocked(workersApi.listWorkers).mockResolvedValue([
     {
@@ -183,7 +184,7 @@ it("approves and rejects requests, refreshing their server state", async () => {
   expect(api.rejectLeave).toHaveBeenCalledWith(1);
   expect(await screen.findByText("Leave rejected.")).toBeInTheDocument();
 });
-it.each(["HR Staff", "Administrator"])(
+it.each(["Manager", "Administrator"])(
   "%s can delete pending leave only after confirmation",
   async (role) => {
     auth.role = role;
@@ -202,24 +203,64 @@ it.each(["HR Staff", "Administrator"])(
     ).toBeInTheDocument();
   },
 );
-it("HR Staff cannot delete decided leave but can change a decision", async () => {
-  auth.role = "HR Staff";
-  vi.mocked(api.listLeave).mockResolvedValue([{ ...row, status: "Approved" }]);
-  await setup();
-  expect(
-    screen.queryByRole("button", { name: /Delete leave/ }),
-  ).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: /Reject leave/ })).toBeEnabled();
-});
-it("Viewer can filter and read but has no mutation controls", async () => {
-  auth.role = "Viewer";
+it.each(["Manager", "Administrator"])(
+  "%s can delete decided leave of anyone and change a decision",
+  async (role) => {
+    auth.role = role;
+    auth.username = "boss";
+    vi.mocked(api.listLeave).mockResolvedValue([
+      { ...row, status: "Approved", createdBy: "someone.else" },
+    ]);
+    await setup();
+    expect(
+      screen.getByRole("button", { name: /Delete leave/ }),
+    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Reject leave/ })).toBeEnabled();
+  },
+);
+it("a Supervisor can request leave but never sees Approve or Reject", async () => {
+  auth.role = "Supervisor";
+  auth.username = "sup.omar";
   const user = await setup();
   expect(
-    screen.queryByRole("button", { name: "New Leave Request" }),
-  ).not.toBeInTheDocument();
+    screen.getByRole("button", { name: "New Leave Request" }),
+  ).toBeEnabled();
   expect(
-    screen.queryByRole("button", { name: /Approve|Reject|Delete leave/ }),
+    screen.queryByRole("button", { name: /Approve|Reject/ }),
   ).not.toBeInTheDocument();
+  await openForm(user);
+});
+it("a Supervisor can delete their own pending request, after confirmation", async () => {
+  auth.role = "Supervisor";
+  auth.username = "sup.omar";
+  vi.mocked(api.listLeave).mockResolvedValue([{ ...row, createdBy: "sup.omar" }]);
+  vi.mocked(api.deleteLeave).mockResolvedValue();
+  const user = await setup();
+  expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /Delete leave/ }));
+  expect(api.deleteLeave).not.toHaveBeenCalled();
+  await user.click(
+    within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }),
+  );
+  expect(api.deleteLeave).toHaveBeenCalledWith(1);
+});
+it.each([
+  ["someone else's pending request", { createdBy: "other.user", status: "Pending" as const }],
+  ["their own decided request", { createdBy: "sup.omar", status: "Approved" as const }],
+])("a Supervisor gets no delete button on %s", async (_name, patch) => {
+  auth.role = "Supervisor";
+  auth.username = "sup.omar";
+  vi.mocked(api.listLeave).mockResolvedValue([{ ...row, ...patch }]);
+  await setup();
+  expect(
+    screen.queryByRole("button", { name: /Delete leave|Approve|Reject/ }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("columnheader", { name: "Actions" })).not.toBeInTheDocument();
+});
+it("a Supervisor can still filter and read", async () => {
+  auth.role = "Supervisor";
+  auth.username = "sup.omar";
+  const user = await setup();
   await user.selectOptions(
     screen.getByLabelText("Filter by status"),
     "Approved",

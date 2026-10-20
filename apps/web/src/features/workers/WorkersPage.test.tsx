@@ -34,6 +34,11 @@ const sara: Worker = {
   isActive: false,
 };
 
+/** What the API returns to a Supervisor: no wages at all. */
+function supervisorView(worker: Worker): Worker {
+  return { ...worker, hourlyRate: null, overtimeRate: null, effectiveOvertimeRate: null };
+}
+
 function signInAs(role: Role) {
   vi.mocked(useAuth).mockReturnValue({
     status: "signedIn",
@@ -44,12 +49,12 @@ function signInAs(role: Role) {
   });
 }
 
-function renderPage(role: Role = "HR Staff") {
+function renderPage(role: Role = "Manager") {
   signInAs(role);
   return { user: userEvent.setup(), ...render(<WorkersPage />) };
 }
 
-async function renderLoaded(role: Role = "HR Staff", workers: Worker[] = [ahmed]) {
+async function renderLoaded(role: Role = "Manager", workers: Worker[] = [ahmed]) {
   vi.mocked(workersApi.listWorkers).mockResolvedValue(workers);
   const view = renderPage(role);
   await screen.findByRole("table");
@@ -132,7 +137,7 @@ describe("WorkersPage - content", () => {
   });
 
   it("shows an own overtime rate of 0 as 0.00, not as the company rate", async () => {
-    await renderLoaded("Viewer", [{ ...ahmed, overtimeRate: 0, effectiveOvertimeRate: 0 }]);
+    await renderLoaded("Manager", [{ ...ahmed, overtimeRate: 0, effectiveOvertimeRate: 0 }]);
 
     const row = screen.getByRole("row", { name: /EMP-001/ });
     expect(within(row).getByText("0.00")).toBeInTheDocument();
@@ -146,18 +151,18 @@ describe("WorkersPage - content", () => {
     expect(wrapper?.className).toContain("overflow-x-auto");
   });
 
-  it("shows the empty state with an Add button to HR Staff", async () => {
+  it("shows the empty state with an Add button to a Manager", async () => {
     vi.mocked(workersApi.listWorkers).mockResolvedValue([]);
-    renderPage("HR Staff");
+    renderPage("Manager");
 
     expect(await screen.findByText(/No workers yet\./)).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Add New Worker" })).toHaveLength(1);
   });
 
-  it("shows the empty state without an Add button to a Viewer", async () => {
+  it("shows the empty state without an Add button to a Supervisor", async () => {
     vi.mocked(workersApi.listWorkers).mockResolvedValue([]);
-    renderPage("Viewer");
+    renderPage("Supervisor");
 
     expect(await screen.findByText(/No workers yet\./)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add New Worker" })).not.toBeInTheDocument();
@@ -201,7 +206,7 @@ describe("WorkersPage - content", () => {
 });
 
 describe("WorkersPage - roles", () => {
-  it.each(["Administrator", "HR Staff"] as const)("%s sees Add and the row actions", async (role) => {
+  it.each(["Administrator", "Manager"] as const)("%s sees Add and the row actions", async (role) => {
     await renderLoaded(role);
 
     expect(screen.getByRole("button", { name: "Add New Worker" })).toBeInTheDocument();
@@ -213,7 +218,7 @@ describe("WorkersPage - roles", () => {
   });
 
   it("gives every row action button an accessible name that includes the worker's name, even though the labels are icon-only below xl", async () => {
-    await renderLoaded("HR Staff", [ahmed, sara]);
+    await renderLoaded("Manager", [ahmed, sara]);
 
     const expectations = [
       { code: "EMP-001", name: "Ahmed Khan", labels: ["Edit", "Deactivate", "Delete"] },
@@ -229,8 +234,19 @@ describe("WorkersPage - roles", () => {
     }
   });
 
-  it("gives a Viewer a read-only table: no Add, no Actions column, no row buttons", async () => {
-    await renderLoaded("Viewer");
+  it("gives a Supervisor a read-only table without wage columns: no Add, no Actions, no rates", async () => {
+    await renderLoaded("Supervisor", [supervisorView(ahmed), supervisorView({ ...sara, isActive: true })]);
+
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "ID",
+      "Full Name",
+      "Designation",
+      "Status",
+    ]);
+    expect(screen.queryByText(/Base Rate|Overtime Rate/)).not.toBeInTheDocument();
+    expect(screen.getByRole("table")).not.toHaveTextContent(/null|NaN|undefined/);
+    expect(screen.queryByText(/AED/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Manage employee profiles/)).not.toBeInTheDocument();
 
     expect(screen.getByText("Ahmed Khan")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add New Worker" })).not.toBeInTheDocument();
@@ -243,7 +259,7 @@ describe("WorkersPage - roles", () => {
 describe("WorkersPage - add and edit", () => {
   it("adds a worker through the dialog, announces it and reloads the list", async () => {
     vi.mocked(workersApi.createWorker).mockResolvedValue({ ...ahmed, id: 5, workerCode: "EMP-005" });
-    const { user } = await renderLoaded("HR Staff");
+    const { user } = await renderLoaded("Manager");
     vi.mocked(workersApi.listWorkers).mockResolvedValue([ahmed, { ...ahmed, id: 5, workerCode: "EMP-005" }]);
 
     await user.click(screen.getByRole("button", { name: "Add New Worker" }));
@@ -300,7 +316,7 @@ describe("WorkersPage - add and edit", () => {
 describe("WorkersPage - deactivate and activate", () => {
   it("asks for confirmation before deactivating, then deactivates and announces it", async () => {
     vi.mocked(workersApi.deactivateWorker).mockResolvedValue({ ...ahmed, isActive: false });
-    const { user } = await renderLoaded("HR Staff");
+    const { user } = await renderLoaded("Manager");
 
     await user.click(screen.getByRole("button", { name: "Deactivate Ahmed Khan" }));
     const dialog = await screen.findByRole("dialog", { name: "Deactivate worker" });
@@ -314,7 +330,7 @@ describe("WorkersPage - deactivate and activate", () => {
   });
 
   it("does nothing when the deactivate confirmation is cancelled", async () => {
-    const { user } = await renderLoaded("HR Staff");
+    const { user } = await renderLoaded("Manager");
 
     await user.click(screen.getByRole("button", { name: "Deactivate Ahmed Khan" }));
     await user.click(await screen.findByRole("button", { name: "Cancel" }));
@@ -338,7 +354,7 @@ describe("WorkersPage - deactivate and activate", () => {
 
   it("shows a failed deactivation in the alert and closes the confirmation", async () => {
     vi.mocked(workersApi.deactivateWorker).mockRejectedValue(new ApiError(404, "Worker not found."));
-    const { user } = await renderLoaded("HR Staff");
+    const { user } = await renderLoaded("Manager");
 
     await user.click(screen.getByRole("button", { name: "Deactivate Ahmed Khan" }));
     await user.click(await screen.findByRole("button", { name: "Deactivate" }));

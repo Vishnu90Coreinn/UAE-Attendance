@@ -41,7 +41,7 @@ export function toFormValues(settings: PayrollSettings): SettingsFormValues {
     companyName: settings.companyName,
     tagline: settings.tagline,
     contactEmail: settings.contactEmail,
-    overtimeRatePerHour: formatRate(settings.overtimeRatePerHour),
+    overtimeRatePerHour: settings.overtimeRatePerHour === null ? "" : formatRate(settings.overtimeRatePerHour),
     maxBasicHoursPerDay: String(settings.maxBasicHoursPerDay),
     shiftDescription: settings.shiftDescription,
     preparedByLabel: settings.preparedByLabel,

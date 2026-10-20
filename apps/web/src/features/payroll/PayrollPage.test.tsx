@@ -253,7 +253,20 @@ it("confirms displayed totals and revision before finalising, then shows frozen 
   );
   expect(screen.getByRole("button", { name: "Reopen month" })).toBeEnabled();
 });
-it.each(["HR Staff", "Viewer"])(
+it("offers Finalise month and Reopen month to a Manager", async () => {
+  authRole.current = "Manager";
+  await loaded();
+  expect(
+    screen.getByRole("button", { name: "Finalise month" }),
+  ).toBeInTheDocument();
+  vi.mocked(api.getPayroll).mockResolvedValue(frozen);
+  fireEvent.click(screen.getByRole("button", { name: "Reload report" }));
+  await screen.findByText(/Finalised by payroll.admin/);
+  expect(
+    screen.getByRole("button", { name: "Reopen month" }),
+  ).toBeInTheDocument();
+});
+it.each(["Supervisor"])(
   "keeps finalisation actions unavailable to %s",
   async (role) => {
     authRole.current = role;

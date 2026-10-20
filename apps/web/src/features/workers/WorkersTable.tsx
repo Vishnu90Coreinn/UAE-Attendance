@@ -12,11 +12,17 @@ interface RowActions {
 
 interface WorkersTableProps {
   workers: Worker[];
-  /** Present only for roles that may change workers; Viewers get a read-only table. */
+  /** Wage columns; Supervisors never receive wages, so they are not shown. */
+  showRates: boolean;
+  /** Present only for roles that may change workers; Supervisors get a read-only table. */
   actions?: RowActions;
   /** Id of the worker whose activation is in flight, so its buttons are disabled. */
   busyId: number | null;
 }
+
+/** On phones each worker is a labelled card; from md up it is an ordinary table row. */
+const cellClass =
+  "flex items-center justify-between gap-3 px-4 py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-gray-600 md:table-cell md:p-4 md:before:content-none";
 
 const actionClass =
   "inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60";
@@ -46,30 +52,51 @@ function ActionButton({
       className={`${actionClass} ${tone}`}
     >
       <Icon aria-hidden="true" size={16} />
-      {/* Icon-only below xl; the aria-label above keeps the accessible name. */}
-      <span className="hidden xl:inline">{label}</span>
+      {/* Shown in the phone card layout; icon-only from md to xl; the aria-label above keeps the accessible name. */}
+      <span className="md:hidden xl:inline">{label}</span>
     </button>
   );
 }
 
-function WorkerRow({ worker, actions, busy }: { worker: Worker; actions?: RowActions; busy: boolean }) {
+function rateText(rate: number | null): string {
+  return rate === null ? "—" : formatRate(rate);
+}
+
+function overtimeText(worker: Worker): string {
+  if (worker.overtimeRate !== null) return formatRate(worker.overtimeRate);
+  return worker.effectiveOvertimeRate === null
+    ? "Company rate"
+    : `Company rate (${formatRate(worker.effectiveOvertimeRate)})`;
+}
+
+function WorkerRow({
+  worker,
+  actions,
+  busy,
+  showRates,
+}: {
+  worker: Worker;
+  actions?: RowActions;
+  busy: boolean;
+  showRates: boolean;
+}) {
   return (
-    <tr className="hover:bg-slate-50">
-      <td className="p-4 font-mono font-medium text-gray-600">{worker.workerCode}</td>
-      <td className="p-4 font-semibold text-gray-800">{worker.fullName}</td>
-      <td className="p-4 text-gray-600">{worker.designation}</td>
-      <td className="p-4 font-medium text-gray-800">{formatRate(worker.hourlyRate)}</td>
-      <td className="whitespace-nowrap p-4 font-medium text-gray-800">
-        {worker.overtimeRate === null
-          ? `Company rate (${formatRate(worker.effectiveOvertimeRate)})`
-          : formatRate(worker.overtimeRate)}
-      </td>
-      <td className="p-4">
+    <tr className="block rounded-lg border border-gray-200 bg-white py-1 shadow-sm hover:bg-slate-50 md:table-row md:rounded-none md:border-0 md:py-0 md:shadow-none">
+      <td data-label="ID" className={`${cellClass} font-mono font-medium text-gray-600`}>{worker.workerCode}</td>
+      <td data-label="Name" className={`${cellClass} font-semibold text-gray-800`}>{worker.fullName}</td>
+      <td data-label="Designation" className={`${cellClass} text-gray-600`}>{worker.designation}</td>
+      {showRates && (
+        <>
+          <td data-label="Base rate" className={`${cellClass} font-medium text-gray-800`}>{rateText(worker.hourlyRate)}</td>
+          <td data-label="Overtime rate" className={`${cellClass} font-medium text-gray-800 md:whitespace-nowrap`}>{overtimeText(worker)}</td>
+        </>
+      )}
+      <td data-label="Status" className={cellClass}>
         <WorkerStatusBadge isActive={worker.isActive} />
       </td>
       {actions && (
-        <td className="p-4">
-          <div className="flex flex-nowrap justify-end gap-2">
+        <td className="px-4 py-2 md:table-cell md:p-4">
+          <div className="flex flex-wrap gap-2 md:flex-nowrap md:justify-end">
             <ActionButton
               icon={Pencil}
               label="Edit"
@@ -112,19 +139,23 @@ function WorkerRow({ worker, actions, busy }: { worker: Worker; actions?: RowAct
   );
 }
 
-export function WorkersTable({ workers, actions, busyId }: WorkersTableProps) {
+export function WorkersTable({ workers, showRates, actions, busyId }: WorkersTableProps) {
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-      {/* The table scrolls inside this container so the page itself never scrolls sideways. */}
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-left text-sm">
-          <thead>
+    <div className="rounded-lg md:overflow-hidden md:border md:border-gray-200 md:bg-white md:shadow-sm">
+      {/* Below md rows are cards; from md the table scrolls inside this container so the page itself never scrolls sideways. */}
+      <div className="md:overflow-x-auto">
+        <table className="block w-full border-collapse text-left text-sm md:table">
+          <thead className="sr-only md:not-sr-only md:table-header-group">
             <tr className="border-b bg-slate-100 text-xs font-semibold uppercase tracking-wider text-slate-700">
               <th scope="col" className="p-4">ID</th>
               <th scope="col" className="p-4">Full Name</th>
               <th scope="col" className="p-4">Designation</th>
-              <th scope="col" className="whitespace-nowrap p-4">Base Rate (AED/hr)</th>
-              <th scope="col" className="whitespace-nowrap p-4">Overtime Rate (AED/hr)</th>
+              {showRates && (
+                <>
+                  <th scope="col" className="whitespace-nowrap p-4">Base Rate (AED/hr)</th>
+                  <th scope="col" className="whitespace-nowrap p-4">Overtime Rate (AED/hr)</th>
+                </>
+              )}
               <th scope="col" className="p-4">Status</th>
               {actions && (
                 <th scope="col" className="p-4 text-right">
@@ -133,9 +164,9 @@ export function WorkersTable({ workers, actions, busyId }: WorkersTableProps) {
               )}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-gray-100">
             {workers.map((worker) => (
-              <WorkerRow key={worker.id} worker={worker} actions={actions} busy={busyId === worker.id} />
+              <WorkerRow key={worker.id} worker={worker} actions={actions} busy={busyId === worker.id} showRates={showRates} />
             ))}
           </tbody>
         </table>

@@ -22,7 +22,7 @@ function initialValues(worker: Worker | null): WorkerFormValues {
         workerCode: worker.workerCode,
         fullName: worker.fullName,
         designation: worker.designation,
-        hourlyRate: formatRate(worker.hourlyRate),
+        hourlyRate: worker.hourlyRate === null ? "" : formatRate(worker.hourlyRate),
         overtimeRate: worker.overtimeRate === null ? "" : formatRate(worker.overtimeRate),
       }
     : { workerCode: "", fullName: "", designation: "", hourlyRate: "", overtimeRate: "" };

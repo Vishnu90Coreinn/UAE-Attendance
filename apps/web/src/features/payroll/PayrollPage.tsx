@@ -23,6 +23,7 @@ import {
 import { PayrollReport } from "./PayrollReport";
 import { downloadPdf } from "./downloadPdf";
 import { PayrollFinalisationDialog } from "./PayrollFinalisationDialog";
+import { isManagement } from "../../permissions";
 import { useAuth } from "../../contexts/AuthContext";
 
 function currentMonth(): string {
@@ -212,7 +213,7 @@ export function PayrollPage() {
               <Download aria-hidden="true" size={16} />
               {exporting ? "Exporting..." : "Export PDF"}
             </button>
-            {user?.role === "Administrator" && (
+            {isManagement(user?.role) && (
               <button
                 type="button"
                 onClick={() =>

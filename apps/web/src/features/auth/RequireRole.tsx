@@ -16,7 +16,7 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
     return (
       <section>
         <h2 className="text-2xl font-bold text-gray-800">You do not have access to this page</h2>
-        <p className="mt-1 text-sm text-gray-600">Ask an Administrator if you need to use it.</p>
+        <p className="mt-1 text-sm text-gray-600">Ask a Manager or Administrator if you need to use it.</p>
       </section>
     );
   }

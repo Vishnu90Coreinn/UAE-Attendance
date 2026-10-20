@@ -16,7 +16,8 @@ export interface DailyPay {
 export interface AttendanceRow {
   worker: Worker;
   record: AttendanceRecord | null;
-  dailyPay: DailyPay;
+  /** Null for Supervisors, who never see pay. */
+  dailyPay: DailyPay | null;
 }
 export interface AttendanceDay {
   date: string;

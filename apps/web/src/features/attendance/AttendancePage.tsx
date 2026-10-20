@@ -8,6 +8,7 @@ import {
 import { ApiError } from "../../api/client";
 import { getPayrollSettings, type PayrollSettings } from "../../api/settings";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { isManagement } from "../../permissions";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   ActionFailure,
@@ -58,7 +59,8 @@ export function AttendancePage({
   const [success, setSuccess] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [nextDate, setNextDate] = useState<string | null>(null);
-  const editable = user?.role !== "Viewer" && !day?.isFinalised;
+  const showPay = isManagement(user?.role);
+  const editable = !!user && !day?.isFinalised;
   const dirty =
     !!day && forms.some((form, index) => changed(form, day.rows[index]));
 
@@ -192,11 +194,14 @@ export function AttendancePage({
       {settings && (
         <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
           Standard Shift: {settings.shiftDescription} (
-          {settings.maxBasicHoursPerDay} Basic Hours Max) • Overtime Rate:{" "}
-          {settings.overtimeRatePerHour.toFixed(2)} AED/hr
+          {settings.maxBasicHoursPerDay} Basic Hours Max)
+          {showPay && settings.overtimeRatePerHour !== null && (
+            <> • Overtime Rate: {settings.overtimeRatePerHour.toFixed(2)} AED/hr</>
+          )}
           <span className="mt-1 block">
-            Worker overtime overrides apply where set. Not recorded means no
-            pay.
+            {showPay
+              ? "Worker overtime overrides apply where set. Not recorded means no pay."
+              : "Not recorded means no hours are counted."}
           </span>
         </p>
       )}
@@ -228,11 +233,6 @@ export function AttendancePage({
                 This month is finalised. Attendance is locked.
               </p>
             )}
-            {user?.role === "Viewer" && (
-              <p className="text-sm text-gray-600">
-                Read-only attendance access.
-              </p>
-            )}
             {day.rows.length ? (
               <AttendanceTable
                 rows={day.rows}
@@ -240,6 +240,7 @@ export function AttendancePage({
                 editable={editable}
                 pending={pending}
                 maximum={settings.maxBasicHoursPerDay}
+                showPay={showPay}
                 companyRate={settings.overtimeRatePerHour}
                 onChange={change}
               />

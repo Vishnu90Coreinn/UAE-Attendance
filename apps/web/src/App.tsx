@@ -9,6 +9,7 @@ import { SettingsPage } from "./features/settings/SettingsPage";
 import { WorkersPage } from "./features/workers/WorkersPage";
 import { LeavePage } from "./features/leave/LeavePage";
 import { UserPage } from "./features/users/UserPage";
+import { MANAGEMENT_ROLES } from "./permissions";
 import { NotFound } from "./pages/NotFound";
 
 export default function App() {
@@ -24,12 +25,19 @@ export default function App() {
             path="attendance"
             element={<AttendancePage guardNavigation />}
           />
-          <Route path="payroll" element={<PayrollPage />} />
+          <Route
+            path="payroll"
+            element={
+              <RequireRole roles={MANAGEMENT_ROLES}>
+                <PayrollPage />
+              </RequireRole>
+            }
+          />
           <Route path="leave" element={<LeavePage />} />
           <Route
             path="users"
             element={
-              <RequireRole roles={["Administrator"]}>
+              <RequireRole roles={MANAGEMENT_ROLES}>
                 <UserPage />
               </RequireRole>
             }
@@ -37,7 +45,7 @@ export default function App() {
           <Route
             path="settings"
             element={
-              <RequireRole roles={["Administrator"]}>
+              <RequireRole roles={MANAGEMENT_ROLES}>
                 <SettingsPage />
               </RequireRole>
             }

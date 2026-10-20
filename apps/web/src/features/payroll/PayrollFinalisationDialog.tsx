@@ -53,7 +53,7 @@ export function PayrollFinalisationDialog({
         <p id={descriptionId} className="text-sm text-gray-700">
           {reopening
             ? `Reopen ${report.period}? Attendance will be editable and the draft will use current worker and overtime rates. The reason is recorded in the audit log.`
-            : `Finalise ${report.period}? These figures and company details will be frozen. Attendance for this month will be locked until an Administrator reopens it.`}
+            : `Finalise ${report.period}? These figures and company details will be frozen. Attendance for this month will be locked until a Manager or Administrator reopens it.`}
         </p>
         <dl className="grid grid-cols-2 gap-2 rounded-lg bg-gray-50 p-3 text-sm tabular-nums">
           <dt>Basic Pay (AED)</dt>

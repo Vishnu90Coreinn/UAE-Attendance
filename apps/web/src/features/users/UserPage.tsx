@@ -7,7 +7,7 @@ import {
   listUsers,
   resetUserPassword,
   updateUser,
-  USER_ROLES,
+  assignableRoles,
   type CreateUserInput,
   type ManagedUser,
 } from "../../api/users";
@@ -110,11 +110,12 @@ export function UserPage() {
     } finally { if (mounted.current) setPending(false); }
   }
 
+  const assignable = assignableRoles(current?.role);
   const busy = pending || addOpen || !!resetUser || !!deleteTarget;
   return (
     <section className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div><h2 className="text-2xl font-bold text-gray-800">User Manager</h2><p className="text-sm text-gray-600">Manage access roles and account status.</p></div>
+        <div><h2 className="text-2xl font-bold text-gray-800">User Manager</h2><p className="text-sm text-gray-600">{current?.role === "Administrator" ? "Manage access roles and account status." : "Manage Supervisor accounts."}</p></div>
         <button type="button" disabled={busy} className={`${primaryButtonClass} disabled:opacity-60`}
           onClick={() => { clearFeedback(); setDialogError(null); setFieldErrors(undefined); setAddOpen(true); }}>
           <UserPlus aria-hidden="true" size={16} />Add User
@@ -135,7 +136,7 @@ export function UserPage() {
                 <td className="px-4 py-3"><select aria-label={`Role for ${row.username}`} value={row.role} disabled={busy || self}
                   className="min-h-11 rounded-lg border border-gray-300 bg-white px-3"
                   onChange={(event) => void mutate(() => updateUser(row.id, { role: event.target.value as ManagedUser["role"], active: row.isActive }), "User role updated.")}>
-                  {USER_ROLES.map((role) => <option key={role}>{role}</option>)}</select></td>
+                  {(assignable.includes(row.role) ? assignable : [row.role, ...assignable]).map((role) => <option key={role}>{role}</option>)}</select></td>
                 <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${row.isActive ? "bg-green-100 text-green-800" : "bg-gray-200 text-gray-700"}`}>{row.isActive ? "Active" : "Inactive"}</span></td>
                 <td className="px-4 py-3"><div className="flex flex-wrap gap-2">
                   {!self && <button type="button" disabled={busy} className={actionClass} aria-label={`${row.isActive ? "Deactivate" : "Activate"} ${row.username}`}
@@ -149,7 +150,7 @@ export function UserPage() {
             })}</tbody>
           </table>
         </div>}
-      {addOpen && <AddUserDialog open pending={pending} error={dialogError} fieldErrors={fieldErrors} onSubmit={(input) => void add(input)} onClose={() => setAddOpen(false)} />}
+      {addOpen && <AddUserDialog open roles={assignable} pending={pending} error={dialogError} fieldErrors={fieldErrors} onSubmit={(input) => void add(input)} onClose={() => setAddOpen(false)} />}
       {!!resetUser && <ResetPasswordDialog user={resetUser} pending={pending} error={dialogError} fieldErrors={fieldErrors} onSubmit={(password) => void reset(password)} onClose={() => setResetUser(null)} />}
       <ConfirmDialog open={!!deleteTarget} title="Delete user" message={deleteTarget ? `Delete ${deleteTarget.username} permanently? This cannot be undone.` : ""}
         confirmLabel="Delete" pending={pending} onConfirm={() => void remove()} onCancel={() => setDeleteTarget(null)} />

@@ -3,6 +3,7 @@ import { Trash2, UserPlus, UserX } from "lucide-react";
 import { ApiError } from "../../api/client";
 import { activateWorker, deactivateWorker, deleteWorker, type Worker } from "../../api/workers";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { isManagement } from "../../permissions";
 import { useAuth } from "../../contexts/AuthContext";
 import { useWorkerList } from "./useWorkerList";
 import { WorkerFormDialog } from "./WorkerFormDialog";
@@ -34,7 +35,7 @@ function failureMessage(error: unknown): string {
 
 export function WorkersPage() {
   const { user } = useAuth();
-  const canManage = user?.role === "Administrator" || user?.role === "HR Staff";
+  const canManage = isManagement(user?.role);
 
   const [includeInactive, setIncludeInactive] = useState(false);
   const list = useWorkerList(includeInactive);
@@ -110,7 +111,11 @@ export function WorkersPage() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Worker Directory</h2>
-          <p className="text-sm text-gray-500">Manage employee profiles, designations, and base pay rates.</p>
+          <p className="text-sm text-gray-500">
+            {canManage
+              ? "Manage employee profiles, designations, and base pay rates."
+              : "View worker profiles and designations."}
+          </p>
         </div>
         {canManage && !showEmpty && (
           <button type="button" onClick={() => openForm(null)} className={primaryButtonClass}>
@@ -139,6 +144,7 @@ export function WorkersPage() {
       {list.status === "ready" && list.workers.length > 0 && (
         <WorkersTable
           workers={list.workers}
+          showRates={canManage}
           busyId={busyId}
           actions={
             canManage

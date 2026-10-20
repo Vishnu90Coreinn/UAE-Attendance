@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -61,7 +61,7 @@ function renderAt(path: string) {
 }
 
 function signInWithStoredToken(
-  role: "Administrator" | "HR Staff" | "Viewer" = "Administrator",
+  role: authApi.Role = "Administrator",
 ) {
   sessionStorage.setItem(TOKEN_STORAGE_KEY, "stored-tok");
   vi.mocked(authApi.getMe).mockResolvedValue({ ...admin, role });
@@ -107,21 +107,21 @@ afterEach(() => {
 });
 
 describe("App", () => {
-  it("serves User Manager to an Administrator", async () => {
-    signInWithStoredToken("Administrator");
+  it.each(["Administrator", "Manager"] as const)("serves User Manager to %s", async (role) => {
+    signInWithStoredToken(role);
     renderAt("/users");
     expect(await screen.findByRole("heading", { name: "User Manager" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "User Manager" })).toHaveAttribute("aria-current", "page");
   });
 
-  it.each(["HR Staff", "Viewer"] as const)("refuses User Manager to %s without loading users", async (role) => {
-    signInWithStoredToken(role);
+  it("refuses User Manager to a Supervisor without loading users", async () => {
+    signInWithStoredToken("Supervisor");
     renderAt("/users");
     expect(await screen.findByText("You do not have access to this page")).toBeInTheDocument();
     expect(usersApi.listUsers).not.toHaveBeenCalled();
   });
-  it.each(["Administrator", "HR Staff", "Viewer"] as const)(
-    "opens leave management for %s with appropriate actions",
+  it.each(["Administrator", "Manager", "Supervisor"] as const)(
+    "opens leave management for %s with New Leave Request",
     async (role) => {
       signInWithStoredToken(role);
       renderAt("/leave");
@@ -129,8 +129,8 @@ describe("App", () => {
         await screen.findByText("No leave requests match these filters."),
       ).toBeInTheDocument();
       expect(
-        screen.queryByRole("button", { name: "New Leave Request" }) !== null,
-      ).toBe(role !== "Viewer");
+        screen.getByRole("button", { name: "New Leave Request" }),
+      ).toBeInTheDocument();
       expect(
         screen.getByRole("link", { name: "Leave Management" }),
       ).toHaveAttribute("aria-current", "page");
@@ -141,8 +141,8 @@ describe("App", () => {
     await screen.findByRole("heading", { name: "Sign in" });
     expect(leaveApi.listLeave).not.toHaveBeenCalled();
   });
-  it.each(["Administrator", "HR Staff", "Viewer"] as const)(
-    "allows %s to print/export payroll",
+  it.each(["Administrator", "Manager"] as const)(
+    "allows %s to print/export and finalise payroll",
     async (role) => {
       signInWithStoredToken(role);
       renderAt("/payroll");
@@ -150,11 +150,23 @@ describe("App", () => {
       expect(screen.getByRole("button", { name: "Print" })).toBeEnabled();
       expect(screen.getByRole("button", { name: "Export PDF" })).toBeEnabled();
       expect(
-        screen.queryByRole("button", { name: "Finalise month" }) !== null,
-      ).toBe(role === "Administrator");
+        screen.getByRole("button", { name: "Finalise month" }),
+      ).toBeInTheDocument();
       expect(
         screen.getByRole("link", { name: "Payroll Summary" }),
       ).toHaveAttribute("aria-current", "page");
+    },
+  );
+  it.each(["/payroll", "/settings", "/users"])(
+    "refuses a Supervisor who types %s",
+    async (path) => {
+      signInWithStoredToken("Supervisor");
+      renderAt(path);
+      expect(
+        await screen.findByText("You do not have access to this page"),
+      ).toBeInTheDocument();
+      expect(payrollApi.getPayroll).not.toHaveBeenCalled();
+      expect(usersApi.listUsers).not.toHaveBeenCalled();
     },
   );
   it("requires sign-in for payroll", async () => {
@@ -179,7 +191,7 @@ describe("App", () => {
       await screen.findByRole("heading", { name: "New Company LLC" }),
     ).toBeInTheDocument();
   });
-  it.each(["Administrator", "HR Staff", "Viewer"] as const)(
+  it.each(["Administrator", "Manager", "Supervisor"] as const)(
     "serves attendance to %s",
     async (role) => {
       signInWithStoredToken(role);
@@ -203,7 +215,7 @@ describe("App", () => {
     expect(attendanceApi.getAttendance).not.toHaveBeenCalled();
   });
   it("protects attendance edits when navigating to another tab", async () => {
-    signInWithStoredToken("HR Staff");
+    signInWithStoredToken("Supervisor");
     vi.mocked(attendanceApi.getAttendance).mockResolvedValue({
       date: "2026-10-19",
       isFinalised: false,
@@ -304,7 +316,7 @@ describe("App", () => {
     );
   });
 
-  it.each(["HR Staff", "Viewer"] as const)(
+  it.each(["Supervisor"] as const)(
     "tells %s who types /settings that they have no access, without loading or showing the form",
     async (role) => {
       signInWithStoredToken(role);
@@ -321,7 +333,9 @@ describe("App", () => {
         screen.queryByRole("link", { name: "Settings" }),
       ).not.toBeInTheDocument();
       // Any user may load shell branding; the restricted settings form never loads.
-      expect(settingsApi.getPayrollSettings).toHaveBeenCalledTimes(1);
+      await waitFor(() =>
+        expect(settingsApi.getPayrollSettings).toHaveBeenCalledTimes(1),
+      );
       expect(screen.getByText("health chip")).toBeInTheDocument();
     },
   );

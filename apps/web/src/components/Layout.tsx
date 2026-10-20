@@ -3,6 +3,7 @@ import { KeyRound, LogOut, UsersRound } from "lucide-react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { COMPANY_NAME } from "../branding";
 import { getPayrollSettings, type PayrollSettings } from "../api/settings";
+import { isManagement } from "../permissions";
 import { useAuth } from "../contexts/AuthContext";
 import { ChangePasswordDialog } from "../features/auth/ChangePasswordDialog";
 import { HealthChip } from "./HealthChip";
@@ -65,7 +66,7 @@ export function Layout() {
             {user && (
               <>
                 <p className="min-w-0 break-words text-sm text-slate-100">{`Logged in as ${user.username} (${user.role})`}</p>
-                {user.role === "Administrator" && (
+                {isManagement(user.role) && (
                   <Link to="/users" className={headerButtonClass}>
                     <UsersRound aria-hidden="true" size={16} />
                     User Access

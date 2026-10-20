@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { Loader2 } from "lucide-react";
 import type { Role } from "../../api/auth";
-import { USER_ROLES, type CreateUserInput, type ManagedUser } from "../../api/users";
+import { type CreateUserInput, type ManagedUser } from "../../api/users";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
 
@@ -16,8 +16,10 @@ function validatePassword(password: string, username: string) {
   return undefined;
 }
 
-export function AddUserDialog({ open, pending, error, fieldErrors, onClose, onSubmit }: {
+export function AddUserDialog({ open, roles, pending, error, fieldErrors, onClose, onSubmit }: {
   open: boolean;
+  /** The roles the signed-in user may assign. */
+  roles: readonly Role[];
   pending: boolean;
   error: string | null;
   fieldErrors?: Record<string, string[]>;
@@ -27,7 +29,7 @@ export function AddUserDialog({ open, pending, error, fieldErrors, onClose, onSu
   const first = useRef<HTMLInputElement>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<Role>("Viewer");
+  const [role, setRole] = useState<Role>(roles[roles.length - 1] ?? "Supervisor");
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -51,7 +53,7 @@ export function AddUserDialog({ open, pending, error, fieldErrors, onClose, onSu
         <label className="block text-sm font-medium text-gray-800">Role
           <select aria-label="Role" value={role} disabled={pending} onChange={(e) => setRole(e.target.value as Role)}
             className="mt-1 min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-base">
-            {USER_ROLES.map((value) => <option key={value}>{value}</option>)}
+            {roles.map((value) => <option key={value}>{value}</option>)}
           </select>
         </label>
         <div className="flex flex-wrap justify-end gap-3 pt-2">

@@ -131,7 +131,7 @@ describe("Layout", () => {
   });
 
   it("marks the current page's tab with aria-current and the prototype's blue accent", async () => {
-    await renderLayout("HR Staff", "hr.jane", "/workers");
+    await renderLayout("Supervisor", "sup.omar", "/workers");
 
     const link = screen.getByRole("link", { name: "Worker Directory" });
     expect(link).toHaveAttribute("aria-current", "page");
@@ -159,30 +159,31 @@ describe("Layout", () => {
     expect(await screen.findByText("page content")).toBeInTheDocument();
   });
 
-  it("hides User Manager and Settings from HR Staff", async () => {
-    await renderLayout("HR Staff", "hr.jane");
+  it("shows a Manager the same tabs as an Administrator", async () => {
+    await renderLayout("Manager", "mgr.sam");
 
-    expect(tabLabels()).toEqual(MODULES);
-    expect(
-      screen.queryByRole("link", { name: "Settings" }),
-    ).not.toBeInTheDocument();
+    expect(tabLabels()).toEqual([...MODULES, "User Manager", "Settings"]);
   });
 
-  it("hides User Manager and Settings from a Viewer", async () => {
-    await renderLayout("Viewer", "view.only");
+  it("shows a Supervisor only the three site tabs", async () => {
+    await renderLayout("Supervisor", "sup.omar");
 
-    expect(tabLabels()).toEqual(MODULES);
-    expect(
-      screen.queryByRole("link", { name: "Settings" }),
-    ).not.toBeInTheDocument();
+    expect(tabLabels()).toEqual([
+      "Worker Directory",
+      "Daily Attendance",
+      "Leave Management",
+    ]);
+    for (const name of ["Payroll Summary", "User Manager", "Settings"]) {
+      expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
+    }
   });
 
   it("shows who is logged in and their role in the header", async () => {
-    await renderLayout("HR Staff", "hr.jane");
+    await renderLayout("Supervisor", "sup.omar");
 
     const header = screen.getByRole("banner");
     expect(
-      within(header).getByText("Logged in as hr.jane (HR Staff)"),
+      within(header).getByText("Logged in as sup.omar (Supervisor)"),
     ).toBeInTheDocument();
     expect(
       within(header).getByRole("button", { name: "Change password" }),
@@ -192,13 +193,13 @@ describe("Layout", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the User Access header shortcut only to an Administrator", async () => {
-    await renderLayout("Administrator");
+  it.each(["Administrator", "Manager"] as const)("shows the User Access header shortcut to %s", async (role) => {
+    await renderLayout(role);
     expect(within(screen.getByRole("banner")).getByRole("link", { name: "User Access" })).toHaveAttribute("href", "/users");
   });
 
-  it.each(["HR Staff", "Viewer"] as const)("hides the User Access header shortcut from %s", async (role) => {
-    await renderLayout(role);
+  it("hides the User Access header shortcut from a Supervisor", async () => {
+    await renderLayout("Supervisor");
     expect(within(screen.getByRole("banner")).queryByRole("link", { name: "User Access" })).not.toBeInTheDocument();
   });
 

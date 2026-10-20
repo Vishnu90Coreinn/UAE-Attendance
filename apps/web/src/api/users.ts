@@ -20,7 +20,14 @@ export interface UpdateUserInput {
   active: boolean;
 }
 
-export const USER_ROLES: readonly Role[] = ["Administrator", "HR Staff", "Viewer"];
+/** Roles an Administrator may assign. */
+export const ADMIN_ASSIGNABLE_ROLES: readonly Role[] = ["Administrator", "Manager", "Supervisor"];
+/** Roles a Manager may assign: Supervisors only. */
+export const MANAGER_ASSIGNABLE_ROLES: readonly Role[] = ["Supervisor"];
+
+export function assignableRoles(role: Role | undefined): readonly Role[] {
+  return role === "Administrator" ? ADMIN_ASSIGNABLE_ROLES : MANAGER_ASSIGNABLE_ROLES;
+}
 
 export function listUsers(): Promise<ManagedUser[]> {
   return apiGet<ManagedUser[]>("/api/users");
