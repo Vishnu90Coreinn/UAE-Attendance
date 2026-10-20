@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
+using System.Threading.RateLimiting;
 using HrPayroll.Api.Auth;
 using HrPayroll.Api.Data;
 using HrPayroll.Api.Data.Entities;
@@ -8,6 +10,9 @@ using HrPayroll.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -85,7 +90,60 @@ builder.Services.AddAuthorizationBuilder()
     // Secure by default: any endpoint without its own authorization metadata needs a signed-in user.
     .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
-builder.Services.AddControllers();
+// Login is limited per client IP (A10). The limit is read lazily so test hosts and environment variables can override
+// it. Behind a reverse proxy the real client IP needs forwarded-headers support (S8).
+const int DefaultLoginPerMinute = 10;
+builder.Services.AddRateLimiter(_ => { });
+builder.Services.AddOptions<RateLimiterOptions>().Configure<IConfiguration>((options, configuration) =>
+{
+    var permitLimit = configuration.GetValue("RateLimiting:LoginPerMinute", DefaultLoginPerMinute);
+    if (permitLimit < 1)
+    {
+        permitLimit = DefaultLoginPerMinute;
+    }
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(RateLimitPolicies.Login, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permitLimit,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            }));
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            context.HttpContext.Response.Headers.RetryAfter =
+                ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        var problem = new ProblemDetails
+        {
+            Status = StatusCodes.Status429TooManyRequests,
+            Title = "Too many attempts. Try again later.",
+        };
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            problem, options: null, contentType: "application/problem+json", cancellationToken);
+    };
+});
+
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+        // Automatic 400s keep the C# property names ("CurrentPassword") as error keys; the web client matches
+        // them to form fields by the JSON names, so re-key them in camelCase.
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var factory = context.HttpContext.RequestServices.GetRequiredService<ProblemDetailsFactory>();
+            var details = factory.CreateValidationProblemDetails(context.HttpContext, context.ModelState);
+            details.Errors = details.Errors.ToDictionary(
+                error => string.Join('.', error.Key.Split('.').Select(JsonNamingPolicy.CamelCase.ConvertName)),
+                error => error.Value);
+            return new BadRequestObjectResult(details) { ContentTypes = { "application/problem+json" } };
+        });
 
 var app = builder.Build();
 
@@ -111,6 +169,7 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseSerilogRequestLogging();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

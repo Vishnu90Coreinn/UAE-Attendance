@@ -5,6 +5,7 @@ using HrPayroll.Api.Dtos;
 using HrPayroll.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
 
@@ -16,6 +17,7 @@ public sealed class AuthController(AppDbContext db, AuthService authService, Jwt
 {
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request, CancellationToken cancellationToken)
     {
         var result = await authService.LoginAsync(request.Username, request.Password, cancellationToken);
@@ -40,8 +42,7 @@ public sealed class AuthController(AppDbContext db, AuthService authService, Jwt
     [Authorize(Policy = Policies.AnyUser)]
     public async Task<ActionResult<CurrentUserResponse>> Me(CancellationToken cancellationToken)
     {
-        var subject = User.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!int.TryParse(subject, out var userId))
+        if (CurrentUserId() is not { } userId)
         {
             return Unauthorized();
         }
@@ -53,6 +54,39 @@ public sealed class AuthController(AppDbContext db, AuthService authService, Jwt
         }
 
         return Ok(new CurrentUserResponse(user.Id, user.Username, user.Role));
+    }
+
+    [HttpPost("change-password")]
+    [Authorize(Policy = Policies.AnyUser)]
+    public async Task<IActionResult> ChangePassword(ChangePasswordRequest request, CancellationToken cancellationToken)
+    {
+        var userId = CurrentUserId();
+        if (userId is null)
+        {
+            return Unauthorized();
+        }
+
+        var result = await authService.ChangePasswordAsync(
+            userId.Value, request.CurrentPassword, request.NewPassword, cancellationToken);
+
+        switch (result.Outcome)
+        {
+            case ChangePasswordOutcome.Success:
+                return NoContent();
+
+            case ChangePasswordOutcome.Invalid:
+                var errors = result.Errors!.ToDictionary(e => e.Key, e => new[] { e.Value });
+                return ValidationProblem(new ValidationProblemDetails(errors));
+
+            default:
+                return Unauthorized();
+        }
+    }
+
+    private int? CurrentUserId()
+    {
+        var subject = User.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return int.TryParse(subject, out var userId) ? userId : null;
     }
 
     // Built by hand (not via ControllerBase.Problem) so the body has no per-request trace id and stays byte-identical.

@@ -1,3 +1,4 @@
+using HrPayroll.Api.Auth;
 using HrPayroll.Api.Data;
 using HrPayroll.Api.Data.Entities;
 using Microsoft.AspNetCore.Identity;
@@ -19,6 +20,22 @@ public enum LoginOutcome
 public sealed record LoginResult(LoginOutcome Outcome, User? User = null)
 {
     public bool Succeeded => Outcome == LoginOutcome.Success;
+}
+
+public enum ChangePasswordOutcome
+{
+    Success,
+    /// <summary>The user no longer exists or is inactive.</summary>
+    UserNotFound,
+    /// <summary>One or more fields were rejected; see <see cref="ChangePasswordResult.Errors"/>.</summary>
+    Invalid,
+}
+
+/// <summary>Result of a password change. <see cref="Errors"/> maps a camelCase field name to a user-readable message.</summary>
+public sealed record ChangePasswordResult(
+    ChangePasswordOutcome Outcome, IReadOnlyDictionary<string, string>? Errors = null)
+{
+    public bool Succeeded => Outcome == ChangePasswordOutcome.Success;
 }
 
 public class AuthService(
@@ -95,6 +112,44 @@ public class AuthService(
         await db.SaveChangesAsync(cancellationToken);
         return new LoginResult(LoginOutcome.Success, user);
     }
+
+    /// <summary>
+    /// Changes a user's own password. A wrong current password is a field error on <c>currentPassword</c> and,
+    /// unlike a failed sign-in, never touches the lockout counters: the caller already holds a valid token.
+    /// </summary>
+    public async Task<ChangePasswordResult> ChangePasswordAsync(
+        int userId, string currentPassword, string newPassword, CancellationToken cancellationToken = default)
+    {
+        var user = await db.Users.SingleOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        if (user is null || !user.IsActive)
+        {
+            return new ChangePasswordResult(ChangePasswordOutcome.UserNotFound);
+        }
+
+        if (passwordHasher.VerifyHashedPassword(user, user.PasswordHash, currentPassword) == PasswordVerificationResult.Failed)
+        {
+            return Invalid("currentPassword", "Current password is incorrect.");
+        }
+
+        var policyError = PasswordPolicy.Validate(newPassword, user.Username);
+        if (policyError is not null)
+        {
+            return Invalid("newPassword", policyError);
+        }
+
+        if (string.Equals(newPassword, currentPassword, StringComparison.Ordinal))
+        {
+            return Invalid("newPassword", "New password must be different from the current password.");
+        }
+
+        user.PasswordHash = passwordHasher.HashPassword(user, newPassword);
+        audit.Write("PasswordChanged", user.Username, nameof(User), user.Id.ToString());
+        await db.SaveChangesAsync(cancellationToken);
+        return new ChangePasswordResult(ChangePasswordOutcome.Success);
+    }
+
+    private static ChangePasswordResult Invalid(string field, string message) =>
+        new(ChangePasswordOutcome.Invalid, new Dictionary<string, string> { [field] = message });
 
     private async Task<LoginResult> FailAsync(
         string attemptedUsername, User? entity, string reason, CancellationToken cancellationToken)
