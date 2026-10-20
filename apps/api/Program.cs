@@ -1,5 +1,6 @@
 using HrPayroll.Api.Data;
 using HrPayroll.Api.Middleware;
+using HrPayroll.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Events;
@@ -32,6 +33,9 @@ builder.Host.UseSerilog((context, logger) =>
 // The connection string is read lazily so test hosts and environment variables can override it.
 builder.Services.AddDbContext<AppDbContext>((services, options) =>
     options.UseSqlServer(services.GetRequiredService<IConfiguration>().GetConnectionString("Default")));
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IAuditLogger, AuditLogger>();
 
 builder.Services.AddControllers();
 
