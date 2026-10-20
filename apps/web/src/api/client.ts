@@ -117,3 +117,16 @@ export function apiPost<T = void>(
 ): Promise<T> {
   return send<T>(path, { method: "POST", body: JSON.stringify(body), signal }, options);
 }
+
+export function apiPut<T = void>(
+  path: string,
+  body: unknown,
+  signal?: AbortSignal,
+  options?: RequestOptions,
+): Promise<T> {
+  return send<T>(path, { method: "PUT", body: JSON.stringify(body), signal }, options);
+}
+
+export function apiDelete(path: string, signal?: AbortSignal, options?: RequestOptions): Promise<void> {
+  return send<void>(path, { method: "DELETE", signal }, options);
+}

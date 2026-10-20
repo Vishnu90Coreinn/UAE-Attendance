@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { KeyRound, LogOut } from "lucide-react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { COMPANY_NAME } from "../branding";
 import { useAuth } from "../contexts/AuthContext";
 import { ChangePasswordDialog } from "../features/auth/ChangePasswordDialog";
@@ -9,6 +9,9 @@ import { navItemsForRole } from "./navItems";
 
 const headerButtonClass =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-600 px-3 text-sm font-medium text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300";
+
+const tabClass =
+  "inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-5 text-sm font-medium focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-300";
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -58,16 +61,28 @@ export function Layout() {
 
       <nav aria-label="Main" className="border-b border-slate-700 bg-slate-800 text-white shadow-sm">
         <div className="mx-auto flex w-full max-w-7xl overflow-x-auto px-4">
-          {tabs.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              disabled
-              className="min-h-11 whitespace-nowrap border-b-2 border-transparent px-5 text-sm font-medium text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-300 disabled:cursor-not-allowed"
-            >
-              {item.label}
-            </button>
-          ))}
+          {tabs.map((item) =>
+            item.path ? (
+              <NavLink
+                key={item.key}
+                to={item.path}
+                className={({ isActive }) =>
+                  `${tabClass} ${isActive ? "border-blue-500 text-blue-400" : "border-transparent text-gray-300 hover:text-white"}`
+                }
+              >
+                {item.label}
+              </NavLink>
+            ) : (
+              <button
+                key={item.key}
+                type="button"
+                disabled
+                className={`${tabClass} border-transparent text-gray-400 disabled:cursor-not-allowed`}
+              >
+                {item.label}
+              </button>
+            ),
+          )}
         </div>
       </nav>
 

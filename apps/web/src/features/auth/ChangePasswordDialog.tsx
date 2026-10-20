@@ -1,16 +1,8 @@
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type FormEvent,
-  type KeyboardEvent,
-  type RefObject,
-  type SyntheticEvent,
-} from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type RefObject } from "react";
 import { CheckCircle2, KeyRound, Loader2 } from "lucide-react";
 import { changePassword } from "../../api/auth";
 import { ApiError } from "../../api/client";
+import { Dialog } from "../../components/Dialog";
 
 const MIN_LENGTH = 10;
 const MAX_LENGTH = 128;
@@ -270,59 +262,13 @@ interface ChangePasswordDialogProps {
   onClose: () => void;
 }
 
-/**
- * Modal built on the native <dialog>: showModal() gives the focus trap and an inert page behind it.
- * The parent owns `open`; Cancel, Close and Esc all call onClose.
- */
+/** The parent owns `open`; Cancel, Close and Esc all call onClose. */
 export function ChangePasswordDialog({ open, onClose }: ChangePasswordDialogProps) {
-  const headingId = useId();
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
-  const openerRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) {
-      return;
-    }
-    if (open) {
-      if (!dialog.hasAttribute("open")) {
-        openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        dialog.showModal();
-      }
-      firstFieldRef.current?.focus();
-    } else if (dialog.hasAttribute("open")) {
-      dialog.close();
-      openerRef.current?.focus();
-      openerRef.current = null;
-    }
-  }, [open]);
-
-  function handleKeyDown(event: KeyboardEvent<HTMLDialogElement>) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      onClose();
-    }
-  }
-
-  // The browser's own close request (for example the Android back gesture) arrives as `cancel`.
-  function handleCancel(event: SyntheticEvent<HTMLDialogElement>) {
-    event.preventDefault();
-    onClose();
-  }
 
   return (
-    <dialog
-      ref={dialogRef}
-      aria-labelledby={headingId}
-      onKeyDown={handleKeyDown}
-      onCancel={handleCancel}
-      className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-lg border border-gray-200 bg-white p-6 text-gray-800 shadow-sm backdrop:bg-slate-900/60"
-    >
-      <h2 id={headingId} className="text-2xl font-bold text-gray-800">
-        Change password
-      </h2>
-      {open && <ChangePasswordForm firstFieldRef={firstFieldRef} onClose={onClose} />}
-    </dialog>
+    <Dialog open={open} onClose={onClose} title="Change password" initialFocusRef={firstFieldRef}>
+      <ChangePasswordForm firstFieldRef={firstFieldRef} onClose={onClose} />
+    </Dialog>
   );
 }

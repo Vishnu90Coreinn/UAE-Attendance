@@ -19,4 +19,16 @@ describe("navItemsForRole", () => {
   it("gives a Viewer the four modules without User Manager", () => {
     expect(labelsFor("Viewer")).toEqual(MODULES);
   });
+
+  it("gives only Worker Directory a route for now; the other tabs stay placeholders", () => {
+    const paths = Object.fromEntries(navItemsForRole("Administrator").map((item) => [item.label, item.path]));
+
+    expect(paths).toEqual({
+      "Worker Directory": "/workers",
+      "Daily Attendance": undefined,
+      "Payroll Summary": undefined,
+      "Leave Management": undefined,
+      "User Manager": undefined,
+    });
+  });
 });

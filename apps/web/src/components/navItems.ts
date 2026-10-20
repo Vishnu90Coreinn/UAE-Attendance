@@ -5,13 +5,15 @@ export interface NavItem {
   label: string;
   /** Roles that see this tab. The server enforces access independently of this list. */
   roles: readonly Role[];
+  /** Route of the screen. Tabs without one are disabled placeholders until their slice is built. */
+  path?: string;
 }
 
 const ALL_ROLES: readonly Role[] = ["Administrator", "HR Staff", "Viewer"];
 
 /** The five prototype tabs, in prototype order. Each becomes a real route in its own slice. */
 export const NAV_ITEMS: readonly NavItem[] = [
-  { key: "workers", label: "Worker Directory", roles: ALL_ROLES },
+  { key: "workers", label: "Worker Directory", roles: ALL_ROLES, path: "/workers" },
   { key: "attendance", label: "Daily Attendance", roles: ALL_ROLES },
   { key: "payroll", label: "Payroll Summary", roles: ALL_ROLES },
   { key: "leave", label: "Leave Management", roles: ALL_ROLES },

@@ -15,17 +15,18 @@ type TestRole = authApi.CurrentUser["role"];
 const MODULES = ["Worker Directory", "Daily Attendance", "Payroll Summary", "Leave Management"];
 
 /** Renders the Layout under the real AuthProvider with a restored session for the given role. */
-async function renderLayout(role: TestRole = "Administrator", username = "admin") {
+async function renderLayout(role: TestRole = "Administrator", username = "admin", initialPath = "/workers") {
   sessionStorage.setItem(TOKEN_STORAGE_KEY, "stored-tok");
   vi.mocked(authApi.getMe).mockResolvedValue({ id: 1, username, role });
 
   render(
-    <MemoryRouter initialEntries={["/"]}>
+    <MemoryRouter initialEntries={[initialPath]}>
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<p>login screen</p>} />
           <Route element={<Layout />}>
-            <Route index element={<p>page content</p>} />
+            <Route path="workers" element={<p>page content</p>} />
+            <Route path="other" element={<p>other content</p>} />
           </Route>
         </Routes>
       </AuthProvider>
@@ -37,9 +38,7 @@ async function renderLayout(role: TestRole = "Administrator", username = "admin"
 
 function tabLabels() {
   const nav = screen.getByRole("navigation", { name: "Main" });
-  return within(nav)
-    .getAllByRole("button")
-    .map((tab) => tab.textContent);
+  return Array.from(nav.querySelectorAll("a, button")).map((tab) => tab.textContent);
 }
 
 beforeEach(() => {
@@ -52,13 +51,55 @@ afterEach(() => {
 });
 
 describe("Layout", () => {
-  it("shows the five module tabs in order to an Administrator, all disabled until their slice is built", async () => {
+  it("shows the five module tabs in order to an Administrator", async () => {
     await renderLayout("Administrator");
 
     expect(tabLabels()).toEqual([...MODULES, "User Manager"]);
-    within(screen.getByRole("navigation", { name: "Main" }))
-      .getAllByRole("button")
-      .forEach((tab) => expect(tab).toBeDisabled());
+  });
+
+  it("renders Worker Directory as a link and keeps the other tabs as disabled placeholders", async () => {
+    await renderLayout("Administrator");
+    const nav = screen.getByRole("navigation", { name: "Main" });
+
+    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["Worker Directory"]);
+    expect(within(nav).getByRole("link", { name: "Worker Directory" })).toHaveAttribute("href", "/workers");
+    const placeholders = within(nav).getAllByRole("button");
+    expect(placeholders.map((tab) => tab.textContent)).toEqual([
+      "Daily Attendance",
+      "Payroll Summary",
+      "Leave Management",
+      "User Manager",
+    ]);
+    placeholders.forEach((tab) => expect(tab).toBeDisabled());
+  });
+
+  it("marks the current page's tab with aria-current and the prototype's blue accent", async () => {
+    await renderLayout("HR Staff", "hr.jane", "/workers");
+
+    const link = screen.getByRole("link", { name: "Worker Directory" });
+    expect(link).toHaveAttribute("aria-current", "page");
+    expect(link.className).toContain("border-blue-500");
+    expect(link.className).toContain("text-blue-400");
+    expect(link.className).toContain("min-h-11");
+  });
+
+  it("does not mark the tab current on another page", async () => {
+    await renderLayout("Administrator", "admin", "/other");
+
+    const link = screen.getByRole("link", { name: "Worker Directory" });
+    expect(link).not.toHaveAttribute("aria-current");
+    expect(link.className).toContain("border-transparent");
+    expect(link.className).not.toContain("border-blue-500");
+  });
+
+  it("navigates to the worker directory when its tab is clicked", async () => {
+    await renderLayout("Administrator", "admin", "/other");
+    const user = userEvent.setup();
+    expect(screen.getByText("other content")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "Worker Directory" }));
+
+    expect(await screen.findByText("page content")).toBeInTheDocument();
   });
 
   it("hides User Manager from HR Staff", async () => {

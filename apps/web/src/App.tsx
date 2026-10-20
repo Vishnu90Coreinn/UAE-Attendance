@@ -1,8 +1,8 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { LoginPage } from "./features/auth/LoginPage";
 import { ProtectedRoute } from "./features/auth/ProtectedRoute";
-import { Home } from "./pages/Home";
+import { WorkersPage } from "./features/workers/WorkersPage";
 import { NotFound } from "./pages/NotFound";
 
 export default function App() {
@@ -12,7 +12,8 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
-          <Route index element={<Home />} />
+          <Route index element={<Navigate to="/workers" replace />} />
+          <Route path="workers" element={<WorkersPage />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Route>
