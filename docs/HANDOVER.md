@@ -15,8 +15,8 @@ Commercial context (so you understand the scope limits): fixed price quote QTN-H
 ## 2. Repository and branches
 
 - Repo: `https://github.com/Vishnu90Coreinn/UAE-Attendance` (local: `D:\GitHubRepository\UAE-Attendance`).
-- Branches on origin, **stacked, not yet merged**: `master` (only the first hygiene commit) ← `slice/s0-walking-skeleton` ← `slice/s1-sign-in` ← `slice/s2-workers`.
-- Continue the stack: create `slice/s3-attendance` from `slice/s2-workers`, then `slice/s4-...` from S3, and so on. Do not push, merge, force-push or delete branches unless the owner asks. Never rewrite history.
+- Branches on origin, **stacked, not yet merged**: `master` (only the first hygiene commit) ← `slice/s0-walking-skeleton` ← `slice/s1-sign-in` ← `slice/s2-workers` ← `slice/s2b-settings` (S2b is built and verified locally; push state is the owner's call).
+- Continue the stack: create `slice/s3-attendance` from `slice/s2b-settings`, then `slice/s4-...` from S3, and so on. Do not push, merge, force-push or delete branches unless the owner asks. Never rewrite history.
 - Commit style: Conventional Commits (`feat(api): ...`, `feat(web): ...`, `test(api): ...`, `docs: ...`, `chore: ...`). Small commits.
 - Layout:
 ```
@@ -45,8 +45,8 @@ cd apps/web && npm install && npm run dev
 
 # Tests
 dotnet build                         # must be 0 warnings, 0 errors
-dotnet test                          # 296 tests at the end of S2; they need LocalDB
-cd apps/web && npm test              # 172 tests at the end of S2
+dotnet test                          # 419 tests at the end of S2b; they need LocalDB
+cd apps/web && npm test              # 242 tests at the end of S2b
 cd apps/web && npm run lint          # tsc --noEmit
 cd apps/web && npm run build
 
@@ -63,8 +63,8 @@ Integration tests create and drop their own database (`HrPayroll_Test_<guid>`); 
 |-------|-----------------|
 | `Users` | `Id` int identity · `Username` nvarchar(50) unique, case-insensitive (`SQL_Latin1_General_CP1_CI_AS`) · `PasswordHash` nvarchar(256) (PBKDF2 via `PasswordHasher<User>`) · `Role` nvarchar(20) CHECK in (`Administrator`,`HR Staff`,`Viewer`) · `IsActive` · `FailedLoginCount` · `LockoutEndUtc` · `CreatedUtc` |
 | `AuditLogs` | `Id` bigint · `TimestampUtc` · `ActorUsername` · `Action` · `EntityType` · `EntityId` · `DetailsJson`. No FK to Users (rows must survive user deletion). Index on `TimestampUtc` |
-| `Workers` | `Id` · `WorkerCode` nvarchar(20) unique case-insensitive · `FullName`(120) · `Designation`(80) · `HourlyRate` decimal(9,2) CHECK > 0 · `IsActive` · `CreatedUtc` · `UpdatedUtc` |
-| `PayrollSettings` | single row, `Id`=1 (CHECK). `CompanyName`, `Tagline`, `ContactEmail`, `OvertimeRatePerHour` decimal(9,2) = **2.22**, `MaxBasicHoursPerDay` decimal(4,2) = **8**, `ShiftDescription` = "06:00 AM - 05:30 PM", `PreparedByLabel` = "HR Department", `ApprovedByLabel` = "General Manager". Seeded by the migration; read-only through the API until slice **S2b** makes it editable by the Administrator |
+| `Workers` | `Id` · `WorkerCode` nvarchar(20) unique case-insensitive · `FullName`(120) · `Designation`(80) · `HourlyRate` decimal(9,2) CHECK > 0 · `OvertimeRate` decimal(9,2) NULL (NULL = company rate, else >= 0; S2b) · `IsActive` · `CreatedUtc` · `UpdatedUtc` |
+| `PayrollSettings` | single row, `Id`=1 (CHECK). `CompanyName`, `Tagline`, `ContactEmail`, `OvertimeRatePerHour` decimal(9,2) = **2.22**, `MaxBasicHoursPerDay` decimal(4,2) = **8**, `ShiftDescription` = "06:00 AM - 05:30 PM", `PreparedByLabel` = "HR Department", `ApprovedByLabel` = "General Manager". Seeded by the migration; editable by the Administrator through `PUT /api/settings/payroll` and the **Settings** tab (S2b, done) |
 
 **API** (all JSON, camelCase; errors are RFC 9457 problem documents, validation errors carry a camelCase `errors` map):
 
@@ -112,9 +112,11 @@ D1 server-side PDF with **QuestPDF** (check Community licence eligibility) · D2
 
 ## 8. Remaining work — build in this order
 
-Build **S2b first, then S3–S8** (S3's `PayrollCalculator` depends on the final overtime rules). Estimated 7.25–11.75 engineering days in total. Each slice must be demonstrable end to end (database → API → UI → tests).
+S2b is already built; start at **S3** (its `PayrollCalculator` uses the S2b overtime rules). Estimated 6.75–11 engineering days for S3–S8. Each slice must be demonstrable end to end (database → API → UI → tests).
 
-### S2b — Settings and overtime rates (branch `slice/s2b-settings`, from `slice/s2-workers`)
+### S2b — Settings and overtime rates — **DONE** (branch `slice/s2b-settings`, from `slice/s2-workers`; 419 API + 242 web tests; checked in a browser at desktop and 375px)
+
+*Kept below as the specification of what was built. Notes: a `PUT /api/workers/{id}` that omits `overtimeRate` clears the override (full replace); worker table actions are icon-only below the `xl` breakpoint (labels via `aria-label`/`title`); `FieldChange` in `Services/FieldChange.cs` is the shared audit-diff record; `SettingsService` holds the settings rules.*
 
 **Why:** salary and overtime amounts must be user-defined. A worker's hourly rate is already editable (S2). The overtime rate was fixed at AED 2.22; this slice makes it configurable at two levels.
 
@@ -220,4 +222,4 @@ Open questions:           <bullets>
 
 ## 12. First message to send yourself (checklist)
 
-1. Read this file, the master plan and `docs/design-system.md`. 2. `git fetch --all`, check out `slice/s2-workers`, run `dotnet test` and `npm test` and confirm they pass (296 and 172). 3. Create `slice/s2b-settings` and build S2b; report back. Then create `slice/s3-attendance` from it and start S3 with `docs/payroll-test-vectors.json` and the `PayrollCalculator` unit tests. 4. Report back at the end of S3 before starting S4.
+1. Read this file, the master plan and `docs/design-system.md`. 2. `git fetch --all`, check out `slice/s2b-settings`, run `dotnet test` and `npm test` and confirm they pass (419 and 242). 3. Create `slice/s3-attendance` from it and start S3 with `docs/payroll-test-vectors.json` and the `PayrollCalculator` unit tests. 4. Report back at the end of S3 before starting S4.
