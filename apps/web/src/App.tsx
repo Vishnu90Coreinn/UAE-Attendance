@@ -7,6 +7,7 @@ import { ProtectedRoute } from "./features/auth/ProtectedRoute";
 import { RequireRole } from "./features/auth/RequireRole";
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { WorkersPage } from "./features/workers/WorkersPage";
+import { LeavePage } from "./features/leave/LeavePage";
 import { NotFound } from "./pages/NotFound";
 
 export default function App() {
@@ -18,8 +19,12 @@ export default function App() {
         <Route element={<Layout />}>
           <Route index element={<Navigate to="/workers" replace />} />
           <Route path="workers" element={<WorkersPage />} />
-          <Route path="attendance" element={<AttendancePage guardNavigation />} />
+          <Route
+            path="attendance"
+            element={<AttendancePage guardNavigation />}
+          />
           <Route path="payroll" element={<PayrollPage />} />
+          <Route path="leave" element={<LeavePage />} />
           <Route
             path="settings"
             element={

@@ -110,6 +110,7 @@ describe("Layout", () => {
       "Worker Directory",
       "Daily Attendance",
       "Payroll Summary",
+      "Leave Management",
       "Settings",
     ]);
     expect(
@@ -124,9 +125,11 @@ describe("Layout", () => {
     ).toHaveAttribute("href", "/attendance");
     const placeholders = within(nav).getAllByRole("button");
     expect(placeholders.map((tab) => tab.textContent)).toEqual([
-      "Leave Management",
       "User Manager",
     ]);
+    expect(
+      within(nav).getByRole("link", { name: "Leave Management" }),
+    ).toHaveAttribute("href", "/leave");
     placeholders.forEach((tab) => expect(tab).toBeDisabled());
   });
 

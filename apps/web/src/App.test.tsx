@@ -8,6 +8,7 @@ import * as settingsApi from "./api/settings";
 import * as workersApi from "./api/workers";
 import * as attendanceApi from "./api/attendance";
 import * as payrollApi from "./api/payroll";
+import * as leaveApi from "./api/leave";
 import { setAuthToken } from "./api/client";
 import { AuthProvider, TOKEN_STORAGE_KEY } from "./contexts/AuthContext";
 
@@ -19,6 +20,7 @@ vi.mock("./api/workers");
 vi.mock("./api/settings");
 vi.mock("./api/attendance");
 vi.mock("./api/payroll");
+vi.mock("./api/leave");
 
 const admin = { id: 1, username: "admin", role: "Administrator" as const };
 
@@ -63,6 +65,7 @@ function signInWithStoredToken(
 beforeEach(() => {
   sessionStorage.clear();
   vi.mocked(workersApi.listWorkers).mockResolvedValue([]);
+  vi.mocked(leaveApi.listLeave).mockResolvedValue([]);
   vi.mocked(settingsApi.getPayrollSettings).mockResolvedValue(payrollSettings);
   vi.mocked(attendanceApi.getAttendance).mockResolvedValue({
     date: "2026-10-19",
@@ -98,6 +101,27 @@ afterEach(() => {
 });
 
 describe("App", () => {
+  it.each(["Administrator", "HR Staff", "Viewer"] as const)(
+    "opens leave management for %s with appropriate actions",
+    async (role) => {
+      signInWithStoredToken(role);
+      renderAt("/leave");
+      expect(
+        await screen.findByText("No leave requests match these filters."),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "New Leave Request" }) !== null,
+      ).toBe(role !== "Viewer");
+      expect(
+        screen.getByRole("link", { name: "Leave Management" }),
+      ).toHaveAttribute("aria-current", "page");
+    },
+  );
+  it("requires sign-in for leave management", async () => {
+    renderAt("/leave");
+    await screen.findByRole("heading", { name: "Sign in" });
+    expect(leaveApi.listLeave).not.toHaveBeenCalled();
+  });
   it.each(["Administrator", "HR Staff", "Viewer"] as const)(
     "allows %s to print/export payroll",
     async (role) => {
