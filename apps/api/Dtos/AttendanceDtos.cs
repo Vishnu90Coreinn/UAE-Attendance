@@ -13,6 +13,23 @@ public sealed class AttendanceRequest
     public decimal? OvertimeHours { get; init; }
 }
 
-public sealed record AttendanceRecordResponse(string Status, decimal BasicHours, decimal OvertimeHours);
+public sealed record AttendanceRecordResponse(string Status, decimal BasicHours, decimal OvertimeHours,
+    string ApprovalStatus, string? RejectionReason);
 public sealed record AttendanceRowResponse(WorkerResponse Worker, AttendanceRecordResponse? Record, DailyPay? DailyPay);
-public sealed record AttendanceDayResponse(DateOnly Date, bool IsFinalised, List<AttendanceRowResponse> Rows);
+public sealed record AttendanceDayResponse(DateOnly Date, bool IsFinalised, List<AttendanceRowResponse> Rows, int PendingCount = 0);
+
+public sealed class ApproveAttendanceRequest
+{
+    /// <summary>Omit or leave empty to approve every submitted entry for the date.</summary>
+    public List<int>? WorkerIds { get; init; }
+}
+
+public sealed class RejectAttendanceRequest
+{
+    public List<int>? WorkerIds { get; init; }
+    public string? Reason { get; init; }
+}
+
+public sealed record AttendanceDayCount(DateOnly Date, int Count);
+public sealed record AttendanceSummaryResponse(int SubmittedTotal, List<AttendanceDayCount> Submitted,
+    int RejectedTotal, List<AttendanceDayCount> Rejected);

@@ -12,14 +12,20 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace HrPayroll.Api.Tests.Integration;
 
+/// <summary>HttpContextAccessor keeps its context in async-local state, which does not reach xUnit test threads; this one is a plain property.</summary>
+internal sealed class FixedHttpContextAccessor : IHttpContextAccessor
+{
+    public HttpContext? HttpContext { get; set; }
+}
+
 public sealed class PayrollSnapshotIntegrityTests : IAsyncLifetime
 {
     private readonly TestDatabase database = new();
     public Task InitializeAsync() => database.InitializeAsync();
     public Task DisposeAsync() => database.DisposeAsync();
     private static readonly DateOnly Month = new(2020, 1, 1);
-    private static readonly IHttpContextAccessor Context = new HttpContextAccessor { HttpContext = new DefaultHttpContext {
-        User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "payroll-admin")], "test")) } };
+    private static readonly IHttpContextAccessor Context = new FixedHttpContextAccessor { HttpContext = new DefaultHttpContext {
+        User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "payroll-admin"), new Claim(ClaimTypes.Role, HrPayroll.Api.Auth.Roles.Manager)], "test")) } };
     private static PayrollService Payroll(AppDbContext db) => new(db, new AuditLogger(db, Context), TimeProvider.System, Context);
     private static AttendanceService Attendance(AppDbContext db) => new(db, new AuditLogger(db, Context), TimeProvider.System, new PayrollPeriodLock(), Context);
     private AppDbContext NewDb(params IInterceptor[] interceptors) => new(new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(database.ConnectionString).AddInterceptors(interceptors).Options);

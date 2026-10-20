@@ -30,13 +30,31 @@ namespace HrPayroll.Api.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("ApprovalStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasDefaultValue("Approved");
+
                     b.Property<decimal>("BasicHours")
                         .HasPrecision(4, 2)
                         .HasColumnType("decimal(4,2)");
 
+                    b.Property<string>("DecidedBy")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("DecidedUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<decimal>("OvertimeHours")
                         .HasPrecision(4, 2)
                         .HasColumnType("decimal(4,2)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -66,6 +84,8 @@ namespace HrPayroll.Api.Data.Migrations
 
                     b.ToTable("Attendance", null, t =>
                         {
+                            t.HasCheckConstraint("CK_Attendance_Approval", "[ApprovalStatus] COLLATE Latin1_General_100_BIN2 IN ('Submitted', 'Approved', 'Rejected')");
+
                             t.HasCheckConstraint("CK_Attendance_Hours", "[BasicHours] >= 0 AND [OvertimeHours] >= 0 AND [BasicHours] + [OvertimeHours] <= 24");
 
                             t.HasCheckConstraint("CK_Attendance_Status", "[Status] COLLATE Latin1_General_100_BIN2 IN ('Present', 'Absent')");

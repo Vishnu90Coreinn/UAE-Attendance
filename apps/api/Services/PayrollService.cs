@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HrPayroll.Api.Services;
 
-public sealed record PayrollMutationResult(int StatusCode, PayrollResponse? Report = null);
+public sealed record PayrollMutationResult(int StatusCode, PayrollResponse? Report = null, string? Message = null);
 
 public sealed class PayrollService(AppDbContext db, IAuditLogger? audit = null, TimeProvider? time = null, IHttpContextAccessor? httpContext = null)
 {
@@ -45,6 +45,8 @@ public sealed class PayrollService(AppDbContext db, IAuditLogger? audit = null, 
         if (await db.PayrollPeriods.AnyAsync(p => p.Year == start.Year && p.Month == start.Month, ct)) return new(409);
         var rate = await db.PayrollSettings.AsNoTracking().Select(p => p.OvertimeRatePerHour).SingleAsync(ct);
         var draft = await BuildDraftAsync(start, ct);
+        if (draft.PendingApprovalCount > 0)
+            return new(409, Message: $"{draft.PendingApprovalCount} attendance {(draft.PendingApprovalCount == 1 ? "entry is" : "entries are")} still waiting for approval. Approve or reject them before finalising the month.");
         if (!string.Equals(revision, draft.Revision, StringComparison.Ordinal)) return new(409);
         var period = new PayrollPeriod
         {
@@ -109,7 +111,10 @@ public sealed class PayrollService(AppDbContext db, IAuditLogger? audit = null, 
         var end = new DateOnly(start.Year, start.Month, DateTime.DaysInMonth(start.Year, start.Month));
         var settings = await db.PayrollSettings.AsNoTracking().SingleAsync(ct);
         var allWorkers = await db.Workers.AsNoTracking().OrderBy(w => w.WorkerCode).ToListAsync(ct);
-        var attendance = await db.Attendance.AsNoTracking().Where(a => a.WorkDate >= start && a.WorkDate <= end).ToListAsync(ct);
+        var inMonth = db.Attendance.AsNoTracking().Where(a => a.WorkDate >= start && a.WorkDate <= end);
+        // Only manager-approved entries are payable; submitted entries are counted so the manager can see what is waiting.
+        var attendance = await inMonth.Where(a => a.ApprovalStatus == ApprovalStatuses.Approved).ToListAsync(ct);
+        var pending = await inMonth.CountAsync(a => a.ApprovalStatus == ApprovalStatuses.Submitted, ct);
         var ids = attendance.Select(a => a.WorkerId).Distinct().ToArray();
         var workers = allWorkers.Where(w => w.IsActive || ids.Contains(w.Id));
         var byWorker = attendance.ToLookup(a => a.WorkerId);
@@ -125,7 +130,7 @@ public sealed class PayrollService(AppDbContext db, IAuditLogger? audit = null, 
         }).ToArray();
         return WithRevision(new(start.ToString("yyyy-MM", CultureInfo.InvariantCulture), "Draft",
             new(settings.CompanyName, settings.Tagline, settings.ContactEmail, settings.PreparedByLabel, settings.ApprovedByLabel),
-            lines, PayrollCalculator.GrandTotals(lines), ""));
+            lines, PayrollCalculator.GrandTotals(lines), "", PendingApprovalCount: pending));
     }
 
     // SQL decimal materialization fixes scale to 2; use that same representation before and after persistence.

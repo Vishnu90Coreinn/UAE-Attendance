@@ -1,5 +1,6 @@
 using System.Data;
 using System.Globalization;
+using HrPayroll.Api.Auth;
 using HrPayroll.Api.Data;
 using HrPayroll.Api.Data.Entities;
 using HrPayroll.Api.Dtos;
@@ -31,6 +32,9 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
             var ids = requests.Where(r => r is not null).Select(r => r!.WorkerId).ToArray();
             var workers = await db.Workers.Where(w => ids.Contains(w.Id)).ToDictionaryAsync(w => w.Id, ct);
             var existing = await db.Attendance.Where(a => a.WorkDate == day && ids.Contains(a.WorkerId)).ToDictionaryAsync(a => a.WorkerId, ct);
+            var manager = IsManager;
+            var actor = httpContext.HttpContext?.User.Identity?.Name ?? "";
+            var now = time.GetUtcNow().UtcDateTime;
             var errors = new Dictionary<string, string[]>();
             var seen = new HashSet<int>();
             for (var i = 0; i < requests.Count; i++)
@@ -55,6 +59,9 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
                     if (row.BasicHours + row.OvertimeHours > 24) Error("overtimeHours", "Total hours cannot exceed 24.");
                 }
                 if (row.Status is null && (row.BasicHours != 0 || row.OvertimeHours != 0)) Error("status", "Not recorded requires zero hours.");
+                if (!manager && existing.TryGetValue(row.WorkerId, out var approvedRecord) && approvedRecord.ApprovalStatus == ApprovalStatuses.Approved
+                    && ChangesRecord(approvedRecord, row))
+                    Error("status", "This entry is already approved. Ask a Manager to change it.");
             }
             if (errors.Count > 0) return new(400, Errors: errors);
             var changed = new List<int>();
@@ -69,16 +76,24 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
                 }
                 var basic = row.Status == "Absent" ? 0m : row.BasicHours!.Value;
                 var overtime = row.Status == "Absent" ? 0m : row.OvertimeHours!.Value;
-                if (record is not null && record.Status == row.Status && record.BasicHours == basic && record.OvertimeHours == overtime) continue;
+                var sameValues = record is not null && record.Status == row.Status && record.BasicHours == basic && record.OvertimeHours == overtime;
+                // A supervisor re-saving a rejected entry unchanged is resubmitting it for approval.
+                var resubmit = sameValues && !manager && record!.ApprovalStatus == ApprovalStatuses.Rejected;
+                if (sameValues && !resubmit) continue;
                 if (record is null) { record = new Attendance { WorkerId = row.WorkerId, WorkDate = day }; db.Attendance.Add(record); }
                 record.Status = row.Status;
                 record.BasicHours = basic;
                 record.OvertimeHours = overtime;
-                record.UpdatedUtc = time.GetUtcNow().UtcDateTime;
-                record.UpdatedBy = httpContext.HttpContext?.User.Identity?.Name ?? "";
+                record.UpdatedUtc = now;
+                record.UpdatedBy = actor;
+                // Supervisors submit for approval; managers and administrators edit directly, which counts as approved.
+                record.ApprovalStatus = manager ? ApprovalStatuses.Approved : ApprovalStatuses.Submitted;
+                record.RejectionReason = null;
+                record.DecidedBy = manager ? actor : null;
+                record.DecidedUtc = manager ? now : null;
                 changed.Add(row.WorkerId);
             }
-            if (changed.Count > 0) audit.Write("AttendanceSaved", entityType: nameof(Attendance), entityId: date,
+            if (changed.Count > 0) audit.Write(manager ? "AttendanceSaved" : "AttendanceSubmitted", entityType: nameof(Attendance), entityId: date,
                 details: new { date, numberOfRows = requests.Count, workersChanged = changed });
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
@@ -110,7 +125,7 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
         return new(date, finalised, workers.Select(w =>
         {
             records.TryGetValue(w.Id, out var a);
-            var record = a is null ? null : new AttendanceRecordResponse(a.Status, a.BasicHours, a.OvertimeHours);
+            var record = a is null ? null : new AttendanceRecordResponse(a.Status, a.BasicHours, a.OvertimeHours, a.ApprovalStatus, a.RejectionReason);
             if (!finalised)
                 return new AttendanceRowResponse(new(w.Id, w.WorkerCode, w.FullName, w.Designation, w.HourlyRate, w.OvertimeRate, w.OvertimeRate ?? settings.OvertimeRatePerHour, w.IsActive),
                     record, PayrollCalculator.DailyPay(a?.Status, a?.BasicHours ?? 0, a?.OvertimeHours ?? 0, w.HourlyRate, settings.OvertimeRatePerHour, w.OvertimeRate));
@@ -120,7 +135,84 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
                     record, PayrollCalculator.DailyPay(null, 0, 0, 0, 0));
             return new AttendanceRowResponse(new(w.Id, w.WorkerCode, w.FullName, w.Designation, snap.HourlyRate, snap.OvertimeRate, snap.OvertimeRate, w.IsActive),
                 record, PayrollCalculator.DailyPay(a?.Status, a?.BasicHours ?? 0, a?.OvertimeHours ?? 0, snap.HourlyRate, snap.OvertimeRate));
-        }).ToList());
+        }).ToList(), records.Values.Count(r => r.ApprovalStatus == ApprovalStatuses.Submitted));
+    }
+
+    private bool IsManager => httpContext.HttpContext?.User is { } user
+        && (user.IsInRole(Roles.Manager) || user.IsInRole(Roles.Administrator));
+
+    private static bool ChangesRecord(Attendance record, AttendanceRequest row)
+    {
+        if (row.Status is null) return true;
+        var basic = row.Status == "Absent" ? 0m : row.BasicHours ?? 0m;
+        var overtime = row.Status == "Absent" ? 0m : row.OvertimeHours ?? 0m;
+        return record.Status != row.Status || record.BasicHours != basic || record.OvertimeHours != overtime;
+    }
+
+    /// <summary>Approves submitted entries for a date (all of them, or only the given workers). Manager/Administrator only.</summary>
+    public async Task<AttendanceResult> ApproveAsync(string date, IReadOnlyCollection<int>? workerIds, CancellationToken ct)
+    {
+        if (!TryDate(date, out var day)) return Invalid("date", "Choose a valid date in YYYY-MM-DD format that is not in the future.");
+        return await DecideAsync(day, workerIds, ApprovalStatuses.Approved, null, ct);
+    }
+
+    /// <summary>Sends submitted entries back to the supervisor with a reason. Manager/Administrator only.</summary>
+    public async Task<AttendanceResult> RejectAsync(string date, IReadOnlyCollection<int>? workerIds, string? reason, CancellationToken ct)
+    {
+        if (!TryDate(date, out var day)) return Invalid("date", "Choose a valid date in YYYY-MM-DD format that is not in the future.");
+        reason = reason?.Trim();
+        var errors = new Dictionary<string, string[]>();
+        if (workerIds is null || workerIds.Count == 0) errors["workerIds"] = ["Choose at least one entry to reject."];
+        if (string.IsNullOrEmpty(reason) || reason.Length > 200) errors["reason"] = ["Enter a reason of 1 to 200 characters."];
+        if (errors.Count > 0) return new(400, Errors: errors);
+        return await DecideAsync(day, workerIds, ApprovalStatuses.Rejected, reason, ct);
+    }
+
+    private async Task<AttendanceResult> DecideAsync(DateOnly day, IReadOnlyCollection<int>? workerIds, string decision, string? reason, CancellationToken ct)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+        try
+        {
+            if (await periodLock.IsFinalisedAsync(db, day, ct)) return new(409);
+            var filter = workerIds is { Count: > 0 } ? workerIds.ToArray() : null;
+            var submitted = await db.Attendance.Where(a => a.WorkDate == day && a.ApprovalStatus == ApprovalStatuses.Submitted
+                && (filter == null || filter.Contains(a.WorkerId))).ToListAsync(ct);
+            if (filter is not null && submitted.Count != filter.Distinct().Count())
+                return Invalid("workerIds", "Some of the chosen entries are not waiting for approval. Reload and try again.");
+            var actor = httpContext.HttpContext?.User.Identity?.Name ?? "";
+            var now = time.GetUtcNow().UtcDateTime;
+            foreach (var record in submitted)
+            {
+                record.ApprovalStatus = decision;
+                record.RejectionReason = decision == ApprovalStatuses.Rejected ? reason : null;
+                record.DecidedBy = actor;
+                record.DecidedUtc = now;
+            }
+            var dateText = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            if (submitted.Count > 0)
+                audit.Write(decision == ApprovalStatuses.Approved ? "AttendanceApproved" : "AttendanceRejected",
+                    entityType: nameof(Attendance), entityId: dateText,
+                    details: new { date = dateText, workerIds = submitted.Select(r => r.WorkerId).ToArray(), reason });
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return new(200, await ReadAsync(day, ct));
+        }
+        catch (DbUpdateConcurrencyException) { return new(409); }
+        catch (Exception ex) when (IsWriteConflict(ex) || PayrollPeriodLock.IsConflict(ex)) { return new(409); }
+    }
+
+    /// <summary>Entries waiting for the manager, and entries sent back that the supervisor must correct, grouped by date.</summary>
+    public async Task<AttendanceSummaryResponse> SummaryAsync(CancellationToken ct)
+    {
+        var counts = await db.Attendance.AsNoTracking()
+            .Where(a => a.ApprovalStatus != ApprovalStatuses.Approved)
+            .GroupBy(a => new { a.WorkDate, a.ApprovalStatus })
+            .Select(g => new { g.Key.WorkDate, g.Key.ApprovalStatus, Count = g.Count() }).ToListAsync(ct);
+        List<AttendanceDayCount> Days(string status) => counts.Where(c => c.ApprovalStatus == status)
+            .OrderByDescending(c => c.WorkDate).Select(c => new AttendanceDayCount(c.WorkDate, c.Count)).ToList();
+        var submitted = Days(ApprovalStatuses.Submitted);
+        var rejected = Days(ApprovalStatuses.Rejected);
+        return new(submitted.Sum(d => d.Count), submitted, rejected.Sum(d => d.Count), rejected);
     }
 
     private bool TryDate(string? text, out DateOnly date) =>

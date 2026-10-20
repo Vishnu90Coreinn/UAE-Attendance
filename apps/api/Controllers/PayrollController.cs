@@ -47,7 +47,7 @@ public sealed class PayrollController(PayrollService payroll, PayrollPdf pdf) : 
         if (string.IsNullOrWhiteSpace(request.Revision)) return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
             { ["revision"] = ["Reload the report and provide its revision."] }));
         var result = await payroll.FinaliseAsync(start, request.Revision, ct);
-        return result.StatusCode == 200 ? Ok(result.Report) : Problem(statusCode: 409, title: "Payroll is already finalised or changed. Reload the report.");
+        return result.StatusCode == 200 ? Ok(result.Report) : Problem(statusCode: 409, title: result.Message ?? "Payroll is already finalised or changed. Reload the report.");
     }
 
     [HttpDelete("{month}/finalise")]
