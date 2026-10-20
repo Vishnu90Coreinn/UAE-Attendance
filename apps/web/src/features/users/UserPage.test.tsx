@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import { StrictMode } from "react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { ApiError } from "../../api/client";
@@ -113,4 +114,20 @@ it("retries loading and reloads authoritative state after a conflict", async () 
   await user.selectOptions(screen.getByLabelText("Role for hr.user"), "Viewer");
   expect(await screen.findByRole("alert")).toHaveTextContent("At least one active Administrator");
   expect(usersApi.listUsers).toHaveBeenCalledTimes(3);
+});
+
+it("finishes mutations when React Strict Mode replays effects", async () => {
+  vi.mocked(usersApi.createUser).mockResolvedValue({
+    ...rows[1], id: 3, username: "strict.user", role: "Viewer",
+  });
+  const user = userEvent.setup();
+  render(<StrictMode><UserPage /></StrictMode>);
+  await screen.findByRole("table");
+  await user.click(screen.getByRole("button", { name: "Add User" }));
+  const dialog = screen.getByRole("dialog", { name: "Add User" });
+  await user.type(within(dialog).getByLabelText("Username"), "strict.user");
+  await user.type(within(dialog).getByLabelText("Password"), "Strict-password-42");
+  await user.click(within(dialog).getByRole("button", { name: "Create user" }));
+  expect(await screen.findByText("User created.")).toBeVisible();
+  expect(screen.queryByRole("dialog", { name: "Add User" })).not.toBeInTheDocument();
 });
