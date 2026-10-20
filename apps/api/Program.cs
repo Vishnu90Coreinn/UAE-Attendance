@@ -62,6 +62,8 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AdminSeeder>();
 builder.Services.AddScoped<WorkerService>();
 builder.Services.AddScoped<SettingsService>();
+builder.Services.AddScoped<AttendanceService>();
+builder.Services.AddScoped<IPayrollPeriodLock, DraftPayrollPeriodLock>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)

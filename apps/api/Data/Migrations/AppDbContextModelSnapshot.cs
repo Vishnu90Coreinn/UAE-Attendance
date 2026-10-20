@@ -22,6 +22,58 @@ namespace HrPayroll.Api.Data.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.Attendance", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("BasicHours")
+                        .HasPrecision(4, 2)
+                        .HasColumnType("decimal(4,2)");
+
+                    b.Property<decimal>("OvertimeHours")
+                        .HasPrecision(4, 2)
+                        .HasColumnType("decimal(4,2)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly>("WorkDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("WorkerId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkDate");
+
+                    b.HasIndex("WorkerId", "WorkDate")
+                        .IsUnique();
+
+                    b.ToTable("Attendance", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Attendance_Hours", "[BasicHours] >= 0 AND [OvertimeHours] >= 0 AND [BasicHours] + [OvertimeHours] <= 24");
+
+                            t.HasCheckConstraint("CK_Attendance_Status", "[Status] COLLATE Latin1_General_100_BIN2 IN ('Present', 'Absent')");
+
+                            t.HasCheckConstraint("CK_Attendance_StatusHours", "([Status] = 'Absent' AND [BasicHours] = 0 AND [OvertimeHours] = 0) OR ([Status] = 'Present' AND [BasicHours] > 0)");
+                        });
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.AuditLog", b =>
                 {
                     b.Property<long>("Id")
@@ -230,6 +282,17 @@ namespace HrPayroll.Api.Data.Migrations
 
                             t.HasCheckConstraint("CK_Workers_OvertimeRate", "[OvertimeRate] IS NULL OR [OvertimeRate] >= 0");
                         });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.Attendance", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.Worker", "Worker")
+                        .WithMany()
+                        .HasForeignKey("WorkerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Worker");
                 });
 #pragma warning restore 612, 618
         }
