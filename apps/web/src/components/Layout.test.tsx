@@ -98,7 +98,7 @@ describe("Layout", () => {
     expect(tabLabels()).toEqual([...MODULES, "User Manager", "Settings"]);
   });
 
-  it("renders built screens as links and keeps future slices as disabled placeholders", async () => {
+  it("renders every built screen as a link", async () => {
     await renderLayout("Administrator");
     const nav = screen.getByRole("navigation", { name: "Main" });
 
@@ -111,6 +111,7 @@ describe("Layout", () => {
       "Daily Attendance",
       "Payroll Summary",
       "Leave Management",
+      "User Manager",
       "Settings",
     ]);
     expect(
@@ -123,14 +124,10 @@ describe("Layout", () => {
     expect(
       within(nav).getByRole("link", { name: "Daily Attendance" }),
     ).toHaveAttribute("href", "/attendance");
-    const placeholders = within(nav).getAllByRole("button");
-    expect(placeholders.map((tab) => tab.textContent)).toEqual([
-      "User Manager",
-    ]);
+    expect(within(nav).getByRole("link", { name: "User Manager" })).toHaveAttribute("href", "/users");
     expect(
       within(nav).getByRole("link", { name: "Leave Management" }),
     ).toHaveAttribute("href", "/leave");
-    placeholders.forEach((tab) => expect(tab).toBeDisabled());
   });
 
   it("marks the current page's tab with aria-current and the prototype's blue accent", async () => {
@@ -193,6 +190,16 @@ describe("Layout", () => {
     expect(
       within(header).getByRole("button", { name: "Sign out" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows the User Access header shortcut only to an Administrator", async () => {
+    await renderLayout("Administrator");
+    expect(within(screen.getByRole("banner")).getByRole("link", { name: "User Access" })).toHaveAttribute("href", "/users");
+  });
+
+  it.each(["HR Staff", "Viewer"] as const)("hides the User Access header shortcut from %s", async (role) => {
+    await renderLayout(role);
+    expect(within(screen.getByRole("banner")).queryByRole("link", { name: "User Access" })).not.toBeInTheDocument();
   });
 
   it("renders the routed page and the health chip", async () => {

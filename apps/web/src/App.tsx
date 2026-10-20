@@ -8,6 +8,7 @@ import { RequireRole } from "./features/auth/RequireRole";
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { WorkersPage } from "./features/workers/WorkersPage";
 import { LeavePage } from "./features/leave/LeavePage";
+import { UserPage } from "./features/users/UserPage";
 import { NotFound } from "./pages/NotFound";
 
 export default function App() {
@@ -25,6 +26,14 @@ export default function App() {
           />
           <Route path="payroll" element={<PayrollPage />} />
           <Route path="leave" element={<LeavePage />} />
+          <Route
+            path="users"
+            element={
+              <RequireRole roles={["Administrator"]}>
+                <UserPage />
+              </RequireRole>
+            }
+          />
           <Route
             path="settings"
             element={

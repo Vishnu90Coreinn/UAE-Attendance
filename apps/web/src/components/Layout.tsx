@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { KeyRound, LogOut } from "lucide-react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { KeyRound, LogOut, UsersRound } from "lucide-react";
+import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { COMPANY_NAME } from "../branding";
 import { getPayrollSettings, type PayrollSettings } from "../api/settings";
 import { useAuth } from "../contexts/AuthContext";
@@ -65,6 +65,12 @@ export function Layout() {
             {user && (
               <>
                 <p className="min-w-0 break-words text-sm text-slate-100">{`Logged in as ${user.username} (${user.role})`}</p>
+                {user.role === "Administrator" && (
+                  <Link to="/users" className={headerButtonClass}>
+                    <UsersRound aria-hidden="true" size={16} />
+                    User Access
+                  </Link>
+                )}
                 <button
                   type="button"
                   onClick={() => setChangePasswordOpen(true)}

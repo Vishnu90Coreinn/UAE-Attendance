@@ -39,7 +39,7 @@ describe("navItemsForRole", () => {
       "Daily Attendance": "/attendance",
       "Payroll Summary": "/payroll",
       "Leave Management": "/leave",
-      "User Manager": undefined,
+      "User Manager": "/users",
       Settings: "/settings",
     });
   });

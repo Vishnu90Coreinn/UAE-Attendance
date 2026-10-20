@@ -9,6 +9,7 @@ import * as workersApi from "./api/workers";
 import * as attendanceApi from "./api/attendance";
 import * as payrollApi from "./api/payroll";
 import * as leaveApi from "./api/leave";
+import * as usersApi from "./api/users";
 import { setAuthToken } from "./api/client";
 import { AuthProvider, TOKEN_STORAGE_KEY } from "./contexts/AuthContext";
 
@@ -21,6 +22,10 @@ vi.mock("./api/settings");
 vi.mock("./api/attendance");
 vi.mock("./api/payroll");
 vi.mock("./api/leave");
+vi.mock("./api/users", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./api/users")>()),
+  listUsers: vi.fn(), createUser: vi.fn(), updateUser: vi.fn(), resetUserPassword: vi.fn(), deleteUser: vi.fn(),
+}));
 
 const admin = { id: 1, username: "admin", role: "Administrator" as const };
 
@@ -66,6 +71,7 @@ beforeEach(() => {
   sessionStorage.clear();
   vi.mocked(workersApi.listWorkers).mockResolvedValue([]);
   vi.mocked(leaveApi.listLeave).mockResolvedValue([]);
+  vi.mocked(usersApi.listUsers).mockResolvedValue([]);
   vi.mocked(settingsApi.getPayrollSettings).mockResolvedValue(payrollSettings);
   vi.mocked(attendanceApi.getAttendance).mockResolvedValue({
     date: "2026-10-19",
@@ -101,6 +107,19 @@ afterEach(() => {
 });
 
 describe("App", () => {
+  it("serves User Manager to an Administrator", async () => {
+    signInWithStoredToken("Administrator");
+    renderAt("/users");
+    expect(await screen.findByRole("heading", { name: "User Manager" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "User Manager" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it.each(["HR Staff", "Viewer"] as const)("refuses User Manager to %s without loading users", async (role) => {
+    signInWithStoredToken(role);
+    renderAt("/users");
+    expect(await screen.findByText("You do not have access to this page")).toBeInTheDocument();
+    expect(usersApi.listUsers).not.toHaveBeenCalled();
+  });
   it.each(["Administrator", "HR Staff", "Viewer"] as const)(
     "opens leave management for %s with appropriate actions",
     async (role) => {
