@@ -63,6 +63,7 @@ builder.Services.AddScoped<AdminSeeder>();
 builder.Services.AddScoped<WorkerService>();
 builder.Services.AddScoped<SettingsService>();
 builder.Services.AddScoped<AttendanceService>();
+builder.Services.AddScoped<LeaveService>();
 builder.Services.AddScoped<PayrollService>();
 builder.Services.AddSingleton<PayrollPdf>();
 builder.Services.AddScoped<IPayrollPeriodLock, PayrollPeriodLock>();

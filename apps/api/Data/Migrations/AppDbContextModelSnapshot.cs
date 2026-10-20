@@ -112,6 +112,67 @@ namespace HrPayroll.Api.Data.Migrations
                     b.ToTable("AuditLogs");
                 });
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.LeaveRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Days")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("int")
+                        .HasComputedColumnSql("DATEDIFF(day, [StartDate], [EndDate]) + 1", true);
+
+                    b.Property<string>("DecidedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime?>("DecidedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("LeaveType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<int>("WorkerId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkerId", "StartDate", "EndDate");
+
+                    b.ToTable("LeaveRequests", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_LeaveRequests_Dates", "[EndDate] >= [StartDate]");
+
+                            t.HasCheckConstraint("CK_LeaveRequests_Status", "DATALENGTH([Status]) = DATALENGTH(RTRIM([Status])) AND [Status] COLLATE Latin1_General_100_BIN2 IN ('Pending','Approved','Rejected')");
+
+                            t.HasCheckConstraint("CK_LeaveRequests_Type", "DATALENGTH([LeaveType]) = DATALENGTH(RTRIM([LeaveType])) AND [LeaveType] COLLATE Latin1_General_100_BIN2 IN ('Annual Leave','Sick Leave','Unpaid Leave','Emergency Leave')");
+                        });
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.PayrollDetail", b =>
                 {
                     b.Property<int>("Id")
@@ -417,6 +478,17 @@ namespace HrPayroll.Api.Data.Migrations
                 });
 
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.Attendance", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.Worker", "Worker")
+                        .WithMany()
+                        .HasForeignKey("WorkerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Worker");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.LeaveRequest", b =>
                 {
                     b.HasOne("HrPayroll.Api.Data.Entities.Worker", "Worker")
                         .WithMany()
