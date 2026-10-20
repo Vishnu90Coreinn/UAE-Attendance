@@ -1,9 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { Download, Printer, RefreshCw } from "lucide-react";
+import {
+  Download,
+  LockKeyhole,
+  Printer,
+  RefreshCw,
+  UnlockKeyhole,
+} from "lucide-react";
 import { ApiError } from "../../api/client";
 import {
   getPayroll,
   getPayrollPdf,
+  finalisePayroll,
+  reopenPayroll,
   type PayrollReport as Report,
 } from "../../api/payroll";
 import {
@@ -14,6 +22,8 @@ import {
 } from "../workers/WorkersFeedback";
 import { PayrollReport } from "./PayrollReport";
 import { downloadPdf } from "./downloadPdf";
+import { PayrollFinalisationDialog } from "./PayrollFinalisationDialog";
+import { useAuth } from "../../contexts/AuthContext";
 
 function currentMonth(): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -27,11 +37,14 @@ const secondaryButtonClass =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-800 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60";
 function failure(reason: unknown): string {
   return reason instanceof ApiError
-    ? reason.message
+    ? reason.fieldErrors
+      ? Object.values(reason.fieldErrors).flat().join(" ")
+      : reason.message
     : "Something went wrong. Please try again.";
 }
 
 export function PayrollPage() {
+  const { user } = useAuth();
   const [month, setMonth] = useState(currentMonth);
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,6 +54,9 @@ export function PayrollPage() {
   const [attempt, setAttempt] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [stale, setStale] = useState(false);
+  const [dialog, setDialog] = useState<"finalise" | "reopen" | null>(null);
+  const [mutating, setMutating] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -76,8 +92,43 @@ export function PayrollPage() {
   }, [month, attempt]);
 
   const ready = !!report && !loading && !loadError;
+  const busy = exporting || mutating;
+  const future = !!report && report.period > currentMonth();
+  function openDialog(mode: "finalise" | "reopen") {
+    setMutationError(null);
+    setSuccess(null);
+    setDialog(mode);
+  }
+  async function changeFinalisation(reason: string) {
+    if (!report || !dialog || busy || stale) return;
+    setMutating(true);
+    setMutationError(null);
+    const action = dialog;
+    try {
+      const updated =
+        action === "finalise"
+          ? await finalisePayroll(report.period, report.revision)
+          : await reopenPayroll(report.period, reason);
+      if (!mounted.current) return;
+      setReport(updated);
+      setDialog(null);
+      setError(null);
+      setSuccess(
+        action === "finalise"
+          ? "Payroll month finalised."
+          : "Payroll month reopened.",
+      );
+    } catch (reason) {
+      if (mounted.current) {
+        setMutationError(failure(reason));
+        if (reason instanceof ApiError && reason.status === 409) setStale(true);
+      }
+    } finally {
+      if (mounted.current) setMutating(false);
+    }
+  }
   async function exportPdf() {
-    if (!report || !ready || stale || exporting) return;
+    if (!report || !ready || stale || busy || dialog) return;
     setExporting(true);
     setError(null);
     setSuccess(null);
@@ -96,7 +147,7 @@ export function PayrollPage() {
     }
   }
   function print() {
-    if (!ready || stale || exporting) return;
+    if (!ready || stale || busy || dialog) return;
     try {
       window.print();
     } catch (reason) {
@@ -125,7 +176,7 @@ export function PayrollPage() {
               type="month"
               id="payroll-month"
               value={month}
-              disabled={exporting}
+              disabled={busy || !!dialog}
               onChange={(event) => {
                 if (event.target.value) setMonth(event.target.value);
               }}
@@ -136,7 +187,7 @@ export function PayrollPage() {
             <button
               type="button"
               onClick={() => setAttempt((value) => value + 1)}
-              disabled={loading || exporting}
+              disabled={loading || busy || !!dialog}
               className={secondaryButtonClass}
             >
               <RefreshCw aria-hidden="true" size={16} />
@@ -145,7 +196,7 @@ export function PayrollPage() {
             <button
               type="button"
               onClick={print}
-              disabled={!ready || stale || exporting}
+              disabled={!ready || stale || busy || !!dialog}
               className={secondaryButtonClass}
             >
               <Printer aria-hidden="true" size={16} />
@@ -154,13 +205,40 @@ export function PayrollPage() {
             <button
               type="button"
               onClick={exportPdf}
-              disabled={!ready || stale || exporting}
+              disabled={!ready || stale || busy || !!dialog}
               aria-busy={exporting}
               className={`${primaryButtonClass} disabled:cursor-not-allowed disabled:opacity-60`}
             >
               <Download aria-hidden="true" size={16} />
               {exporting ? "Exporting..." : "Export PDF"}
             </button>
+            {user?.role === "Administrator" && (
+              <button
+                type="button"
+                onClick={() =>
+                  openDialog(
+                    report?.status === "Finalised" ? "reopen" : "finalise",
+                  )
+                }
+                disabled={
+                  !ready ||
+                  stale ||
+                  busy ||
+                  !!dialog ||
+                  (report?.status !== "Finalised" && future)
+                }
+                className={secondaryButtonClass}
+              >
+                {report?.status === "Finalised" ? (
+                  <UnlockKeyhole aria-hidden="true" size={16} />
+                ) : (
+                  <LockKeyhole aria-hidden="true" size={16} />
+                )}
+                {report?.status === "Finalised"
+                  ? "Reopen month"
+                  : "Finalise month"}
+              </button>
+            )}
           </div>
         </div>
         <SuccessRegion message={success} />
@@ -169,6 +247,16 @@ export function PayrollPage() {
           <p className="text-sm text-gray-600">
             Draft payroll uses current worker and overtime rates. Amounts are in
             AED.
+          </p>
+        )}
+        {future && report?.status === "Draft" && (
+          <p className="text-sm text-gray-600">
+            Future months cannot be finalised.
+          </p>
+        )}
+        {stale && !dialog && (
+          <p className="text-sm text-amber-800">
+            Reload the report before continuing.
           </p>
         )}
       </div>
@@ -185,6 +273,21 @@ export function PayrollPage() {
         </div>
       ) : (
         report && <PayrollReport report={report} />
+      )}
+      {dialog && report && (
+        <PayrollFinalisationDialog
+          mode={dialog}
+          report={report}
+          pending={mutating}
+          error={mutationError}
+          stale={stale}
+          onConfirm={changeFinalisation}
+          onClose={() => setDialog(null)}
+          onReload={() => {
+            setDialog(null);
+            setAttempt((value) => value + 1);
+          }}
+        />
       )}
     </section>
   );

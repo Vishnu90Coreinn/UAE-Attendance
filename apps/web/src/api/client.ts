@@ -180,3 +180,8 @@ export function apiDelete(
 ): Promise<void> {
   return send<void>(path, { method: "DELETE", signal }, options);
 }
+
+/** DELETE with a required JSON payload and a JSON result, using the same auth/problem handling. */
+export function apiDeleteJson<T>(path: string, body: unknown): Promise<T> {
+  return send<T>(path, { method: "DELETE", body: JSON.stringify(body) });
+}

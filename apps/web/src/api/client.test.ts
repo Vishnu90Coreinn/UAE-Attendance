@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   apiDelete,
+  apiDeleteJson,
   apiGet,
   apiGetBlob,
   apiPost,
@@ -24,6 +25,28 @@ function sentHeaders(): Record<string, string> {
   const init = vi.mocked(fetch).mock.calls[0][1] as RequestInit;
   return init.headers as Record<string, string>;
 }
+
+it("sends an authenticated DELETE reason and reads the returned report", async () => {
+  setAuthToken("reopen-token");
+  respond(JSON.stringify({ status: "Draft" }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+  await expect(
+    apiDeleteJson("/api/payroll/2026-10/finalise", { reason: "Correction" }),
+  ).resolves.toEqual({ status: "Draft" });
+  expect(fetch).toHaveBeenCalledWith(
+    "/api/payroll/2026-10/finalise",
+    expect.objectContaining({
+      method: "DELETE",
+      body: JSON.stringify({ reason: "Correction" }),
+    }),
+  );
+  expect(sentHeaders()).toMatchObject({
+    Authorization: "Bearer reopen-token",
+    "Content-Type": "application/json",
+  });
+});
 
 describe("apiGetBlob", () => {
   it("downloads a PDF with the same bearer authentication", async () => {

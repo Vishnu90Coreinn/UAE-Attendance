@@ -107,6 +107,9 @@ describe("App", () => {
       expect(screen.getByRole("button", { name: "Print" })).toBeEnabled();
       expect(screen.getByRole("button", { name: "Export PDF" })).toBeEnabled();
       expect(
+        screen.queryByRole("button", { name: "Finalise month" }) !== null,
+      ).toBe(role === "Administrator");
+      expect(
         screen.getByRole("link", { name: "Payroll Summary" }),
       ).toHaveAttribute("aria-current", "page");
     },

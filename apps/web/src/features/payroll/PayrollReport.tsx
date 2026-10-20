@@ -32,10 +32,23 @@ export function PayrollReport({ report }: { report: Report }) {
         </h3>
         <div className="flex flex-wrap items-center justify-center gap-3 text-sm">
           <p>Month: {report.period}</p>
-          <span className="rounded-full bg-amber-100 px-3 py-1 font-semibold text-amber-900">
+          <span
+            className={`rounded-full px-3 py-1 font-semibold ${report.status === "Finalised" ? "bg-green-100 text-green-900" : "bg-amber-100 text-amber-900"}`}
+          >
             {report.status}
           </span>
         </div>
+        {report.status === "Finalised" && report.finalisedUtc && (
+          <p className="break-words text-sm text-gray-700">
+            Finalised by {report.finalisedBy} on{" "}
+            {new Intl.DateTimeFormat("en-GB", {
+              timeZone: "Asia/Dubai",
+              dateStyle: "medium",
+              timeStyle: "short",
+            }).format(new Date(report.finalisedUtc))}{" "}
+            (UAE)
+          </p>
+        )}
       </header>
       <div className="payroll-table-scroll relative mt-5 overflow-x-auto">
         <table className="payroll-table w-full min-w-[700px] text-left text-sm text-gray-800">

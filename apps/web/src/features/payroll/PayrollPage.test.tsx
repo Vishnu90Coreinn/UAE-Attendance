@@ -7,6 +7,10 @@ import type { PayrollReport } from "../../api/payroll";
 import { PayrollPage } from "./PayrollPage";
 
 vi.mock("../../api/payroll");
+const authRole = vi.hoisted(() => ({ current: "Administrator" }));
+vi.mock("../../contexts/AuthContext", () => ({
+  useAuth: () => ({ user: { role: authRole.current } }),
+}));
 const report: PayrollReport = {
   period: "2026-10",
   status: "Draft",
@@ -45,6 +49,7 @@ const report: PayrollReport = {
 };
 beforeEach(() => {
   vi.resetAllMocks();
+  authRole.current = "Administrator";
   vi.mocked(api.getPayroll).mockResolvedValue(report);
   vi.mocked(api.getPayrollPdf).mockResolvedValue(
     new Blob(["%PDF-1.7"], { type: "application/pdf" }),
@@ -215,4 +220,138 @@ it("locks month and duplicate export while downloading", async () => {
   expect(screen.getByRole("button", { name: "Exporting..." })).toBeDisabled();
   expect(screen.getByLabelText("Payroll month")).toBeDisabled();
   await act(async () => resolve(new Blob(["%PDF-"])));
+});
+
+const frozen: PayrollReport = {
+  ...report,
+  status: "Finalised",
+  revision: "frozen-1",
+  finalisedBy: "payroll.admin",
+  finalisedUtc: "2026-10-20T10:15:00Z",
+};
+it("confirms displayed totals and revision before finalising, then shows frozen metadata", async () => {
+  vi.mocked(api.finalisePayroll).mockResolvedValue(frozen);
+  const user = await loaded();
+  await user.click(screen.getByRole("button", { name: "Finalise month" }));
+  const dialog = screen.getByRole("dialog");
+  expect(dialog).toHaveTextContent("2026-10");
+  expect(dialog).toHaveTextContent("2,200.00");
+  expect(dialog).toHaveTextContent("22.20");
+  expect(dialog).toHaveTextContent("2,222.20");
+  expect(dialog).toHaveTextContent(/attendance.*lock/i);
+  expect(api.finalisePayroll).not.toHaveBeenCalled();
+  await user.click(
+    within(dialog).getByRole("button", { name: "Finalise month" }),
+  );
+  expect(api.finalisePayroll).toHaveBeenCalledWith("2026-10", "revision-1");
+  expect(
+    await screen.findByText("Payroll month finalised."),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByRole("article")).toHaveTextContent(
+    /Finalised by payroll.admin on 20 Oct 2026/,
+  );
+  expect(screen.getByRole("button", { name: "Reopen month" })).toBeEnabled();
+});
+it.each(["HR Staff", "Viewer"])(
+  "keeps finalisation actions unavailable to %s",
+  async (role) => {
+    authRole.current = role;
+    await loaded();
+    expect(
+      screen.queryByRole("button", { name: "Finalise month" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Export PDF" })).toBeEnabled();
+    vi.mocked(api.getPayroll).mockResolvedValue(frozen);
+    fireEvent.click(screen.getByRole("button", { name: "Reload report" }));
+    await screen.findByText(/Finalised by payroll.admin/);
+    expect(
+      screen.queryByRole("button", { name: "Reopen month" }),
+    ).not.toBeInTheDocument();
+  },
+);
+it("requires a nonblank reason to reopen and replaces the frozen report with current draft", async () => {
+  vi.mocked(api.getPayroll).mockResolvedValue(frozen);
+  vi.mocked(api.reopenPayroll).mockResolvedValue({
+    ...report,
+    revision: "draft-2",
+  });
+  const user = await loaded();
+  await user.click(screen.getByRole("button", { name: "Reopen month" }));
+  const dialog = screen.getByRole("dialog");
+  const confirm = within(dialog).getByRole("button", { name: "Reopen month" });
+  expect(confirm).toBeDisabled();
+  await user.type(screen.getByLabelText("Reason for reopening"), "   ");
+  expect(confirm).toBeDisabled();
+  await user.type(
+    screen.getByLabelText("Reason for reopening"),
+    "Correct missed attendance  ",
+  );
+  await user.click(confirm);
+  expect(api.reopenPayroll).toHaveBeenCalledWith(
+    "2026-10",
+    "Correct missed attendance",
+  );
+  expect(
+    await screen.findByText("Payroll month reopened."),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText(/Finalised by payroll.admin/),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Finalise month" })).toBeEnabled();
+});
+it("keeps finalise errors in the dialog and reloads a stale report before retrying", async () => {
+  vi.mocked(api.finalisePayroll).mockRejectedValue(
+    new ApiError(409, "Payroll changed. Reload the report before finalising."),
+  );
+  const user = await loaded();
+  await user.click(screen.getByRole("button", { name: "Finalise month" }));
+  await user.click(
+    within(screen.getByRole("dialog")).getByRole("button", {
+      name: "Finalise month",
+    }),
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Payroll changed.",
+  );
+  const dialog = screen.getByRole("dialog");
+  expect(
+    within(dialog).getByRole("button", { name: "Finalise month" }),
+  ).toBeDisabled();
+  await user.click(
+    within(dialog).getByRole("button", { name: "Reload report" }),
+  );
+  await screen.findByRole("table");
+  expect(api.getPayroll).toHaveBeenCalledTimes(2);
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+it("disables conflicting controls and dismissal while finalising", async () => {
+  let resolve!: (value: PayrollReport) => void;
+  vi.mocked(api.finalisePayroll).mockReturnValue(
+    new Promise((r) => {
+      resolve = r;
+    }),
+  );
+  const user = await loaded();
+  await user.click(screen.getByRole("button", { name: "Finalise month" }));
+  await user.click(
+    within(screen.getByRole("dialog")).getByRole("button", {
+      name: "Finalise month",
+    }),
+  );
+  expect(screen.getByLabelText("Payroll month")).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Print" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Export PDF" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  await user.keyboard("{Escape}");
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  await act(async () => resolve(frozen));
+});
+it("prevents finalising a future month", async () => {
+  vi.mocked(api.getPayroll).mockResolvedValue({ ...report, period: "9999-12" });
+  await loaded();
+  expect(screen.getByRole("button", { name: "Finalise month" })).toBeDisabled();
+  expect(
+    screen.getByText("Future months cannot be finalised."),
+  ).toBeInTheDocument();
 });
