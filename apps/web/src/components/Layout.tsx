@@ -1,9 +1,27 @@
-import { Outlet } from "react-router-dom";
+import { useState } from "react";
+import { KeyRound, LogOut } from "lucide-react";
+import { Outlet, useNavigate } from "react-router-dom";
 import { COMPANY_NAME } from "../branding";
+import { useAuth } from "../contexts/AuthContext";
+import { ChangePasswordDialog } from "../features/auth/ChangePasswordDialog";
 import { HealthChip } from "./HealthChip";
-import { NAV_ITEMS } from "./navItems";
+import { navItemsForRole } from "./navItems";
+
+const headerButtonClass =
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-600 px-3 text-sm font-medium text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300";
 
 export function Layout() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+
+  const tabs = user ? navItemsForRole(user.role) : [];
+
+  function handleSignOut() {
+    logout();
+    navigate("/login", { replace: true });
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-gray-100 text-gray-800">
       <a
@@ -19,13 +37,28 @@ export function Layout() {
             <h1 className="text-lg font-bold leading-tight">{COMPANY_NAME}</h1>
             <p className="text-xs text-blue-300">Official HR &amp; Payroll System</p>
           </div>
-          <HealthChip />
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <HealthChip />
+            {user && (
+              <>
+                <p className="min-w-0 break-words text-sm text-slate-100">{`Logged in as ${user.username} (${user.role})`}</p>
+                <button type="button" onClick={() => setChangePasswordOpen(true)} className={headerButtonClass}>
+                  <KeyRound aria-hidden="true" size={16} />
+                  Change password
+                </button>
+                <button type="button" onClick={handleSignOut} className={headerButtonClass}>
+                  <LogOut aria-hidden="true" size={16} />
+                  Sign out
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
       <nav aria-label="Main" className="border-b border-slate-700 bg-slate-800 text-white shadow-sm">
         <div className="mx-auto flex w-full max-w-7xl overflow-x-auto px-4">
-          {NAV_ITEMS.map((item) => (
+          {tabs.map((item) => (
             <button
               key={item.key}
               type="button"
@@ -41,6 +74,8 @@ export function Layout() {
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-grow px-4 py-6">
         <Outlet />
       </main>
+
+      <ChangePasswordDialog open={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
     </div>
   );
 }
