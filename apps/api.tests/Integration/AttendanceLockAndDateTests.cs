@@ -55,7 +55,7 @@ public class AttendanceLockAndDateTests(ApiFixture api) : IClassFixture<ApiFixtu
     public async Task CompanyToday_IsDubaiDate_EvenWhenUtcIsPreviousDay()
     {
         await using var db = TestUsers.NewContext(api.ConnectionString);
-        var service = Service(db, new DraftPayrollPeriodLock());
+        var service = Service(db, new PayrollPeriodLock());
         Assert.Equal(200, (await service.GetAsync("2026-10-20", default)).StatusCode);
         Assert.Equal(400, (await service.GetAsync("2026-10-21", default)).StatusCode);
     }

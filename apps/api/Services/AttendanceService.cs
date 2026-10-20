@@ -85,7 +85,7 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
             return new(200, await ReadAsync(day, ct));
         }
         catch (DbUpdateConcurrencyException) { return new(409); }
-        catch (Exception ex) when (IsWriteConflict(ex)) { return new(409); }
+        catch (Exception ex) when (IsWriteConflict(ex) || PayrollPeriodLock.IsConflict(ex)) { return new(409); }
     }
 
     public async Task<AttendanceResult> DeleteAsync(string date, int workerId, CancellationToken ct)

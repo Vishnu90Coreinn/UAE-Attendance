@@ -90,7 +90,9 @@ public sealed class PayrollPdf
             Block("United Arab Emirates", 8);
             y -= 7;
             Block("Monthly Payroll Report", 12, true);
-            Block($"Month: {report.Period}   |   Draft   |   Currency AED", 9);
+            Block($"Month: {report.Period}   |   {report.Status}   |   Currency AED", 9);
+            if (report.FinalisedBy is not null)
+                Block($"Finalised by: {report.FinalisedBy} | {report.FinalisedUtc:yyyy-MM-dd HH:mm} UTC", 8);
             y -= 5;
             TableRow(headers, true);
         }
@@ -119,7 +121,7 @@ public sealed class PayrollPdf
         for (var i = 0; i < pages.Count; i++)
         {
             page = pages[i];
-            Text($"Draft  |  Page {i + 1} of {pages.Count}", 36, 28, 8);
+            Text($"{report.Status}  |  Page {i + 1} of {pages.Count}", 36, 28, 8);
         }
         return document.Build();
     }
