@@ -19,7 +19,7 @@ interface WorkersTableProps {
 }
 
 const actionClass =
-  "inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60";
 
 function ActionButton({
   icon: Icon,
@@ -40,12 +40,14 @@ function ActionButton({
     <button
       type="button"
       aria-label={`${label} ${worker.fullName}`}
+      title={`${label} ${worker.fullName}`}
       disabled={disabled}
       onClick={() => onClick(worker)}
       className={`${actionClass} ${tone}`}
     >
       <Icon aria-hidden="true" size={16} />
-      {label}
+      {/* Icon-only below xl; the aria-label above keeps the accessible name. */}
+      <span className="hidden xl:inline">{label}</span>
     </button>
   );
 }
@@ -67,7 +69,7 @@ function WorkerRow({ worker, actions, busy }: { worker: Worker; actions?: RowAct
       </td>
       {actions && (
         <td className="p-4">
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="flex flex-nowrap justify-end gap-2">
             <ActionButton
               icon={Pencil}
               label="Edit"

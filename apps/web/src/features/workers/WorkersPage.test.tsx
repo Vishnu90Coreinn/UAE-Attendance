@@ -212,6 +212,23 @@ describe("WorkersPage - roles", () => {
     expect(within(row).getByRole("button", { name: "Delete Ahmed Khan" })).toBeInTheDocument();
   });
 
+  it("gives every row action button an accessible name that includes the worker's name, even though the labels are icon-only below xl", async () => {
+    await renderLoaded("HR Staff", [ahmed, sara]);
+
+    const expectations = [
+      { code: "EMP-001", name: "Ahmed Khan", labels: ["Edit", "Deactivate", "Delete"] },
+      { code: "EMP-002", name: "Sara Ali", labels: ["Edit", "Activate", "Delete"] },
+    ];
+    for (const { code, name, labels } of expectations) {
+      const row = screen.getByRole("row", { name: new RegExp(code) });
+      const buttons = within(row).getAllByRole("button");
+      expect(buttons).toHaveLength(labels.length);
+      labels.forEach((label, index) => {
+        expect(buttons[index]).toHaveAccessibleName(`${label} ${name}`);
+      });
+    }
+  });
+
   it("gives a Viewer a read-only table: no Add, no Actions column, no row buttons", async () => {
     await renderLoaded("Viewer");
 
