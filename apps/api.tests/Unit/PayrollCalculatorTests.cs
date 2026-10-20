@@ -25,6 +25,7 @@ public class PayrollCalculatorTests
     public void SharedDailyVectors_RoundEachComponentAwayFromZero()
     {
         foreach (var vector in Vectors().GetProperty("daily").EnumerateArray())
+
             Assert.Equal(Expected(vector.GetProperty("expected")), Calculate(vector));
     }
 
@@ -35,8 +36,9 @@ public class PayrollCalculatorTests
         {
             var days = vector.GetProperty("days").EnumerateArray()
                 .SelectMany(d => Enumerable.Repeat(Calculate(d), d.GetProperty("repeat").GetInt32())).ToArray();
+            var summary = PayrollCalculator.MonthSummary(days, []);
             Assert.Equal(Expected(vector.GetProperty("expected")),
-                new DailyPay(days.Sum(d => d.BasicPay), days.Sum(d => d.OvertimePay), days.Sum(d => d.TotalPay), days.Sum(d => d.DaysWorked)));
+                new DailyPay(summary.BasicPay, summary.OvertimePay, summary.TotalPay, summary.DaysWorked));
         }
     }
 }
