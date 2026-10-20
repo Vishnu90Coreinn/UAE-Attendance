@@ -130,7 +130,7 @@ public class AdminSeederTests : IAsyncLifetime
     [Fact]
     public async Task Seed_WhenAUserAlreadyExists_LeavesEverythingUntouched()
     {
-        var existing = await TestUsers.CreateAsync(_database.ConnectionString, role: Roles.Viewer);
+        var existing = await TestUsers.CreateAsync(_database.ConnectionString, role: Roles.Supervisor);
 
         var (seeder, db, _) = NewSeeder(Settings(), environment: "Production");
         await using (db)
@@ -142,7 +142,7 @@ public class AdminSeederTests : IAsyncLifetime
         Assert.Equal(existing.Id, user.Id);
         Assert.Equal(existing.Username, user.Username);
         Assert.Equal(existing.PasswordHash, user.PasswordHash);
-        Assert.Equal(Roles.Viewer, user.Role);
+        Assert.Equal(Roles.Supervisor, user.Role);
         Assert.Empty(await SeedAuditRowsAsync());
     }
 

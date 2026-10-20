@@ -29,7 +29,7 @@ public sealed class LeaveIntegrityTests(ApiFixture api) : IClassFixture<ApiFixtu
     public async Task History_uses_current_worker_identity_and_inactive_workers_can_be_decided()
     {
         var worker = await TestWorkers.CreateAsync(api.ConnectionString);
-        var (username, token) = await TestWorkers.SignInAsync(api, Roles.HrStaff);
+        var (username, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
         var id = await Id(await Create(worker.Id, token));
         await using (var db = TestUsers.NewContext(api.ConnectionString))
         {
@@ -49,7 +49,7 @@ public sealed class LeaveIntegrityTests(ApiFixture api) : IClassFixture<ApiFixtu
             Assert.EndsWith("Z", body.GetProperty("decidedUtc").GetString());
             Assert.False(body.GetProperty("workerIsActive").GetBoolean());
         }
-        var (_, viewer) = await TestWorkers.SignInAsync(api, Roles.Viewer);
+        var (_, viewer) = await TestWorkers.SignInAsync(api, Roles.Supervisor);
         var list = await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/leave?status=Approved&workerId={worker.Id}", viewer));
         var item = Assert.Single(list.EnumerateArray());
         Assert.Equal("Changed Name", item.GetProperty("workerName").GetString());
@@ -103,7 +103,7 @@ public sealed class LeaveIntegrityTests(ApiFixture api) : IClassFixture<ApiFixtu
     public async Task Concurrent_reapproval_and_creation_allow_only_one_active_overlap()
     {
         var worker = await TestWorkers.CreateAsync(api.ConnectionString);
-        var (_, token) = await TestWorkers.SignInAsync(api, Roles.HrStaff);
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
         var id = await Id(await Create(worker.Id, token));
         Assert.Equal(HttpStatusCode.OK, (await api.PostAsync($"/api/leave/{id}/reject", new { }, token)).StatusCode);
         var responses = await Task.WhenAll(api.PostAsync($"/api/leave/{id}/approve", new { }, token), Create(worker.Id, token));
@@ -114,12 +114,13 @@ public sealed class LeaveIntegrityTests(ApiFixture api) : IClassFixture<ApiFixtu
     }
 
     [Fact]
-    public async Task Decision_delete_race_never_allows_hr_to_delete_approved_state()
+    public async Task Decision_delete_race_never_allows_a_supervisor_to_delete_approved_state()
     {
         var worker = await TestWorkers.CreateAsync(api.ConnectionString);
-        var (_, token) = await TestWorkers.SignInAsync(api, Roles.HrStaff);
+        var (_, manager) = await TestWorkers.SignInAsync(api, Roles.Manager);
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Supervisor);
         var id = await Id(await Create(worker.Id, token));
-        var responses = await Task.WhenAll(api.PostAsync($"/api/leave/{id}/approve", new { }, token), api.SendAsync(HttpMethod.Delete, $"/api/leave/{id}", token: token));
+        var responses = await Task.WhenAll(api.PostAsync($"/api/leave/{id}/approve", new { }, manager), api.SendAsync(HttpMethod.Delete, $"/api/leave/{id}", token: token));
         if (responses[1].StatusCode == HttpStatusCode.NoContent) Assert.Equal(HttpStatusCode.NotFound, responses[0].StatusCode);
         else
         {
@@ -138,7 +139,7 @@ public sealed class LeaveIntegrityTests(ApiFixture api) : IClassFixture<ApiFixtu
             await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(new CreateLeaveRequest(worker.Id, "Annual Leave", "2028-01-01", "2028-01-01"), "actor", default));
         }
         await using (var db = TestUsers.NewContext(api.ConnectionString)) Assert.False(await db.LeaveRequests.AnyAsync(x => x.WorkerId == worker.Id));
-        var (_, token) = await TestWorkers.SignInAsync(api, Roles.HrStaff);
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
         var id = await Id(await Create(worker.Id, token));
         await using (var db = TestUsers.NewContext(api.ConnectionString))
         {
@@ -165,7 +166,7 @@ public sealed class LeaveIntegrityTests(ApiFixture api) : IClassFixture<ApiFixtu
     public async Task Sql_constraints_enforce_valid_records(string column, string value)
     {
         var worker = await TestWorkers.CreateAsync(api.ConnectionString);
-        var (_, token) = await TestWorkers.SignInAsync(api, Roles.HrStaff);
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
         var id = await Id(await Create(worker.Id, token));
         await using var conn = new SqlConnection(api.ConnectionString);
         await conn.OpenAsync();
@@ -181,7 +182,7 @@ public sealed class LeaveIntegrityTests(ApiFixture api) : IClassFixture<ApiFixtu
     public async Task Worker_lock_timeout_returns_problem_conflict()
     {
         var worker = await TestWorkers.CreateAsync(api.ConnectionString);
-        var (_, token) = await TestWorkers.SignInAsync(api, Roles.HrStaff);
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
         await using var conn = new SqlConnection(api.ConnectionString);
         await conn.OpenAsync();
         await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(IsolationLevel.Serializable);
@@ -197,16 +198,15 @@ public sealed class LeaveIntegrityTests(ApiFixture api) : IClassFixture<ApiFixtu
 
     [Theory]
     [InlineData(Roles.Administrator)]
-    [InlineData(Roles.HrStaff)]
-    public async Task Both_editor_roles_decide_all_states_but_only_admin_deletes_decided(string role)
+    [InlineData(Roles.Manager)]
+    public async Task Manager_and_administrator_decide_all_states_and_delete_decided(string role)
     {
         var worker = await TestWorkers.CreateAsync(api.ConnectionString);
         var (_, token) = await TestWorkers.SignInAsync(api, role);
         var id = await Id(await Create(worker.Id, token));
         Assert.Equal(HttpStatusCode.OK, (await api.PostAsync($"/api/leave/{id}/reject", new { }, token)).StatusCode);
-        Assert.Equal(role == Roles.Administrator ? HttpStatusCode.NoContent : HttpStatusCode.Forbidden,
-            (await api.SendAsync(HttpMethod.Delete, $"/api/leave/{id}", token: token)).StatusCode);
-        if (role == Roles.Administrator) id = await Id(await Create(worker.Id, token));
+        Assert.Equal(HttpStatusCode.NoContent, (await api.SendAsync(HttpMethod.Delete, $"/api/leave/{id}", token: token)).StatusCode);
+        id = await Id(await Create(worker.Id, token));
         foreach (var action in new[] { "approve", "approve", "reject", "approve", "reject", "reject" })
             Assert.Equal(HttpStatusCode.OK, (await api.PostAsync($"/api/leave/{id}/{action}", new { }, token)).StatusCode);
     }
@@ -217,7 +217,7 @@ public sealed class LeaveIntegrityTests(ApiFixture api) : IClassFixture<ApiFixtu
     public async Task Worker_deleted_after_initial_lookup_returns_404_without_audit(string? status)
     {
         var worker = await TestWorkers.CreateAsync(api.ConnectionString);
-        var (_, token) = await TestWorkers.SignInAsync(api, Roles.HrStaff);
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
         var id = await Id(await Create(worker.Id, token));
         var pause = new PauseAfterLookup();
         var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(api.ConnectionString).AddInterceptors(pause).Options;

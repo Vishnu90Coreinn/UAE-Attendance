@@ -22,7 +22,7 @@ public static class TestUsers
         string connectionString,
         string? username = null,
         string password = DefaultPassword,
-        string role = Roles.Viewer,
+        string role = Roles.Supervisor,
         bool isActive = true,
         int failedLoginCount = 0,
         DateTime? lockoutEndUtc = null)

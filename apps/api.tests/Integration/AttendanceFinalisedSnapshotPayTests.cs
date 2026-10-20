@@ -77,7 +77,7 @@ public class AttendanceFinalisedSnapshotPayTests(ApiFixture api) : IClassFixture
     [Fact]
     public async Task OpenMonth_FollowsLiveRates()
     {
-        var hr = await TestWorkers.SignInAsync(api, Roles.HrStaff);
+        var hr = await TestWorkers.SignInAsync(api, Roles.Manager);
         var worker = await TestWorkers.CreateAsync(api.ConnectionString, hourlyRate: 15m);
         var date = new DateOnly(2019, 4, 5);
         await SeedAsync(worker.Id, date, 8, 0);
@@ -106,7 +106,7 @@ public class AttendanceFinalisedSnapshotPayTests(ApiFixture api) : IClassFixture
     public async Task FinalisedDay_WritesStillConflict_ForHrStaff()
     {
         var admin = await TestWorkers.SignInAsync(api, Roles.Administrator);
-        var hr = await TestWorkers.SignInAsync(api, Roles.HrStaff);
+        var hr = await TestWorkers.SignInAsync(api, Roles.Manager);
         var worker = await TestWorkers.CreateAsync(api.ConnectionString, hourlyRate: 15m);
         var date = new DateOnly(2019, 6, 5);
         await SeedAsync(worker.Id, date, 8, 0);

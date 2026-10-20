@@ -9,8 +9,8 @@ public class PayrollEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
     public static TheoryData<string, string?, HttpStatusCode> Matrix => new()
     {
         { "", null, HttpStatusCode.Unauthorized }, { "/pdf", null, HttpStatusCode.Unauthorized },
-        { "", Roles.Viewer, HttpStatusCode.OK }, { "/pdf", Roles.Viewer, HttpStatusCode.OK },
-        { "", Roles.HrStaff, HttpStatusCode.OK }, { "/pdf", Roles.HrStaff, HttpStatusCode.OK },
+        { "", Roles.Supervisor, HttpStatusCode.Forbidden }, { "/pdf", Roles.Supervisor, HttpStatusCode.Forbidden },
+        { "", Roles.Manager, HttpStatusCode.OK }, { "/pdf", Roles.Manager, HttpStatusCode.OK },
         { "", Roles.Administrator, HttpStatusCode.OK }, { "/pdf", Roles.Administrator, HttpStatusCode.OK },
     };
 
@@ -37,7 +37,7 @@ public class PayrollEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
     [InlineData("10000-01")] [InlineData("2026-13")] [InlineData(" 2026-01")]
     public async Task InvalidMonth_ReturnsValidationProblem(string? month)
     {
-        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Viewer);
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
         foreach (var suffix in new[] { "", "/pdf" })
         {
             var response = await api.GetAsync($"/api/payroll{suffix}?month={Uri.EscapeDataString(month ?? "")}", token);
@@ -48,7 +48,7 @@ public class PayrollEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
     [Fact]
     public async Task Export_RejectsStaleRevisionAndUsesCurrentContent()
     {
-        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Viewer);
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
         var worker = await TestWorkers.CreateAsync(api.ConnectionString);
         var report = await TestWorkers.ReadJsonAsync(await api.GetAsync("/api/payroll?month=2026-01", token));
         var revision = report.GetProperty("revision").GetString();
@@ -65,7 +65,7 @@ public class PayrollEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
     [Fact]
     public async Task UnsupportedPdfText_Returns422_WithoutRestrictingWorkerOrJsonReport()
     {
-        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Viewer);
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
         var worker = await TestWorkers.CreateAsync(api.ConnectionString, fullName: "محمد علي", designation: "عامل");
         try
         {

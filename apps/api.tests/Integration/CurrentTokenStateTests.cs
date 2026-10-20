@@ -32,13 +32,13 @@ public class CurrentTokenStateTests(ApiFixture api) : IClassFixture<ApiFixture>
         var token = await TestUsers.LoginAsync(api.Client, user.Username);
         await using (var db = TestUsers.NewContext(api.ConnectionString))
         {
-            await db.Users.Where(u => u.Id == user.Id).ExecuteUpdateAsync(s => s.SetProperty(u => u.Role, Roles.Viewer));
+            await db.Users.Where(u => u.Id == user.Id).ExecuteUpdateAsync(s => s.SetProperty(u => u.Role, Roles.Supervisor));
         }
 
         Assert.Equal(HttpStatusCode.Forbidden, (await api.GetAsync("/api/users", token)).StatusCode);
         var me = await api.GetAsync("/api/auth/me", token);
         Assert.Equal(HttpStatusCode.OK, me.StatusCode);
-        Assert.Contains(Roles.Viewer, await me.Content.ReadAsStringAsync());
+        Assert.Contains(Roles.Supervisor, await me.Content.ReadAsStringAsync());
     }
 
     [Fact]

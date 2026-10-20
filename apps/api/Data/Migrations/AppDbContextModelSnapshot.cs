@@ -417,7 +417,7 @@ namespace HrPayroll.Api.Data.Migrations
 
                     b.ToTable("Users", t =>
                         {
-                            t.HasCheckConstraint("CK_Users_Role", "[Role] IN ('Administrator', 'HR Staff', 'Viewer')");
+                            t.HasCheckConstraint("CK_Users_Role", "[Role] IN ('Administrator', 'Manager', 'Supervisor')");
                         });
                 });
 

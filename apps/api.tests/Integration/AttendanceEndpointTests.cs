@@ -10,8 +10,8 @@ public class AttendanceEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
     public static TheoryData<string, string?, HttpStatusCode> RolesMatrix => new()
     {
         {"GET", null, HttpStatusCode.Unauthorized}, {"PUT", null, HttpStatusCode.Unauthorized}, {"DELETE", null, HttpStatusCode.Unauthorized},
-        {"GET", Roles.Viewer, HttpStatusCode.OK}, {"PUT", Roles.Viewer, HttpStatusCode.Forbidden}, {"DELETE", Roles.Viewer, HttpStatusCode.Forbidden},
-        {"GET", Roles.HrStaff, HttpStatusCode.OK}, {"PUT", Roles.HrStaff, HttpStatusCode.OK}, {"DELETE", Roles.HrStaff, HttpStatusCode.NoContent},
+        {"GET", Roles.Supervisor, HttpStatusCode.OK}, {"PUT", Roles.Supervisor, HttpStatusCode.OK}, {"DELETE", Roles.Supervisor, HttpStatusCode.NoContent},
+        {"GET", Roles.Manager, HttpStatusCode.OK}, {"PUT", Roles.Manager, HttpStatusCode.OK}, {"DELETE", Roles.Manager, HttpStatusCode.NoContent},
         {"GET", Roles.Administrator, HttpStatusCode.OK}, {"PUT", Roles.Administrator, HttpStatusCode.OK}, {"DELETE", Roles.Administrator, HttpStatusCode.NoContent},
     };
 
@@ -30,7 +30,7 @@ public class AttendanceEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
     [Fact]
     public async Task Save_ReturnsComputedPay_AndDeleteRestoresNotRecorded()
     {
-        var (_, token) = await TestWorkers.SignInAsync(api, Roles.HrStaff);
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
         var worker = await TestWorkers.CreateAsync(api.ConnectionString, overtimeRate: 3m);
         var response = await api.SendAsync(HttpMethod.Put, $"/api/attendance/{Date}",
             new[] { new { workerId = worker.Id, status = "Present", basicHours = 8m, overtimeHours = 2m } }, token);

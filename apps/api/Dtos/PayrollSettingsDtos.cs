@@ -4,7 +4,7 @@ public sealed record PayrollSettingsResponse(
     string CompanyName,
     string Tagline,
     string ContactEmail,
-    decimal OvertimeRatePerHour,
+    decimal? OvertimeRatePerHour,
     decimal MaxBasicHoursPerDay,
     string ShiftDescription,
     string PreparedByLabel,

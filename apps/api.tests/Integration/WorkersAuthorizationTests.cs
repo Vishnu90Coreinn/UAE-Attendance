@@ -4,7 +4,7 @@ using HrPayroll.Api.Tests.Helpers;
 
 namespace HrPayroll.Api.Tests.Integration;
 
-/// <summary>W7: every worker route and the settings route against anonymous, Viewer, HR Staff and Administrator.</summary>
+/// <summary>W7: every worker route and the settings route against anonymous, Supervisor, Manager and Administrator.</summary>
 public class WorkersAuthorizationTests(ApiFixture api) : IClassFixture<ApiFixture>
 {
     private static readonly string[] ReadRoutes = ["list", "get", "next-code", "settings"];
@@ -38,7 +38,7 @@ public class WorkersAuthorizationTests(ApiFixture api) : IClassFixture<ApiFixtur
     public static TheoryData<string, string> WritesByRole()
     {
         var data = new TheoryData<string, string>();
-        foreach (var role in new[] { Roles.HrStaff, Roles.Administrator })
+        foreach (var role in new[] { Roles.Manager, Roles.Administrator })
         {
             foreach (var route in WriteRoutes)
             {
@@ -103,9 +103,9 @@ public class WorkersAuthorizationTests(ApiFixture api) : IClassFixture<ApiFixtur
     [InlineData("deactivate")]
     [InlineData("activate")]
     [InlineData("delete")]
-    public async Task Writes_AreForbiddenForViewer(string route)
+    public async Task Writes_AreForbiddenForSupervisor(string route)
     {
-        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Viewer);
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Supervisor);
 
         var response = await CallAsync(route, token);
 
@@ -114,7 +114,7 @@ public class WorkersAuthorizationTests(ApiFixture api) : IClassFixture<ApiFixtur
 
     [Theory]
     [MemberData(nameof(WritesByRole))]
-    public async Task Writes_SucceedForHrStaffAndAdministrator(string role, string route)
+    public async Task Writes_SucceedForManagerAndAdministrator(string role, string route)
     {
         var (_, token) = await TestWorkers.SignInAsync(api, role);
 
@@ -124,9 +124,9 @@ public class WorkersAuthorizationTests(ApiFixture api) : IClassFixture<ApiFixtur
     }
 
     [Fact]
-    public async Task ViewerWrites_ChangeNothing()
+    public async Task SupervisorWrites_ChangeNothing()
     {
-        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Viewer);
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Supervisor);
         var worker = await TestWorkers.CreateAsync(api.ConnectionString, fullName: "Untouched", hourlyRate: 10m);
 
         var responses = new[]

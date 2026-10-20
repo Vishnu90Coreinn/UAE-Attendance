@@ -59,7 +59,11 @@ public sealed class LeaveService(AppDbContext db, IAuditLogger audit, TimeProvid
         catch (Exception e) when (Conflict(e)) { return new(409); }
     }
 
-    public async Task<LeaveResult> ChangeAsync(int id, string? status, string actor, bool administrator, CancellationToken ct)
+    /// <summary>
+    /// Decides (<paramref name="status"/> given) or deletes (null) a request. <paramref name="canDeleteAny"/> is true for a Manager or
+    /// the Administrator; anyone else (a supervisor) may delete only a Pending request they created themselves.
+    /// </summary>
+    public async Task<LeaveResult> ChangeAsync(int id, string? status, string actor, bool canDeleteAny, CancellationToken ct)
     {
         var workerId = await db.LeaveRequests.AsNoTracking().Where(x => x.Id == id).Select(x => (int?)x.WorkerId).SingleOrDefaultAsync(ct);
         if (workerId is null) return new(404);
@@ -75,7 +79,7 @@ public sealed class LeaveService(AppDbContext db, IAuditLogger audit, TimeProvid
             leave.Worker = worker;
             if (status is null)
             {
-                if (!administrator && leave.Status != "Pending") return new(403);
+                if (!canDeleteAny && (leave.Status != "Pending" || !string.Equals(leave.CreatedBy, actor, StringComparison.OrdinalIgnoreCase))) return new(403);
                 Audit("LeaveDeleted", leave, actor);
                 db.LeaveRequests.Remove(leave);
             }

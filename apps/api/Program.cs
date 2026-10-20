@@ -63,6 +63,7 @@ builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<AdminSeeder>();
 builder.Services.AddScoped<WorkerService>();
 builder.Services.AddScoped<SettingsService>();
+builder.Services.AddScoped<WageRedactor>();
 builder.Services.AddScoped<AttendanceService>();
 builder.Services.AddScoped<LeaveService>();
 builder.Services.AddScoped<PayrollService>();
@@ -124,7 +125,8 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, UnmatchedRouteFriendlyAuthorizationResultHandler>();
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy(Policies.AnyUser, policy => policy.RequireAuthenticatedUser())
-    .AddPolicy(Policies.HrOrAdmin, policy => policy.RequireAuthenticatedUser().RequireRole(Roles.Administrator, Roles.HrStaff))
+    .AddPolicy(Policies.ManagerOrAdmin, policy => policy.RequireAuthenticatedUser().RequireRole(Roles.Administrator, Roles.Manager))
+    .AddPolicy(Policies.SupervisorOrAbove, policy => policy.RequireAuthenticatedUser().RequireRole(Roles.Administrator, Roles.Manager, Roles.Supervisor))
     .AddPolicy(Policies.AdminOnly, policy => policy.RequireAuthenticatedUser().RequireRole(Roles.Administrator))
     // Secure by default: any endpoint without its own authorization metadata needs a signed-in user.
     .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());

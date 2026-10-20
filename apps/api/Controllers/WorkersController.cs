@@ -8,13 +8,13 @@ namespace HrPayroll.Api.Controllers;
 
 [ApiController]
 [Route("api/workers")]
-public sealed class WorkersController(WorkerService workers) : ControllerBase
+public sealed class WorkersController(WorkerService workers, WageRedactor wages) : ControllerBase
 {
     [HttpGet]
     [Authorize(Policy = Policies.AnyUser)]
     public async Task<ActionResult<List<WorkerResponse>>> List(
         [FromQuery] bool includeInactive = false, CancellationToken cancellationToken = default) =>
-        Ok(await workers.ListAsync(includeInactive, cancellationToken));
+        Ok(wages.Apply(await workers.ListAsync(includeInactive, cancellationToken)));
 
     [HttpGet("next-code")]
     [Authorize(Policy = Policies.AnyUser)]
@@ -26,11 +26,11 @@ public sealed class WorkersController(WorkerService workers) : ControllerBase
     public async Task<ActionResult<WorkerResponse>> Get(int id, CancellationToken cancellationToken)
     {
         var worker = await workers.GetAsync(id, cancellationToken);
-        return worker is null ? NotFound() : Ok(worker);
+        return worker is null ? NotFound() : Ok(wages.Apply(worker));
     }
 
     [HttpPost]
-    [Authorize(Policy = Policies.HrOrAdmin)]
+    [Authorize(Policy = Policies.ManagerOrAdmin)]
     public async Task<ActionResult<WorkerResponse>> Create(WorkerRequest request, CancellationToken cancellationToken)
     {
         var result = await workers.CreateAsync(request, cancellationToken);
@@ -40,22 +40,22 @@ public sealed class WorkersController(WorkerService workers) : ControllerBase
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Policy = Policies.HrOrAdmin)]
+    [Authorize(Policy = Policies.ManagerOrAdmin)]
     public async Task<ActionResult<WorkerResponse>> Update(int id, WorkerRequest request, CancellationToken cancellationToken) =>
         ToActionResult(await workers.UpdateAsync(id, request, cancellationToken));
 
     [HttpPost("{id:int}/deactivate")]
-    [Authorize(Policy = Policies.HrOrAdmin)]
+    [Authorize(Policy = Policies.ManagerOrAdmin)]
     public async Task<ActionResult<WorkerResponse>> Deactivate(int id, CancellationToken cancellationToken) =>
         ToActionResult(await workers.SetActiveAsync(id, active: false, cancellationToken));
 
     [HttpPost("{id:int}/activate")]
-    [Authorize(Policy = Policies.HrOrAdmin)]
+    [Authorize(Policy = Policies.ManagerOrAdmin)]
     public async Task<ActionResult<WorkerResponse>> Activate(int id, CancellationToken cancellationToken) =>
         ToActionResult(await workers.SetActiveAsync(id, active: true, cancellationToken));
 
     [HttpDelete("{id:int}")]
-    [Authorize(Policy = Policies.HrOrAdmin)]
+    [Authorize(Policy = Policies.ManagerOrAdmin)]
     public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
     {
         var result = await workers.DeleteAsync(id, cancellationToken);

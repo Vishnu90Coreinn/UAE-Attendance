@@ -37,7 +37,7 @@ public class WorkerOvertimeRateTests(ApiFixture api) : IClassFixture<ApiFixture>
     private static string RawBody(string code, string overtimeLiteral) =>
         $"{{\"workerCode\":{JsonSerializer.Serialize(code)},\"fullName\":\"N\",\"designation\":\"D\",\"hourlyRate\":12.5,\"overtimeRate\":{overtimeLiteral}}}";
 
-    private async Task<(string Username, string Token)> HrAsync() => await TestWorkers.SignInAsync(api, Roles.HrStaff);
+    private async Task<(string Username, string Token)> HrAsync() => await TestWorkers.SignInAsync(api, Roles.Manager);
 
     private async Task SetCompanyRateAsync(decimal rate)
     {

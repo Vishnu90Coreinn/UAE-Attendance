@@ -12,7 +12,7 @@ namespace HrPayroll.Api.Controllers;
 public sealed class PayrollController(PayrollService payroll, PayrollPdf pdf) : ControllerBase
 {
     [HttpGet]
-    [Authorize(Policy = Policies.AnyUser)]
+    [Authorize(Policy = Policies.ManagerOrAdmin)]
     public async Task<IActionResult> Get([FromQuery] string? month, CancellationToken ct)
     {
         Response.Headers.CacheControl = "no-store";
@@ -21,7 +21,7 @@ public sealed class PayrollController(PayrollService payroll, PayrollPdf pdf) : 
     }
 
     [HttpGet("pdf")]
-    [Authorize(Policy = Policies.AnyUser)]
+    [Authorize(Policy = Policies.ManagerOrAdmin)]
     public async Task<IActionResult> Pdf([FromQuery] string? month, [FromQuery] string? revision, CancellationToken ct)
     {
         Response.Headers.CacheControl = "no-store";
@@ -37,7 +37,7 @@ public sealed class PayrollController(PayrollService payroll, PayrollPdf pdf) : 
     }
 
     [HttpPost("{month}/finalise")]
-    [Authorize(Policy = Policies.AdminOnly)]
+    [Authorize(Policy = Policies.ManagerOrAdmin)]
     public async Task<IActionResult> Finalise(string month, FinalisePayrollRequest request, CancellationToken ct)
     {
         Response.Headers.CacheControl = "no-store";
@@ -51,7 +51,7 @@ public sealed class PayrollController(PayrollService payroll, PayrollPdf pdf) : 
     }
 
     [HttpDelete("{month}/finalise")]
-    [Authorize(Policy = Policies.AdminOnly)]
+    [Authorize(Policy = Policies.ManagerOrAdmin)]
     public async Task<IActionResult> Reopen(string month, ReopenPayrollRequest request, CancellationToken ct)
     {
         Response.Headers.CacheControl = "no-store";

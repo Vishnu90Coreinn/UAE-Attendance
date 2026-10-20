@@ -16,9 +16,13 @@ public sealed class ProbeController : ControllerBase
     [Authorize(Policy = Policies.AnyUser)]
     public IActionResult Any() => Ok(new { probe = "any" });
 
-    [HttpGet("hr")]
-    [Authorize(Policy = Policies.HrOrAdmin)]
-    public IActionResult Hr() => Ok(new { probe = "hr" });
+    [HttpGet("supervisor")]
+    [Authorize(Policy = Policies.SupervisorOrAbove)]
+    public IActionResult Supervisor() => Ok(new { probe = "supervisor" });
+
+    [HttpGet("manager")]
+    [Authorize(Policy = Policies.ManagerOrAdmin)]
+    public IActionResult Manager() => Ok(new { probe = "manager" });
 
     [HttpGet("admin")]
     [Authorize(Policy = Policies.AdminOnly)]

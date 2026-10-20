@@ -7,14 +7,17 @@ namespace HrPayroll.Api.Tests.Integration;
 public class AuthorizationMatrixTests(ApiFixture api) : IClassFixture<ApiFixture>
 {
     [Theory]
-    [InlineData(Roles.Viewer, "any", HttpStatusCode.OK)]
-    [InlineData(Roles.Viewer, "hr", HttpStatusCode.Forbidden)]
-    [InlineData(Roles.Viewer, "admin", HttpStatusCode.Forbidden)]
-    [InlineData(Roles.HrStaff, "any", HttpStatusCode.OK)]
-    [InlineData(Roles.HrStaff, "hr", HttpStatusCode.OK)]
-    [InlineData(Roles.HrStaff, "admin", HttpStatusCode.Forbidden)]
+    [InlineData(Roles.Supervisor, "any", HttpStatusCode.OK)]
+    [InlineData(Roles.Supervisor, "supervisor", HttpStatusCode.OK)]
+    [InlineData(Roles.Supervisor, "manager", HttpStatusCode.Forbidden)]
+    [InlineData(Roles.Supervisor, "admin", HttpStatusCode.Forbidden)]
+    [InlineData(Roles.Manager, "any", HttpStatusCode.OK)]
+    [InlineData(Roles.Manager, "supervisor", HttpStatusCode.OK)]
+    [InlineData(Roles.Manager, "manager", HttpStatusCode.OK)]
+    [InlineData(Roles.Manager, "admin", HttpStatusCode.Forbidden)]
     [InlineData(Roles.Administrator, "any", HttpStatusCode.OK)]
-    [InlineData(Roles.Administrator, "hr", HttpStatusCode.OK)]
+    [InlineData(Roles.Administrator, "supervisor", HttpStatusCode.OK)]
+    [InlineData(Roles.Administrator, "manager", HttpStatusCode.OK)]
     [InlineData(Roles.Administrator, "admin", HttpStatusCode.OK)]
     public async Task RoleMatrix_EnforcesEachPolicy(string role, string probe, HttpStatusCode expected)
     {
@@ -27,8 +30,8 @@ public class AuthorizationMatrixTests(ApiFixture api) : IClassFixture<ApiFixture
     }
 
     [Theory]
-    [InlineData(Roles.Viewer)]
-    [InlineData(Roles.HrStaff)]
+    [InlineData(Roles.Supervisor)]
+    [InlineData(Roles.Manager)]
     [InlineData(Roles.Administrator)]
     public async Task UnmarkedEndpoint_IsOpenToAnySignedInUser(string role)
     {
@@ -42,7 +45,8 @@ public class AuthorizationMatrixTests(ApiFixture api) : IClassFixture<ApiFixture
 
     [Theory]
     [InlineData("any")]
-    [InlineData("hr")]
+    [InlineData("supervisor")]
+    [InlineData("manager")]
     [InlineData("admin")]
     [InlineData("unmarked")]
     public async Task Anonymous_IsUnauthorizedEverywhere_IncludingUnmarkedEndpoints(string probe)

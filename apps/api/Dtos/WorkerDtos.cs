@@ -13,7 +13,7 @@ public sealed record WorkerRequest(
 /// company <c>OvertimeRatePerHour</c> when none is set.
 /// </summary>
 public sealed record WorkerResponse(
-    int Id, string WorkerCode, string FullName, string Designation, decimal HourlyRate,
-    decimal? OvertimeRate, decimal EffectiveOvertimeRate, bool IsActive);
+    int Id, string WorkerCode, string FullName, string Designation, decimal? HourlyRate,
+    decimal? OvertimeRate, decimal? EffectiveOvertimeRate, bool IsActive);
 
 public sealed record NextWorkerCodeResponse(string WorkerCode);

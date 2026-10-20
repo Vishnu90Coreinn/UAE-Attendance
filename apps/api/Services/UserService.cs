@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace HrPayroll.Api.Services;
 
-public enum UserOutcome { Success, Invalid, NotFound, Conflict }
+public enum UserOutcome { Success, Invalid, NotFound, Conflict, Forbidden }
 
 public sealed record UserResult(
     UserOutcome Outcome,
@@ -31,15 +31,18 @@ public sealed class UserService(
     public const string SelfMutationMessage = "You cannot delete or deactivate your own account.";
     public const string LastAdministratorMessage = "At least one active Administrator account is required.";
     public const string DuplicateUsernameMessage = "Username already exists.";
+    public const string SupervisorsOnlyMessage = "Managers can manage Supervisor accounts only.";
 
-    public async Task<List<UserResponse>> ListAsync(CancellationToken ct) =>
-        (await db.Users.AsNoTracking().OrderBy(x => x.Username).ToListAsync(ct)).Select(Response).ToList();
+    /// <summary>An Administrator sees every account; a Manager sees Supervisor accounts only.</summary>
+    public async Task<List<UserResponse>> ListAsync(bool administrator, CancellationToken ct) =>
+        (await db.Users.AsNoTracking().Where(x => administrator || x.Role == Roles.Supervisor).OrderBy(x => x.Username).ToListAsync(ct)).Select(Response).ToList();
 
-    public async Task<UserResult> CreateAsync(CreateUserRequest request, string actor, CancellationToken ct)
+    public async Task<UserResult> CreateAsync(CreateUserRequest request, string actor, bool administrator, CancellationToken ct)
     {
         var username = request.Username.Trim();
         var errors = Validate(username, request.Password, request.Role, validatePassword: true);
         if (errors.Count > 0) return Invalid(errors);
+        if (!administrator && request.Role != Roles.Supervisor) return Forbidden();
 
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         await LockAsync(ct);
@@ -70,7 +73,7 @@ public sealed class UserService(
         return new(UserOutcome.Success, Response(user));
     }
 
-    public async Task<UserResult> UpdateAsync(int id, UpdateUserRequest request, int actorId, string actor, CancellationToken ct)
+    public async Task<UserResult> UpdateAsync(int id, UpdateUserRequest request, int actorId, string actor, bool administrator, CancellationToken ct)
     {
         var errors = Validate(null, null, request.Role, validatePassword: false);
         if (errors.Count > 0) return Invalid(errors);
@@ -79,6 +82,7 @@ public sealed class UserService(
         await LockAsync(ct);
         var user = await db.Users.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (user is null) return new(UserOutcome.NotFound);
+        if (!administrator && (user.Role != Roles.Supervisor || request.Role != Roles.Supervisor)) return Forbidden();
         if (id == actorId && !request.Active) return new(UserOutcome.Conflict, Message: SelfMutationMessage);
         if (RemovesActiveAdministrator(user, request.Role, request.Active) &&
             !await db.Users.AnyAsync(x => x.Id != id && x.IsActive && x.Role == Roles.Administrator, ct))
@@ -109,12 +113,13 @@ public sealed class UserService(
         return new(UserOutcome.Success, Response(user));
     }
 
-    public async Task<UserResult> ResetPasswordAsync(int id, ResetUserPasswordRequest request, string actor, CancellationToken ct)
+    public async Task<UserResult> ResetPasswordAsync(int id, ResetUserPasswordRequest request, string actor, bool administrator, CancellationToken ct)
     {
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         await LockAsync(ct);
         var user = await db.Users.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (user is null) return new(UserOutcome.NotFound);
+        if (!administrator && user.Role != Roles.Supervisor) return Forbidden();
         var error = PasswordPolicy.Validate(request.Password, user.Username);
         if (error is not null) return Invalid(new() { ["password"] = error });
 
@@ -127,12 +132,13 @@ public sealed class UserService(
         return new(UserOutcome.Success);
     }
 
-    public async Task<UserResult> DeleteAsync(int id, int actorId, string actor, CancellationToken ct)
+    public async Task<UserResult> DeleteAsync(int id, int actorId, string actor, bool administrator, CancellationToken ct)
     {
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         await LockAsync(ct);
         var user = await db.Users.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (user is null) return new(UserOutcome.NotFound);
+        if (!administrator && user.Role != Roles.Supervisor) return Forbidden();
         if (id == actorId) return new(UserOutcome.Conflict, Message: SelfMutationMessage);
         if (user.IsActive && user.Role == Roles.Administrator &&
             !await db.Users.AnyAsync(x => x.Id != id && x.IsActive && x.Role == Roles.Administrator, ct))
@@ -171,6 +177,7 @@ public sealed class UserService(
     private static bool RemovesActiveAdministrator(User user, string role, bool active) =>
         user.IsActive && user.Role == Roles.Administrator && (!active || role != Roles.Administrator);
     private static UserResult Invalid(Dictionary<string, string> errors) => new(UserOutcome.Invalid, Errors: errors);
+    private static UserResult Forbidden() => new(UserOutcome.Forbidden, Message: SupervisorsOnlyMessage);
     private static string Id(User user) => user.Id.ToString(CultureInfo.InvariantCulture);
     private static UserResponse Response(User user) =>
         new(user.Id, user.Username, user.Role, user.IsActive, DateTime.SpecifyKind(user.CreatedUtc, DateTimeKind.Utc));

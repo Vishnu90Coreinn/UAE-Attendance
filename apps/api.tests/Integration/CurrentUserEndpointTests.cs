@@ -20,7 +20,7 @@ public class CurrentUserEndpointTests(ApiFixture api) : IClassFixture<ApiFixture
     [Fact]
     public async Task Me_WithValidToken_ReturnsTheUser()
     {
-        var user = await TestUsers.CreateAsync(api.ConnectionString, role: Roles.HrStaff);
+        var user = await TestUsers.CreateAsync(api.ConnectionString, role: Roles.Manager);
         var token = await TestUsers.LoginAsync(api.Client, user.Username);
 
         var response = await api.GetAsync("/api/auth/me", token);
@@ -29,14 +29,14 @@ public class CurrentUserEndpointTests(ApiFixture api) : IClassFixture<ApiFixture
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(user.Id, body.GetProperty("id").GetInt32());
         Assert.Equal(user.Username, body.GetProperty("username").GetString());
-        Assert.Equal(Roles.HrStaff, body.GetProperty("role").GetString());
+        Assert.Equal(Roles.Manager, body.GetProperty("role").GetString());
         Assert.False(body.TryGetProperty("passwordHash", out _));
     }
 
     [Fact]
     public async Task Me_ReadsTheRoleFromTheDatabaseNotTheToken()
     {
-        var user = await TestUsers.CreateAsync(api.ConnectionString, role: Roles.Viewer);
+        var user = await TestUsers.CreateAsync(api.ConnectionString, role: Roles.Supervisor);
         var token = await TestUsers.LoginAsync(api.Client, user.Username);
         await using (var db = TestUsers.NewContext(api.ConnectionString))
         {

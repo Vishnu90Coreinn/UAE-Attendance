@@ -11,7 +11,7 @@ public class UserConstraintTests(TestDatabase database) : IClassFixture<TestData
     private AppDbContext NewContext() =>
         new(new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(database.ConnectionString).Options);
 
-    private static User NewUser(string username, string role = Roles.Viewer) =>
+    private static User NewUser(string username, string role = Roles.Supervisor) =>
         new() { Username = username, PasswordHash = "hash", Role = role };
 
     [Fact]
@@ -38,9 +38,20 @@ public class UserConstraintTests(TestDatabase database) : IClassFixture<TestData
     }
 
     [Theory]
-    [InlineData("Administrator")]
     [InlineData("HR Staff")]
     [InlineData("Viewer")]
+    public async Task Role_RemovedRoles_AreRejectedByTheCheckConstraint(string role)
+    {
+        await using var db = NewContext();
+        db.Users.Add(NewUser($"old{Guid.NewGuid():N}"[..20], role));
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+    }
+
+    [Theory]
+    [InlineData("Administrator")]
+    [InlineData("Manager")]
+    [InlineData("Supervisor")]
     public async Task Role_EachKnownRole_IsAccepted(string role)
     {
         await using var db = NewContext();
@@ -56,7 +67,7 @@ public class UserConstraintTests(TestDatabase database) : IClassFixture<TestData
         var before = DateTime.UtcNow.AddMinutes(-1);
         await using (var db = NewContext())
         {
-            db.Users.Add(NewUser(name, Roles.HrStaff));
+            db.Users.Add(NewUser(name, Roles.Manager));
             await db.SaveChangesAsync();
         }
 
@@ -66,7 +77,7 @@ public class UserConstraintTests(TestDatabase database) : IClassFixture<TestData
         Assert.True(user.Id > 0);
         Assert.Equal(name, user.Username);
         Assert.Equal("hash", user.PasswordHash);
-        Assert.Equal(Roles.HrStaff, user.Role);
+        Assert.Equal(Roles.Manager, user.Role);
         Assert.True(user.IsActive);
         Assert.Equal(0, user.FailedLoginCount);
         Assert.Null(user.LockoutEndUtc);
@@ -76,6 +87,6 @@ public class UserConstraintTests(TestDatabase database) : IClassFixture<TestData
     [Fact]
     public void Roles_All_ListsTheThreeRoles()
     {
-        Assert.Equal(new[] { "Administrator", "HR Staff", "Viewer" }, Roles.All);
+        Assert.Equal(new[] { "Administrator", "Manager", "Supervisor" }, Roles.All);
     }
 }

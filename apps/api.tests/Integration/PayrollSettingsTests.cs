@@ -122,8 +122,8 @@ public class PayrollSettingsTests(ApiFixture api) : IClassFixture<ApiFixture>
     }
 
     [Theory]
-    [InlineData(Roles.Viewer)]
-    [InlineData(Roles.HrStaff)]
+    [InlineData(Roles.Supervisor)]
+    [InlineData(Roles.Manager)]
     [InlineData(Roles.Administrator)]
     public async Task Get_ReturnsTheSeededSettings_CamelCased_ToEveryRole(string role)
     {
@@ -143,8 +143,17 @@ public class PayrollSettingsTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal("DE AKS BE GLASS & ALUMINIUM CO. L.L.C S.O.C", json.GetProperty("companyName").GetString());
         Assert.Equal("Glass & Aluminum Installation & Maintenance Services", json.GetProperty("tagline").GetString());
         Assert.Equal("hr@dxbaluminium.ae", json.GetProperty("contactEmail").GetString());
-        Assert.Equal(JsonValueKind.Number, json.GetProperty("overtimeRatePerHour").ValueKind);
-        Assert.Equal(2.22m, json.GetProperty("overtimeRatePerHour").GetDecimal());
+        if (role == Roles.Supervisor)
+        {
+            // A supervisor never sees pay information: the key is present but null.
+            Assert.Equal(JsonValueKind.Null, json.GetProperty("overtimeRatePerHour").ValueKind);
+            Assert.DoesNotContain("2.22", await response.Content.ReadAsStringAsync());
+        }
+        else
+        {
+            Assert.Equal(JsonValueKind.Number, json.GetProperty("overtimeRatePerHour").ValueKind);
+            Assert.Equal(2.22m, json.GetProperty("overtimeRatePerHour").GetDecimal());
+        }
         Assert.Equal(JsonValueKind.Number, json.GetProperty("maxBasicHoursPerDay").ValueKind);
         Assert.Equal(8m, json.GetProperty("maxBasicHoursPerDay").GetDecimal());
         Assert.Equal("06:00 AM - 05:30 PM", json.GetProperty("shiftDescription").GetString());

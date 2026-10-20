@@ -93,9 +93,8 @@ public class PayrollSettingsUpdateTests(ApiFixture api) : IClassFixture<ApiFixtu
     }
 
     [Theory]
-    [InlineData(Roles.Viewer)]
-    [InlineData(Roles.HrStaff)]
-    public async Task Put_ByViewerOrHrStaff_IsForbidden_AndChangesNothing(string role)
+    [InlineData(Roles.Supervisor)]
+    public async Task Put_BySupervisor_IsForbidden_AndChangesNothing(string role)
     {
         await ResetAsync();
         var (_, token) = await TestWorkers.SignInAsync(api, role);
@@ -116,15 +115,26 @@ public class PayrollSettingsUpdateTests(ApiFixture api) : IClassFixture<ApiFixtu
     }
 
     [Theory]
-    [InlineData(Roles.Viewer)]
-    [InlineData(Roles.HrStaff)]
-    public async Task Put_ByViewerOrHrStaff_WithAnInvalidBody_IsStillForbidden(string role)
+    [InlineData(Roles.Supervisor)]
+    public async Task Put_BySupervisor_WithAnInvalidBody_IsStillForbidden(string role)
     {
         var (_, token) = await TestWorkers.SignInAsync(api, role);
 
         var response = await api.SendAsync(HttpMethod.Put, Route, With("overtimeRatePerHour", -5m), token);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Put_ByManager_IsOk_AndSavesTheChange()
+    {
+        await ResetAsync();
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
+
+        var response = await api.SendAsync(HttpMethod.Put, Route, ValidBody(), token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(2.5m, (await StoredAsync()).OvertimeRatePerHour);
     }
 
     [Fact]
@@ -176,8 +186,8 @@ public class PayrollSettingsUpdateTests(ApiFixture api) : IClassFixture<ApiFixtu
         Assert.Equal("Payroll Office", stored.PreparedByLabel);
         Assert.Equal("Managing Director", stored.ApprovedByLabel);
 
-        var (_, viewerToken) = await TestWorkers.SignInAsync(api, Roles.Viewer);
-        var get = await api.GetAsync(Route, viewerToken);
+        var (_, managerToken) = await TestWorkers.SignInAsync(api, Roles.Manager);
+        var get = await api.GetAsync(Route, managerToken);
         Assert.Equal(HttpStatusCode.OK, get.StatusCode);
         AssertSavedValues(await TestWorkers.ReadJsonAsync(get));
     }
@@ -556,7 +566,7 @@ public class PayrollSettingsUpdateTests(ApiFixture api) : IClassFixture<ApiFixtu
     public async Task Get_AfterAReset_ShowsTheSeededDefaults()
     {
         await ResetAsync();
-        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Viewer);
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
 
         var response = await api.GetAsync(Route, token);
 

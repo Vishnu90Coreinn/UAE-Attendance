@@ -8,8 +8,8 @@ namespace HrPayroll.Api.Tests.Integration;
 public class PayrollFinalisationTests(ApiFixture api) : IClassFixture<ApiFixture>
 {
     [Theory]
-    [InlineData(null, 401)] [InlineData(Roles.Viewer, 403)] [InlineData(Roles.HrStaff, 403)]
-    public async Task Mutations_RequireAdministrator(string? role, int expected)
+    [InlineData(null, 401)] [InlineData(Roles.Supervisor, 403)]
+    public async Task Mutations_RequireManagerOrAdministrator(string? role, int expected)
     {
         var token = role is null ? null : (await TestWorkers.SignInAsync(api, role)).Token;
         foreach (var method in new[] { HttpMethod.Post, HttpMethod.Delete })
@@ -17,6 +17,17 @@ public class PayrollFinalisationTests(ApiFixture api) : IClassFixture<ApiFixture
             var response = await api.SendAsync(method, "/api/payroll/2020-01/finalise", new { revision = "x", reason = "correction" }, token);
             Assert.Equal((HttpStatusCode)expected, response.StatusCode);
         }
+    }
+
+    [Fact]
+    public async Task Manager_CanFinaliseAndReopen()
+    {
+        var manager = await TestWorkers.SignInAsync(api, Roles.Manager);
+        var draft = await TestWorkers.ReadJsonAsync(await api.GetAsync("/api/payroll?month=2019-06", manager.Token));
+        var finalise = await api.PostAsync("/api/payroll/2019-06/finalise", new { revision = draft.GetProperty("revision").GetString() }, manager.Token);
+        Assert.Equal(HttpStatusCode.OK, finalise.StatusCode);
+        var reopen = await api.SendAsync(HttpMethod.Delete, "/api/payroll/2019-06/finalise", new { reason = "manager correction" }, manager.Token);
+        Assert.Equal(HttpStatusCode.OK, reopen.StatusCode);
     }
 
     [Fact]

@@ -14,5 +14,5 @@ public sealed class AttendanceRequest
 }
 
 public sealed record AttendanceRecordResponse(string Status, decimal BasicHours, decimal OvertimeHours);
-public sealed record AttendanceRowResponse(WorkerResponse Worker, AttendanceRecordResponse? Record, DailyPay DailyPay);
+public sealed record AttendanceRowResponse(WorkerResponse Worker, AttendanceRecordResponse? Record, DailyPay? DailyPay);
 public sealed record AttendanceDayResponse(DateOnly Date, bool IsFinalised, List<AttendanceRowResponse> Rows);

@@ -11,7 +11,7 @@ public class AttendanceRulesTests(ApiFixture api) : IClassFixture<ApiFixture>
 {
     private const string Date = "2026-02-10";
     private static object Row(int id, string? status = "Present", decimal basic = 8, decimal overtime = 0) => new { workerId = id, status, basicHours = basic, overtimeHours = overtime };
-    private async Task<string> Token() => (await TestWorkers.SignInAsync(api, Roles.HrStaff)).Token;
+    private async Task<string> Token() => (await TestWorkers.SignInAsync(api, Roles.Manager)).Token;
 
     [Theory]
     [InlineData("Present", 0, 0)]
@@ -29,7 +29,7 @@ public class AttendanceRulesTests(ApiFixture api) : IClassFixture<ApiFixture>
     [InlineData(null, 8, 0)]
     public async Task InvalidBatch_ChangesNoRowsOrAudit(string? status, double basic, double overtime)
     {
-        var (actor, token) = await TestWorkers.SignInAsync(api, Roles.HrStaff);
+        var (actor, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
         var first = await TestWorkers.CreateAsync(api.ConnectionString);
         var second = await TestWorkers.CreateAsync(api.ConnectionString);
         var result = await api.SendAsync(HttpMethod.Put, $"/api/attendance/{Date}",
@@ -90,7 +90,7 @@ public class AttendanceRulesTests(ApiFixture api) : IClassFixture<ApiFixture>
     [Fact]
     public async Task Absent_NormalisesHours_UpsertIsUnique_AndAuditContainsChangedWorkers()
     {
-        var (actor, token) = await TestWorkers.SignInAsync(api, Roles.HrStaff);
+        var (actor, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
         var worker = await TestWorkers.CreateAsync(api.ConnectionString);
         foreach (var row in new[] { Row(worker.Id), Row(worker.Id, "Absent", 8, 2), Row(worker.Id, "Absent", 0, 0) })
             Assert.Equal(HttpStatusCode.OK, (await api.SendAsync(HttpMethod.Put, $"/api/attendance/{Date}", new[] { row }, token)).StatusCode);

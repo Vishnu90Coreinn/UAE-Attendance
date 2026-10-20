@@ -16,11 +16,11 @@ public class WorkersReadEndpointTests(ApiFixture api) : IClassFixture<ApiFixture
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    private async Task<string> ViewerTokenAsync() => (await TestWorkers.SignInAsync(api, Roles.Viewer)).Token;
+    private async Task<string> ManagerTokenAsync() => (await TestWorkers.SignInAsync(api, Roles.Manager)).Token;
 
     private async Task<string[]> ListCodesAsync(string query = "")
     {
-        var response = await api.GetAsync($"/api/workers{query}", await ViewerTokenAsync());
+        var response = await api.GetAsync($"/api/workers{query}", await ManagerTokenAsync());
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await TestWorkers.ReadJsonAsync(response);
         return json.EnumerateArray().Select(w => w.GetProperty("workerCode").GetString()!).ToArray();
@@ -31,7 +31,7 @@ public class WorkersReadEndpointTests(ApiFixture api) : IClassFixture<ApiFixture
     [Fact]
     public async Task List_WithNoWorkers_IsAnEmptyArray()
     {
-        var response = await api.GetAsync("/api/workers", await ViewerTokenAsync());
+        var response = await api.GetAsync("/api/workers", await ManagerTokenAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(JsonValueKind.Array, (await TestWorkers.ReadJsonAsync(response)).ValueKind);
@@ -74,7 +74,7 @@ public class WorkersReadEndpointTests(ApiFixture api) : IClassFixture<ApiFixture
         var worker = await TestWorkers.CreateAsync(
             api.ConnectionString, "shape1", "Mohammed Ali", "Aluminum Fabricator", 12.5m);
 
-        var response = await api.GetAsync("/api/workers", await ViewerTokenAsync());
+        var response = await api.GetAsync("/api/workers", await ManagerTokenAsync());
         var item = (await TestWorkers.ReadJsonAsync(response))[0];
 
         Assert.Equal(
@@ -96,7 +96,7 @@ public class WorkersReadEndpointTests(ApiFixture api) : IClassFixture<ApiFixture
     {
         var worker = await TestWorkers.CreateAsync(api.ConnectionString, "inactive1", isActive: false, hourlyRate: 9.99m);
 
-        var response = await api.GetAsync($"/api/workers/{worker.Id}", await ViewerTokenAsync());
+        var response = await api.GetAsync($"/api/workers/{worker.Id}", await ManagerTokenAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await TestWorkers.ReadJsonAsync(response);
@@ -109,7 +109,7 @@ public class WorkersReadEndpointTests(ApiFixture api) : IClassFixture<ApiFixture
     [Fact]
     public async Task Get_WithAnUnknownId_IsNotFound()
     {
-        var response = await api.GetAsync("/api/workers/987654", await ViewerTokenAsync());
+        var response = await api.GetAsync("/api/workers/987654", await ManagerTokenAsync());
 
         await TestWorkers.AssertWorkerNotFoundAsync(response);
     }
@@ -118,7 +118,7 @@ public class WorkersReadEndpointTests(ApiFixture api) : IClassFixture<ApiFixture
 
     private async Task<string> NextCodeAsync()
     {
-        var response = await api.GetAsync("/api/workers/next-code", await ViewerTokenAsync());
+        var response = await api.GetAsync("/api/workers/next-code", await ManagerTokenAsync());
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var json = await TestWorkers.ReadJsonAsync(response);
         Assert.Equal(["workerCode"], json.EnumerateObject().Select(p => p.Name).ToArray());
@@ -180,7 +180,7 @@ public class WorkersReadEndpointTests(ApiFixture api) : IClassFixture<ApiFixture
     public async Task NextCode_IsNotTreatedAsAWorkerId()
     {
         // "next-code" must be its own route, not an id lookup that fails to parse.
-        var response = await api.GetAsync("/api/workers/next-code", await ViewerTokenAsync());
+        var response = await api.GetAsync("/api/workers/next-code", await ManagerTokenAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }

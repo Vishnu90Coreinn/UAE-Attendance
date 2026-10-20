@@ -32,7 +32,7 @@ public class WorkersWriteEndpointTests(ApiFixture api) : IClassFixture<ApiFixtur
         return "{" + string.Join(',', parts) + "}";
     }
 
-    private async Task<(string Username, string Token)> HrAsync() => await TestWorkers.SignInAsync(api, Roles.HrStaff);
+    private async Task<(string Username, string Token)> HrAsync() => await TestWorkers.SignInAsync(api, Roles.Manager);
 
     private static async Task<JsonElement> ErrorsOf(HttpResponseMessage response)
     {

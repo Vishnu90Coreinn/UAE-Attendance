@@ -9,7 +9,7 @@ namespace HrPayroll.Api.Tests.Integration;
 public sealed class LeaveTests(ApiFixture api) : IClassFixture<ApiFixture>
 {
     private static Task<JsonElement> Json(HttpResponseMessage r) => TestWorkers.ReadJsonAsync(r);
-    private async Task<(int Worker, string Token)> Setup(string role = Roles.HrStaff)
+    private async Task<(int Worker, string Token)> Setup(string role = Roles.Manager)
     {
         var worker = await TestWorkers.CreateAsync(api.ConnectionString);
         var (_, token) = await TestWorkers.SignInAsync(api, role);
@@ -56,10 +56,11 @@ public sealed class LeaveTests(ApiFixture api) : IClassFixture<ApiFixture>
     public async Task Closed_overlap_reject_reapprove_and_delete_follow_policy()
     {
         var (worker, token) = await Setup();
-        var id = (await Json(await Create(worker, token))).GetProperty("id").GetInt32();
+        var (_, supervisor) = await TestWorkers.SignInAsync(api, Roles.Supervisor);
+        var id = (await Json(await Create(worker, supervisor))).GetProperty("id").GetInt32();
         Assert.Equal(HttpStatusCode.Conflict, (await Create(worker, token, "2028-03-01", "2028-03-02")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await api.PostAsync($"/api/leave/{id}/approve", new { }, token)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await api.SendAsync(HttpMethod.Delete, $"/api/leave/{id}", token: token)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.SendAsync(HttpMethod.Delete, $"/api/leave/{id}", token: supervisor)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await api.PostAsync($"/api/leave/{id}/reject", new { }, token)).StatusCode);
         var second = (await Json(await Create(worker, token))).GetProperty("id").GetInt32();
         Assert.Equal(HttpStatusCode.Conflict, (await api.PostAsync($"/api/leave/{id}/approve", new { }, token)).StatusCode);
@@ -78,16 +79,78 @@ public sealed class LeaveTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
     }
 
-    [Theory]
-    [InlineData(null, 401)]
-    [InlineData(Roles.Viewer, 403)]
-    public async Task All_mutations_are_protected(string? role, int status)
+    [Fact]
+    public async Task Anonymous_callers_are_rejected_on_every_route()
     {
-        string? token = role is null ? null : (await TestWorkers.SignInAsync(api, role)).Token;
         foreach (var path in new[] { "/api/leave", "/api/leave/1/approve", "/api/leave/1/reject" })
-            Assert.Equal(status, (int)(await api.PostAsync(path, new { }, token)).StatusCode);
-        Assert.Equal(status, (int)(await api.SendAsync(HttpMethod.Delete, "/api/leave/1", token: token)).StatusCode);
-        Assert.Equal(role is null ? 401 : 200, (int)(await api.GetAsync("/api/leave", token)).StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, (await api.PostAsync(path, new { }, null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await api.SendAsync(HttpMethod.Delete, "/api/leave/1")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await api.GetAsync("/api/leave")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Supervisor_can_read_and_raise_but_never_decide()
+    {
+        var (worker, supervisor) = await Setup(Roles.Supervisor);
+        Assert.Equal(HttpStatusCode.OK, (await api.GetAsync("/api/leave", supervisor)).StatusCode);
+        var id = (await Json(await Create(worker, supervisor))).GetProperty("id").GetInt32();
+        foreach (var action in new[] { "approve", "reject" })
+        {
+            // Not even their own request, and not a request that does not exist: the policy answers first.
+            Assert.Equal(HttpStatusCode.Forbidden, (await api.PostAsync($"/api/leave/{id}/{action}", new { }, supervisor)).StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, (await api.PostAsync($"/api/leave/2147483647/{action}", new { }, supervisor)).StatusCode);
+        }
+        var stored = (await Json(await api.GetAsync($"/api/leave?workerId={worker}", supervisor))).EnumerateArray().Single();
+        Assert.Equal("Pending", stored.GetProperty("status").GetString());
+        Assert.Equal(JsonValueKind.Null, stored.GetProperty("decidedBy").ValueKind);
+    }
+
+    [Fact]
+    public async Task Supervisor_cannot_decide_a_request_raised_by_someone_else()
+    {
+        var (worker, manager) = await Setup(Roles.Manager);
+        var (_, supervisor) = await TestWorkers.SignInAsync(api, Roles.Supervisor);
+        var id = (await Json(await Create(worker, manager))).GetProperty("id").GetInt32();
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.PostAsync($"/api/leave/{id}/approve", new { }, supervisor)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.PostAsync($"/api/leave/{id}/reject", new { }, supervisor)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Supervisor_deletes_only_their_own_pending_request()
+    {
+        var worker = (await TestWorkers.CreateAsync(api.ConnectionString)).Id;
+        var (_, owner) = await TestWorkers.SignInAsync(api, Roles.Supervisor);
+        var (_, other) = await TestWorkers.SignInAsync(api, Roles.Supervisor);
+        var (_, manager) = await TestWorkers.SignInAsync(api, Roles.Manager);
+
+        var mine = (await Json(await Create(worker, owner, "2030-01-01", "2030-01-02"))).GetProperty("id").GetInt32();
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.SendAsync(HttpMethod.Delete, $"/api/leave/{mine}", token: other)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await api.PostAsync($"/api/leave/{mine}/reject", new { }, manager)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.SendAsync(HttpMethod.Delete, $"/api/leave/{mine}", token: owner)).StatusCode);
+
+        var pending = (await Json(await Create(worker, owner, "2030-02-01", "2030-02-02"))).GetProperty("id").GetInt32();
+        Assert.Equal(HttpStatusCode.NoContent, (await api.SendAsync(HttpMethod.Delete, $"/api/leave/{pending}", token: owner)).StatusCode);
+
+        var managers = (await Json(await Create(worker, manager, "2030-03-01", "2030-03-02"))).GetProperty("id").GetInt32();
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.SendAsync(HttpMethod.Delete, $"/api/leave/{managers}", token: owner)).StatusCode);
+
+        await using var db = TestUsers.NewContext(api.ConnectionString);
+        Assert.True(await db.LeaveRequests.AnyAsync(x => x.Id == mine));
+        Assert.True(await db.LeaveRequests.AnyAsync(x => x.Id == managers));
+        Assert.False(await db.LeaveRequests.AnyAsync(x => x.Id == pending));
+    }
+
+    [Fact]
+    public async Task Manager_deletes_any_request_in_any_state()
+    {
+        var worker = (await TestWorkers.CreateAsync(api.ConnectionString)).Id;
+        var (_, supervisor) = await TestWorkers.SignInAsync(api, Roles.Supervisor);
+        var (_, manager) = await TestWorkers.SignInAsync(api, Roles.Manager);
+        var pending = (await Json(await Create(worker, supervisor, "2031-01-01", "2031-01-02"))).GetProperty("id").GetInt32();
+        var approved = (await Json(await Create(worker, supervisor, "2031-02-01", "2031-02-02"))).GetProperty("id").GetInt32();
+        Assert.Equal(HttpStatusCode.OK, (await api.PostAsync($"/api/leave/{approved}/approve", new { }, manager)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await api.SendAsync(HttpMethod.Delete, $"/api/leave/{pending}", token: manager)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await api.SendAsync(HttpMethod.Delete, $"/api/leave/{approved}", token: manager)).StatusCode);
     }
 
     [Theory]
