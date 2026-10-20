@@ -220,7 +220,7 @@ UAE-Attendance/
 | `PayrollSettings` | Id (=1), CompanyName, Tagline, ContactEmail, OvertimeRatePerHour, MaxBasicHoursPerDay, ShiftDescription, PreparedByLabel, ApprovedByLabel | Single-row check | S2 |
 | `Workers` | Id, WorkerCode, FullName, Designation, HourlyRate, **OvertimeRate (nullable)**, IsActive, CreatedUtc, UpdatedUtc | Unique `WorkerCode` (case-insensitive); `HourlyRate` > 0; `OvertimeRate` is NULL (= company rate) or ≥ 0 (added in S2b) | S2 / S2b |
 | `Attendance` | Id, WorkerId, WorkDate, Status, BasicHours, OvertimeHours, UpdatedUtc, UpdatedBy | Unique (`WorkerId`, `WorkDate`); `Status` in (Present, Absent); hours ≥ 0; absent ⇒ hours 0; index on `WorkDate`; FK restrict | S3 |
-| `PayrollPeriods` | Id, Year, Month, OvertimeRateApplied, FinalisedUtc, FinalisedBy | Unique (`Year`, `Month`). A row exists only for finalised months | S5 |
+| `PayrollPeriods` | Id, Year, Month, OvertimeRateApplied, FinalisedUtc, FinalisedBy, CompanyName, Tagline, ContactEmail, PreparedByLabel, ApprovedByLabel | Unique (`Year`, `Month`). A row exists only for finalised months. Letterhead is frozen with figures | S5 |
 | `PayrollDetails` | Id, PeriodId, WorkerId, WorkerCode, WorkerName, Designation, HourlyRate, **OvertimeRate** (the effective rate used), DaysWorked, BasicHours, OvertimeHours, BasicPay, OvertimePay, TotalPay | FK `PeriodId` cascade; unique (`PeriodId`, `WorkerId`) | S5 |
 | `LeaveRequests` | Id, WorkerId, LeaveType, StartDate, EndDate, Days, Status, CreatedBy, CreatedUtc, DecidedBy, DecidedUtc | Check `EndDate >= StartDate`; `LeaveType` in the four types; `Status` in (Pending, Approved, Rejected); FK restrict | S6 |
 
@@ -362,6 +362,8 @@ A slice is complete only when a user can do the thing in the browser, backed by 
 
 ### S5 — Finalise and lock a month (0.5–1 day)
 
+**Completed:** `slice/s5-finalise`; see [S5 report](../../reports/s5-finalise.md) and [implementation plan](2026-10-20-s5-finalise.md). POST requires the displayed report revision; reopening requires a trimmed reason of 1–500 characters. Transactions use shared/exclusive SQL month locks to coordinate report/attendance access with finalisation.
+
 **Demo:** Administrator finalises October; the report shows "Finalised" with who and when; change a worker's rate and the October report does not move; try to edit October attendance and get a clear refusal; Administrator reopens with a reason.
 
 **DB:** `PayrollPeriods`, `PayrollDetails`.
@@ -369,11 +371,11 @@ A slice is complete only when a user can do the thing in the browser, backed by 
 **UI:** Finalise button with a confirm dialog that restates the totals; "Finalised by {user} on {date}" banner; Reopen action with a reason field; attendance screen shows a lock notice for finalised dates.
 
 **Tasks**
-- [ ] Tests first: snapshot equals the draft at the moment of finalising; later rate change leaves the snapshot untouched (R9); attendance write inside a finalised month → 409 (R8); finalising twice → 409; future month → 400; reopen requires `AdminOnly` and a reason; reopen and re-finalise produces new figures
-- [ ] Entities, migration; the finalise service runs in a single SQL transaction
-- [ ] Replace the S3 stub with the real lock check
-- [ ] Audit rows for finalise and reopen (reopen stores the previous totals in `DetailsJson`)
-- [ ] Web: finalised state in the report, lock notices
+- [x] Tests first: snapshot equals the draft at the moment of finalising; later rate change leaves the snapshot untouched (R9); attendance write inside a finalised month → 409 (R8); finalising twice → 409; future month → 400; reopen requires `AdminOnly` and a reason; reopen and re-finalise produces new figures
+- [x] Entities, migration; the finalise service runs in a single SQL transaction
+- [x] Replace the S3 stub with the real lock check
+- [x] Audit rows for finalise and reopen (reopen stores the previous totals in `DetailsJson`)
+- [x] Web: finalised state in the report, lock notices
 - [ ] Confirm C5 or proceed on defaults
 
 ### S6 — Leave management (0.75–1 day)

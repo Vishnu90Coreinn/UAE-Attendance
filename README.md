@@ -7,15 +7,21 @@ React + TypeScript (`apps/web`) · ASP.NET Core Web API (`apps/api`) · SQL Serv
 
 Plans live in `docs/superpowers/plans/`. Start with `2026-10-19-hr-payroll-vertical-slices.md`.
 
-Daily attendance and monthly payroll are implemented through S4; see [the S3 report](docs/reports/s3-attendance.md)
-and [the S4 report](docs/reports/s4-payroll.md). Finalisation, leave, user management and release hardening remain S5–S8.
+Daily attendance, monthly payroll and finalisation are implemented through S5; see [the S3 report](docs/reports/s3-attendance.md),
+[the S4 report](docs/reports/s4-payroll.md) and [the S5 report](docs/reports/s5-finalise.md). Leave, user management and release hardening remain S6–S8.
 
 ## Monthly payroll and PDF runtime
 
 Open **Payroll Summary**, select a month, then use **Print** or **Export PDF**. All three roles may view, print and
-export. The server computes every figure using current rates; S4 reports are Draft until finalisation is added in S5.
+export. Draft reports use current rates; finalised reports use the stored snapshot of figures, rates and company details.
 The filename is `Payroll_YYYY-MM.pdf`. If the report changes before export, reload it before downloading so the
 PDF cannot silently differ from the visible figures.
+
+Administrators can **Finalise month** after confirming the displayed totals. Future UAE months cannot be finalised.
+Finalisation freezes the report and locks every attendance write in that month. Later worker or company changes do not
+alter the finalised report or PDF. **Reopen month** requires an audit reason and returns the report to a draft using current
+rates. HR Staff and Viewer accounts can view and export but cannot finalise or reopen. Reload if another user changes the
+report before confirmation.
 
 PDF generation is free: PdfPig 0.1.16 generates the English report directly on the API server, with embedded Noto Sans
 fonts. No paid PDF service, browser installation, QuestPDF licence or trial is required. See
@@ -33,8 +39,8 @@ Basic hours must be positive for Present and within the configured maximum; basi
 Hours accept at most two decimals. Today's date and future-date validation use UAE time (`Asia/Dubai`).
 Pay uses the current worker hourly rate and worker overtime override, or the company overtime rate when no override
 is set. Each daily pay component rounds half away from zero to two decimals; saved server amounts are authoritative.
-Unsaved date changes and navigation require confirmation. Finalised-month enforcement is prepared through an interface;
-S5 will replace the draft-only stub when finalisation exists.
+Unsaved date changes and navigation require confirmation. Finalised months display a lock notice and disable editing;
+the API also refuses saves, clears and deletions until an Administrator reopens the month.
 
 ## Prerequisites
 

@@ -1,12 +1,13 @@
 # HR & Payroll System — Handover for ChatGPT / Codex
 
-> **Codex takeover update — 2026-10-20:** S3 Daily Attendance and S4 Monthly Payroll are implemented locally.
-> `slice/s4-payroll` stacks on `slice/s3-attendance` (`7f258fc`). See [S3 report](reports/s3-attendance.md)
-> and [S4 report](reports/s4-payroll.md). Next slice is S5. The owner authorized pushing the S4 branch; no merge is authorized.
+> **Codex takeover update — 2026-10-20:** S3 Daily Attendance, S4 Monthly Payroll and S5 Finalisation are implemented.
+> `slice/s5-finalise` stacks on S4 (`e560076`). See [S3 report](reports/s3-attendance.md),
+> [S4 report](reports/s4-payroll.md) and [S5 report](reports/s5-finalise.md). Next slice is S6.
+> S4 was pushed at the owner's request. S5 remains local; no merge is authorized.
 > **D1 superseded at the owner's request:** free PdfPig server PDF generation replaces QuestPDF. English prototype
 > scope is confirmed; no Arabic support or browser runtime is required. See [third-party notices](../THIRD-PARTY-NOTICES.md).
 
-You are taking over the build of a small, single-company HR & Payroll web application. Slices S0–S2 are done and tested. Your job is to build S3–S8 and the deployment pack, working slice by slice. The owner (VishnuRaj) and Claude will review everything once you are done and then ask for adjustments, so **keep each slice on its own branch, keep commits small, and write a short report per slice** (format at the end).
+You are taking over the build of a small, single-company HR & Payroll web application. Slices S0–S5 are done and tested. Continue with S6–S8 and the deployment pack, working slice by slice. The owner (VishnuRaj) will review and ask for adjustments, so **keep each slice on its own branch, keep commits small, and write a short report per slice** (format at the end).
 
 Read this whole file first. Then read `docs/superpowers/plans/2026-10-19-hr-payroll-vertical-slices.md` (master plan) and `docs/design-system.md`. If anything here conflicts with the repo, trust the repo and tell the owner.
 
@@ -118,7 +119,7 @@ D1 server-side PDF with **PdfPig 0.1.16** (free alternative requested by owner o
 
 ## 8. Remaining work — build in this order
 
-S2b is already built; start at **S3** (its `PayrollCalculator` uses the S2b overtime rules). Estimated 6.75–11 engineering days for S3–S8. Each slice must be demonstrable end to end (database → API → UI → tests).
+S0–S5 are already built; continue at **S6**. Each slice must be demonstrable end to end (database → API → UI → tests). Read the latest slice report instead of repeating completed setup or verification against an unchanged clean commit.
 
 ### S2b — Settings and overtime rates — **DONE** (branch `slice/s2b-settings`, from `slice/s2-workers`; 419 API + 242 web tests; checked in a browser at desktop and 375px)
 
@@ -158,10 +159,12 @@ S2b is already built; start at **S3** (its `PayrollCalculator` uses the S2b over
 
 **API:** `GET /api/payroll?month=YYYY-MM` (any user) → `{ period, status: "Draft"|"Finalised", company/letterhead fields, lines[], totals }`; `GET /api/payroll/pdf?month=YYYY-MM` (any user) → `application/pdf`, A4 portrait, selectable text (PdfPig), file name `Payroll_YYYY-MM.pdf`. **UI:** shared report component for screen and print; `@media print` hides everything but the report; Print and Export buttons; "Draft" badge; the numbers on screen, print preview and PDF must be identical.
 
-### S5 — Finalise and lock a month (`slice/s5-finalise`)
+### S5 — Finalise and lock a month — DONE (`slice/s5-finalise`)
 
 **Tables:** `PayrollPeriods` (`Id`, `Year`, `Month`, `OvertimeRateApplied`, `FinalisedUtc`, `FinalisedBy`; UNIQUE (`Year`,`Month`); rows exist only for finalised months) and `PayrollDetails` (`Id`, `PeriodId` FK cascade, `WorkerId` FK RESTRICT, `WorkerCode`, `WorkerName`, `Designation`, `HourlyRate`, `OvertimeRate` (the effective rate used), `DaysWorked`, `BasicHours`, `OvertimeHours`, `BasicPay`, `OvertimePay`, `TotalPay`; UNIQUE (`PeriodId`,`WorkerId`)).
 **Rules:** R8 attendance writes inside a finalised month → 409 · R9 finalising copies each worker's hourly rate and effective overtime rate into the snapshot (single SQL transaction); finalised views and the PDF read **only** the snapshot; a later rate change must not move a finalised report · cannot finalise a future month; finalising twice → 409 · **reopen** = delete the period and its details (audited with the reason and the previous totals in `DetailsJson`); **Administrator only** (default for confirmation C5). Endpoints: `POST /api/payroll/{month}/finalise` and `DELETE /api/payroll/{month}/finalise` (body: reason) — Administrator. UI: Finalise button with a confirm dialog that restates the totals; "Finalised by X on DATE" banner; Reopen with a required reason; lock notice on the attendance screen. HR Staff and Viewer must get 403.
+
+**Implemented contract:** POST requires `{revision}` from the displayed report; a stale confirmation returns 409. DELETE requires `{reason}` (trimmed, 1–500 characters). Both return the updated report. Reports expose nullable `finalisedBy` and `finalisedUtc` (UTC ISO timestamp); screen metadata displays UAE time and PDF labels UTC explicitly. PayrollPeriods also stores the five company letterhead fields, so finalised reports do not depend on live settings. Aggregate decimal columns use wider precision than daily attendance. Transaction-owned SQL month locks coordinate attendance writes/report reads with exclusive finalise/reopen; bounded conflicts return 409. See the S5 report for verification.
 
 ### S6 — Leave management (`slice/s6-leave`)
 
@@ -207,12 +210,14 @@ Do not assume Windows/IIS or Linux/Nginx. The owner must confirm in writing: per
 - `WorkerService.NextCode` can exceed 20 characters only for absurd suffixes; not guarded.
 - `dotnet-ef` design-time factory prints the target server/database before any migration command — keep that safety.
 - Web: cancelling a dialog mid-request does not abort the request (a late success is silent).
-- The company name is a literal in `branding.ts`/`Layout`; from S4 read it from `GET /api/settings/payroll` where the user is signed in.
+- S4 completed settings-driven signed-in branding with a literal fallback; saving Settings updates the header immediately. Finalised report letterheads remain frozen independently of the live header.
 - S4 uses free PdfPig with embedded Noto Sans fonts at the owner's request. English prototype scope is confirmed; retain font and library licence files in published output.
 
 ## 11. Working agreement and report format
 
 For each slice: (1) read the relevant section above and the master plan; (2) create the branch; (3) work test-first in small commits; (4) run the full verification (`dotnet build` 0 warnings, `dotnet test`, `npm test`, `npm run lint`, `npm run build`); (5) run the app and **look at it in a browser** (desktop and 375px wide; console clean; try the happy path, an error path and a Viewer account); (6) leave LocalDB clean; (7) write the report below into the commit message of a final `docs:` commit or hand it to the owner. **Stop after each slice if anything in this document is unclear, if a rule seems wrong, or if you want to deviate** — ask; do not guess.
+
+**Efficiency (owner request, 2026-10-20):** Reuse the latest verified baseline when its commit and working tree are unchanged. During implementation, run focused tests for changed behaviour. Review the complete slice, then run one full verification pass. Run API and web suites sequentially: `dotnet test --no-build -- xUnit.MaxParallelThreads=2`, then `npm test -- --maxWorkers=2`. Recheck only affected paths after a later fix; repeat a full suite only when new evidence justifies it. Do not reinstall dependencies, repeat licence research, recreate checkouts, or repeat completed browser/PDF checks without a relevant change.
 
 ```
 Slice report — S?
@@ -226,6 +231,6 @@ Browser check:            <what you clicked, desktop + 375px, console errors>
 Open questions:           <bullets>
 ```
 
-## 12. First message to send yourself (checklist)
+## 12. Next slice checklist
 
-1. Read this file, the master plan and `docs/design-system.md`. 2. `git fetch --all`, check out `slice/s2b-settings`, run `dotnet test` and `npm test` and confirm they pass (419 and 242). 3. Create `slice/s3-attendance` from it and start S3 with `docs/payroll-test-vectors.json` and the `PayrollCalculator` unit tests. 4. Report back at the end of S3 before starting S4.
+1. Read S6 here, the master plan and the latest [S5 report](reports/s5-finalise.md). 2. Inspect the clean current branch and its commit; reuse its verification evidence. 3. Create `slice/s6-leave` from S5 and build only the approved S6 leave module. Leave does not change attendance/payroll; S6b remains a separate change request. 4. Verify and report at the S6 checkpoint before proceeding further. Push only when requested.

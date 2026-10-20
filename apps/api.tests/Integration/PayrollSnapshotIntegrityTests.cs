@@ -248,6 +248,3 @@ public sealed class PayrollSnapshotIntegrityTests : IAsyncLifetime
         }
     }
 }
-
-
-

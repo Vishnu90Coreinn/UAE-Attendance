@@ -133,4 +133,3 @@ public class PayrollFinalisationTests(ApiFixture api) : IClassFixture<ApiFixture
         }
         await transaction.RollbackAsync();
     }}
-
