@@ -1,18 +1,22 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import * as authApi from "./api/auth";
 import * as settingsApi from "./api/settings";
 import * as workersApi from "./api/workers";
+import * as attendanceApi from "./api/attendance";
 import { setAuthToken } from "./api/client";
 import { AuthProvider, TOKEN_STORAGE_KEY } from "./contexts/AuthContext";
 
-vi.mock("./components/HealthChip", () => ({ HealthChip: () => <div>health chip</div> }));
+vi.mock("./components/HealthChip", () => ({
+  HealthChip: () => <div>health chip</div>,
+}));
 vi.mock("./api/auth");
 vi.mock("./api/workers");
 vi.mock("./api/settings");
+vi.mock("./api/attendance");
 
 const admin = { id: 1, username: "admin", role: "Administrator" as const };
 
@@ -29,15 +33,27 @@ const payrollSettings: settingsApi.PayrollSettings = {
 
 function renderAt(path: string) {
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </MemoryRouter>,
+    <RouterProvider
+      router={createMemoryRouter(
+        [
+          {
+            path: "*",
+            element: (
+              <AuthProvider>
+                <App />
+              </AuthProvider>
+            ),
+          },
+        ],
+        { initialEntries: [path] },
+      )}
+    />,
   );
 }
 
-function signInWithStoredToken(role: "Administrator" | "HR Staff" | "Viewer" = "Administrator") {
+function signInWithStoredToken(
+  role: "Administrator" | "HR Staff" | "Viewer" = "Administrator",
+) {
   sessionStorage.setItem(TOKEN_STORAGE_KEY, "stored-tok");
   vi.mocked(authApi.getMe).mockResolvedValue({ ...admin, role });
 }
@@ -46,6 +62,11 @@ beforeEach(() => {
   sessionStorage.clear();
   vi.mocked(workersApi.listWorkers).mockResolvedValue([]);
   vi.mocked(settingsApi.getPayrollSettings).mockResolvedValue(payrollSettings);
+  vi.mocked(attendanceApi.getAttendance).mockResolvedValue({
+    date: "2026-10-19",
+    isFinalised: false,
+    rows: [],
+  });
 });
 
 afterEach(() => {
@@ -54,11 +75,79 @@ afterEach(() => {
 });
 
 describe("App", () => {
+  it.each(["Administrator", "HR Staff", "Viewer"] as const)(
+    "serves attendance to %s",
+    async (role) => {
+      signInWithStoredToken(role);
+      renderAt("/attendance");
+      expect(
+        await screen.findByRole("heading", { name: "Daily Attendance" }),
+      ).toBeInTheDocument();
+      expect(
+        await screen.findByText("No workers for this date."),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Daily Attendance" }),
+      ).toHaveAttribute("aria-current", "page");
+    },
+  );
+  it("requires sign-in for attendance", async () => {
+    renderAt("/attendance");
+    expect(
+      await screen.findByRole("heading", { name: "Sign in" }),
+    ).toBeInTheDocument();
+    expect(attendanceApi.getAttendance).not.toHaveBeenCalled();
+  });
+  it("protects attendance edits when navigating to another tab", async () => {
+    signInWithStoredToken("HR Staff");
+    vi.mocked(attendanceApi.getAttendance).mockResolvedValue({
+      date: "2026-10-19",
+      isFinalised: false,
+      rows: [
+        {
+          worker: {
+            id: 1,
+            workerCode: "EMP-001",
+            fullName: "Ahmed Khan",
+            designation: "Installer",
+            hourlyRate: 12.5,
+            overtimeRate: null,
+            effectiveOvertimeRate: 2.22,
+            isActive: true,
+          },
+          record: null,
+          dailyPay: { basicPay: 0, overtimePay: 0, totalPay: 0, daysWorked: 0 },
+        },
+      ],
+    });
+    renderAt("/attendance");
+    const user = userEvent.setup();
+    fireEvent.change(await screen.findByLabelText("Status for Ahmed Khan"), {
+      target: { value: "Absent" },
+    });
+    await user.click(screen.getByRole("link", { name: "Worker Directory" }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent(
+      "Discard unsaved changes?",
+    );
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    await user.click(screen.getByRole("link", { name: "Worker Directory" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Discard changes" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Worker Directory" }),
+    ).toBeInTheDocument();
+  });
   it("sends a signed-out visit to the root to the login page", async () => {
     renderAt("/");
 
-    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Worker Directory" })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Sign in" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Worker Directory" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("health chip")).not.toBeInTheDocument();
   });
 
@@ -66,23 +155,31 @@ describe("App", () => {
     signInWithStoredToken();
     renderAt("/");
 
-    expect(await screen.findByRole("heading", { name: "Worker Directory" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Worker Directory" }),
+    ).toBeInTheDocument();
     expect(workersApi.listWorkers).toHaveBeenCalledWith(false);
-    expect(screen.getByRole("link", { name: "Worker Directory" })).toHaveAttribute("aria-current", "page");
+    expect(
+      screen.getByRole("link", { name: "Worker Directory" }),
+    ).toHaveAttribute("aria-current", "page");
   });
 
   it("serves the Worker Directory at /workers inside the layout", async () => {
     signInWithStoredToken();
     renderAt("/workers");
 
-    expect(await screen.findByRole("heading", { name: "Worker Directory" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Worker Directory" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("health chip")).toBeInTheDocument();
   });
 
   it("sends a signed-out visit to /workers to the login page", async () => {
     renderAt("/workers");
 
-    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Sign in" }),
+    ).toBeInTheDocument();
     expect(workersApi.listWorkers).not.toHaveBeenCalled();
   });
 
@@ -90,10 +187,17 @@ describe("App", () => {
     signInWithStoredToken("Administrator");
     renderAt("/settings");
 
-    expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
-    expect(await screen.findByLabelText("Company name")).toHaveValue("Gulf Glass LLC");
+    expect(
+      await screen.findByRole("heading", { name: "Settings" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByLabelText("Company name")).toHaveValue(
+      "Gulf Glass LLC",
+    );
     expect(screen.getByText("health chip")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 
   it.each(["HR Staff", "Viewer"] as const)(
@@ -102,10 +206,16 @@ describe("App", () => {
       signInWithStoredToken(role);
       renderAt("/settings");
 
-      expect(await screen.findByText("You do not have access to this page")).toBeInTheDocument();
+      expect(
+        await screen.findByText("You do not have access to this page"),
+      ).toBeInTheDocument();
       expect(screen.queryByLabelText("Company name")).not.toBeInTheDocument();
-      expect(screen.queryByRole("heading", { name: "Settings" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("link", { name: "Settings" })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("heading", { name: "Settings" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: "Settings" }),
+      ).not.toBeInTheDocument();
       expect(settingsApi.getPayrollSettings).not.toHaveBeenCalled();
       expect(screen.getByText("health chip")).toBeInTheDocument();
     },
@@ -114,7 +224,9 @@ describe("App", () => {
   it("sends a signed-out visit to /settings to the login page", async () => {
     renderAt("/settings");
 
-    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Sign in" }),
+    ).toBeInTheDocument();
     expect(settingsApi.getPayrollSettings).not.toHaveBeenCalled();
   });
 
@@ -122,14 +234,18 @@ describe("App", () => {
     signInWithStoredToken();
     renderAt("/nope");
 
-    expect(await screen.findByRole("heading", { name: "Page not found" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Page not found" }),
+    ).toBeInTheDocument();
   });
 
   it("redirects a signed-in visit to /login to the Worker Directory", async () => {
     signInWithStoredToken();
     renderAt("/login");
 
-    expect(await screen.findByRole("heading", { name: "Worker Directory" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Worker Directory" }),
+    ).toBeInTheDocument();
   });
 
   it("returns to the originally requested page after signing in", async () => {
@@ -145,6 +261,8 @@ describe("App", () => {
     await user.type(screen.getByLabelText("Password"), "correct horse");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByRole("heading", { name: "Page not found" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Page not found" }),
+    ).toBeInTheDocument();
   });
 });

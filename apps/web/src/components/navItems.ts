@@ -14,7 +14,7 @@ const ALL_ROLES: readonly Role[] = ["Administrator", "HR Staff", "Viewer"];
 /** The five prototype tabs in prototype order, then Settings. Each becomes a real route in its own slice. */
 export const NAV_ITEMS: readonly NavItem[] = [
   { key: "workers", label: "Worker Directory", roles: ALL_ROLES, path: "/workers" },
-  { key: "attendance", label: "Daily Attendance", roles: ALL_ROLES },
+  { key: "attendance", label: "Daily Attendance", roles: ALL_ROLES, path: "/attendance" },
   { key: "payroll", label: "Payroll Summary", roles: ALL_ROLES },
   { key: "leave", label: "Leave Management", roles: ALL_ROLES },
   { key: "users", label: "User Manager", roles: ["Administrator"] },

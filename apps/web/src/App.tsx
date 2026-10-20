@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
+import { AttendancePage } from "./features/attendance/AttendancePage";
 import { LoginPage } from "./features/auth/LoginPage";
 import { ProtectedRoute } from "./features/auth/ProtectedRoute";
 import { RequireRole } from "./features/auth/RequireRole";
@@ -16,6 +17,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route index element={<Navigate to="/workers" replace />} />
           <Route path="workers" element={<WorkersPage />} />
+          <Route path="attendance" element={<AttendancePage guardNavigation />} />
           <Route
             path="settings"
             element={

@@ -57,19 +57,20 @@ describe("Layout", () => {
     expect(tabLabels()).toEqual([...MODULES, "User Manager", "Settings"]);
   });
 
-  it("renders Worker Directory and Settings as links and keeps the other tabs as disabled placeholders", async () => {
+  it("renders built screens as links and keeps future slices as disabled placeholders", async () => {
     await renderLayout("Administrator");
     const nav = screen.getByRole("navigation", { name: "Main" });
 
     expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual([
       "Worker Directory",
+      "Daily Attendance",
       "Settings",
     ]);
     expect(within(nav).getByRole("link", { name: "Worker Directory" })).toHaveAttribute("href", "/workers");
     expect(within(nav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
+    expect(within(nav).getByRole("link", { name: "Daily Attendance" })).toHaveAttribute("href", "/attendance");
     const placeholders = within(nav).getAllByRole("button");
     expect(placeholders.map((tab) => tab.textContent)).toEqual([
-      "Daily Attendance",
       "Payroll Summary",
       "Leave Management",
       "User Manager",

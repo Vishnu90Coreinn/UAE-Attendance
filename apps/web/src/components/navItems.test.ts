@@ -20,12 +20,12 @@ describe("navItemsForRole", () => {
     expect(labelsFor("Viewer")).toEqual(MODULES);
   });
 
-  it("gives Worker Directory and Settings a route; the other tabs stay placeholders", () => {
+  it("gives Worker Directory, Daily Attendance and Settings a route", () => {
     const paths = Object.fromEntries(navItemsForRole("Administrator").map((item) => [item.label, item.path]));
 
     expect(paths).toEqual({
       "Worker Directory": "/workers",
-      "Daily Attendance": undefined,
+      "Daily Attendance": "/attendance",
       "Payroll Summary": undefined,
       "Leave Management": undefined,
       "User Manager": undefined,
