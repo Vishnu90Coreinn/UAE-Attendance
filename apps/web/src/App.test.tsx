@@ -7,6 +7,7 @@ import * as authApi from "./api/auth";
 import * as settingsApi from "./api/settings";
 import * as workersApi from "./api/workers";
 import * as attendanceApi from "./api/attendance";
+import * as payrollApi from "./api/payroll";
 import { setAuthToken } from "./api/client";
 import { AuthProvider, TOKEN_STORAGE_KEY } from "./contexts/AuthContext";
 
@@ -17,6 +18,7 @@ vi.mock("./api/auth");
 vi.mock("./api/workers");
 vi.mock("./api/settings");
 vi.mock("./api/attendance");
+vi.mock("./api/payroll");
 
 const admin = { id: 1, username: "admin", role: "Administrator" as const };
 
@@ -67,6 +69,27 @@ beforeEach(() => {
     isFinalised: false,
     rows: [],
   });
+  vi.mocked(payrollApi.getPayroll).mockResolvedValue({
+    period: "2026-10",
+    status: "Draft",
+    revision: "rev",
+    company: {
+      companyName: "Gulf Glass LLC",
+      tagline: "",
+      contactEmail: "hr@gulfglass.example",
+      preparedByLabel: "HR",
+      approvedByLabel: "GM",
+    },
+    lines: [],
+    totals: {
+      daysWorked: 0,
+      basicHours: 0,
+      overtimeHours: 0,
+      basicPay: 0,
+      overtimePay: 0,
+      totalPay: 0,
+    },
+  });
 });
 
 afterEach(() => {
@@ -75,6 +98,41 @@ afterEach(() => {
 });
 
 describe("App", () => {
+  it.each(["Administrator", "HR Staff", "Viewer"] as const)(
+    "allows %s to print/export payroll",
+    async (role) => {
+      signInWithStoredToken(role);
+      renderAt("/payroll");
+      expect(await screen.findByRole("table")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Print" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Export PDF" })).toBeEnabled();
+      expect(
+        screen.getByRole("link", { name: "Payroll Summary" }),
+      ).toHaveAttribute("aria-current", "page");
+    },
+  );
+  it("requires sign-in for payroll", async () => {
+    renderAt("/payroll");
+    expect(
+      await screen.findByRole("heading", { name: "Sign in" }),
+    ).toBeInTheDocument();
+    expect(payrollApi.getPayroll).not.toHaveBeenCalled();
+  });
+  it("updates the signed-in header immediately after saving company settings", async () => {
+    signInWithStoredToken("Administrator");
+    vi.mocked(settingsApi.updatePayrollSettings).mockResolvedValue({
+      ...payrollSettings,
+      companyName: "New Company LLC",
+    });
+    renderAt("/settings");
+    const user = userEvent.setup();
+    await user.clear(await screen.findByLabelText("Company name"));
+    await user.type(screen.getByLabelText("Company name"), "New Company LLC");
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+    expect(
+      await screen.findByRole("heading", { name: "New Company LLC" }),
+    ).toBeInTheDocument();
+  });
   it.each(["Administrator", "HR Staff", "Viewer"] as const)(
     "serves attendance to %s",
     async (role) => {
@@ -216,7 +274,8 @@ describe("App", () => {
       expect(
         screen.queryByRole("link", { name: "Settings" }),
       ).not.toBeInTheDocument();
-      expect(settingsApi.getPayrollSettings).not.toHaveBeenCalled();
+      // Any user may load shell branding; the restricted settings form never loads.
+      expect(settingsApi.getPayrollSettings).toHaveBeenCalledTimes(1);
       expect(screen.getByText("health chip")).toBeInTheDocument();
     },
   );

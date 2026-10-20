@@ -26,7 +26,7 @@ describe("navItemsForRole", () => {
     expect(paths).toEqual({
       "Worker Directory": "/workers",
       "Daily Attendance": "/attendance",
-      "Payroll Summary": undefined,
+      "Payroll Summary": "/payroll",
       "Leave Management": undefined,
       "User Manager": undefined,
       Settings: "/settings",

@@ -3,19 +3,31 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as authApi from "../api/auth";
+import * as settingsApi from "../api/settings";
+import { COMPANY_NAME } from "../branding";
 import { setAuthToken } from "../api/client";
 import { AuthProvider, TOKEN_STORAGE_KEY } from "../contexts/AuthContext";
 import { Layout } from "./Layout";
 
 vi.mock("./HealthChip", () => ({ HealthChip: () => <div>health chip</div> }));
 vi.mock("../api/auth");
+vi.mock("../api/settings");
 
 type TestRole = authApi.CurrentUser["role"];
 
-const MODULES = ["Worker Directory", "Daily Attendance", "Payroll Summary", "Leave Management"];
+const MODULES = [
+  "Worker Directory",
+  "Daily Attendance",
+  "Payroll Summary",
+  "Leave Management",
+];
 
 /** Renders the Layout under the real AuthProvider with a restored session for the given role. */
-async function renderLayout(role: TestRole = "Administrator", username = "admin", initialPath = "/workers") {
+async function renderLayout(
+  role: TestRole = "Administrator",
+  username = "admin",
+  initialPath = "/workers",
+) {
   sessionStorage.setItem(TOKEN_STORAGE_KEY, "stored-tok");
   vi.mocked(authApi.getMe).mockResolvedValue({ id: 1, username, role });
 
@@ -38,11 +50,23 @@ async function renderLayout(role: TestRole = "Administrator", username = "admin"
 
 function tabLabels() {
   const nav = screen.getByRole("navigation", { name: "Main" });
-  return Array.from(nav.querySelectorAll("a, button")).map((tab) => tab.textContent);
+  return Array.from(nav.querySelectorAll("a, button")).map(
+    (tab) => tab.textContent,
+  );
 }
 
 beforeEach(() => {
   sessionStorage.clear();
+  vi.mocked(settingsApi.getPayrollSettings).mockResolvedValue({
+    companyName: COMPANY_NAME,
+    tagline: "Official HR & Payroll System",
+    contactEmail: "hr@example.com",
+    overtimeRatePerHour: 2.22,
+    maxBasicHoursPerDay: 8,
+    shiftDescription: "Shift",
+    preparedByLabel: "HR",
+    approvedByLabel: "GM",
+  });
 });
 
 afterEach(() => {
@@ -51,6 +75,23 @@ afterEach(() => {
 });
 
 describe("Layout", () => {
+  it("reads signed-in company branding from payroll settings", async () => {
+    vi.mocked(settingsApi.getPayrollSettings).mockResolvedValue({
+      companyName: "Configured Company",
+      tagline: "Configured Tagline",
+      contactEmail: "hr@example.com",
+      overtimeRatePerHour: 2.22,
+      maxBasicHoursPerDay: 8,
+      shiftDescription: "Shift",
+      preparedByLabel: "HR",
+      approvedByLabel: "GM",
+    });
+    await renderLayout();
+    expect(
+      await screen.findByRole("heading", { name: "Configured Company" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Configured Tagline")).toBeInTheDocument();
+  });
   it("shows the module tabs and Settings in order to an Administrator", async () => {
     await renderLayout("Administrator");
 
@@ -61,17 +102,28 @@ describe("Layout", () => {
     await renderLayout("Administrator");
     const nav = screen.getByRole("navigation", { name: "Main" });
 
-    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual([
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual([
       "Worker Directory",
       "Daily Attendance",
+      "Payroll Summary",
       "Settings",
     ]);
-    expect(within(nav).getByRole("link", { name: "Worker Directory" })).toHaveAttribute("href", "/workers");
-    expect(within(nav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
-    expect(within(nav).getByRole("link", { name: "Daily Attendance" })).toHaveAttribute("href", "/attendance");
+    expect(
+      within(nav).getByRole("link", { name: "Worker Directory" }),
+    ).toHaveAttribute("href", "/workers");
+    expect(within(nav).getByRole("link", { name: "Settings" })).toHaveAttribute(
+      "href",
+      "/settings",
+    );
+    expect(
+      within(nav).getByRole("link", { name: "Daily Attendance" }),
+    ).toHaveAttribute("href", "/attendance");
     const placeholders = within(nav).getAllByRole("button");
     expect(placeholders.map((tab) => tab.textContent)).toEqual([
-      "Payroll Summary",
       "Leave Management",
       "User Manager",
     ]);
@@ -111,23 +163,33 @@ describe("Layout", () => {
     await renderLayout("HR Staff", "hr.jane");
 
     expect(tabLabels()).toEqual(MODULES);
-    expect(screen.queryByRole("link", { name: "Settings" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Settings" }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides User Manager and Settings from a Viewer", async () => {
     await renderLayout("Viewer", "view.only");
 
     expect(tabLabels()).toEqual(MODULES);
-    expect(screen.queryByRole("link", { name: "Settings" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Settings" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows who is logged in and their role in the header", async () => {
     await renderLayout("HR Staff", "hr.jane");
 
     const header = screen.getByRole("banner");
-    expect(within(header).getByText("Logged in as hr.jane (HR Staff)")).toBeInTheDocument();
-    expect(within(header).getByRole("button", { name: "Change password" })).toBeInTheDocument();
-    expect(within(header).getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+    expect(
+      within(header).getByText("Logged in as hr.jane (HR Staff)"),
+    ).toBeInTheDocument();
+    expect(
+      within(header).getByRole("button", { name: "Change password" }),
+    ).toBeInTheDocument();
+    expect(
+      within(header).getByRole("button", { name: "Sign out" }),
+    ).toBeInTheDocument();
   });
 
   it("renders the routed page and the health chip", async () => {
@@ -140,7 +202,9 @@ describe("Layout", () => {
   it("offers a skip link that targets the main content", async () => {
     await renderLayout();
 
-    expect(screen.getByRole("link", { name: "Skip to main content" })).toHaveAttribute("href", "#main");
+    expect(
+      screen.getByRole("link", { name: "Skip to main content" }),
+    ).toHaveAttribute("href", "#main");
     expect(screen.getByRole("main")).toHaveAttribute("id", "main");
   });
 
@@ -162,7 +226,9 @@ describe("Layout", () => {
 
     await user.click(screen.getByRole("button", { name: "Change password" }));
 
-    const dialog = await screen.findByRole("dialog", { name: "Change password" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "Change password",
+    });
     expect(within(dialog).getByLabelText("Current password")).toHaveFocus();
   });
 
@@ -174,7 +240,9 @@ describe("Layout", () => {
     await user.click(opener);
     await user.click(await screen.findByRole("button", { name: "Cancel" }));
 
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
     expect(opener).toHaveFocus();
   });
 });

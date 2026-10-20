@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, apiDelete, apiGet, apiPost, apiPut, setAuthToken, setUnauthorizedHandler } from "./client";
+import {
+  ApiError,
+  apiDelete,
+  apiGet,
+  apiGetBlob,
+  apiPost,
+  apiPut,
+  setAuthToken,
+  setUnauthorizedHandler,
+} from "./client";
 
 function respond(body: BodyInit | null, init: ResponseInit) {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(body, init)));
@@ -16,6 +25,68 @@ function sentHeaders(): Record<string, string> {
   return init.headers as Record<string, string>;
 }
 
+describe("apiGetBlob", () => {
+  it("downloads a PDF with the same bearer authentication", async () => {
+    setAuthToken("pdf-token");
+    respond("%PDF-1.7 sample", {
+      status: 200,
+      headers: { "Content-Type": "application/pdf" },
+    });
+    const blob = await apiGetBlob("/api/payroll/pdf?month=2026-10");
+    expect(blob.size).toBeGreaterThan(0);
+    expect(blob.type).toBe("application/pdf");
+    expect(sentHeaders()).toMatchObject({
+      Authorization: "Bearer pdf-token",
+      Accept: "application/pdf",
+    });
+  });
+  it("parses problem details and signs out on 401", async () => {
+    const unauthorized = vi.fn();
+    setUnauthorizedHandler(unauthorized);
+    respond(
+      JSON.stringify({
+        title: "Session expired",
+        correlationId: "pdf-request",
+      }),
+      { status: 401, headers: { "Content-Type": "application/problem+json" } },
+    );
+    await expect(apiGetBlob("/api/payroll/pdf")).rejects.toMatchObject({
+      status: 401,
+      message: "Session expired",
+      correlationId: "pdf-request",
+    });
+    expect(unauthorized).toHaveBeenCalledOnce();
+  });
+  it("preserves conflict errors for stale payroll", async () => {
+    respond(
+      JSON.stringify({
+        title: "Payroll changed. Reload the report before exporting.",
+      }),
+      { status: 409, headers: { "Content-Type": "application/problem+json" } },
+    );
+    await expect(apiGetBlob("/api/payroll/pdf")).rejects.toMatchObject({
+      status: 409,
+      message: "Payroll changed. Reload the report before exporting.",
+    });
+  });
+  it("rejects a successful response that is not a PDF", async () => {
+    respond("<html>Sign in</html>", {
+      status: 200,
+      headers: { "Content-Type": "text/html" },
+    });
+    await expect(apiGetBlob("/api/payroll/pdf")).rejects.toMatchObject({
+      message: "The server did not return a PDF. Please try again.",
+    });
+  });
+  it("handles network errors", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
+    await expect(apiGetBlob("/api/payroll/pdf")).rejects.toMatchObject({
+      status: 0,
+      message: "Unable to reach the server.",
+    });
+  });
+});
+
 describe("apiGet", () => {
   it("returns the parsed JSON body on success", async () => {
     respond(JSON.stringify({ hello: "world" }), {
@@ -23,16 +94,24 @@ describe("apiGet", () => {
       headers: { "Content-Type": "application/json" },
     });
 
-    await expect(apiGet<{ hello: string }>("/api/thing")).resolves.toEqual({ hello: "world" });
+    await expect(apiGet<{ hello: string }>("/api/thing")).resolves.toEqual({
+      hello: "world",
+    });
     expect(fetch).toHaveBeenCalledWith(
       "/api/thing",
-      expect.objectContaining({ headers: expect.objectContaining({ Accept: "application/json" }) }),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Accept: "application/json" }),
+      }),
     );
   });
 
   it("throws an ApiError carrying the problem title, status and correlation id", async () => {
     respond(
-      JSON.stringify({ title: "An unexpected error occurred.", status: 500, correlationId: "abc-123" }),
+      JSON.stringify({
+        title: "An unexpected error occurred.",
+        status: 500,
+        correlationId: "abc-123",
+      }),
       { status: 500, headers: { "Content-Type": "application/problem+json" } },
     );
 
@@ -47,27 +126,42 @@ describe("apiGet", () => {
   });
 
   it("throws a generic ApiError when the failure body is not JSON", async () => {
-    respond("Bad gateway", { status: 502, headers: { "Content-Type": "text/plain" } });
+    respond("Bad gateway", {
+      status: 502,
+      headers: { "Content-Type": "text/plain" },
+    });
 
     const error = await apiGet("/api/thing").catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(ApiError);
-    expect(error).toMatchObject({ status: 502, message: "Request failed (502)" });
+    expect(error).toMatchObject({
+      status: 502,
+      message: "Request failed (502)",
+    });
   });
 
   it("throws an ApiError with status 0 when the network request fails", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError("Failed to fetch")),
+    );
 
     const error = await apiGet("/api/thing").catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(ApiError);
-    expect(error).toMatchObject({ status: 0, message: "Unable to reach the server." });
+    expect(error).toMatchObject({
+      status: 0,
+      message: "Unable to reach the server.",
+    });
   });
 });
 
 describe("apiGet authentication", () => {
   it("sends no Authorization header without a token", async () => {
-    respond("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+    respond("{}", {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
 
     await apiGet("/api/thing");
 
@@ -76,7 +170,10 @@ describe("apiGet authentication", () => {
 
   it("sends the bearer token once one is set", async () => {
     setAuthToken("abc.def");
-    respond("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+    respond("{}", {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
 
     await apiGet("/api/thing");
 
@@ -86,7 +183,10 @@ describe("apiGet authentication", () => {
   it("stops sending the token after it is cleared", async () => {
     setAuthToken("abc.def");
     setAuthToken(null);
-    respond("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+    respond("{}", {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
 
     await apiGet("/api/thing");
 
@@ -124,13 +224,21 @@ describe("apiGet authentication", () => {
 describe("apiPost", () => {
   it("sends a JSON body with the content type and token, and returns the parsed response", async () => {
     setAuthToken("tok");
-    respond(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+    respond(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
 
-    await expect(apiPost<{ ok: boolean }>("/api/thing", { a: 1 })).resolves.toEqual({ ok: true });
+    await expect(
+      apiPost<{ ok: boolean }>("/api/thing", { a: 1 }),
+    ).resolves.toEqual({ ok: true });
 
     expect(fetch).toHaveBeenCalledWith(
       "/api/thing",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ a: 1 }) }),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ a: 1 }),
+      }),
     );
     expect(sentHeaders()).toMatchObject({
       "Content-Type": "application/json",
@@ -150,7 +258,10 @@ describe("apiPost", () => {
       JSON.stringify({
         title: "One or more validation errors occurred.",
         status: 400,
-        errors: { newPassword: ["Password is too short.", "Other"], currentPassword: ["Wrong."] },
+        errors: {
+          newPassword: ["Password is too short.", "Other"],
+          currentPassword: ["Wrong."],
+        },
       }),
       { status: 400, headers: { "Content-Type": "application/problem+json" } },
     );
@@ -161,7 +272,10 @@ describe("apiPost", () => {
     expect(error).toMatchObject({
       status: 400,
       message: "Password is too short.",
-      fieldErrors: { newPassword: ["Password is too short.", "Other"], currentPassword: ["Wrong."] },
+      fieldErrors: {
+        newPassword: ["Password is too short.", "Other"],
+        currentPassword: ["Wrong."],
+      },
     });
   });
 
@@ -190,32 +304,49 @@ describe("apiPost", () => {
     expect(handler).toHaveBeenCalledTimes(1);
 
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(unauthorized()));
-    const error = await apiPost("/api/thing", {}, undefined, { skipUnauthorizedHandler: true }).catch(
-      (e: unknown) => e,
-    );
+    const error = await apiPost("/api/thing", {}, undefined, {
+      skipUnauthorizedHandler: true,
+    }).catch((e: unknown) => e);
     expect(handler).toHaveBeenCalledTimes(1);
-    expect(error).toMatchObject({ status: 401, message: "Invalid username or password." });
+    expect(error).toMatchObject({
+      status: 401,
+      message: "Invalid username or password.",
+    });
   });
 
   it("throws an ApiError with status 0 when the network request fails", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError("Failed to fetch")),
+    );
 
     const error = await apiPost("/api/thing", {}).catch((e: unknown) => e);
 
-    expect(error).toMatchObject({ status: 0, message: "Unable to reach the server." });
+    expect(error).toMatchObject({
+      status: 0,
+      message: "Unable to reach the server.",
+    });
   });
 });
 
 describe("apiPut", () => {
   it("sends a PUT with a JSON body, the content type and the token, and returns the parsed response", async () => {
     setAuthToken("tok");
-    respond(JSON.stringify({ id: 7 }), { status: 200, headers: { "Content-Type": "application/json" } });
+    respond(JSON.stringify({ id: 7 }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
 
-    await expect(apiPut<{ id: number }>("/api/thing/7", { a: 1 })).resolves.toEqual({ id: 7 });
+    await expect(
+      apiPut<{ id: number }>("/api/thing/7", { a: 1 }),
+    ).resolves.toEqual({ id: 7 });
 
     expect(fetch).toHaveBeenCalledWith(
       "/api/thing/7",
-      expect.objectContaining({ method: "PUT", body: JSON.stringify({ a: 1 }) }),
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ a: 1 }),
+      }),
     );
     expect(sentHeaders()).toMatchObject({
       "Content-Type": "application/json",
@@ -226,7 +357,10 @@ describe("apiPut", () => {
 
   it("parses validation errors into fieldErrors", async () => {
     respond(
-      JSON.stringify({ title: "Invalid.", errors: { workerCode: ["Worker ID already exists."] } }),
+      JSON.stringify({
+        title: "Invalid.",
+        errors: { workerCode: ["Worker ID already exists."] },
+      }),
       { status: 400, headers: { "Content-Type": "application/problem+json" } },
     );
 
@@ -254,11 +388,17 @@ describe("apiPut", () => {
   });
 
   it("throws an ApiError with status 0 when the network request fails", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError("Failed to fetch")),
+    );
 
     const error = await apiPut("/api/thing/7", {}).catch((e: unknown) => e);
 
-    expect(error).toMatchObject({ status: 0, message: "Unable to reach the server." });
+    expect(error).toMatchObject({
+      status: 0,
+      message: "Unable to reach the server.",
+    });
   });
 });
 
@@ -269,21 +409,33 @@ describe("apiDelete", () => {
 
     await expect(apiDelete("/api/thing/7")).resolves.toBeUndefined();
 
-    expect(fetch).toHaveBeenCalledWith("/api/thing/7", expect.objectContaining({ method: "DELETE" }));
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/thing/7",
+      expect.objectContaining({ method: "DELETE" }),
+    );
     expect(sentHeaders()).toMatchObject({ Authorization: "Bearer tok" });
     expect(sentHeaders()).not.toHaveProperty("Content-Type");
   });
 
   it("throws an ApiError carrying the problem title and status (409)", async () => {
-    respond(JSON.stringify({ title: "This worker has records and cannot be deleted.", status: 409 }), {
-      status: 409,
-      headers: { "Content-Type": "application/problem+json" },
-    });
+    respond(
+      JSON.stringify({
+        title: "This worker has records and cannot be deleted.",
+        status: 409,
+      }),
+      {
+        status: 409,
+        headers: { "Content-Type": "application/problem+json" },
+      },
+    );
 
     const error = await apiDelete("/api/thing/7").catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(ApiError);
-    expect(error).toMatchObject({ status: 409, message: "This worker has records and cannot be deleted." });
+    expect(error).toMatchObject({
+      status: 409,
+      message: "This worker has records and cannot be deleted.",
+    });
   });
 
   it("calls the unauthorized handler on a 401", async () => {
@@ -300,10 +452,16 @@ describe("apiDelete", () => {
   });
 
   it("throws an ApiError with status 0 when the network request fails", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError("Failed to fetch")),
+    );
 
     const error = await apiDelete("/api/thing/7").catch((e: unknown) => e);
 
-    expect(error).toMatchObject({ status: 0, message: "Unable to reach the server." });
+    expect(error).toMatchObject({
+      status: 0,
+      message: "Unable to reach the server.",
+    });
   });
 });

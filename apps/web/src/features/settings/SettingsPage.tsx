@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Info, Loader2, Save } from "lucide-react";
+import { useOutletContext } from "react-router-dom";
+import type { LayoutContext } from "../../components/LayoutContext";
 import { ApiError } from "../../api/client";
 import { getPayrollSettings, updatePayrollSettings } from "../../api/settings";
 import { TextField } from "../../components/TextField";
@@ -28,6 +30,7 @@ const sectionClass = "space-y-4";
 const sectionTitleClass = "text-lg font-semibold text-gray-800";
 
 export function SettingsPage() {
+  const layout = useOutletContext<LayoutContext | null>();
   const [load, setLoad] = useState<LoadState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   /** The last values the server confirmed; "nothing changed" is measured against these. */
@@ -130,6 +133,7 @@ export function SettingsPage() {
     setServerErrors({});
     try {
       const stored = await updatePayrollSettings(toSettingsBody(values));
+      layout?.onPayrollSettingsChanged(stored);
       const formValues = toFormValues(stored);
       setSaved(formValues);
       setValues(formValues);

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { KeyRound, LogOut } from "lucide-react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { COMPANY_NAME } from "../branding";
+import { getPayrollSettings, type PayrollSettings } from "../api/settings";
 import { useAuth } from "../contexts/AuthContext";
 import { ChangePasswordDialog } from "../features/auth/ChangePasswordDialog";
 import { HealthChip } from "./HealthChip";
@@ -17,6 +18,21 @@ export function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [companySettings, setCompanySettings] =
+    useState<PayrollSettings | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getPayrollSettings()
+      .then((settings) => {
+        if (!cancelled) setCompanySettings(settings);
+      })
+      .catch(() => {
+        // Branding must not prevent use of the application; the feature screen reports any load failure.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const tabs = user ? navItemsForRole(user.role) : [];
 
@@ -36,20 +52,32 @@ export function Layout() {
 
       <header className="bg-slate-900 text-white shadow-md">
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4">
-          <div>
-            <h1 className="text-lg font-bold leading-tight">{COMPANY_NAME}</h1>
-            <p className="text-xs text-blue-300">Official HR &amp; Payroll System</p>
+          <div className="min-w-0 max-w-full">
+            <h1 className="break-words text-lg font-bold leading-tight">
+              {companySettings?.companyName ?? COMPANY_NAME}
+            </h1>
+            <p className="break-words text-xs text-blue-300">
+              {companySettings?.tagline ?? "Official HR & Payroll System"}
+            </p>
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-3">
             <HealthChip />
             {user && (
               <>
                 <p className="min-w-0 break-words text-sm text-slate-100">{`Logged in as ${user.username} (${user.role})`}</p>
-                <button type="button" onClick={() => setChangePasswordOpen(true)} className={headerButtonClass}>
+                <button
+                  type="button"
+                  onClick={() => setChangePasswordOpen(true)}
+                  className={headerButtonClass}
+                >
                   <KeyRound aria-hidden="true" size={16} />
                   Change password
                 </button>
-                <button type="button" onClick={handleSignOut} className={headerButtonClass}>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className={headerButtonClass}
+                >
                   <LogOut aria-hidden="true" size={16} />
                   Sign out
                 </button>
@@ -59,7 +87,10 @@ export function Layout() {
         </div>
       </header>
 
-      <nav aria-label="Main" className="border-b border-slate-700 bg-slate-800 text-white shadow-sm">
+      <nav
+        aria-label="Main"
+        className="border-b border-slate-700 bg-slate-800 text-white shadow-sm"
+      >
         <div className="mx-auto flex w-full max-w-7xl overflow-x-auto px-4">
           {tabs.map((item) =>
             item.path ? (
@@ -86,11 +117,18 @@ export function Layout() {
         </div>
       </nav>
 
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-grow px-4 py-6">
-        <Outlet />
+      <main
+        id="main"
+        tabIndex={-1}
+        className="mx-auto w-full max-w-7xl flex-grow px-4 py-6"
+      >
+        <Outlet context={{ onPayrollSettingsChanged: setCompanySettings }} />
       </main>
 
-      <ChangePasswordDialog open={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
+      <ChangePasswordDialog
+        open={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
+      />
     </div>
   );
 }

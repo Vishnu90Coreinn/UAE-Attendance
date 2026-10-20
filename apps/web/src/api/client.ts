@@ -43,7 +43,9 @@ async function readJson(response: Response): Promise<unknown> {
   return response.json().catch(() => undefined);
 }
 
-function parseFieldErrors(problem: Record<string, unknown> | undefined): Record<string, string[]> | undefined {
+function parseFieldErrors(
+  problem: Record<string, unknown> | undefined,
+): Record<string, string[]> | undefined {
   if (!isRecord(problem?.errors)) {
     return undefined;
   }
@@ -62,21 +64,36 @@ function parseFieldErrors(problem: Record<string, unknown> | undefined): Record<
 function toApiError(response: Response, body: unknown): ApiError {
   const problem = isRecord(body) ? body : undefined;
   const fieldErrors = parseFieldErrors(problem);
-  const firstFieldError = fieldErrors ? Object.values(fieldErrors)[0][0] : undefined;
+  const firstFieldError = fieldErrors
+    ? Object.values(fieldErrors)[0][0]
+    : undefined;
   const message =
     firstFieldError ??
-    (typeof problem?.title === "string" ? problem.title : `Request failed (${response.status})`);
+    (typeof problem?.title === "string"
+      ? problem.title
+      : `Request failed (${response.status})`);
   const correlationId =
     typeof problem?.correlationId === "string"
       ? problem.correlationId
       : (response.headers.get("X-Correlation-ID") ?? undefined);
 
-  return new ApiError(response.status, message, correlationId, body, fieldErrors);
+  return new ApiError(
+    response.status,
+    message,
+    correlationId,
+    body,
+    fieldErrors,
+  );
 }
 
-async function send<T>(path: string, init: RequestInit, options?: RequestOptions): Promise<T> {
+async function send<T>(
+  path: string,
+  init: RequestInit,
+  options?: RequestOptions,
+  pdf = false,
+): Promise<T> {
   const headers: Record<string, string> = {
-    Accept: "application/json",
+    Accept: pdf ? "application/pdf" : "application/json",
     ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
     ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
   };
@@ -95,6 +112,22 @@ async function send<T>(path: string, init: RequestInit, options?: RequestOptions
     return undefined as T;
   }
 
+  if (response.ok && pdf) {
+    if (
+      response.headers
+        .get("Content-Type")
+        ?.split(";")[0]
+        .trim()
+        .toLowerCase() !== "application/pdf"
+    ) {
+      throw new ApiError(
+        502,
+        "The server did not return a PDF. Please try again.",
+      );
+    }
+    return (await response.blob()) as T;
+  }
+
   const body = await readJson(response);
   if (!response.ok) {
     if (response.status === 401 && !options?.skipUnauthorizedHandler) {
@@ -109,13 +142,22 @@ export function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
   return send<T>(path, { method: "GET", signal });
 }
 
+/** Authenticated PDF download; failures use the same problem parser and 401 handler as JSON requests. */
+export function apiGetBlob(path: string, signal?: AbortSignal): Promise<Blob> {
+  return send<Blob>(path, { method: "GET", signal }, undefined, true);
+}
+
 export function apiPost<T = void>(
   path: string,
   body: unknown,
   signal?: AbortSignal,
   options?: RequestOptions,
 ): Promise<T> {
-  return send<T>(path, { method: "POST", body: JSON.stringify(body), signal }, options);
+  return send<T>(
+    path,
+    { method: "POST", body: JSON.stringify(body), signal },
+    options,
+  );
 }
 
 export function apiPut<T = void>(
@@ -124,9 +166,17 @@ export function apiPut<T = void>(
   signal?: AbortSignal,
   options?: RequestOptions,
 ): Promise<T> {
-  return send<T>(path, { method: "PUT", body: JSON.stringify(body), signal }, options);
+  return send<T>(
+    path,
+    { method: "PUT", body: JSON.stringify(body), signal },
+    options,
+  );
 }
 
-export function apiDelete(path: string, signal?: AbortSignal, options?: RequestOptions): Promise<void> {
+export function apiDelete(
+  path: string,
+  signal?: AbortSignal,
+  options?: RequestOptions,
+): Promise<void> {
   return send<void>(path, { method: "DELETE", signal }, options);
 }
