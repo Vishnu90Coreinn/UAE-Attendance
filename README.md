@@ -7,6 +7,22 @@ React + TypeScript (`apps/web`) · ASP.NET Core Web API (`apps/api`) · SQL Serv
 
 Plans live in `docs/superpowers/plans/`. Start with `2026-10-19-hr-payroll-vertical-slices.md`.
 
+Daily attendance is implemented through S3; see [the S3 report](docs/reports/s3-attendance.md). Monthly payroll,
+finalisation, leave, user management and release hardening remain S4–S8.
+
+## Daily attendance
+
+Open **Daily Attendance**, choose a work date, select Present or Absent, and enter hours for Present rows.
+Missing records remain **Not recorded** and earn no pay. Use **Save day** to commit the changed rows together.
+Select Not recorded to clear an existing record in that same save. Viewer accounts see read-only values.
+
+Basic hours must be positive for Present and within the configured maximum; basic plus overtime cannot exceed 24.
+Hours accept at most two decimals. Today's date and future-date validation use UAE time (`Asia/Dubai`).
+Pay uses the current worker hourly rate and worker overtime override, or the company overtime rate when no override
+is set. Each daily pay component rounds half away from zero to two decimals; saved server amounts are authoritative.
+Unsaved date changes and navigation require confirmation. Finalised-month enforcement is prepared through an interface;
+S5 will replace the draft-only stub when finalisation exists.
+
 ## Prerequisites
 
 - .NET SDK 10 (see `global.json`)

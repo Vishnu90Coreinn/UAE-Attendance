@@ -1,5 +1,10 @@
 # HR & Payroll System — Handover for ChatGPT / Codex
 
+> **Codex takeover update — 2026-10-20:** S3 Daily Attendance is now implemented on local branch
+> `slice/s3-attendance`, based on `01251c8` (`slice/s2b-settings`). See [S3 report](reports/s3-attendance.md)
+> and [S3 execution plan](superpowers/plans/2026-10-20-s3-attendance.md). Sections below preserve the original
+> handover baseline. Next slice is S4; no branches have been pushed or merged by Codex.
+
 You are taking over the build of a small, single-company HR & Payroll web application. Slices S0–S2 are done and tested. Your job is to build S3–S8 and the deployment pack, working slice by slice. The owner (VishnuRaj) and Claude will review everything once you are done and then ask for adjustments, so **keep each slice on its own branch, keep commits small, and write a short report per slice** (format at the end).
 
 Read this whole file first. Then read `docs/superpowers/plans/2026-10-19-hr-payroll-vertical-slices.md` (master plan) and `docs/design-system.md`. If anything here conflicts with the repo, trust the repo and tell the owner.
