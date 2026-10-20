@@ -1,5 +1,6 @@
 import type { AttendanceRow } from "../../api/attendance";
 import { dailyPay } from "../../utils/dailyPay";
+import { ApprovalCell } from "./ApprovalCell";
 import { changed, validateHours, type AttendanceForm } from "./attendanceForm";
 
 const inputClass =
@@ -38,7 +39,12 @@ export function AttendanceTable({
   maximum,
   showPay,
   companyRate,
+  isManager,
+  canDecide,
   onChange,
+  onApprove,
+  onReject,
+  onResubmit,
 }: {
   rows: AttendanceRow[];
   forms: AttendanceForm[];
@@ -48,13 +54,21 @@ export function AttendanceTable({
   /** Pay column and preview; Supervisors never receive pay figures. */
   showPay: boolean;
   companyRate: number | null;
+  /** Managers and administrators edit approved entries and decide on submitted ones. */
+  isManager: boolean;
+  /** Approve / send back / resubmit are offered only when true (month open, no unsaved edits). */
+  canDecide: boolean;
   onChange: (id: number, patch: Partial<AttendanceForm>) => void;
+  onApprove: (row: AttendanceRow) => void;
+  onReject: (row: AttendanceRow) => void;
+  onResubmit: (row: AttendanceRow) => void;
 }) {
   const headings = [
     "Worker",
     "Status",
     "Basic Hours",
     "Overtime Hours",
+    "Approval",
     ...(showPay ? ["Total Pay (AED)"] : []),
   ];
   return (
@@ -79,6 +93,9 @@ export function AttendanceTable({
         <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-gray-200">
           {rows.map((row, index) => {
             const form = forms[index];
+            // Supervisors cannot change an entry once a manager has approved it.
+            const rowEditable =
+              editable && (isManager || row.record?.approvalStatus !== "Approved");
             const pay = showPay
               ? previewPay(row, form, maximum, companyRate)
               : null;
@@ -98,7 +115,7 @@ export function AttendanceTable({
                   </span>
                 </th>
                 <td data-label="Status" className={cellClass}>
-                  {editable ? (
+                  {rowEditable ? (
                     <>
                       <label
                         className="sr-only"
@@ -139,7 +156,7 @@ export function AttendanceTable({
                     }
                     className={cellClass}
                   >
-                    {editable ? (
+                    {rowEditable ? (
                       <>
                         <label
                           className="sr-only"
@@ -170,6 +187,16 @@ export function AttendanceTable({
                     )}
                   </td>
                 ))}
+                <ApprovalCell
+                  row={row}
+                  isManager={isManager}
+                  canAct={canDecide}
+                  pending={pending}
+                  className={cellClass}
+                  onApprove={onApprove}
+                  onReject={onReject}
+                  onResubmit={onResubmit}
+                />
                 {showPay && (
                   <td
                     data-label="Total pay (AED)"

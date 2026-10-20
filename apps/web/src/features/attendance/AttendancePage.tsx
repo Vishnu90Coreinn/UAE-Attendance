@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
-import { Save } from "lucide-react";
+import { Check, Save } from "lucide-react";
 import {
+  approveAttendance,
   getAttendance,
+  rejectAttendance,
   saveAttendance,
   type AttendanceDay,
+  type AttendanceRow,
 } from "../../api/attendance";
 import { ApiError } from "../../api/client";
 import { getPayrollSettings, type PayrollSettings } from "../../api/settings";
@@ -17,6 +20,11 @@ import {
   SuccessRegion,
 } from "../workers/WorkersFeedback";
 import { AttendanceTable } from "./AttendanceTable";
+import { RejectDialog } from "./RejectDialog";
+import {
+  announceAttendanceSummaryChanged,
+  useAttendanceSummary,
+} from "./useAttendanceSummary";
 import { AttendanceNavigationGuard } from "./AttendanceNavigationGuard";
 import {
   changed,
@@ -59,6 +67,9 @@ export function AttendancePage({
   const [success, setSuccess] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [nextDate, setNextDate] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<AttendanceRow | null>(null);
+  const summary = useAttendanceSummary(!!user);
+  const isManager = isManagement(user?.role);
   const showPay = isManagement(user?.role);
   const editable = !!user && !day?.isFinalised;
   const dirty =
@@ -141,13 +152,67 @@ export function AttendancePage({
       );
       setDay(saved);
       setForms(saved.rows.map(formFromRow));
-      setSuccess("Attendance saved.");
+      setSuccess(
+        isManager
+          ? "Attendance saved."
+          : "Attendance submitted for manager approval.",
+      );
+      announceAttendanceSummaryChanged();
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {
       setPending(false);
     }
   }
+
+  /** Runs an approval action and shows the day the server returns. */
+  async function decide(
+    action: () => Promise<AttendanceDay>,
+    message: string,
+  ): Promise<boolean> {
+    setPending(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const result = await action();
+      setDay(result);
+      setForms(result.rows.map(formFromRow));
+      setSuccess(message);
+      announceAttendanceSummaryChanged();
+      return true;
+    } catch (reason) {
+      setError(errorMessage(reason));
+      return false;
+    } finally {
+      setPending(false);
+    }
+  }
+  const approveAll = () =>
+    decide(() => approveAttendance(date), "All waiting entries approved.");
+  const approveOne = (row: AttendanceRow) =>
+    decide(
+      () => approveAttendance(date, [row.worker.id]),
+      `${row.worker.fullName} approved.`,
+    );
+  const resubmit = (row: AttendanceRow) => {
+    const index = day?.rows.findIndex((r) => r.worker.id === row.worker.id) ?? -1;
+    if (index < 0) return Promise.resolve(false);
+    return decide(
+      () => saveAttendance(date, [formInput(forms[index])]),
+      `${row.worker.fullName} resubmitted for approval.`,
+    );
+  };
+  async function sendBack(reason: string) {
+    if (!rejecting) return;
+    const ok = await decide(
+      () => rejectAttendance(date, [rejecting.worker.id], reason),
+      `${rejecting.worker.fullName} sent back to the supervisor.`,
+    );
+    if (ok) setRejecting(null);
+  }
+  const attention = isManager
+    ? { label: "Waiting for approval", days: summary?.submitted ?? [] }
+    : { label: "Sent back for correction", days: summary?.rejected ?? [] };
 
   return (
     <section className="min-w-0 space-y-4">
@@ -191,6 +256,25 @@ export function AttendancePage({
           </button>
         )}
       </div>
+      {attention.days.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <p className="font-medium">{attention.label}</p>
+          <ul className="mt-2 flex flex-wrap gap-2">
+            {attention.days.map((item) => (
+              <li key={item.date}>
+                <button
+                  type="button"
+                  onClick={() => changeDate(item.date)}
+                  aria-current={item.date === date ? "date" : undefined}
+                  className="inline-flex min-h-11 items-center rounded-lg border border-amber-700 bg-white px-3 font-medium text-amber-900 hover:bg-amber-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+                >
+                  {item.date} ({item.count})
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {settings && (
         <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
           Standard Shift: {settings.shiftDescription} (
@@ -233,6 +317,25 @@ export function AttendancePage({
                 This month is finalised. Attendance is locked.
               </p>
             )}
+            {isManager && !day.isFinalised && day.pendingCount > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                <span>
+                  {day.pendingCount}{" "}
+                  {day.pendingCount === 1 ? "entry is" : "entries are"} waiting
+                  for approval on this date.
+                  {dirty && " Save your changes before approving."}
+                </span>
+                <button
+                  type="button"
+                  onClick={approveAll}
+                  disabled={pending || dirty}
+                  className={`${primaryButtonClass} disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  <Check aria-hidden="true" size={16} />
+                  Approve all ({day.pendingCount})
+                </button>
+              </div>
+            )}
             {day.rows.length ? (
               <AttendanceTable
                 rows={day.rows}
@@ -242,7 +345,12 @@ export function AttendancePage({
                 maximum={settings.maxBasicHoursPerDay}
                 showPay={showPay}
                 companyRate={settings.overtimeRatePerHour}
+                isManager={isManager}
+                canDecide={editable && !dirty}
                 onChange={change}
+                onApprove={approveOne}
+                onReject={setRejecting}
+                onResubmit={resubmit}
               />
             ) : (
               <p className="rounded-lg border border-gray-200 bg-white px-4 py-10 text-center text-gray-600">
@@ -252,6 +360,13 @@ export function AttendancePage({
           </>
         )
       )}
+      <RejectDialog
+        open={rejecting !== null}
+        workerName={rejecting?.worker.fullName ?? ""}
+        pending={pending}
+        onCancel={() => setRejecting(null)}
+        onConfirm={sendBack}
+      />
       <ConfirmDialog
         open={nextDate !== null}
         title="Discard unsaved changes?"

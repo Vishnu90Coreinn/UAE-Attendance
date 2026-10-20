@@ -20,6 +20,7 @@ vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
 const day: AttendanceDay = {
   date: "2026-10-19",
   isFinalised: false,
+  pendingCount: 0,
   rows: [
     {
       worker: {
@@ -98,7 +99,7 @@ it("previews pay and saves only after Save day, then uses server values", async 
     rows: [
       {
         ...day.rows[0],
-        record: { status: "Present", basicHours: 8, overtimeHours: 2 },
+        record: { status: "Present", basicHours: 8, overtimeHours: 2, approvalStatus: "Approved", rejectionReason: null },
         dailyPay: {
           basicPay: 100,
           overtimePay: 4.44,
@@ -147,7 +148,7 @@ it("clears recorded attendance in the same batch", async () => {
     rows: [
       {
         ...day.rows[0],
-        record: { status: "Present", basicHours: 8, overtimeHours: 2 },
+        record: { status: "Present", basicHours: 8, overtimeHours: 2, approvalStatus: "Approved", rejectionReason: null },
       },
     ],
   });
@@ -211,6 +212,7 @@ it("a Supervisor records attendance without any pay column, overtime rate or liv
     "Status",
     "Basic Hours",
     "Overtime Hours",
+    "Approval",
   ]);
   expect(screen.getByText(/Standard Shift: 06:00 AM/)).not.toHaveTextContent(
     /Overtime Rate|AED/,
@@ -231,7 +233,7 @@ it("a Supervisor records attendance without any pay column, overtime rate or liv
     rows: [
       {
         ...supervisorDay.rows[0],
-        record: { status: "Present", basicHours: 8, overtimeHours: 2 },
+        record: { status: "Present", basicHours: 8, overtimeHours: 2, approvalStatus: "Approved", rejectionReason: null },
       },
     ],
   });
@@ -239,7 +241,7 @@ it("a Supervisor records attendance without any pay column, overtime rate or liv
   expect(api.saveAttendance).toHaveBeenCalledWith(expect.any(String), [
     { workerId: 1, status: "Present", basicHours: 8, overtimeHours: 2 },
   ]);
-  expect(await screen.findByText("Attendance saved.")).toBeInTheDocument();
+  expect(await screen.findByText("Attendance submitted for manager approval.")).toBeInTheDocument();
   expect(document.body).not.toHaveTextContent(/null|NaN|undefined/);
 });
 it("gives Supervisor inputs a thumb-sized touch target", async () => {
@@ -409,7 +411,7 @@ it("validates changed rows only when settings have changed since an older record
           fullName: "Sara Ali",
           workerCode: "EMP-002",
         },
-        record: { status: "Present", basicHours: 8, overtimeHours: 0 },
+        record: { status: "Present", basicHours: 8, overtimeHours: 0, approvalStatus: "Approved", rejectionReason: null },
       },
     ],
   });
@@ -422,4 +424,107 @@ it("validates changed rows only when settings have changed since an older record
   expect(api.saveAttendance).toHaveBeenCalledWith(expect.any(String), [
     { workerId: 1, status: "Absent", basicHours: 0, overtimeHours: 0 },
   ]);
+});
+
+function dayWithRecord(
+  approvalStatus: "Submitted" | "Approved" | "Rejected",
+  rejectionReason: string | null = null,
+  pendingCount = 0,
+): AttendanceDay {
+  return {
+    ...day,
+    pendingCount,
+    rows: [
+      {
+        ...day.rows[0],
+        record: {
+          status: "Present",
+          basicHours: 8,
+          overtimeHours: 1,
+          approvalStatus,
+          rejectionReason,
+        },
+      },
+    ],
+  };
+}
+
+it("a Manager can approve every waiting entry for the date", async () => {
+  vi.mocked(api.getAttendance).mockResolvedValue(dayWithRecord("Submitted", null, 2));
+  vi.mocked(api.approveAttendance).mockResolvedValue(dayWithRecord("Approved"));
+  const user = await loaded();
+  expect(screen.getByText(/2 entries are waiting for approval/)).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Approve all (2)" }));
+  expect(api.approveAttendance).toHaveBeenCalledWith(expect.any(String));
+  expect(await screen.findByText("All waiting entries approved.")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Approve all/ })).not.toBeInTheDocument();
+});
+
+it("a Manager approves one entry from its row", async () => {
+  vi.mocked(api.getAttendance).mockResolvedValue(dayWithRecord("Submitted", null, 1));
+  vi.mocked(api.approveAttendance).mockResolvedValue(dayWithRecord("Approved"));
+  const user = await loaded();
+  await user.click(screen.getByRole("button", { name: "Approve Ahmed Khan" }));
+  expect(api.approveAttendance).toHaveBeenCalledWith(expect.any(String), [1]);
+  expect(await screen.findByText("Ahmed Khan approved.")).toBeInTheDocument();
+});
+
+it("sending an entry back needs a reason and passes it to the supervisor", async () => {
+  vi.mocked(api.getAttendance).mockResolvedValue(dayWithRecord("Submitted", null, 1));
+  vi.mocked(api.rejectAttendance).mockResolvedValue(dayWithRecord("Rejected", "Check overtime"));
+  const user = await loaded();
+  await user.click(screen.getByRole("button", { name: "Send back Ahmed Khan" }));
+  await user.click(await screen.findByRole("button", { name: "Send back" }));
+  expect(await screen.findByText(/Enter a reason/)).toBeInTheDocument();
+  expect(api.rejectAttendance).not.toHaveBeenCalled();
+  await user.type(screen.getByLabelText("Reason"), "Check overtime");
+  await user.click(screen.getByRole("button", { name: "Send back" }));
+  expect(api.rejectAttendance).toHaveBeenCalledWith(expect.any(String), [1], "Check overtime");
+  expect(await screen.findByText("Ahmed Khan sent back to the supervisor.")).toBeInTheDocument();
+  expect(screen.getByText("Reason: Check overtime")).toBeInTheDocument();
+});
+
+it("a Supervisor cannot edit an approved entry and has no approval buttons", async () => {
+  signInAs("Supervisor");
+  vi.mocked(api.getAttendance).mockResolvedValue(dayWithRecord("Approved"));
+  await loaded();
+  expect(screen.queryByLabelText("Status for Ahmed Khan")).not.toBeInTheDocument();
+  expect(screen.getByText("Approved")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Approve|Send back/ })).not.toBeInTheDocument();
+});
+
+it("a Supervisor sees why an entry was sent back and can resubmit it", async () => {
+  signInAs("Supervisor");
+  vi.mocked(api.getAttendance).mockResolvedValue(dayWithRecord("Rejected", "Wrong day"));
+  vi.mocked(api.saveAttendance).mockResolvedValue(dayWithRecord("Submitted"));
+  const user = await loaded();
+  expect(screen.getByText("Reason: Wrong day")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Resubmit Ahmed Khan" }));
+  expect(api.saveAttendance).toHaveBeenCalledWith(expect.any(String), [
+    { workerId: 1, status: "Present", basicHours: 8, overtimeHours: 1 },
+  ]);
+  expect(await screen.findByText("Ahmed Khan resubmitted for approval.")).toBeInTheDocument();
+  expect(screen.getByText("Waiting for approval")).toBeInTheDocument();
+});
+
+it("a Supervisor's save says the entry was submitted for approval", async () => {
+  signInAs("Supervisor");
+  vi.mocked(api.saveAttendance).mockResolvedValue(dayWithRecord("Submitted"));
+  const user = await loaded();
+  await user.selectOptions(screen.getByLabelText("Status for Ahmed Khan"), "Absent");
+  await user.click(screen.getByRole("button", { name: "Save day" }));
+  expect(await screen.findByText("Attendance submitted for manager approval.")).toBeInTheDocument();
+});
+
+it("lists the days that need attention and opens one when chosen", async () => {
+  vi.mocked(api.getAttendanceSummary).mockResolvedValue({
+    submittedTotal: 3,
+    submitted: [{ date: "2026-10-18", count: 3 }],
+    rejectedTotal: 0,
+    rejected: [],
+  });
+  const user = await loaded();
+  expect(await screen.findByText("Waiting for approval")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "2026-10-18 (3)" }));
+  await waitFor(() => expect(api.getAttendance).toHaveBeenLastCalledWith("2026-10-18"));
 });

@@ -6,6 +6,7 @@ import { getPayrollSettings, type PayrollSettings } from "../api/settings";
 import { isManagement } from "../permissions";
 import { useAuth } from "../contexts/AuthContext";
 import { ChangePasswordDialog } from "../features/auth/ChangePasswordDialog";
+import { useAttendanceSummary } from "../features/attendance/useAttendanceSummary";
 import { HealthChip } from "./HealthChip";
 import { navItemsForRole } from "./navItems";
 
@@ -36,6 +37,11 @@ export function Layout() {
   }, []);
 
   const tabs = user ? navItemsForRole(user.role) : [];
+  const attendanceSummary = useAttendanceSummary(!!user);
+  // Managers see what is waiting for them; supervisors see what was sent back to them.
+  const attendanceAttention = isManagement(user?.role)
+    ? (attendanceSummary?.submittedTotal ?? 0)
+    : (attendanceSummary?.rejectedTotal ?? 0);
 
   function handleSignOut() {
     logout();
@@ -109,6 +115,20 @@ export function Layout() {
                 }
               >
                 {item.label}
+                {item.key === "attendance" && attendanceAttention > 0 && (
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className="ml-2 inline-flex min-w-6 items-center justify-center rounded-full bg-amber-400 px-2 text-xs font-bold text-slate-900"
+                    >
+                      {attendanceAttention}
+                    </span>
+                    <span className="sr-only">
+                      {" "}
+                      ({attendanceAttention} need attention)
+                    </span>
+                  </>
+                )}
               </NavLink>
             ) : (
               <button

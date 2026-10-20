@@ -76,6 +76,7 @@ beforeEach(() => {
   vi.mocked(attendanceApi.getAttendance).mockResolvedValue({
     date: "2026-10-19",
     isFinalised: false,
+    pendingCount: 0,
     rows: [],
   });
   vi.mocked(payrollApi.getPayroll).mockResolvedValue({
@@ -219,6 +220,7 @@ describe("App", () => {
     vi.mocked(attendanceApi.getAttendance).mockResolvedValue({
       date: "2026-10-19",
       isFinalised: false,
+      pendingCount: 0,
       rows: [
         {
           worker: {
