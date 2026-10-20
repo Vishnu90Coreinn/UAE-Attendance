@@ -7,8 +7,21 @@ React + TypeScript (`apps/web`) · ASP.NET Core Web API (`apps/api`) · SQL Serv
 
 Plans live in `docs/superpowers/plans/`. Start with `2026-10-19-hr-payroll-vertical-slices.md`.
 
-Daily attendance is implemented through S3; see [the S3 report](docs/reports/s3-attendance.md). Monthly payroll,
-finalisation, leave, user management and release hardening remain S4–S8.
+Daily attendance and monthly payroll are implemented through S4; see [the S3 report](docs/reports/s3-attendance.md)
+and [the S4 report](docs/reports/s4-payroll.md). Finalisation, leave, user management and release hardening remain S5–S8.
+
+## Monthly payroll and PDF runtime
+
+Open **Payroll Summary**, select a month, then use **Print** or **Export PDF**. All three roles may view, print and
+export. The server computes every figure using current rates; S4 reports are Draft until finalisation is added in S5.
+The filename is `Payroll_YYYY-MM.pdf`. If the report changes before export, reload it before downloading so the
+PDF cannot silently differ from the visible figures.
+
+PDF generation is free: PdfPig 0.1.16 generates the English report directly on the API server, with embedded Noto Sans
+fonts. No paid PDF service, browser installation, QuestPDF licence or trial is required. See
+[third-party notices](THIRD-PARTY-NOTICES.md). Normal API build/publish includes the embedded fonts and licence files.
+The owner confirmed English prototype scope; Arabic/complex-script reporting is outside this build. Unsupported PDF
+characters produce a clear error instead of an unexpected server failure.
 
 ## Daily attendance
 

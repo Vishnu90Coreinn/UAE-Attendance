@@ -6,7 +6,7 @@
 
 **Architecture:** One ASP.NET Core Web API (controllers → services → EF Core → SQL Server) and one React + TypeScript SPA, mirroring the layout of the existing TimeSheet app (`apps/api`, `apps/web`, `apps/api.tests`). All money and payroll arithmetic lives in one server-side `PayrollCalculator`; the browser never decides a payable amount.
 
-**Tech Stack:** net10.0, ASP.NET Core Web API, EF Core 10 + SQL Server, JWT bearer auth, Serilog, QuestPDF, xUnit; React 19, TypeScript 5.9, Vite 8, Tailwind CSS 4, React Router 7, Vitest 5. (Versions as pinned and verified in the S0 plan; EF Core 10 replaces the EF Core 9 first drafted here, to match the .NET 10 SDK.)
+**Tech Stack:** net10.0, ASP.NET Core Web API, EF Core 10 + SQL Server, JWT bearer auth, Serilog, PdfPig, xUnit; React 19, TypeScript 5.9, Vite 8, Tailwind CSS 4, React Router 7, Vitest 5. (Versions as pinned and verified in the S0 plan; EF Core 10 replaces the EF Core 9 first drafted here, to match the .NET 10 SDK.)
 
 **Sources:** `Design.html` (functional reference), quotation QTN-HR-2026-001 v2 (contract scope), the project handover.
 
@@ -64,7 +64,7 @@ Everything the prototype does, including behaviour that is only implied by its c
 | P3 | Grand totals row | KEEP | Sum of the rounded rows |
 | P4 | Letterhead: company, tagline, email, "Monthly Payroll Report", month | KEEP | |
 | P5 | Print button (`window.print`, print-only CSS) | KEEP | |
-| P6 | Export PDF (`html2pdf`, rasterised in the browser) | REPLACE | Server-generated PDF (QuestPDF), selectable text, identical on every machine |
+| P6 | Export PDF (`html2pdf`, rasterised in the browser) | REPLACE | Server-generated PDF (PdfPig; owner requested a free alternative on 2026-10-20), selectable text, identical on every machine |
 | P7 | Signature blocks: "Prepared By: HR Department", "Approved By: General Manager" | KEEP | Labels from `PayrollSettings` |
 | P8 | File name `Payroll_YYYY-MM.pdf` | KEEP | |
 | P9 | Pay uses each worker's current rate, so history changes when a rate changes | FIX | Month can be finalised: figures frozen in a snapshot |
@@ -130,7 +130,7 @@ Leave accrual or entitlement balances · deductions, advances, loans · public-h
 
 | ID | Decision | Recommendation | Reason |
 |----|----------|----------------|--------|
-| D1 | PDF generation | Server-side with QuestPDF | The TimeSheet app already uses it; the prototype's browser PDF is a rasterised JPEG. Check QuestPDF's Community licence terms apply to this business |
+| D1 | PDF generation | Server-side with PdfPig 0.1.16 | Owner requested a free alternative on 2026-10-20; preserves selectable text without a revenue-based PDF licence. Supersedes QuestPDF. English prototype scope confirmed; fonts are embedded. |
 | D2 | Authentication | JWT bearer, 8-hour expiry, no refresh tokens, `PasswordHasher` (PBKDF2) | Same pattern as TimeSheet; no refresh-token machinery for a small internal tool |
 | D3 | Schema deviations from the handover's suggested list | Drop `Roles` (3 fixed roles → a checked column); drop `EmployeePayRates` (rate snapshot at finalise + audited changes cover the need); name the table `Workers` to match the UI | Fewer tables to build and test. Say so if you want them back |
 | D4 | Attendance save model | One batch `PUT` per day, explicit Save | Autosave per keystroke hides failures |
@@ -356,7 +356,7 @@ A slice is complete only when a user can do the thing in the browser, backed by 
 **Tasks**
 - [ ] Tests first: month aggregation against the worked month example; R10 worker listing; zero-attendance worker shows 0 days and 0.00; totals equal sum of rows; PDF endpoint returns `application/pdf` with a non-empty body and the right filename
 - [ ] `PayrollCalculator.MonthSummary`; `PayrollService.GetDraft(month)`
-- [ ] `PayrollPdfBuilder` (QuestPDF): letterhead, table, totals, Prepared By / Approved By blocks, page numbers, A4 portrait
+- [ ] `PayrollPdf` (PdfPig): letterhead, table, totals, Prepared By / Approved By blocks, page numbers, A4 portrait
 - [ ] Web: `features/payroll` report component; `@media print` rules hiding everything except the report
 - [ ] Manually compare screen, print preview and PDF for the same month; numbers must be identical
 
@@ -461,7 +461,7 @@ Roughly 7–11 engineering days. The handover's 6–9 days holds only if the gen
 | Client changes payroll rules mid-build | Rework, cost | Quote section 3 makes it a change request; rules are isolated in `PayrollCalculator` and test vectors |
 | Browser and server pay calculations drift | Screen shows a different amount from the report | One JSON vector file tested in both xUnit and Vitest; server value is authoritative |
 | SQL Server Express has no scheduled backups | Quote promises daily backups | Decide the mechanism in T-H; test a restore in S8 |
-| QuestPDF licence terms | Compliance | Check Community licence eligibility before S4 |
+| PDF font coverage | English prototype scope | Embedded Noto Sans; unsupported glyphs return a clear error; complex scripts excluded by owner |
 | Generated code quality varies | Hidden bugs | TDD per slice, role-matrix tests, review each slice before merge |
 | Existing data must be entered by someone | Client expects it done | Quote excludes it; say so explicitly at the demonstration |
 

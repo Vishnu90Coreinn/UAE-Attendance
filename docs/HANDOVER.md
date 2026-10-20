@@ -1,9 +1,10 @@
 # HR & Payroll System — Handover for ChatGPT / Codex
 
-> **Codex takeover update — 2026-10-20:** S3 Daily Attendance is now implemented on local branch
-> `slice/s3-attendance`, based on `01251c8` (`slice/s2b-settings`). See [S3 report](reports/s3-attendance.md)
-> and [S3 execution plan](superpowers/plans/2026-10-20-s3-attendance.md). Sections below preserve the original
-> handover baseline. Next slice is S4; no branches have been pushed or merged by Codex.
+> **Codex takeover update — 2026-10-20:** S3 Daily Attendance and S4 Monthly Payroll are implemented locally.
+> `slice/s4-payroll` stacks on `slice/s3-attendance` (`7f258fc`). See [S3 report](reports/s3-attendance.md)
+> and [S4 report](reports/s4-payroll.md). Next slice is S5. The owner authorized pushing the S4 branch; no merge is authorized.
+> **D1 superseded at the owner's request:** free PdfPig server PDF generation replaces QuestPDF. English prototype
+> scope is confirmed; no Arabic support or browser runtime is required. See [third-party notices](../THIRD-PARTY-NOTICES.md).
 
 You are taking over the build of a small, single-company HR & Payroll web application. Slices S0–S2 are done and tested. Your job is to build S3–S8 and the deployment pack, working slice by slice. The owner (VishnuRaj) and Claude will review everything once you are done and then ask for adjustments, so **keep each slice on its own branch, keep commits small, and write a short report per slice** (format at the end).
 
@@ -33,7 +34,7 @@ docs/            HANDOVER.md, design-system.md, superpowers/plans/*.md
 
 ## 3. Tech stack and versions (pinned and verified)
 
-net10.0 · EF Core 10.0.13 (SQL Server) · Serilog.AspNetCore 10.0.0 · Microsoft.AspNetCore.Authentication.JwtBearer 10.0.13 · `System.Security.Cryptography.Pkcs` 10.0.13 (direct pin to clear a transitive vulnerability) · xUnit 2.9.3 + Mvc.Testing 10.0.13 · React 19.3 · TypeScript 5.9 · Vite 8 · Vitest 5 · jsdom **29** (30 needs a newer Node than the dev machine's 24.14) · Tailwind 4.3 · lucide-react 1.x · @testing-library. QuestPDF will be added in S4 (decision D1). Keep `dotnet build` at **0 warnings**.
+net10.0 · EF Core 10.0.13 (SQL Server) · Serilog.AspNetCore 10.0.0 · Microsoft.AspNetCore.Authentication.JwtBearer 10.0.13 · `System.Security.Cryptography.Pkcs` 10.0.13 (direct pin to clear a transitive vulnerability) · xUnit 2.9.3 + Mvc.Testing 10.0.13 · React 19.3 · TypeScript 5.9 · Vite 8 · Vitest 5 · jsdom **29** (30 needs a newer Node than the dev machine's 24.14) · Tailwind 4.3 · lucide-react 1.x · @testing-library. S4 uses free PdfPig 0.1.16 with embedded Noto Sans fonts (English prototype scope). Keep `dotnet build` at **0 warnings**.
 
 Dev machine: Windows 11, SQL Server **LocalDB** (`(localdb)\MSSQLLocalDB`), Node 24.14, .NET SDK 10.0.300 (`global.json` pins it).
 
@@ -113,7 +114,7 @@ Integration tests create and drop their own database (`HrPayroll_Test_<guid>`); 
 
 ## 7. Decisions already made (do not reopen without the owner)
 
-D1 server-side PDF with **QuestPDF** (check Community licence eligibility) · D2 JWT bearer, 8 h, no refresh tokens, PBKDF2 · D3 schema: no `Roles` table (checked column), no `EmployeePayRates` table (rate snapshot at finalise + audited rate changes), table is `Workers` · D4 attendance saved as one **batch per day** with an explicit Save button · D5 integration tests on real SQL Server · D6 rounding: **half away from zero to 2 dp per day, per component; month = sum of rounded days; grand totals = sum of rounded worker rows** · D7 (2026-10-20, owner) salary and overtime amounts are **user-defined**: worker hourly rate (already editable), company overtime rate (Administrator, Settings screen) and an optional per-worker overtime rate that overrides it (slice S2b) · D8 (owner) the payroll column stays **"Total Net Salary"** as in the prototype.
+D1 server-side PDF with **PdfPig 0.1.16** (free alternative requested by owner on 2026-10-20; supersedes QuestPDF) · D2 JWT bearer, 8 h, no refresh tokens, PBKDF2 · D3 schema: no `Roles` table (checked column), no `EmployeePayRates` table (rate snapshot at finalise + audited rate changes), table is `Workers` · D4 attendance saved as one **batch per day** with an explicit Save button · D5 integration tests on real SQL Server · D6 rounding: **half away from zero to 2 dp per day, per component; month = sum of rounded days; grand totals = sum of rounded worker rows** · D7 (2026-10-20, owner) salary and overtime amounts are **user-defined**: worker hourly rate (already editable), company overtime rate (Administrator, Settings screen) and an optional per-worker overtime rate that overrides it (slice S2b) · D8 (owner) the payroll column stays **"Total Net Salary"** as in the prototype.
 
 ## 8. Remaining work — build in this order
 
@@ -155,7 +156,7 @@ S2b is already built; start at **S3** (its `PayrollCalculator` uses the S2b over
 
 **Rules:** R4 days worked = count of Present days · R5 month figures = sum of the rounded daily figures; grand totals = sum of the rounded worker rows · R9 draft uses the worker's *current* rate and the current OT rate · R10 list every active worker plus any inactive worker with attendance in that month (0 days / 0.00 if none).
 
-**API:** `GET /api/payroll?month=YYYY-MM` (any user) → `{ period, status: "Draft"|"Finalised", company/letterhead fields, lines[], totals }`; `GET /api/payroll/pdf?month=YYYY-MM` (any user) → `application/pdf`, A4 portrait, selectable text (QuestPDF), file name `Payroll_YYYY-MM.pdf`. **UI:** shared report component for screen and print; `@media print` hides everything but the report; Print and Export buttons; "Draft" badge; the numbers on screen, print preview and PDF must be identical.
+**API:** `GET /api/payroll?month=YYYY-MM` (any user) → `{ period, status: "Draft"|"Finalised", company/letterhead fields, lines[], totals }`; `GET /api/payroll/pdf?month=YYYY-MM` (any user) → `application/pdf`, A4 portrait, selectable text (PdfPig), file name `Payroll_YYYY-MM.pdf`. **UI:** shared report component for screen and print; `@media print` hides everything but the report; Print and Export buttons; "Draft" badge; the numbers on screen, print preview and PDF must be identical.
 
 ### S5 — Finalise and lock a month (`slice/s5-finalise`)
 
@@ -207,7 +208,7 @@ Do not assume Windows/IIS or Linux/Nginx. The owner must confirm in writing: per
 - `dotnet-ef` design-time factory prints the target server/database before any migration command — keep that safety.
 - Web: cancelling a dialog mid-request does not abort the request (a late success is silent).
 - The company name is a literal in `branding.ts`/`Layout`; from S4 read it from `GET /api/settings/payroll` where the user is signed in.
-- QuestPDF licence terms need a check before S4 ships.
+- S4 uses free PdfPig with embedded Noto Sans fonts at the owner's request. English prototype scope is confirmed; retain font and library licence files in published output.
 
 ## 11. Working agreement and report format
 
