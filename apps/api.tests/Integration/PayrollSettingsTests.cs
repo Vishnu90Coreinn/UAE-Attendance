@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HrPayroll.Api.Tests.Integration;
 
-/// <summary>W6: the single payroll-settings row, seeded by the migration, and the read-only endpoint.</summary>
+/// <summary>W6: the single payroll-settings row, seeded by the migration, and the read endpoint (updates: PayrollSettingsUpdateTests).</summary>
 public class PayrollSettingsTests(ApiFixture api) : IClassFixture<ApiFixture>
 {
     // --- database ------------------------------------------------------------------------------------------
@@ -154,10 +154,9 @@ public class PayrollSettingsTests(ApiFixture api) : IClassFixture<ApiFixture>
 
     [Theory]
     [InlineData("POST")]
-    [InlineData("PUT")]
     [InlineData("PATCH")]
     [InlineData("DELETE")]
-    public async Task ThereIsNoWriteEndpoint_EvenForAnAdministrator(string verb)
+    public async Task OnlyPutWritesTheSettings_OtherVerbsAreNotAllowed_EvenForAnAdministrator(string verb)
     {
         var (_, token) = await TestWorkers.SignInAsync(api, Roles.Administrator);
 

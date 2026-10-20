@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using HrPayroll.Api.Data;
 using HrPayroll.Api.Data.Entities;
@@ -29,11 +28,6 @@ public sealed record WorkerResult(
     public bool Succeeded => Outcome == WorkerOutcome.Success;
 }
 
-/// <summary>One changed field in a <c>WorkerUpdated</c> audit row.</summary>
-public sealed record WorkerFieldChange(
-    [property: JsonPropertyName("old")] object Old,
-    [property: JsonPropertyName("new")] object New);
-
 public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProvider time)
 {
     public const string DuplicateCodeMessage = "Worker ID already exists.";
@@ -43,6 +37,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
     public const int MaxNameLength = 120;
     public const int MaxDesignationLength = 80;
     public const decimal MaxHourlyRate = 999.99m;
+    public const decimal MaxOvertimeRate = 999.99m;
 
     private const string CodePrefix = "EMP-";
     private const int MinCodeDigits = 3;
@@ -69,13 +64,14 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         }
 
         var workers = await query.OrderBy(w => w.WorkerCode).ToListAsync(cancellationToken);
-        return workers.Select(ToResponse).ToList();
+        var companyRate = await CompanyOvertimeRateAsync(cancellationToken);
+        return workers.Select(w => ToResponse(w, companyRate)).ToList();
     }
 
     public async Task<WorkerResponse?> GetAsync(int id, CancellationToken cancellationToken = default)
     {
         var worker = await db.Workers.AsNoTracking().SingleOrDefaultAsync(w => w.Id == id, cancellationToken);
-        return worker is null ? null : ToResponse(worker);
+        return worker is null ? null : ToResponse(worker, await CompanyOvertimeRateAsync(cancellationToken));
     }
 
     /// <summary>
@@ -131,6 +127,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             FullName = input.FullName,
             Designation = input.Designation,
             HourlyRate = input.HourlyRate,
+            OvertimeRate = input.OvertimeRate,
             IsActive = true,
             CreatedUtc = now,
             UpdatedUtc = now,
@@ -144,10 +141,14 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             return DuplicateCode();
         }
 
-        audit.Write("WorkerCreated", entityType: nameof(Worker), entityId: worker.Id.ToString(CultureInfo.InvariantCulture));
+        // Only an explicit overtime rate is worth recording; a worker created on the company rate has nothing to add.
+        object? details = worker.OvertimeRate is null
+            ? null
+            : new Dictionary<string, FieldChange> { ["overtimeRate"] = new(null, worker.OvertimeRate) };
+        audit.Write("WorkerCreated", entityType: nameof(Worker), entityId: worker.Id.ToString(CultureInfo.InvariantCulture), details: details);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new WorkerResult(WorkerOutcome.Success, ToResponse(worker));
+        return new WorkerResult(WorkerOutcome.Success, ToResponse(worker, await CompanyOvertimeRateAsync(cancellationToken)));
     }
 
     public async Task<WorkerResult> UpdateAsync(int id, WorkerRequest request, CancellationToken cancellationToken = default)
@@ -169,34 +170,40 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             return DuplicateCode();
         }
 
-        var changes = new Dictionary<string, WorkerFieldChange>();
+        var changes = new Dictionary<string, FieldChange>();
         if (!string.Equals(worker.WorkerCode, input.Code, StringComparison.Ordinal))
         {
-            changes["workerCode"] = new WorkerFieldChange(worker.WorkerCode, input.Code);
+            changes["workerCode"] = new FieldChange(worker.WorkerCode, input.Code);
             worker.WorkerCode = input.Code;
         }
 
         if (!string.Equals(worker.FullName, input.FullName, StringComparison.Ordinal))
         {
-            changes["fullName"] = new WorkerFieldChange(worker.FullName, input.FullName);
+            changes["fullName"] = new FieldChange(worker.FullName, input.FullName);
             worker.FullName = input.FullName;
         }
 
         if (!string.Equals(worker.Designation, input.Designation, StringComparison.Ordinal))
         {
-            changes["designation"] = new WorkerFieldChange(worker.Designation, input.Designation);
+            changes["designation"] = new FieldChange(worker.Designation, input.Designation);
             worker.Designation = input.Designation;
         }
 
         if (worker.HourlyRate != input.HourlyRate)
         {
-            changes["hourlyRate"] = new WorkerFieldChange(worker.HourlyRate, input.HourlyRate);
+            changes["hourlyRate"] = new FieldChange(worker.HourlyRate, input.HourlyRate);
             worker.HourlyRate = input.HourlyRate;
+        }
+
+        if (worker.OvertimeRate != input.OvertimeRate)
+        {
+            changes["overtimeRate"] = new FieldChange(worker.OvertimeRate, input.OvertimeRate);
+            worker.OvertimeRate = input.OvertimeRate;
         }
 
         if (changes.Count == 0)
         {
-            return new WorkerResult(WorkerOutcome.Success, ToResponse(worker));
+            return new WorkerResult(WorkerOutcome.Success, ToResponse(worker, await CompanyOvertimeRateAsync(cancellationToken)));
         }
 
         worker.UpdatedUtc = time.GetUtcNow().UtcDateTime;
@@ -215,7 +222,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
 
         if (worker.IsActive == active)
         {
-            return new WorkerResult(WorkerOutcome.Success, ToResponse(worker));
+            return new WorkerResult(WorkerOutcome.Success, ToResponse(worker, await CompanyOvertimeRateAsync(cancellationToken)));
         }
 
         worker.IsActive = active;
@@ -246,7 +253,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
 
     // --- helpers -------------------------------------------------------------------------------------------
 
-    private sealed record ValidWorker(string Code, string FullName, string Designation, decimal HourlyRate);
+    private sealed record ValidWorker(string Code, string FullName, string Designation, decimal HourlyRate, decimal? OvertimeRate);
 
     /// <summary>Returns the cleaned-up values, or null with <paramref name="errors"/> filled in (one message per field).</summary>
     private static ValidWorker? Validate(WorkerRequest request, out Dictionary<string, string> errors)
@@ -305,7 +312,22 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             errors["hourlyRate"] = "Hourly rate can have at most 2 decimal places.";
         }
 
-        return errors.Count == 0 ? new ValidWorker(code, fullName, designation, rate!.Value) : null;
+        // Optional: null (or missing) means "use the company rate". 0 is a real value (no overtime pay).
+        var overtime = request.OvertimeRate;
+        if (overtime is < 0)
+        {
+            errors["overtimeRate"] = "Overtime rate cannot be negative.";
+        }
+        else if (overtime > MaxOvertimeRate)
+        {
+            errors["overtimeRate"] = $"Overtime rate must be {MaxOvertimeRate.ToString("0.00", CultureInfo.InvariantCulture)} or less.";
+        }
+        else if (overtime is not null && decimal.Round(overtime.Value, 2) != overtime.Value)
+        {
+            errors["overtimeRate"] = "Overtime rate can have at most 2 decimal places.";
+        }
+
+        return errors.Count == 0 ? new ValidWorker(code, fullName, designation, rate!.Value, overtime) : null;
     }
 
     private enum SaveOutcome
@@ -345,7 +367,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
     private async Task<WorkerResult> SaveChangeAsync(Worker worker, CancellationToken cancellationToken) =>
         await TrySaveAsync(cancellationToken) switch
         {
-            SaveOutcome.Saved => new WorkerResult(WorkerOutcome.Success, ToResponse(worker)),
+            SaveOutcome.Saved => new WorkerResult(WorkerOutcome.Success, ToResponse(worker, await CompanyOvertimeRateAsync(cancellationToken))),
             SaveOutcome.DuplicateCode => DuplicateCode(),
             _ => new WorkerResult(WorkerOutcome.NotFound),
         };
@@ -355,6 +377,13 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
 
     private static string IdText(Worker worker) => worker.Id.ToString(CultureInfo.InvariantCulture);
 
-    private static WorkerResponse ToResponse(Worker worker) =>
-        new(worker.Id, worker.WorkerCode, worker.FullName, worker.Designation, worker.HourlyRate, worker.IsActive);
+    private Task<decimal> CompanyOvertimeRateAsync(CancellationToken cancellationToken) =>
+        db.PayrollSettings.AsNoTracking()
+            .Where(s => s.Id == PayrollSettings.SingletonId)
+            .Select(s => s.OvertimeRatePerHour)
+            .SingleAsync(cancellationToken);
+
+    private static WorkerResponse ToResponse(Worker worker, decimal companyOvertimeRate) =>
+        new(worker.Id, worker.WorkerCode, worker.FullName, worker.Designation, worker.HourlyRate,
+            worker.OvertimeRate, worker.OvertimeRate ?? companyOvertimeRate, worker.IsActive);
 }

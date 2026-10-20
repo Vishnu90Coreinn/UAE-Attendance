@@ -206,6 +206,10 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
 
+                    b.Property<decimal?>("OvertimeRate")
+                        .HasPrecision(9, 2)
+                        .HasColumnType("decimal(9,2)");
+
                     b.Property<DateTime>("UpdatedUtc")
                         .HasColumnType("datetime2");
 
@@ -223,6 +227,8 @@ namespace HrPayroll.Api.Data.Migrations
                     b.ToTable("Workers", t =>
                         {
                             t.HasCheckConstraint("CK_Workers_HourlyRate", "[HourlyRate] > 0");
+
+                            t.HasCheckConstraint("CK_Workers_OvertimeRate", "[OvertimeRate] IS NULL OR [OvertimeRate] >= 0");
                         });
                 });
 #pragma warning restore 612, 618

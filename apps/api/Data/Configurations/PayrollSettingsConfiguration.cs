@@ -21,7 +21,7 @@ public class PayrollSettingsConfiguration : IEntityTypeConfiguration<PayrollSett
         builder.Property(s => s.PreparedByLabel).HasMaxLength(60).IsRequired();
         builder.Property(s => s.ApprovedByLabel).HasMaxLength(60).IsRequired();
 
-        // Inserted by the migration. The quote treats rule changes as change requests, so there is no write endpoint.
+        // Inserted by the migration; the Administrator edits it through PUT /api/settings/payroll.
         builder.HasData(new PayrollSettings
         {
             Id = PayrollSettings.SingletonId,

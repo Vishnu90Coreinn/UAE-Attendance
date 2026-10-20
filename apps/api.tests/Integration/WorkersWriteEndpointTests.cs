@@ -73,7 +73,7 @@ public class WorkersWriteEndpointTests(ApiFixture api) : IClassFixture<ApiFixtur
         Assert.True(id > 0);
         Assert.EndsWith($"/api/workers/{id}", response.Headers.Location?.ToString());
         Assert.Equal(
-            new[] { "designation", "fullName", "hourlyRate", "id", "isActive", "workerCode" },
+            new[] { "designation", "effectiveOvertimeRate", "fullName", "hourlyRate", "id", "isActive", "overtimeRate", "workerCode" },
             json.EnumerateObject().Select(p => p.Name).Order().ToArray());
         Assert.Equal(code, json.GetProperty("workerCode").GetString());
         Assert.Equal("Mohammed Ali", json.GetProperty("fullName").GetString());

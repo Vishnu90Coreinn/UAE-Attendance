@@ -1,6 +1,7 @@
 using System.Text.Json;
 using HrPayroll.Api.Data;
 using HrPayroll.Api.Data.Entities;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace HrPayroll.Api.Tests.Helpers;
@@ -17,7 +18,8 @@ public static class TestWorkers
         string fullName = "Test Worker",
         string designation = "Glass Installer",
         decimal hourlyRate = 12.5m,
-        bool isActive = true)
+        bool isActive = true,
+        decimal? overtimeRate = null)
     {
         var now = DateTime.UtcNow;
         var worker = new Worker
@@ -34,7 +36,37 @@ public static class TestWorkers
         await using var db = TestUsers.NewContext(connectionString);
         db.Workers.Add(worker);
         await db.SaveChangesAsync();
+
+        if (overtimeRate is not null)
+        {
+            await SetOvertimeRateAsync(connectionString, worker.Id, overtimeRate);
+        }
+
         return worker;
+    }
+
+    /// <summary>Writes (or clears, with null) <c>Workers.OvertimeRate</c> with plain SQL, bypassing the application.</summary>
+    public static async Task SetOvertimeRateAsync(string connectionString, int id, decimal? overtimeRate)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE Workers SET OvertimeRate = @rate WHERE Id = @id";
+        command.Parameters.AddWithValue("@rate", (object?)overtimeRate ?? DBNull.Value);
+        command.Parameters.AddWithValue("@id", id);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>Reads <c>Workers.OvertimeRate</c> with plain SQL; null when the column is NULL.</summary>
+    public static async Task<decimal?> ReadOvertimeRateAsync(string connectionString, int id)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT OvertimeRate FROM Workers WHERE Id = @id";
+        command.Parameters.AddWithValue("@id", id);
+        var value = await command.ExecuteScalarAsync();
+        return value is null or DBNull ? null : (decimal)value;
     }
 
     public static async Task<Worker?> FindAsync(string connectionString, int id)

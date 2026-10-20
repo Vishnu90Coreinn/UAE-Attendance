@@ -78,7 +78,7 @@ public class WorkersReadEndpointTests(ApiFixture api) : IClassFixture<ApiFixture
         var item = (await TestWorkers.ReadJsonAsync(response))[0];
 
         Assert.Equal(
-            new[] { "designation", "fullName", "hourlyRate", "id", "isActive", "workerCode" },
+            new[] { "designation", "effectiveOvertimeRate", "fullName", "hourlyRate", "id", "isActive", "overtimeRate", "workerCode" },
             item.EnumerateObject().Select(p => p.Name).Order().ToArray());
         Assert.Equal(worker.Id, item.GetProperty("id").GetInt32());
         Assert.Equal("shape1", item.GetProperty("workerCode").GetString());

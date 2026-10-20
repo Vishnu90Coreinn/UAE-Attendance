@@ -71,6 +71,67 @@ public class WorkerConstraintTests(TestDatabase database) : IClassFixture<TestDa
         await db.SaveChangesAsync();
     }
 
+    // --- overtime rate -------------------------------------------------------------------------------------
+
+    private async Task<int> InsertWorkerAsync() => (await TestWorkers.CreateAsync(database.ConnectionString)).Id;
+
+    [Theory]
+    [InlineData("-0.01")]
+    [InlineData("-1")]
+    [InlineData("-999.99")]
+    public async Task OvertimeRate_Negative_IsRejectedByTheDatabase(string rate)
+    {
+        var id = await InsertWorkerAsync();
+
+        var exception = await Assert.ThrowsAsync<SqlException>(() => TestWorkers.SetOvertimeRateAsync(
+            database.ConnectionString, id, decimal.Parse(rate, System.Globalization.CultureInfo.InvariantCulture)));
+
+        Assert.Equal(547, exception.Number);
+        Assert.Contains("CK_Workers_OvertimeRate", exception.Message);
+        Assert.Null(await TestWorkers.ReadOvertimeRateAsync(database.ConnectionString, id));
+    }
+
+    [Fact]
+    public async Task OvertimeRate_Negative_IsRejectedOnInsertToo()
+    {
+        await using var connection = new SqlConnection(database.ConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            "INSERT INTO Workers (WorkerCode, FullName, Designation, HourlyRate, OvertimeRate, IsActive, CreatedUtc, UpdatedUtc) " +
+            "VALUES (@code, 'N', 'D', 10, -1, 1, SYSUTCDATETIME(), SYSUTCDATETIME())";
+        command.Parameters.AddWithValue("@code", TestWorkers.UniqueCode());
+
+        var exception = await Assert.ThrowsAsync<SqlException>(() => command.ExecuteNonQueryAsync());
+
+        Assert.Equal(547, exception.Number);
+        Assert.Contains("CK_Workers_OvertimeRate", exception.Message);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("0")]
+    [InlineData("0.01")]
+    [InlineData("2.22")]
+    [InlineData("999.99")]
+    public async Task OvertimeRate_NullZeroOrPositive_IsAccepted_AndRoundTrips(string? rate)
+    {
+        var id = await InsertWorkerAsync();
+        decimal? value = rate is null ? null : decimal.Parse(rate, System.Globalization.CultureInfo.InvariantCulture);
+
+        await TestWorkers.SetOvertimeRateAsync(database.ConnectionString, id, value);
+
+        Assert.Equal(value, await TestWorkers.ReadOvertimeRateAsync(database.ConnectionString, id));
+    }
+
+    [Fact]
+    public async Task OvertimeRate_DefaultsToNull_ForAWorkerSavedWithoutOne()
+    {
+        var id = await InsertWorkerAsync();
+
+        Assert.Null(await TestWorkers.ReadOvertimeRateAsync(database.ConnectionString, id));
+    }
+
     // --- code ----------------------------------------------------------------------------------------------
 
     [Fact]
@@ -152,7 +213,7 @@ public class WorkerConstraintTests(TestDatabase database) : IClassFixture<TestDa
             .ToDictionary(r => (string)r["COLUMN_NAME"]!);
 
         Assert.Equal(
-            new[] { "CreatedUtc", "Designation", "FullName", "HourlyRate", "Id", "IsActive", "UpdatedUtc", "WorkerCode" },
+            new[] { "CreatedUtc", "Designation", "FullName", "HourlyRate", "Id", "IsActive", "OvertimeRate", "UpdatedUtc", "WorkerCode" },
             columns.Keys.Order().ToArray());
 
         Assert.Equal("nvarchar", columns["WorkerCode"]["DATA_TYPE"]);
@@ -165,20 +226,25 @@ public class WorkerConstraintTests(TestDatabase database) : IClassFixture<TestDa
         Assert.Equal("decimal", columns["HourlyRate"]["DATA_TYPE"]);
         Assert.Equal((byte)9, columns["HourlyRate"]["NUMERIC_PRECISION"]);
         Assert.Equal(2, columns["HourlyRate"]["NUMERIC_SCALE"]);
+        Assert.Equal("decimal", columns["OvertimeRate"]["DATA_TYPE"]);
+        Assert.Equal((byte)9, columns["OvertimeRate"]["NUMERIC_PRECISION"]);
+        Assert.Equal(2, columns["OvertimeRate"]["NUMERIC_SCALE"]);
+        Assert.Equal("YES", columns["OvertimeRate"]["IS_NULLABLE"]);
         Assert.Equal("bit", columns["IsActive"]["DATA_TYPE"]);
         Assert.Equal("datetime2", columns["CreatedUtc"]["DATA_TYPE"]);
         Assert.Equal("datetime2", columns["UpdatedUtc"]["DATA_TYPE"]);
-        Assert.All(columns.Values, column => Assert.Equal("NO", column["IS_NULLABLE"]));
+        Assert.All(columns.Where(c => c.Key != "OvertimeRate").Select(c => c.Value), column => Assert.Equal("NO", column["IS_NULLABLE"]));
     }
 
     [Fact]
-    public async Task WorkersTable_HasTheRateCheckAndTheUniqueCodeIndex()
+    public async Task WorkersTable_HasTheRateChecksAndTheUniqueCodeIndex()
     {
-        var checks = await QueryAsync(
-            "SELECT cc.name, cc.definition FROM sys.check_constraints cc WHERE cc.parent_object_id = OBJECT_ID('Workers')");
-        var rateCheck = Assert.Single(checks);
-        Assert.Equal("CK_Workers_HourlyRate", rateCheck["name"]);
-        Assert.Contains("HourlyRate", (string)rateCheck["definition"]!);
+        var checks = (await QueryAsync(
+            "SELECT cc.name, cc.definition FROM sys.check_constraints cc WHERE cc.parent_object_id = OBJECT_ID('Workers')"))
+            .ToDictionary(c => (string)c["name"]!, c => (string)c["definition"]!);
+        Assert.Equal(["CK_Workers_HourlyRate", "CK_Workers_OvertimeRate"], checks.Keys.Order().ToArray());
+        Assert.Contains("HourlyRate", checks["CK_Workers_HourlyRate"]);
+        Assert.Contains("OvertimeRate", checks["CK_Workers_OvertimeRate"]);
 
         var indexes = await QueryAsync(
             "SELECT i.name, i.is_unique, c.name AS column_name FROM sys.indexes i " +
