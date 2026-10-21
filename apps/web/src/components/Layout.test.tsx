@@ -9,7 +9,6 @@ import { setAuthToken } from "../api/client";
 import { AuthProvider, TOKEN_STORAGE_KEY } from "../contexts/AuthContext";
 import { Layout } from "./Layout";
 
-vi.mock("./HealthChip", () => ({ HealthChip: () => <div>health chip</div> }));
 vi.mock("../api/auth");
 vi.mock("../api/settings");
 
@@ -205,11 +204,10 @@ describe("Layout", () => {
     expect(within(screen.getByRole("banner")).queryByRole("link", { name: "User Access" })).not.toBeInTheDocument();
   });
 
-  it("renders the routed page and the health chip", async () => {
+  it("renders the routed page", async () => {
     await renderLayout();
 
     expect(screen.getByText("page content")).toBeInTheDocument();
-    expect(screen.getByText("health chip")).toBeInTheDocument();
   });
 
   it("offers a skip link that targets the main content", async () => {

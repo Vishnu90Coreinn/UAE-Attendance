@@ -22,7 +22,10 @@ interface WorkersTableProps {
 
 /** On phones each worker is a labelled card; from md up it is an ordinary table row. */
 const cellClass =
-  "flex items-center justify-between gap-3 px-4 py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-gray-600 md:table-cell md:p-4 md:before:content-none";
+  "flex items-center justify-between gap-3 px-4 py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-gray-600 md:table-cell md:p-3 md:before:content-none xl:p-4";
+/** On phones the name leads the card as its title with the worker ID beneath it; the other fields follow as label/value rows. */
+const titleCellClass = "max-md:order-[-2] max-md:justify-start max-md:pb-0 max-md:pt-3 max-md:text-base max-md:before:hidden";
+const subtitleCellClass = "max-md:order-[-1] max-md:justify-start max-md:py-0 max-md:pb-2 max-md:text-xs max-md:before:hidden";
 
 const actionClass =
   "inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60";
@@ -81,22 +84,23 @@ function WorkerRow({
   showRates: boolean;
 }) {
   return (
-    <tr className="block rounded-lg border border-gray-200 bg-white py-1 shadow-sm hover:bg-slate-50 md:table-row md:rounded-none md:border-0 md:py-0 md:shadow-none">
-      <td data-label="ID" className={`${cellClass} font-mono font-medium text-gray-600`}>{worker.workerCode}</td>
-      <td data-label="Name" className={`${cellClass} font-semibold text-gray-800`}>{worker.fullName}</td>
+    <tr className="block rounded-lg border border-gray-200 bg-white py-1 shadow-sm hover:bg-slate-50 max-md:flex max-md:flex-col md:table-row md:rounded-none md:border-0 md:py-0 md:shadow-none">
+      <td data-label="ID" className={`${cellClass} ${subtitleCellClass} font-mono font-medium text-gray-600 md:whitespace-nowrap`}>{worker.workerCode}</td>
+      <td data-label="Name" className={`${cellClass} ${titleCellClass} font-semibold text-gray-800`}>{worker.fullName}</td>
       <td data-label="Designation" className={`${cellClass} text-gray-600`}>{worker.designation}</td>
       {showRates && (
         <>
           <td data-label="Base rate" className={`${cellClass} font-medium text-gray-800`}>{rateText(worker.hourlyRate)}</td>
-          <td data-label="Overtime rate" className={`${cellClass} font-medium text-gray-800 md:whitespace-nowrap`}>{overtimeText(worker)}</td>
+          <td data-label="Overtime rate" className={`${cellClass} font-medium text-gray-800 xl:whitespace-nowrap`}>{overtimeText(worker)}</td>
         </>
       )}
       <td data-label="Status" className={cellClass}>
         <WorkerStatusBadge isActive={worker.isActive} />
       </td>
       {actions && (
-        <td className="px-4 py-2 md:table-cell md:p-4">
-          <div className="flex flex-wrap gap-2 md:flex-nowrap md:justify-end">
+        <td className="px-4 py-2 md:table-cell md:p-3 xl:p-4">
+          {/* Phone: Edit and Deactivate share a row; the destructive Delete sits apart on its own full-width row. */}
+          <div className="grid grid-cols-2 gap-2 md:flex md:flex-nowrap md:justify-end">
             <ActionButton
               icon={Pencil}
               label="Edit"
@@ -130,7 +134,7 @@ function WorkerRow({
               worker={worker}
               disabled={busy}
               onClick={actions.onDelete}
-              tone="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+              tone="border-red-200 bg-red-50 text-red-700 hover:bg-red-100 max-md:col-span-2 max-md:bg-white max-md:hover:bg-red-50"
             />
           </div>
         </td>
@@ -147,18 +151,18 @@ export function WorkersTable({ workers, showRates, actions, busyId }: WorkersTab
         <table className="block w-full border-collapse text-left text-sm md:table">
           <thead className="sr-only md:not-sr-only md:table-header-group">
             <tr className="border-b bg-slate-100 text-xs font-semibold uppercase tracking-wider text-slate-700">
-              <th scope="col" className="p-4">ID</th>
-              <th scope="col" className="p-4">Full Name</th>
-              <th scope="col" className="p-4">Designation</th>
+              <th scope="col" className="p-3 xl:p-4">ID</th>
+              <th scope="col" className="p-3 xl:p-4">Full Name</th>
+              <th scope="col" className="p-3 xl:p-4">Designation</th>
               {showRates && (
                 <>
-                  <th scope="col" className="whitespace-nowrap p-4">Base Rate (AED/hr)</th>
-                  <th scope="col" className="whitespace-nowrap p-4">Overtime Rate (AED/hr)</th>
+                  <th scope="col" className="p-3 xl:whitespace-nowrap xl:p-4">Base Rate (AED/hr)</th>
+                  <th scope="col" className="p-3 xl:whitespace-nowrap xl:p-4">Overtime Rate (AED/hr)</th>
                 </>
               )}
-              <th scope="col" className="p-4">Status</th>
+              <th scope="col" className="p-3 xl:p-4">Status</th>
               {actions && (
-                <th scope="col" className="p-4 text-right">
+                <th scope="col" className="p-3 text-right xl:p-4">
                   Actions
                 </th>
               )}

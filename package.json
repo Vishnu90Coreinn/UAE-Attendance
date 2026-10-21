@@ -1,0 +1,18 @@
+{
+  "name": "hr-payroll",
+  "private": true,
+  "description": "HR & Payroll: ASP.NET Core API (apps/api) and React web app (apps/web)",
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names api,web --prefix-colors blue,green \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "dotnet run --project apps/api --launch-profile HrPayroll.Api",
+    "dev:web": "npm --prefix apps/web run dev",
+    "setup": "npm --prefix apps/web install",
+    "build:web": "npm --prefix apps/web run build",
+    "test": "npm run test:api && npm run test:web",
+    "test:api": "dotnet test apps/api.tests",
+    "test:web": "npm --prefix apps/web run test"
+  },
+  "devDependencies": {
+    "concurrently": "9.2.5"
+  }
+}

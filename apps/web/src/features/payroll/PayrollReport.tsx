@@ -30,7 +30,7 @@ export function PayrollReport({
       aria-label={`Monthly Payroll Report ${report.period}`}
     >
       <header className="payroll-letterhead space-y-2 border-b-2 border-slate-800 pb-5 text-center">
-        <p className="break-words text-xl font-bold text-slate-900 sm:text-2xl">
+        <p className="break-words text-lg font-bold text-slate-900 sm:text-2xl">
           {report.company.companyName}
         </p>
         {report.company.tagline && (
@@ -126,7 +126,7 @@ export function PayrollReport({
                   <td data-label="Deductions" className={cellClass}>
                     {money.format(line.totalDeductions)}
                   </td>
-                  <td data-label="Net salary" className={`${cellClass} font-semibold`}>
+                  <td data-label="Net salary" className={`${cellClass} font-semibold max-md:text-base max-md:font-bold`}>
                     {money.format(line.netPay)}
                   </td>
                   {showPayslips && (

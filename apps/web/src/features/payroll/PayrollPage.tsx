@@ -187,7 +187,7 @@ export function PayrollPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
+          <div className="max-sm:w-full">
             <label
               htmlFor="payroll-month"
               className="mb-1 block text-sm font-medium text-gray-800"
@@ -205,7 +205,8 @@ export function PayrollPage() {
               className="min-h-11 rounded-lg border border-gray-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
             />
           </div>
-          <div className="flex flex-wrap gap-2">
+          {/* Phone: Export PDF leads as the full-width primary action; the rest share two columns below it. */}
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
             <button
               type="button"
               onClick={() => setAttempt((value) => value + 1)}
@@ -229,7 +230,7 @@ export function PayrollPage() {
               onClick={exportPdf}
               disabled={!ready || stale || busy || !!dialog}
               aria-busy={exporting}
-              className={`${primaryButtonClass} disabled:cursor-not-allowed disabled:opacity-60`}
+              className={`${primaryButtonClass} disabled:cursor-not-allowed disabled:opacity-60 max-sm:order-first max-sm:col-span-2`}
             >
               <Download aria-hidden="true" size={16} />
               {exporting ? "Exporting..." : "Export PDF"}
@@ -249,7 +250,7 @@ export function PayrollPage() {
                   !!dialog ||
                   (report?.status !== "Finalised" && future)
                 }
-                className={secondaryButtonClass}
+                className={`${secondaryButtonClass} max-sm:col-span-2`}
               >
                 {report?.status === "Finalised" ? (
                   <UnlockKeyhole aria-hidden="true" size={16} />
@@ -303,7 +304,7 @@ export function PayrollPage() {
                   onClick={() => downloadPayslips()}
                   disabled={busy || !!dialog}
                   aria-busy={exporting}
-                  className={secondaryButtonClass}
+                  className={`${secondaryButtonClass} max-sm:w-full`}
                 >
                   <Download aria-hidden="true" size={16} />
                   Download all payslips

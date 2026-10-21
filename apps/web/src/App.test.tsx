@@ -13,9 +13,6 @@ import * as usersApi from "./api/users";
 import { setAuthToken } from "./api/client";
 import { AuthProvider, TOKEN_STORAGE_KEY } from "./contexts/AuthContext";
 
-vi.mock("./components/HealthChip", () => ({
-  HealthChip: () => <div>health chip</div>,
-}));
 vi.mock("./api/auth");
 vi.mock("./api/workers");
 vi.mock("./api/settings");
@@ -268,7 +265,6 @@ describe("App", () => {
     expect(
       screen.queryByRole("heading", { name: "Worker Directory" }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText("health chip")).not.toBeInTheDocument();
   });
 
   it("opens the Worker Directory at the root when signed in", async () => {
@@ -291,7 +287,6 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "Worker Directory" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("health chip")).toBeInTheDocument();
   });
 
   it("sends a signed-out visit to /workers to the login page", async () => {
@@ -313,7 +308,6 @@ describe("App", () => {
     expect(await screen.findByLabelText("Company name")).toHaveValue(
       "Gulf Glass LLC",
     );
-    expect(screen.getByText("health chip")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -340,7 +334,6 @@ describe("App", () => {
       await waitFor(() =>
         expect(settingsApi.getPayrollSettings).toHaveBeenCalledTimes(1),
       );
-      expect(screen.getByText("health chip")).toBeInTheDocument();
     },
   );
 

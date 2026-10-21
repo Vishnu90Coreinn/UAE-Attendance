@@ -17,7 +17,7 @@ import { ActionFailure, LoadError, primaryButtonClass, SuccessRegion } from "../
 import { AddUserDialog, ResetPasswordDialog } from "./UserDialogs";
 
 const message = (reason: unknown) => reason instanceof ApiError ? reason.message : "Something went wrong. Please try again.";
-const actionClass = "inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50";
+const actionClass = "inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 max-md:only:col-span-2";
 
 export function UserPage() {
   const { user: current } = useAuth();
@@ -138,12 +138,12 @@ export function UserPage() {
                   onChange={(event) => void mutate(() => updateUser(row.id, { role: event.target.value as ManagedUser["role"], active: row.isActive }), "User role updated.")}>
                   {(assignable.includes(row.role) ? assignable : [row.role, ...assignable]).map((role) => <option key={role}>{role}</option>)}</select></td>
                 <td data-label="Status" className="flex items-center justify-between gap-3 border-t border-gray-100 py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-gray-600 md:table-cell md:border-0 md:px-4 md:py-3 md:before:content-none"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${row.isActive ? "bg-green-100 text-green-800" : "bg-gray-200 text-gray-700"}`}>{row.isActive ? "Active" : "Inactive"}</span></td>
-                <td className="block border-t border-gray-100 pt-3 md:table-cell md:border-0 md:px-4 md:py-3"><div className="flex flex-wrap gap-2">
+                <td className="block border-t border-gray-100 pt-3 md:table-cell md:border-0 md:px-4 md:py-3"><div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
                   {!self && <button type="button" disabled={busy} className={actionClass} aria-label={`${row.isActive ? "Deactivate" : "Activate"} ${row.username}`}
                     onClick={() => void mutate(() => updateUser(row.id, { role: row.role, active: !row.isActive }), row.isActive ? "User deactivated." : "User activated.")}>{row.isActive ? "Deactivate" : "Activate"}</button>}
                   <button type="button" disabled={busy} className={actionClass} aria-label={`Reset password for ${row.username}`}
                     onClick={() => { clearFeedback(); setDialogError(null); setFieldErrors(undefined); setResetUser(row); }}><KeyRound aria-hidden="true" size={15} />Reset password</button>
-                  {!self && <button type="button" disabled={busy} className={`${actionClass} text-red-700`} aria-label={`Delete ${row.username}`}
+                  {!self && <button type="button" disabled={busy} className={`${actionClass} text-red-700 max-md:col-span-2`} aria-label={`Delete ${row.username}`}
                     onClick={() => { clearFeedback(); setDeleteTarget(row); }}><Trash2 aria-hidden="true" size={15} />Delete</button>}
                 </div></td>
               </tr>;

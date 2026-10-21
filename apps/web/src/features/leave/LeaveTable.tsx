@@ -14,7 +14,7 @@ interface Props {
   onDelete: (row: LeaveRequest) => void;
 }
 const actionClass =
-  "inline-flex min-h-11 items-center gap-1 rounded-lg border border-gray-300 px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-60";
+  "inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-gray-300 px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-60 max-md:only:col-span-2";
 const statusClass = {
   Pending: "bg-amber-100 text-amber-900",
   Approved: "bg-green-100 text-green-900",
@@ -71,9 +71,9 @@ export function LeaveTable({
               <th
                 scope="row"
                 data-label="Worker"
-                className={`${cellClass} break-words text-left font-medium md:max-w-64`}
+                className={`${cellClass} break-words text-left font-medium max-md:justify-start max-md:text-base max-md:font-semibold max-md:before:hidden md:max-w-64`}
               >
-                <span className="text-right md:text-left">
+                <span className="text-left">
                   {row.workerName}
                   <span className="block text-xs font-normal text-gray-600">
                     {row.workerCode}
@@ -102,7 +102,8 @@ export function LeaveTable({
               </td>
               {showActions && (
                 <td className="px-4 py-2 md:table-cell">
-                  <div className="flex flex-wrap gap-2">
+                  {/* Phone: Approve and Reject share a row; Delete sits apart on its own full-width row. */}
+                  <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
                     {manage && (
                       <>
                         <button
@@ -132,7 +133,7 @@ export function LeaveTable({
                         type="button"
                         disabled={busy}
                         onClick={() => onDelete(row)}
-                        className={`${actionClass} text-red-700`}
+                        className={`${actionClass} text-red-700 max-md:col-span-2`}
                         aria-label={`Delete leave for ${row.workerName} starting ${row.startDate}`}
                       >
                         <Trash2 aria-hidden="true" size={16} />

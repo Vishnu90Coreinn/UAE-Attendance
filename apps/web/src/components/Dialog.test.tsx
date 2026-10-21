@@ -115,4 +115,54 @@ describe("Dialog", () => {
       "Some description",
     );
   });
+
+  describe("as a bottom sheet", () => {
+    function renderSheet(onClose: () => void) {
+      render(
+        <Dialog open title="Sheet title" variant="sheet" onClose={onClose}>
+          <button type="button">inside button</button>
+        </Dialog>,
+      );
+    }
+
+    it("has a Close button that asks to close", async () => {
+      const onClose = vi.fn();
+      renderSheet(onClose);
+
+      await userEvent.setup().click(await screen.findByRole("button", { name: "Close" }));
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("closes when the dimmed area outside it is tapped", async () => {
+      const onClose = vi.fn();
+      renderSheet(onClose);
+
+      fireEvent.click(await screen.findByRole("dialog", { name: "Sheet title" }));
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("stays open when something inside it is tapped", async () => {
+      const onClose = vi.fn();
+      renderSheet(onClose);
+
+      await userEvent.setup().click(await screen.findByRole("button", { name: "inside button" }));
+
+      expect(onClose).not.toHaveBeenCalled();
+    });
+  });
+
+  it("does not close a centred dialog when its backdrop is tapped", async () => {
+    const onClose = vi.fn();
+    render(
+      <Dialog open title="Centred" onClose={onClose}>
+        <p>content</p>
+      </Dialog>,
+    );
+
+    fireEvent.click(await screen.findByRole("dialog", { name: "Centred" }));
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
