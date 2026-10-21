@@ -53,19 +53,23 @@ LocalDB is Windows-only. On Linux/macOS, set `ConnectionStrings__Default` for th
 
 ## Run it
 
-Terminal 1 — API on http://localhost:5210 (creates and migrates the `HrPayroll_Dev` LocalDB database on first start):
+From the repository root, install once and then start the API and the web app together:
 
 ```bash
-dotnet run --project apps/api --launch-profile HrPayroll.Api
-```
-
-Terminal 2 — web app on http://localhost:5273 (proxies `/api` to the API):
-
-```bash
-cd apps/web
 npm install
+npm run setup
 npm run dev
 ```
+
+`npm run dev` starts the API on http://localhost:5210 (it creates and migrates the `HrPayroll_Dev` LocalDB database on
+first start) and the web app on http://localhost:5273, which proxies `/api` to the API. Output is prefixed `[api]` and
+`[web]`; press Ctrl+C once to stop both. If one of them fails to start, the other is stopped too.
+
+Other root commands: `npm run dev:api` and `npm run dev:web` run one side alone, `npm test` runs the API and web tests,
+and `npm run build:web` makes a production build of the web app.
+
+Stop any API you already have running before `npm run dev`; a running API locks its build output and the new one cannot
+start.
 
 ## First run / sign in
 
