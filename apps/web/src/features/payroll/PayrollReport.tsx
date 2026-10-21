@@ -5,7 +5,9 @@ const money = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 const headingClass = "px-3 py-3 font-semibold";
-const amountClass = "whitespace-nowrap px-3 py-3 text-right tabular-nums";
+/** On phones each cell is a labelled row inside a card; from md up it is an ordinary table cell. */
+const cellClass =
+  "flex items-center justify-between gap-3 whitespace-nowrap border-t border-gray-100 py-2 text-right tabular-nums before:content-[attr(data-label)] before:text-left before:text-xs before:font-semibold before:uppercase before:text-gray-600 md:table-cell md:border-0 md:px-3 md:py-3 md:before:content-none";
 
 /**
  * The same server response and markup are used on screen and in print. Payslip buttons appear only when the month is
@@ -63,11 +65,11 @@ export function PayrollReport({
         )}
       </header>
       <div className="payroll-table-scroll relative mt-5 overflow-x-auto">
-        <table className="payroll-table w-full min-w-[700px] text-left text-sm text-gray-800">
+        <table className="payroll-table block w-full text-left text-sm text-gray-800 md:table md:min-w-[700px]">
           <caption className="sr-only">
             Payroll in AED for {report.period}
           </caption>
-          <colgroup>
+          <colgroup className="hidden md:table-column-group">
             <col className="w-[20%]" />
             <col className="w-[18%]" />
             <col className="w-[10%]" />
@@ -77,8 +79,8 @@ export function PayrollReport({
             <col className="w-[15%]" />
             {showPayslips && <col className="no-print w-[10%]" />}
           </colgroup>
-          <thead className="border-y border-gray-300 bg-gray-50">
-            <tr>
+          <thead className="sr-only border-y border-gray-300 bg-gray-50 md:not-sr-only md:table-header-group">
+            <tr className="md:table-row">
               {[
                 "Worker Name",
                 "Designation",
@@ -91,45 +93,50 @@ export function PayrollReport({
                 <th
                   key={label}
                   scope="col"
-                  className={`${headingClass} ${index > 1 ? "text-right" : ""}`}
+                  className={`${headingClass} ${index > 1 ? "md:text-right" : ""}`}
                 >
                   {label}
                 </th>
               ))}
               {showPayslips && (
-                <th scope="col" className={`${headingClass} no-print text-right`}>
+                <th scope="col" className={`${headingClass} no-print md:text-right`}>
                   Payslip
                 </th>
               )}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-gray-200">
             {report.lines.length ? (
               report.lines.map((line) => (
-                <tr key={line.workerId}>
-                  <th scope="row" className="break-words px-3 py-3 font-medium">
+                <tr
+                  key={line.workerId}
+                  className="block rounded-lg border border-gray-200 bg-white p-3 shadow-sm md:table-row md:rounded-none md:border-0 md:p-0 md:shadow-none"
+                >
+                  <th scope="row" className="block break-words pb-1 text-left font-semibold md:table-cell md:px-3 md:py-3 md:font-medium">
                     {line.workerName}
                   </th>
-                  <td className="break-words px-3 py-3">{line.designation}</td>
-                  <td className={amountClass}>{line.daysWorked}</td>
-                  <td className={amountClass}>{money.format(line.basicPay)}</td>
-                  <td className={amountClass}>
+                  <td data-label="Designation" className={`${cellClass} md:text-left`}>
+                    {line.designation}
+                  </td>
+                  <td data-label="Days worked" className={cellClass}>{line.daysWorked}</td>
+                  <td data-label="Basic pay" className={cellClass}>{money.format(line.basicPay)}</td>
+                  <td data-label="OT pay" className={cellClass}>
                     {money.format(line.overtimePay)}
                   </td>
-                  <td className={amountClass}>
+                  <td data-label="Deductions" className={cellClass}>
                     {money.format(line.totalDeductions)}
                   </td>
-                  <td className={`${amountClass} font-semibold`}>
+                  <td data-label="Net salary" className={`${cellClass} font-semibold`}>
                     {money.format(line.netPay)}
                   </td>
                   {showPayslips && (
-                    <td className="no-print px-3 py-3 text-right">
+                    <td className="no-print block pt-3 md:table-cell md:px-3 md:py-3 md:pt-3 md:text-right">
                       <button
                         type="button"
                         onClick={() => onPayslip!(line.workerId)}
                         disabled={payslipBusy}
                         aria-label={`Download payslip for ${line.workerName}`}
-                        className="inline-flex min-h-11 items-center rounded-lg border border-slate-700 px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-slate-700 px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
                       >
                         Payslip
                       </button>
@@ -138,31 +145,31 @@ export function PayrollReport({
                 </tr>
               ))
             ) : (
-              <tr>
-                <td colSpan={showPayslips ? 8 : 7} className="py-8 text-center text-gray-600">
+              <tr className="block md:table-row">
+                <td colSpan={showPayslips ? 8 : 7} className="block py-8 text-center text-gray-600 md:table-cell">
                   No workers for this month.
                 </td>
               </tr>
             )}
           </tbody>
-          <tfoot className="border-y-2 border-gray-700 bg-gray-50 font-bold">
-            <tr>
-              <th scope="row" colSpan={3} className="px-3 py-3">
+          <tfoot className="block border-t-2 border-gray-700 bg-gray-50 font-bold md:table-footer-group md:border-y-2">
+            <tr className="block p-3 md:table-row md:p-0">
+              <th scope="row" colSpan={3} className="block px-0 py-2 text-left md:table-cell md:px-3 md:py-3">
                 TOTAL PAYROLL
               </th>
-              <td className={amountClass}>
+              <td data-label="Basic pay" className={cellClass}>
                 {money.format(report.totals.basicPay)}
               </td>
-              <td className={amountClass}>
+              <td data-label="OT pay" className={cellClass}>
                 {money.format(report.totals.overtimePay)}
               </td>
-              <td className={amountClass}>
+              <td data-label="Deductions" className={cellClass}>
                 {money.format(report.totals.totalDeductions)}
               </td>
-              <td className={amountClass}>
+              <td data-label="Net salary" className={cellClass}>
                 {money.format(report.totals.netPay)}
               </td>
-              {showPayslips && <td className="no-print" />}
+              {showPayslips && <td className="no-print block md:table-cell" />}
             </tr>
           </tfoot>
         </table>

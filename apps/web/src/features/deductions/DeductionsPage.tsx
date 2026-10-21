@@ -300,11 +300,11 @@ export function DeductionsPage() {
       ) : loadError ? (
         <LoadError message={loadError} onRetry={() => setAttempt((value) => value + 1)} />
       ) : data && data.workers.length > 0 ? (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-          <table className="w-full min-w-[640px] text-left text-sm text-gray-800">
+        <div className="overflow-x-auto md:rounded-lg md:border md:border-gray-200 md:bg-white md:shadow-sm">
+          <table className="block w-full text-left text-sm text-gray-800 md:table md:min-w-[640px]">
             <caption className="sr-only">Deductions for {data.month} in AED</caption>
-            <thead className="border-b border-gray-200 bg-gray-50 text-gray-700">
-              <tr>
+            <thead className="sr-only border-b border-gray-200 bg-gray-50 text-gray-700 md:not-sr-only md:table-header-group">
+              <tr className="md:table-row">
                 <th scope="col" className="px-4 py-3 font-semibold">Worker</th>
                 {activeTypes.map((type) => (
                   <th key={type.id} scope="col" className="px-4 py-3 font-semibold">
@@ -313,10 +313,13 @@ export function DeductionsPage() {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-gray-200">
               {data.workers.map((worker) => (
-                <tr key={worker.workerId}>
-                  <th scope="row" className="px-4 py-3 align-top font-medium">
+                <tr
+                  key={worker.workerId}
+                  className="block rounded-lg border border-gray-200 bg-white p-3 shadow-sm md:table-row md:rounded-none md:border-0 md:p-0 md:shadow-none"
+                >
+                  <th scope="row" className="block px-0 pb-2 text-left font-medium md:table-cell md:px-4 md:py-3 md:align-top">
                     {worker.fullName}
                     <span className="block text-xs font-normal text-gray-600">{worker.workerCode}</span>
                     {!worker.isActive && <span className="block text-xs text-gray-600">Inactive</span>}
@@ -324,7 +327,10 @@ export function DeductionsPage() {
                   {activeTypes.map((type) => {
                     const entry = draft[worker.workerId]?.[type.id] ?? { amount: "", note: "" };
                     return (
-                      <td key={type.id} className="px-4 py-3 align-top">
+                      <td key={type.id} className="block pb-2 md:table-cell md:px-4 md:py-3 md:pb-0 md:align-top">
+                        <p className="mb-1 text-xs font-semibold uppercase text-gray-600 md:hidden">
+                          {type.name} (AED) and reason
+                        </p>
                         <div className="grid gap-2 sm:grid-cols-[8rem_1fr]">
                           <label className="sr-only" htmlFor={`amount-${worker.workerId}-${type.id}`}>
                             {type.name} amount for {worker.fullName}
