@@ -7,8 +7,20 @@ const money = new Intl.NumberFormat("en-US", {
 const headingClass = "px-3 py-3 font-semibold";
 const amountClass = "whitespace-nowrap px-3 py-3 text-right tabular-nums";
 
-/** The same server response and markup are used on screen and in print. */
-export function PayrollReport({ report }: { report: Report }) {
+/**
+ * The same server response and markup are used on screen and in print. Payslip buttons appear only when the month is
+ * finalised and a handler is given; they are hidden from print.
+ */
+export function PayrollReport({
+  report,
+  onPayslip,
+  payslipBusy,
+}: {
+  report: Report;
+  onPayslip?: (workerId: number) => void;
+  payslipBusy?: boolean;
+}) {
+  const showPayslips = !!onPayslip && report.status === "Finalised";
   return (
     <article
       id="payroll-report"
@@ -56,12 +68,14 @@ export function PayrollReport({ report }: { report: Report }) {
             Payroll in AED for {report.period}
           </caption>
           <colgroup>
-            <col className="w-[23%]" />
             <col className="w-[20%]" />
-            <col className="w-[12%]" />
-            <col className="w-[15%]" />
+            <col className="w-[18%]" />
+            <col className="w-[10%]" />
             <col className="w-[13%]" />
-            <col className="w-[17%]" />
+            <col className="w-[11%]" />
+            <col className="w-[13%]" />
+            <col className="w-[15%]" />
+            {showPayslips && <col className="no-print w-[10%]" />}
           </colgroup>
           <thead className="border-y border-gray-300 bg-gray-50">
             <tr>
@@ -71,6 +85,7 @@ export function PayrollReport({ report }: { report: Report }) {
                 "Days Worked",
                 "Basic Pay",
                 "OT Pay",
+                "Deductions",
                 "Total Net Salary",
               ].map((label, index) => (
                 <th
@@ -81,6 +96,11 @@ export function PayrollReport({ report }: { report: Report }) {
                   {label}
                 </th>
               ))}
+              {showPayslips && (
+                <th scope="col" className={`${headingClass} no-print text-right`}>
+                  Payslip
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -96,14 +116,30 @@ export function PayrollReport({ report }: { report: Report }) {
                   <td className={amountClass}>
                     {money.format(line.overtimePay)}
                   </td>
-                  <td className={`${amountClass} font-semibold`}>
-                    {money.format(line.totalPay)}
+                  <td className={amountClass}>
+                    {money.format(line.totalDeductions)}
                   </td>
+                  <td className={`${amountClass} font-semibold`}>
+                    {money.format(line.netPay)}
+                  </td>
+                  {showPayslips && (
+                    <td className="no-print px-3 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => onPayslip!(line.workerId)}
+                        disabled={payslipBusy}
+                        aria-label={`Download payslip for ${line.workerName}`}
+                        className="inline-flex min-h-11 items-center rounded-lg border border-slate-700 px-3 text-sm font-medium text-slate-800 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Payslip
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="py-8 text-center text-gray-600">
+                <td colSpan={showPayslips ? 8 : 7} className="py-8 text-center text-gray-600">
                   No workers for this month.
                 </td>
               </tr>
@@ -121,8 +157,12 @@ export function PayrollReport({ report }: { report: Report }) {
                 {money.format(report.totals.overtimePay)}
               </td>
               <td className={amountClass}>
-                {money.format(report.totals.totalPay)}
+                {money.format(report.totals.totalDeductions)}
               </td>
+              <td className={amountClass}>
+                {money.format(report.totals.netPay)}
+              </td>
+              {showPayslips && <td className="no-print" />}
             </tr>
           </tfoot>
         </table>

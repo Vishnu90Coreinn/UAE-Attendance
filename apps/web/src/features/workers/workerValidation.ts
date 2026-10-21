@@ -1,6 +1,6 @@
 import type { WorkerInput } from "../../api/workers";
 
-export type WorkerField = "workerCode" | "fullName" | "designation" | "hourlyRate" | "overtimeRate";
+export type WorkerField = "workerCode" | "fullName" | "designation" | "hourlyRate" | "overtimeRate" | "joinDate";
 
 /** Form order, which is also the order errors are listed and the first invalid field is focused. */
 export const FIELD_ORDER: readonly WorkerField[] = [
@@ -9,6 +9,7 @@ export const FIELD_ORDER: readonly WorkerField[] = [
   "designation",
   "hourlyRate",
   "overtimeRate",
+  "joinDate",
 ];
 
 export type WorkerFormValues = Record<WorkerField, string>;
@@ -116,5 +117,6 @@ export function toWorkerInput(values: WorkerFormValues): WorkerInput {
     designation: values.designation.trim(),
     hourlyRate: Number(values.hourlyRate.trim()),
     overtimeRate: overtime === "" ? null : Number(overtime),
+    joinDate: values.joinDate.trim() === "" ? null : values.joinDate.trim(),
   };
 }

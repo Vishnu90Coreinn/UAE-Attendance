@@ -24,8 +24,9 @@ function initialValues(worker: Worker | null): WorkerFormValues {
         designation: worker.designation,
         hourlyRate: worker.hourlyRate === null ? "" : formatRate(worker.hourlyRate),
         overtimeRate: worker.overtimeRate === null ? "" : formatRate(worker.overtimeRate),
+        joinDate: worker.joinDate ?? "",
       }
-    : { workerCode: "", fullName: "", designation: "", hourlyRate: "", overtimeRate: "" };
+    : { workerCode: "", fullName: "", designation: "", hourlyRate: "", overtimeRate: "", joinDate: "" };
 }
 
 interface FormProps {
@@ -41,12 +42,14 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
   const designationRef = useRef<HTMLInputElement>(null);
   const rateRef = useRef<HTMLInputElement>(null);
   const overtimeRef = useRef<HTMLInputElement>(null);
+  const joinRef = useRef<HTMLInputElement>(null);
   const refs: Record<WorkerField, RefObject<HTMLInputElement | null>> = {
     workerCode: firstFieldRef,
     fullName: nameRef,
     designation: designationRef,
     hourlyRate: rateRef,
     overtimeRate: overtimeRef,
+    joinDate: joinRef,
   };
 
   const [values, setValues] = useState<WorkerFormValues>(() => initialValues(worker));
@@ -193,6 +196,12 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
             : `Leave blank to use the company rate (${formatRate(companyRate)})`
         }
         {...field("overtimeRate")}
+      />
+      <TextField
+        label="Join date (optional)"
+        type="date"
+        hint="Printed on the payslip."
+        {...field("joinDate")}
       />
 
       {summary.length > 0 && (

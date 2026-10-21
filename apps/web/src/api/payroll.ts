@@ -6,7 +6,16 @@ export interface PayrollAmounts {
   overtimeHours: number;
   basicPay: number;
   overtimePay: number;
+  /** Gross: basic + overtime. */
   totalPay: number;
+  totalDeductions: number;
+  /** Net: gross minus deductions. This is the amount paid. */
+  netPay: number;
+}
+export interface PayrollDeduction {
+  name: string;
+  amount: number;
+  note: string;
 }
 export interface PayrollLine extends PayrollAmounts {
   workerId: number;
@@ -15,6 +24,7 @@ export interface PayrollLine extends PayrollAmounts {
   designation: string;
   hourlyRate: number;
   overtimeRate: number;
+  deductions: PayrollDeduction[];
 }
 export interface PayrollReport {
   period: string;
@@ -56,4 +66,10 @@ export function reopenPayroll(
   return apiDeleteJson(`/api/payroll/${encodeURIComponent(month)}/finalise`, {
     reason,
   });
+}
+
+/** One worker's payslip, or every worker's payslips in one PDF. Available only once the month is finalised. */
+export function getPayslipPdf(month: string, workerId?: number): Promise<Blob> {
+  const base = `/api/payroll/${encodeURIComponent(month)}/payslips`;
+  return apiGetBlob(workerId === undefined ? `${base}/pdf` : `${base}/${workerId}/pdf`);
 }

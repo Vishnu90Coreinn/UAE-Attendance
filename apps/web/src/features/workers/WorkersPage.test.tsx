@@ -279,6 +279,7 @@ describe("WorkersPage - add and edit", () => {
       designation: "Helper",
       hourlyRate: 8,
       overtimeRate: null,
+      joinDate: null,
     });
     await waitFor(() => expect(screen.getByText("EMP-005", { selector: "td" })).toBeInTheDocument());
     expect(workersApi.listWorkers).toHaveBeenCalledTimes(2);

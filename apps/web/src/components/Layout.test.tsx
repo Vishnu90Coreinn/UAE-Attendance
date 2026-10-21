@@ -19,6 +19,7 @@ const MODULES = [
   "Worker Directory",
   "Daily Attendance",
   "Payroll Summary",
+  "Deductions",
   "Leave Management",
 ];
 
@@ -110,6 +111,7 @@ describe("Layout", () => {
       "Worker Directory",
       "Daily Attendance",
       "Payroll Summary",
+      "Deductions",
       "Leave Management",
       "User Manager",
       "Settings",

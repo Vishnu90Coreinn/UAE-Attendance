@@ -62,9 +62,13 @@ export function PayrollFinalisationDialog({
           <dd className="text-right">
             {money.format(report.totals.overtimePay)}
           </dd>
+          <dt>Deductions (AED)</dt>
+          <dd className="text-right">
+            {money.format(report.totals.totalDeductions)}
+          </dd>
           <dt className="font-semibold">Total Net Salary (AED)</dt>
           <dd className="text-right font-semibold">
-            {money.format(report.totals.totalPay)}
+            {money.format(report.totals.netPay)}
           </dd>
         </dl>
         {reopening && (

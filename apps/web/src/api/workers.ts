@@ -12,6 +12,8 @@ export interface Worker {
   /** The overtime rate that actually applies; null for Supervisors. */
   effectiveOvertimeRate: number | null;
   isActive: boolean;
+  /** YYYY-MM-DD, or null when not recorded. */
+  joinDate?: string | null;
 }
 
 /** The editable fields, sent as the body of create and update. */
@@ -22,6 +24,8 @@ export interface WorkerInput {
   hourlyRate: number;
   /** Null or omitted means the worker uses the company overtime rate. */
   overtimeRate?: number | null;
+  /** YYYY-MM-DD, or null when unknown. Printed on the payslip. */
+  joinDate?: string | null;
 }
 
 export function listWorkers(includeInactive: boolean): Promise<Worker[]> {

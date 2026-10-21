@@ -10,6 +10,7 @@ import { ApiError } from "../../api/client";
 import {
   getPayroll,
   getPayrollPdf,
+  getPayslipPdf,
   finalisePayroll,
   reopenPayroll,
   type PayrollReport as Report,
@@ -21,7 +22,7 @@ import {
   SuccessRegion,
 } from "../workers/WorkersFeedback";
 import { PayrollReport } from "./PayrollReport";
-import { downloadPdf } from "./downloadPdf";
+import { downloadPdf, saveBlob } from "./downloadPdf";
 import { PayrollFinalisationDialog } from "./PayrollFinalisationDialog";
 import { isManagement } from "../../permissions";
 import { useAuth } from "../../contexts/AuthContext";
@@ -143,6 +144,26 @@ export function PayrollPage() {
         setError(failure(reason));
         if (reason instanceof ApiError && reason.status === 409) setStale(true);
       }
+    } finally {
+      if (mounted.current) setExporting(false);
+    }
+  }
+  /** Payslips come from the finalised snapshot only; the server refuses them for a draft month. */
+  async function downloadPayslips(workerId?: number) {
+    if (!report || report.status !== "Finalised" || busy || dialog) return;
+    setExporting(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const blob = await getPayslipPdf(report.period, workerId);
+      if (!mounted.current) return;
+      const name = workerId === undefined
+        ? `Payslips_${report.period}.pdf`
+        : `Payslip_${report.period}_${report.lines.find((l) => l.workerId === workerId)?.workerCode ?? workerId}.pdf`;
+      saveBlob(blob, name);
+      setSuccess(workerId === undefined ? "Payslips downloaded." : "Payslip downloaded.");
+    } catch (reason) {
+      if (mounted.current) setError(failure(reason));
     } finally {
       if (mounted.current) setExporting(false);
     }
@@ -273,7 +294,29 @@ export function PayrollPage() {
           />
         </div>
       ) : (
-        report && <PayrollReport report={report} />
+        report && (
+          <>
+            {report.status === "Finalised" && isManagement(user?.role) && (
+              <div className="no-print flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => downloadPayslips()}
+                  disabled={busy || !!dialog}
+                  aria-busy={exporting}
+                  className={secondaryButtonClass}
+                >
+                  <Download aria-hidden="true" size={16} />
+                  Download all payslips
+                </button>
+              </div>
+            )}
+            <PayrollReport
+              report={report}
+              onPayslip={isManagement(user?.role) ? (id) => downloadPayslips(id) : undefined}
+              payslipBusy={busy || !!dialog}
+            />
+          </>
+        )
       )}
       {dialog && report && (
         <PayrollFinalisationDialog

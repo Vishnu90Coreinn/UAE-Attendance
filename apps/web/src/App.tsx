@@ -8,6 +8,7 @@ import { RequireRole } from "./features/auth/RequireRole";
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { WorkersPage } from "./features/workers/WorkersPage";
 import { LeavePage } from "./features/leave/LeavePage";
+import { DeductionsPage } from "./features/deductions/DeductionsPage";
 import { UserPage } from "./features/users/UserPage";
 import { MANAGEMENT_ROLES } from "./permissions";
 import { NotFound } from "./pages/NotFound";
@@ -30,6 +31,14 @@ export default function App() {
             element={
               <RequireRole roles={MANAGEMENT_ROLES}>
                 <PayrollPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="deductions"
+            element={
+              <RequireRole roles={MANAGEMENT_ROLES}>
+                <DeductionsPage />
               </RequireRole>
             }
           />
