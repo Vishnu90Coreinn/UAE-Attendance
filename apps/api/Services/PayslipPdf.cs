@@ -29,7 +29,7 @@ public sealed class PayslipPdf(IConfiguration configuration)
             using var document = new PdfDocumentBuilder();
             var regular = document.AddTrueTypeFont(PdfText.Font("Regular"));
             var bold = document.AddTrueTypeFont(PdfText.Font("Bold"));
-            var logo = PdfText.Asset("logo.jpg");
+            var logo = PdfText.Asset("logo.png");
             foreach (var line in lines)
             {
                 var page = document.AddPage(PageSize.A4);
@@ -46,31 +46,40 @@ public sealed class PayslipPdf(IConfiguration configuration)
     private void Draw(PdfPageBuilder page, PayrollResponse report, PayrollLine line, DateOnly? joinDate,
         PdfDocumentBuilder.AddedFont regular, PdfDocumentBuilder.AddedFont bold, byte[] logo)
     {
-        void Text(string text, double x, double baseline, double size = 9, bool strong = false) =>
-            page.AddText(text, size, new PdfPoint(x, baseline), strong ? bold : regular);
-        void RightText(string text, double rightEdge, double baseline, double size = 9, bool strong = false)
+        void Text(string text, double x, double baseline, double size = 9, bool strong = false, PdfStyle.Rgb? color = null)
         {
-            var width = page.MeasureText(text, size, new PdfPoint(0, 0), strong ? bold : regular)
-                .Select(l => l.BoundingBox.Right).DefaultIfEmpty(0).Max();
-            Text(text, rightEdge - width, baseline, size, strong);
+            page.SetTextAndFillColor(color ?? PdfStyle.Ink);
+            page.AddText(PdfText.Flatten(text), size, new PdfPoint(x, baseline), strong ? bold : regular);
         }
-        void CenteredText(string text, double baseline, double size, bool strong)
+        void RightText(string text, double rightEdge, double baseline, double size = 9, bool strong = false, PdfStyle.Rgb? color = null)
         {
-            var width = page.MeasureText(text, size, new PdfPoint(0, 0), strong ? bold : regular)
+            var width = page.MeasureText(PdfText.Flatten(text), size, new PdfPoint(0, 0), strong ? bold : regular)
                 .Select(l => l.BoundingBox.Right).DefaultIfEmpty(0).Max();
-            Text(text, (Left + Right - width) / 2, baseline, size, strong);
+            Text(text, rightEdge - width, baseline, size, strong, color);
         }
-        void Rule(double y) => page.DrawLine(new PdfPoint(Left, y), new PdfPoint(Right, y), .4);
+        void CenteredText(string text, double baseline, double size, bool strong, PdfStyle.Rgb? color = null)
+        {
+            var width = page.MeasureText(PdfText.Flatten(text), size, new PdfPoint(0, 0), strong ? bold : regular)
+                .Select(l => l.BoundingBox.Right).DefaultIfEmpty(0).Max();
+            Text(text, (Left + Right - width) / 2, baseline, size, strong, color);
+        }
+        void Rule(double y, double width = .4, PdfStyle.Rgb? color = null)
+        {
+            page.SetStrokeColor((color ?? PdfStyle.Hairline).R, (color ?? PdfStyle.Hairline).G, (color ?? PdfStyle.Hairline).B);
+            page.DrawLine(new PdfPoint(Left, y), new PdfPoint(Right, y), width);
+            page.ResetColor();
+        }
 
         // Letterhead: logo on the left, company details on the right.
-        page.AddJpeg(logo, new PdfRectangle(Left, 716, Left + 150, 820));
-        Text(report.Company.CompanyName, 210, 800, 12, true);
-        Text(configuration["Company:AddressLine1"] ?? "", 210, 784, 8.5);
-        Text(configuration["Company:AddressLine2"] ?? "", 210, 772, 8.5);
-        Text($"Tel: {configuration["Company:Phone"]}   |   {configuration["Company:Website"]}   |   {report.Company.ContactEmail}", 210, 760, 8.5);
-        Rule(706);
+        page.AddPng(logo, new PdfRectangle(Left, 738, Left + 96, 801));
+        var details = PdfText.Letterhead(configuration, report.Company.ContactEmail);
+        Text(report.Company.CompanyName, 210, 800, 13, true, PdfStyle.Teal);
+        Text(details.Address1, 210, 784, 8, false, PdfStyle.Muted);
+        Text(details.Address2, 210, 773, 8, false, PdfStyle.Muted);
+        Text(details.Contact, 210, 762, 8, false, PdfStyle.Muted);
+        Rule(706, 2, PdfStyle.Teal);
 
-        CenteredText("EMPLOYEE PAYSLIP", 686, 14, true);
+        CenteredText("EMPLOYEE PAYSLIP", 686, 14, true, PdfStyle.Teal);
 
         // Employee details.
         var period = DateOnly.ParseExact(report.Period + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -95,26 +104,37 @@ public sealed class PayslipPdf(IConfiguration configuration)
 
         // Earnings.
         var y = 580.0;
-        Text("EARNINGS", Left, y, 10, true);
+        Text("EARNINGS", Left, y, 10, true, PdfStyle.Teal);
         y -= 8;
         void Table(string[] headings, double[] widths, IReadOnlyList<string[]> body, string[]? totalRow)
         {
             var columnX = new double[widths.Length];
             var x = Left;
             for (var c = 0; c < widths.Length; c++) { columnX[c] = x; x += widths[c]; }
-            void Cells(string[] cells, bool strong)
+            void Cells(string[] cells, bool strong, bool heading = false)
             {
+                if (heading)
+                {
+                    page.SetTextAndFillColor(PdfStyle.Teal);
+                    page.DrawRectangle(new PdfPoint(Left, y - 20), Right - Left, 20, 0, true);
+                }
                 for (var c = 0; c < cells.Length; c++)
                 {
-                    if (c == cells.Length - 1 && cells.Length == 3) RightText(cells[c], columnX[c] + widths[c] - 4, y - 14, 9, strong);
-                    else Text(cells[c], columnX[c] + 4, y - 14, 9, strong);
+                    var color = heading ? PdfStyle.White : PdfStyle.Ink;
+                    if (c == cells.Length - 1 && cells.Length == 3) RightText(cells[c], columnX[c] + widths[c] - 4, y - 14, 9, strong, color);
+                    else Text(cells[c], columnX[c] + 4, y - 14, 9, strong, color);
                 }
                 y -= 20;
-                Rule(y);
+                if (!heading) Rule(y, .4, PdfStyle.Hairline);
             }
-            Cells(headings, true);
+            Cells(headings, true, heading: true);
             foreach (var row in body) Cells(row, false);
-            if (totalRow is not null) Cells(totalRow, true);
+            if (totalRow is not null)
+            {
+                page.SetTextAndFillColor(PdfStyle.TealTint);
+                page.DrawRectangle(new PdfPoint(Left, y - 20), Right - Left, 20, 0, true);
+                Cells(totalRow, true);
+            }
         }
         var widthsThree = new double[] { 150, 273, 100 };
         Table(["Description", "Calculation", "Amount (AED)"], widthsThree, [
@@ -126,7 +146,7 @@ public sealed class PayslipPdf(IConfiguration configuration)
 
         // Deductions.
         y -= 14;
-        Text("DEDUCTIONS", Left, y, 10, true);
+        Text("DEDUCTIONS", Left, y, 10, true, PdfStyle.Teal);
         y -= 8;
         var deductionRows = (line.Deductions ?? []).Select(d => new[] { d.Name, d.Note, PdfText.Number(d.Amount) }).ToList();
         if (deductionRows.Count == 0) deductionRows.Add(["No deductions this month", "-", PdfText.Number(0)]);
@@ -136,12 +156,12 @@ public sealed class PayslipPdf(IConfiguration configuration)
         y -= 30;
         var boxTop = y + 8;
         var boxBottom = y - 26;
-        Rule(boxTop);
-        Rule(boxBottom);
-        page.DrawLine(new PdfPoint(Left, boxTop), new PdfPoint(Left, boxBottom), .6);
-        page.DrawLine(new PdfPoint(Right, boxTop), new PdfPoint(Right, boxBottom), .6);
-        Text("NET SALARY PAYABLE", Left + 8, y - 8, 11, true);
-        RightText("AED " + PdfText.Number(line.NetPay), Right - 8, y - 8, 11, true);
+        page.SetTextAndFillColor(PdfStyle.TealTint);
+        page.DrawRectangle(new PdfPoint(Left, boxBottom), Right - Left, boxTop - boxBottom, 0, true);
+        Rule(boxTop, 1.2, PdfStyle.Teal);
+        Rule(boxBottom, 1.2, PdfStyle.Teal);
+        Text("NET SALARY PAYABLE", Left + 8, y - 8, 11, true, PdfStyle.Teal);
+        RightText("AED " + PdfText.Number(line.NetPay), Right - 8, y - 8, 13, true, PdfStyle.Teal);
 
         // Acknowledgment and signatures.
         y = boxBottom - 40;
@@ -158,6 +178,8 @@ public sealed class PayslipPdf(IConfiguration configuration)
         Text("Company Stamp:", 310, y);
         page.DrawLine(new PdfPoint(395, y - 2), new PdfPoint(Right, y - 2), .5);
 
-        Text($"Payslip for {line.WorkerCode} | {report.Period} | {report.Status}", Left, 28, 8);
+        Rule(58, .6);
+        Text("Confidential: this payslip is issued to the named employee only.", Left, 44, 7.2, false, PdfStyle.Muted);
+        RightText($"Payslip for {line.WorkerCode}  |  {report.Period}  |  {report.Status}", Right, 44, 7.2, false, PdfStyle.Muted);
     }
 }

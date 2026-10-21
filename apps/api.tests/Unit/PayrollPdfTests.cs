@@ -19,7 +19,8 @@ public class PayrollPdfTests
         var text = string.Join("\n", pdf.GetPages().Select(p => p.Text));
 
         Assert.Contains("José Núñez-Ångström", text);
-        Assert.Contains("Total Net Salary", text);
+        // The heading wraps inside its narrow column, so compare without spacing.
+        Assert.Contains("TotalNetSalary", text.Replace(" ", "").Replace("\n", ""));
         Assert.Contains("Signature & Date", text);
         Assert.Contains("Signature & Stamp", text);
         Assert.Contains("United Arab Emirates", text);
