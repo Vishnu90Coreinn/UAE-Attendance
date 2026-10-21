@@ -2,7 +2,6 @@ using System.Globalization;
 using HrPayroll.Api.Dtos;
 using Microsoft.Extensions.Configuration;
 using UglyToad.PdfPig.Content;
-using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Writer;
 
 namespace HrPayroll.Api.Services;
@@ -13,8 +12,8 @@ namespace HrPayroll.Api.Services;
 /// </summary>
 public sealed class PayslipPdf(IConfiguration configuration)
 {
-    private const double Left = 36;
-    private const double Right = 559;
+    private const double Left = PdfLetterhead.Left;
+    private const double Right = PdfLetterhead.Right;
 
     public byte[] Generate(PayrollResponse report, IReadOnlyList<PayrollLine> lines, IReadOnlyDictionary<int, DateOnly?> joinDates)
     {
@@ -33,7 +32,7 @@ public sealed class PayslipPdf(IConfiguration configuration)
             foreach (var line in lines)
             {
                 var page = document.AddPage(PageSize.A4);
-                Draw(page, report, line, joinDates.TryGetValue(line.WorkerId, out var joined) ? joined : null, regular, bold, logo);
+                Draw(new PdfCanvas(page, regular, bold), report, line, joinDates.TryGetValue(line.WorkerId, out var joined) ? joined : null, logo);
             }
             return document.Build();
         }
@@ -43,143 +42,112 @@ public sealed class PayslipPdf(IConfiguration configuration)
         }
     }
 
-    private void Draw(PdfPageBuilder page, PayrollResponse report, PayrollLine line, DateOnly? joinDate,
-        PdfDocumentBuilder.AddedFont regular, PdfDocumentBuilder.AddedFont bold, byte[] logo)
+    private void Draw(PdfCanvas cv, PayrollResponse report, PayrollLine line, DateOnly? joinDate, byte[] logo)
     {
-        void Text(string text, double x, double baseline, double size = 9, bool strong = false, PdfStyle.Rgb? color = null)
-        {
-            page.SetTextAndFillColor(color ?? PdfStyle.Ink);
-            page.AddText(PdfText.Flatten(text), size, new PdfPoint(x, baseline), strong ? bold : regular);
-        }
-        void RightText(string text, double rightEdge, double baseline, double size = 9, bool strong = false, PdfStyle.Rgb? color = null)
-        {
-            var width = page.MeasureText(PdfText.Flatten(text), size, new PdfPoint(0, 0), strong ? bold : regular)
-                .Select(l => l.BoundingBox.Right).DefaultIfEmpty(0).Max();
-            Text(text, rightEdge - width, baseline, size, strong, color);
-        }
-        void CenteredText(string text, double baseline, double size, bool strong, PdfStyle.Rgb? color = null)
-        {
-            var width = page.MeasureText(PdfText.Flatten(text), size, new PdfPoint(0, 0), strong ? bold : regular)
-                .Select(l => l.BoundingBox.Right).DefaultIfEmpty(0).Max();
-            Text(text, (Left + Right - width) / 2, baseline, size, strong, color);
-        }
-        void Rule(double y, double width = .4, PdfStyle.Rgb? color = null)
-        {
-            page.SetStrokeColor((color ?? PdfStyle.Hairline).R, (color ?? PdfStyle.Hairline).G, (color ?? PdfStyle.Hairline).B);
-            page.DrawLine(new PdfPoint(Left, y), new PdfPoint(Right, y), width);
-            page.ResetColor();
-        }
-
-        // Letterhead: logo on the left, company details on the right.
-        page.AddPng(logo, new PdfRectangle(Left, 738, Left + 96, 801));
         var details = PdfText.Letterhead(configuration, report.Company.ContactEmail);
-        Text(report.Company.CompanyName, 210, 800, 13, true, PdfStyle.Teal);
-        Text(details.Address1, 210, 784, 8, false, PdfStyle.Muted);
-        Text(details.Address2, 210, 773, 8, false, PdfStyle.Muted);
-        Text(details.Contact, 210, 762, 8, false, PdfStyle.Muted);
-        Rule(706, 2, PdfStyle.Teal);
-
-        CenteredText("EMPLOYEE PAYSLIP", 686, 14, true, PdfStyle.Teal);
-
-        // Employee details.
         var period = DateOnly.ParseExact(report.Period + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var periodLabel = period.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+        var rule = PdfLetterhead.Draw(cv, logo, report.Company, details, "PAYSLIP", periodLabel, null);
+
+        // Employee details panel: label above value, two columns.
+        var y = rule - 16;
+        const double panelHeight = 92;
+        cv.Fill(Left, y - panelHeight, Right - Left, panelHeight, PdfStyle.Panel);
         var payDate = report.FinalisedUtc is { } finalised ? PdfText.CompanyTime(finalised).ToString("dd MMM yyyy", CultureInfo.InvariantCulture) : "";
-        var rows = new[]
+        var fields = new[]
         {
-            ("Employee Name", line.WorkerName, "Employee No.", line.WorkerCode),
-            ("Job Title", line.Designation, "Pay Period", period.ToString("MMMM yyyy", CultureInfo.InvariantCulture)),
-            ("Join Date", joinDate?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "-", "Payment Date", payDate),
+            ("EMPLOYEE NAME", line.WorkerName), ("EMPLOYEE NO.", line.WorkerCode),
+            ("JOB TITLE", line.Designation), ("PAY PERIOD", periodLabel),
+            ("JOIN DATE", joinDate?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "-"), ("PAYMENT DATE", payDate),
         };
-        var top = 664.0;
-        for (var i = 0; i < rows.Length; i++)
+        for (var i = 0; i < fields.Length; i++)
         {
-            var baseline = top - i * 22 - 14;
-            var (l1, v1, l2, v2) = rows[i];
-            Text(l1, Left + 4, baseline, 9, true);
-            Text(v1, 140, baseline);
-            Text(l2, 330, baseline, 9, true);
-            Text(v2, 430, baseline);
-            Rule(top - (i + 1) * 22);
+            var x = Left + 14 + (i % 2) * 262;
+            var baseline = y - 18 - (i / 2) * 28;
+            cv.Text(fields[i].Item1, x, baseline, 6.8, true, PdfStyle.Muted);
+            cv.Text(cv.Fit(fields[i].Item2, 235, 9.5, true), x, baseline - 12, 9.5, true);
+        }
+        y -= panelHeight + 24;
+
+        var widths = new double[] { 150, 273, 100 };
+        void Table(string title, string[] headings, IReadOnlyList<string[]> body, string[] totalRow)
+        {
+            cv.Text(title, Left, y, 9.5, true, PdfStyle.Teal);
+            y -= 10;
+            void Cells(string[] cells, double size, bool strong, IReadOnlyList<string>[] wrapped)
+            {
+                var x = Left;
+                for (var col = 0; col < cells.Length; col++)
+                {
+                    for (var l = 0; l < wrapped[col].Count; l++)
+                    {
+                        var baseline = y - 14 - l * 12;
+                        if (col == cells.Length - 1) cv.RightText(wrapped[col][l], x + widths[col] - 6, baseline, size, strong);
+                        else cv.Text(wrapped[col][l], x + 6, baseline, size, strong);
+                    }
+                    x += widths[col];
+                }
+            }
+            IReadOnlyList<string>[] Wrapped(string[] cells, double size, bool strong) =>
+                cells.Select((v, i) => (IReadOnlyList<string>)cv.Wrap(v, widths[i] - 12, size, strong)).ToArray();
+
+            cv.Fill(Left, y - 22, Right - Left, 22, PdfStyle.Panel);
+            Cells(headings, 8, true, Wrapped(headings, 8, true));
+            y -= 22;
+            cv.Rule(Left, Right, y, 1.2, PdfStyle.Teal);
+            foreach (var row in body)
+            {
+                var wrapped = Wrapped(row, 9, false);
+                var rowHeight = wrapped.Max(w => w.Count) * 12 + 10;
+                Cells(row, 9, false, wrapped);
+                y -= rowHeight;
+                cv.Rule(Left, Right, y, 0.4, PdfStyle.Hairline);
+            }
+            cv.Fill(Left, y - 22, Right - Left, 22, PdfStyle.Panel);
+            cv.Rule(Left, Right, y, 0.8, PdfStyle.Teal);
+            Cells(totalRow, 9, true, Wrapped(totalRow, 9, true));
+            y -= 22;
+            cv.Rule(Left, Right, y, 0.8, PdfStyle.Teal);
         }
 
-        // Earnings.
-        var y = 580.0;
-        Text("EARNINGS", Left, y, 10, true, PdfStyle.Teal);
-        y -= 8;
-        void Table(string[] headings, double[] widths, IReadOnlyList<string[]> body, string[]? totalRow)
-        {
-            var columnX = new double[widths.Length];
-            var x = Left;
-            for (var c = 0; c < widths.Length; c++) { columnX[c] = x; x += widths[c]; }
-            void Cells(string[] cells, bool strong, bool heading = false)
-            {
-                if (heading)
-                {
-                    page.SetTextAndFillColor(PdfStyle.Teal);
-                    page.DrawRectangle(new PdfPoint(Left, y - 20), Right - Left, 20, 0, true);
-                }
-                for (var c = 0; c < cells.Length; c++)
-                {
-                    var color = heading ? PdfStyle.White : PdfStyle.Ink;
-                    if (c == cells.Length - 1 && cells.Length == 3) RightText(cells[c], columnX[c] + widths[c] - 4, y - 14, 9, strong, color);
-                    else Text(cells[c], columnX[c] + 4, y - 14, 9, strong, color);
-                }
-                y -= 20;
-                if (!heading) Rule(y, .4, PdfStyle.Hairline);
-            }
-            Cells(headings, true, heading: true);
-            foreach (var row in body) Cells(row, false);
-            if (totalRow is not null)
-            {
-                page.SetTextAndFillColor(PdfStyle.TealTint);
-                page.DrawRectangle(new PdfPoint(Left, y - 20), Right - Left, 20, 0, true);
-                Cells(totalRow, true);
-            }
-        }
-        var widthsThree = new double[] { 150, 273, 100 };
-        Table(["Description", "Calculation", "Amount (AED)"], widthsThree, [
-            ["Basic Salary", $"Hourly rate AED {line.HourlyRate.ToString("N2", CultureInfo.InvariantCulture)} x {line.BasicHours.ToString("N2", CultureInfo.InvariantCulture)} hrs",
-                PdfText.Number(line.BasicPay)],
-            ["Overtime (OT)", $"OT hours {line.OvertimeHours.ToString("N2", CultureInfo.InvariantCulture)} x AED {line.OvertimeRate.ToString("N2", CultureInfo.InvariantCulture)}",
-                PdfText.Number(line.OvertimePay)],
+        string Decimal(decimal value) => value.ToString("N2", CultureInfo.InvariantCulture);
+        Table("EARNINGS", ["Description", "Calculation", "Amount (AED)"], [
+            ["Basic Salary", $"Hourly rate AED {Decimal(line.HourlyRate)} x {Decimal(line.BasicHours)} hrs", PdfText.Number(line.BasicPay)],
+            ["Overtime (OT)", $"OT hours {Decimal(line.OvertimeHours)} x AED {Decimal(line.OvertimeRate)}", PdfText.Number(line.OvertimePay)],
         ], ["Gross Earnings", "Basic + OT", PdfText.Number(line.TotalPay)]);
 
-        // Deductions.
-        y -= 14;
-        Text("DEDUCTIONS", Left, y, 10, true, PdfStyle.Teal);
-        y -= 8;
+        y -= 26;
         var deductionRows = (line.Deductions ?? []).Select(d => new[] { d.Name, d.Note, PdfText.Number(d.Amount) }).ToList();
         if (deductionRows.Count == 0) deductionRows.Add(["No deductions this month", "-", PdfText.Number(0)]);
-        Table(["Description", "Reason", "Amount (AED)"], widthsThree, deductionRows, ["Total Deductions", "", PdfText.Number(line.TotalDeductions)]);
+        Table("DEDUCTIONS", ["Description", "Reason", "Amount (AED)"], deductionRows, ["Total Deductions", "", PdfText.Number(line.TotalDeductions)]);
 
-        // Net salary payable.
-        y -= 30;
-        var boxTop = y + 8;
-        var boxBottom = y - 26;
-        page.SetTextAndFillColor(PdfStyle.TealTint);
-        page.DrawRectangle(new PdfPoint(Left, boxBottom), Right - Left, boxTop - boxBottom, 0, true);
-        Rule(boxTop, 1.2, PdfStyle.Teal);
-        Rule(boxBottom, 1.2, PdfStyle.Teal);
-        Text("NET SALARY PAYABLE", Left + 8, y - 8, 11, true, PdfStyle.Teal);
-        RightText("AED " + PdfText.Number(line.NetPay), Right - 8, y - 8, 13, true, PdfStyle.Teal);
+        // Net salary payable: the one solid band on the page.
+        y -= 28;
+        cv.Fill(Left, y - 46, Right - Left, 46, PdfStyle.Teal);
+        cv.Text("NET SALARY PAYABLE", Left + 16, y - 20, 10.5, true, PdfStyle.White);
+        cv.Text("Gross earnings less total deductions", Left + 16, y - 34, 7.6, false, PdfStyle.TealPale);
+        cv.RightText("AED " + PdfText.Number(line.NetPay), Right - 16, y - 29, 16, true, PdfStyle.White);
+        y -= 46;
 
         // Acknowledgment and signatures.
-        y = boxBottom - 40;
-        Text("Employee Acknowledgment: ", Left, y, 9, true);
-        Text("I confirm that I have received the salary stated above for the indicated pay period.", Left + 150, y, 9);
-        y -= 46;
-        Text("Employee Signature:", Left, y);
-        page.DrawLine(new PdfPoint(140, y - 2), new PdfPoint(290, y - 2), .5);
-        Text("Authorized Signature:", 310, y);
-        page.DrawLine(new PdfPoint(420, y - 2), new PdfPoint(Right, y - 2), .5);
-        y -= 34;
-        Text("Date:", Left, y);
-        page.DrawLine(new PdfPoint(70, y - 2), new PdfPoint(200, y - 2), .5);
-        Text("Company Stamp:", 310, y);
-        page.DrawLine(new PdfPoint(395, y - 2), new PdfPoint(Right, y - 2), .5);
+        y -= 36;
+        cv.Text("Employee Acknowledgment", Left, y, 8.5, true, PdfStyle.Teal);
+        y -= 14;
+        cv.Text("I confirm that I have received the salary stated above for the indicated pay period.", Left, y, 8.5);
+        y -= 54;
+        void SignatureLine(double x1, double x2, string label)
+        {
+            cv.Rule(x1, x2, y, 0.6, PdfStyle.Ink);
+            cv.Text(label, x1, y - 11, 7.6, false, PdfStyle.Muted);
+        }
+        SignatureLine(Left, 266, "Employee Signature");
+        SignatureLine(310, Right, "Authorized Signature");
+        y -= 50;
+        SignatureLine(Left, 266, "Date");
+        SignatureLine(310, Right, "Company Stamp");
 
-        Rule(58, .6);
-        Text("Confidential: this payslip is issued to the named employee only.", Left, 44, 7.2, false, PdfStyle.Muted);
-        RightText($"Payslip for {line.WorkerCode}  |  {report.Period}  |  {report.Status}", Right, 44, 7.2, false, PdfStyle.Muted);
+        cv.Rule(Left, Right, 58, 0.5, PdfStyle.Hairline);
+        cv.Text("Confidential: this payslip is issued to the named employee only.", Left, 44, 7, false, PdfStyle.Muted);
+        cv.RightText($"Payslip for {line.WorkerCode}  |  {report.Period}  |  {report.Status}", Right, 44, 7, false, PdfStyle.Muted);
     }
 }
