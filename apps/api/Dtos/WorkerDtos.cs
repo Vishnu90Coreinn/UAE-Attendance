@@ -6,7 +6,7 @@ namespace HrPayroll.Api.Dtos;
 /// and means "use the company overtime rate".
 /// </summary>
 public sealed record WorkerRequest(
-    string? WorkerCode, string? FullName, string? Designation, decimal? HourlyRate, decimal? OvertimeRate = null);
+    string? WorkerCode, string? FullName, string? Designation, decimal? HourlyRate, decimal? OvertimeRate = null, DateOnly? JoinDate = null);
 
 /// <summary>
 /// <c>OvertimeRate</c> is the worker's own rate (null = none set); <c>EffectiveOvertimeRate</c> is that rate, or the
@@ -14,6 +14,6 @@ public sealed record WorkerRequest(
 /// </summary>
 public sealed record WorkerResponse(
     int Id, string WorkerCode, string FullName, string Designation, decimal? HourlyRate,
-    decimal? OvertimeRate, decimal? EffectiveOvertimeRate, bool IsActive);
+    decimal? OvertimeRate, decimal? EffectiveOvertimeRate, bool IsActive, DateOnly? JoinDate = null);
 
 public sealed record NextWorkerCodeResponse(string WorkerCode);

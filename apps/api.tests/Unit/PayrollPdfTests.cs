@@ -10,7 +10,7 @@ public class PayrollPdfTests
     public void Pdf_EmbedsUnicodeText_AndPaginatesLongRowsWithinA4()
     {
         var lines = Enumerable.Range(1, 120).Select(i => new PayrollLine(i, $"W{i:000}",
-            i == 1 ? "José Иванов" : i == 2 ? "W" + new string('\n', 118) + "W" : new string('W', 120), string.Concat(Enumerable.Repeat("X\n", 40)), 12.5m, 5m, 26, 208m, 10m, 2600m, 50m, 2650m)).ToArray();
+            i == 1 ? "José Núñez-Ångström" : i == 2 ? "W" + new string('\n', 118) + "W" : new string('W', 120), string.Concat(Enumerable.Repeat("X\n", 40)), 12.5m, 5m, 26, 208m, 10m, 2600m, 50m, 2650m, 0m, 2650m)).ToArray();
         var report = new PayrollResponse("2026-01", "Draft", new("Example Company", "T" + new string('\n', 198) + "T", "office@example.com", "HR Department", "General Manager"),
             lines, PayrollCalculator.GrandTotals(lines), "revision");
         var bytes = new PayrollPdf().Generate(report);
@@ -18,7 +18,7 @@ public class PayrollPdfTests
         Assert.True(pdf.NumberOfPages > 1);
         var text = string.Join("\n", pdf.GetPages().Select(p => p.Text));
 
-        Assert.Contains("José Иванов", text);
+        Assert.Contains("José Núñez-Ångström", text);
         Assert.Contains("Total Net Salary", text);
         Assert.Contains("Signature & Date", text);
         Assert.Contains("Signature & Stamp", text);
@@ -46,5 +46,15 @@ public class PayrollPdfTests
                 Assert.InRange(l.BoundingBox.Top, 15, 825);
             });
         }
+    }
+
+    [Fact]
+    public void Pdf_RefusesNamesOutsideTheLatinFont_InsteadOfPrintingQuestionMarks()
+    {
+        var line = new PayrollLine(1, "W001", "Иванов", "Installer", 12.5m, 5m, 1, 8m, 0m, 100m, 0m, 100m, 0m, 100m);
+        var report = new PayrollResponse("2026-01", "Draft", new("Example Company", "", "office@example.com", "HR", "GM"),
+            [line], PayrollCalculator.GrandTotals([line]), "revision");
+
+        Assert.Throws<PdfTextNotSupportedException>(() => new PayrollPdf().Generate(report));
     }
 }

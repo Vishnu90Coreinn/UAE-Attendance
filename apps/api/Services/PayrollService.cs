@@ -45,6 +45,9 @@ public sealed class PayrollService(AppDbContext db, IAuditLogger? audit = null, 
         if (await db.PayrollPeriods.AnyAsync(p => p.Year == start.Year && p.Month == start.Month, ct)) return new(409);
         var rate = await db.PayrollSettings.AsNoTracking().Select(p => p.OvertimeRatePerHour).SingleAsync(ct);
         var draft = await BuildDraftAsync(start, ct);
+        var overdrawn = draft.Lines.FirstOrDefault(l => l.NetPay < 0);
+        if (overdrawn is not null)
+            return new(409, Message: $"Deductions for {overdrawn.WorkerName} are more than the amount earned. Reduce them before finalising the month.");
         if (draft.PendingApprovalCount > 0)
             return new(409, Message: $"{draft.PendingApprovalCount} attendance {(draft.PendingApprovalCount == 1 ? "entry is" : "entries are")} still waiting for approval. Approve or reject them before finalising the month.");
         if (!string.Equals(revision, draft.Revision, StringComparison.Ordinal)) return new(409);
@@ -60,7 +63,11 @@ public sealed class PayrollService(AppDbContext db, IAuditLogger? audit = null, 
                 WorkerId = l.WorkerId, WorkerCode = l.WorkerCode, WorkerName = l.WorkerName, Designation = l.Designation,
                 HourlyRate = l.HourlyRate, OvertimeRate = l.OvertimeRate, DaysWorked = l.DaysWorked,
                 BasicHours = l.BasicHours, OvertimeHours = l.OvertimeHours, BasicPay = l.BasicPay,
-                OvertimePay = l.OvertimePay, TotalPay = l.TotalPay
+                OvertimePay = l.OvertimePay, TotalPay = l.TotalPay, TotalDeductions = l.TotalDeductions,
+                Deductions = (l.Deductions ?? []).Select(d => new PayrollDeductionLine
+                {
+                    DeductionTypeName = d.Name, Amount = d.Amount, Note = d.Note
+                }).ToList(),
             }).ToList()
         };
         db.PayrollPeriods.Add(period);
@@ -94,13 +101,16 @@ public sealed class PayrollService(AppDbContext db, IAuditLogger? audit = null, 
     private IAuditLogger Audit() => audit ?? new AuditLogger(db, httpContext ?? new HttpContextAccessor());
 
     private Task<PayrollPeriod?> FrozenPeriodAsync(DateOnly start, CancellationToken ct) =>
-        db.PayrollPeriods.Include(p => p.Details).SingleOrDefaultAsync(p => p.Year == start.Year && p.Month == start.Month, ct);
+        db.PayrollPeriods.Include(p => p.Details).ThenInclude(d => d.Deductions).SingleOrDefaultAsync(p => p.Year == start.Year && p.Month == start.Month, ct);
 
     private static PayrollResponse FrozenReport(PayrollPeriod period)
     {
         var lines = period.Details.OrderBy(l => l.WorkerCode, StringComparer.Ordinal).Select(l => new PayrollLine(l.WorkerId,
             l.WorkerCode, l.WorkerName, l.Designation, Money(l.HourlyRate), Money(l.OvertimeRate), l.DaysWorked, Money(l.BasicHours),
-            Money(l.OvertimeHours), Money(l.BasicPay), Money(l.OvertimePay), Money(l.TotalPay))).ToArray();
+            Money(l.OvertimeHours), Money(l.BasicPay), Money(l.OvertimePay), Money(l.TotalPay),
+            Money(l.TotalDeductions), Money(l.TotalPay - l.TotalDeductions),
+            l.Deductions.OrderBy(d => d.DeductionTypeName, StringComparer.Ordinal)
+                .Select(d => new PayrollDeductionItem(d.DeductionTypeName, d.Amount, d.Note)).ToArray())).ToArray();
         return WithRevision(new(new DateOnly(period.Year, period.Month, 1).ToString("yyyy-MM", CultureInfo.InvariantCulture), "Finalised",
             new(period.CompanyName, period.Tagline, period.ContactEmail, period.PreparedByLabel, period.ApprovedByLabel),
             lines, PayrollCalculator.GrandTotals(lines), "", period.FinalisedBy, DateTime.SpecifyKind(period.FinalisedUtc, DateTimeKind.Utc)));
@@ -118,15 +128,21 @@ public sealed class PayrollService(AppDbContext db, IAuditLogger? audit = null, 
         var ids = attendance.Select(a => a.WorkerId).Distinct().ToArray();
         var workers = allWorkers.Where(w => w.IsActive || ids.Contains(w.Id));
         var byWorker = attendance.ToLookup(a => a.WorkerId);
+        var deductions = (await db.WorkerDeductions.AsNoTracking().Include(d => d.DeductionType)
+            .Where(d => d.Year == start.Year && d.Month == start.Month).ToListAsync(ct)).ToLookup(d => d.WorkerId);
         var lines = workers.Select(w =>
         {
             var records = byWorker[w.Id].ToArray();
             var summary = PayrollCalculator.MonthSummary(records.Select(a => PayrollCalculator.DailyPay(a.Status, a.BasicHours,
                 a.OvertimeHours, w.HourlyRate, settings.OvertimeRatePerHour, w.OvertimeRate)),
                 records.Where(a => a.Status == "Present").Select(a => (a.BasicHours, a.OvertimeHours)));
+            var items = deductions[w.Id].OrderBy(d => d.DeductionType.Name, StringComparer.Ordinal)
+                .Select(d => new PayrollDeductionItem(d.DeductionType.Name, Money(d.Amount), d.Note)).ToArray();
+            var totalDeductions = Money(items.Sum(i => i.Amount));
             return new PayrollLine(w.Id, w.WorkerCode, w.FullName, w.Designation, w.HourlyRate,
                 w.OvertimeRate ?? settings.OvertimeRatePerHour, summary.DaysWorked, summary.BasicHours,
-                summary.OvertimeHours, summary.BasicPay, summary.OvertimePay, summary.TotalPay);
+                summary.OvertimeHours, summary.BasicPay, summary.OvertimePay, summary.TotalPay,
+                totalDeductions, Money(summary.TotalPay - totalDeductions), items);
         }).ToArray();
         return WithRevision(new(start.ToString("yyyy-MM", CultureInfo.InvariantCulture), "Draft",
             new(settings.CompanyName, settings.Tagline, settings.ContactEmail, settings.PreparedByLabel, settings.ApprovedByLabel),

@@ -30,12 +30,15 @@ const report: PayrollReport = {
       designation: "Glass Installer",
       hourlyRate: 12.5,
       overtimeRate: 2.22,
+      deductions: [],
       daysWorked: 22,
       basicHours: 176,
       overtimeHours: 10,
       basicPay: 2200,
       overtimePay: 22.2,
       totalPay: 2222.2,
+      totalDeductions: 0,
+      netPay: 2222.2,
     },
   ],
   totals: {
@@ -45,6 +48,8 @@ const report: PayrollReport = {
     basicPay: 2200,
     overtimePay: 22.2,
     totalPay: 2222.2,
+    totalDeductions: 0,
+    netPay: 2222.2,
   },
 };
 beforeEach(() => {
@@ -107,6 +112,7 @@ it("renders the server's report, exact column labels, totals and signature block
     "Days Worked",
     "Basic Pay",
     "OT Pay",
+    "Deductions",
     "Total Net Salary",
   ]);
   expect(screen.getByText("Gulf Glass LLC")).toBeInTheDocument();
@@ -202,11 +208,13 @@ it("renders an empty report with zero totals and explanation", async () => {
       basicPay: 0,
       overtimePay: 0,
       totalPay: 0,
+      totalDeductions: 0,
+      netPay: 0,
     },
   });
   await loaded();
   expect(screen.getByText("No workers for this month.")).toBeInTheDocument();
-  expect(screen.getAllByText("0.00")).toHaveLength(3);
+  expect(screen.getAllByText("0.00")).toHaveLength(4);
 });
 it("locks month and duplicate export while downloading", async () => {
   let resolve!: (value: Blob) => void;

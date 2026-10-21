@@ -5,6 +5,7 @@ const MODULES = [
   "Worker Directory",
   "Daily Attendance",
   "Payroll Summary",
+  "Deductions",
   "Leave Management",
 ];
 
@@ -42,6 +43,7 @@ describe("navItemsForRole", () => {
       "Worker Directory": "/workers",
       "Daily Attendance": "/attendance",
       "Payroll Summary": "/payroll",
+      "Deductions": "/deductions",
       "Leave Management": "/leave",
       "User Manager": "/users",
       Settings: "/settings",

@@ -1,8 +1,12 @@
 export function downloadPdf(blob: Blob, period: string): void {
+  saveBlob(blob, `Payroll_${period}.pdf`);
+}
+
+export function saveBlob(blob: Blob, fileName: string): void {
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = objectUrl;
-  anchor.download = `Payroll_${period}.pdf`;
+  anchor.download = fileName;
   document.body.appendChild(anchor);
   try {
     anchor.click();

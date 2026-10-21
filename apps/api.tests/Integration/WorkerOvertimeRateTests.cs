@@ -96,7 +96,7 @@ public class WorkerOvertimeRateTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var json = await TestWorkers.ReadJsonAsync(response);
         Assert.Equal(
-            new[] { "designation", "effectiveOvertimeRate", "fullName", "hourlyRate", "id", "isActive", "overtimeRate", "workerCode" },
+            new[] { "designation", "effectiveOvertimeRate", "fullName", "hourlyRate", "id", "isActive", "joinDate", "overtimeRate", "workerCode" },
             KeysOf(json));
         AssertRates(json, own: null, effective: SeededCompanyRate);
         Assert.Null(await TestWorkers.ReadOvertimeRateAsync(api.ConnectionString, json.GetProperty("id").GetInt32()));

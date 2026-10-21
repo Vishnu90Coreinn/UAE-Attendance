@@ -122,6 +122,7 @@ describe("WorkerFormDialog - add", () => {
       designation: "Fabricator",
       hourlyRate: 11.5,
       overtimeRate: null,
+      joinDate: null,
     });
     expect(workersApi.updateWorker).not.toHaveBeenCalled();
   });
@@ -176,6 +177,7 @@ describe("WorkerFormDialog - edit", () => {
       designation: "Glass Installer",
       hourlyRate: 14,
       overtimeRate: null,
+      joinDate: null,
     });
     expect(workersApi.createWorker).not.toHaveBeenCalled();
   });

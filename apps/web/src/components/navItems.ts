@@ -17,6 +17,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "workers", label: "Worker Directory", roles: ALL_ROLES, path: "/workers" },
   { key: "attendance", label: "Daily Attendance", roles: ALL_ROLES, path: "/attendance" },
   { key: "payroll", label: "Payroll Summary", roles: MANAGEMENT_ROLES, path: "/payroll" },
+  { key: "deductions", label: "Deductions", roles: MANAGEMENT_ROLES, path: "/deductions" },
   { key: "leave", label: "Leave Management", roles: ALL_ROLES, path: "/leave" },
   { key: "users", label: "User Manager", roles: MANAGEMENT_ROLES, path: "/users" },
   { key: "settings", label: "Settings", roles: MANAGEMENT_ROLES, path: "/settings" },

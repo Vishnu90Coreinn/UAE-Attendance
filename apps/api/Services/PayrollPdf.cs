@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using HrPayroll.Api.Dtos;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
@@ -21,18 +22,20 @@ public sealed class PayrollPdf
 
     private static byte[] GenerateCore(PayrollResponse report)
     {
+        foreach (var line in report.Lines) { PdfText.EnsurePrintable(line.WorkerName); PdfText.EnsurePrintable(line.Designation); }
         using var document = new PdfDocumentBuilder();
-        var regular = document.AddTrueTypeFont(Font("Regular"));
-        var bold = document.AddTrueTypeFont(Font("Bold"));
+        var regular = document.AddTrueTypeFont(PdfText.Font("Regular"));
+        var bold = document.AddTrueTypeFont(PdfText.Font("Bold"));
         var pages = new List<PdfPageBuilder>();
         PdfPageBuilder page = null!;
         double y = 0;
-        double[] widths = [145, 119, 46, 70, 65, 78];
-        string[] headers = ["Worker Name", "Designation", "Days Worked", "Basic Pay", "OT Pay", "Total Net Salary"];
+        // Columns fill the 523pt text width.
+        double[] widths = [118, 100, 46, 66, 58, 66, 69];
+        string[] headers = ["Worker Name", "Designation", "Days Worked", "Basic Pay", "OT Pay", "Deductions", "Total Net Salary"];
         List<string> Wrap(string text, double width, double size, PdfDocumentBuilder.AddedFont font)
         {
             var result = new List<string>();
-            var normalized = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
+            var normalized = Regex.Replace(text, @"\s+", " ").Trim();
             var current = "";
             double Measure(string value) => page.MeasureText(value, size, new PdfPoint(0, 0), font)
                 .Select(l => l.BoundingBox.Right).DefaultIfEmpty(0).Max();
@@ -91,22 +94,23 @@ public sealed class PayrollPdf
             y -= 7;
             Block("Monthly Payroll Report", 12, true);
             Block($"Month: {report.Period}   |   {report.Status}   |   Currency AED", 9);
-            if (report.FinalisedBy is not null)
-                Block($"Finalised by: {report.FinalisedBy} | {report.FinalisedUtc:yyyy-MM-dd HH:mm} UTC", 8);
+            if (report.FinalisedBy is not null && report.FinalisedUtc is { } finalised)
+                Block($"Finalised by: {report.FinalisedBy} | {PdfText.CompanyTime(finalised):dd MMM yyyy HH:mm} (UAE)", 8);
             y -= 5;
             TableRow(headers, true);
         }
-        static string Number(decimal value) => value.ToString("N2", CultureInfo.InvariantCulture);
         NewPage();
         foreach (var line in report.Lines)
             TableRow([line.WorkerName, line.Designation,
-                line.DaysWorked.ToString(CultureInfo.InvariantCulture), Number(line.BasicPay), Number(line.OvertimePay), Number(line.TotalPay)]);
+                line.DaysWorked.ToString(CultureInfo.InvariantCulture), PdfText.Number(line.BasicPay), PdfText.Number(line.OvertimePay),
+                PdfText.Number(line.TotalDeductions), PdfText.Number(line.NetPay)]);
         var totals = report.Totals;
-        TableRow(["TOTAL PAYROLL", "", "",
-            Number(totals.BasicPay), Number(totals.OvertimePay), Number(totals.TotalPay)], true);
+        TableRow(["TOTAL PAYROLL", "", totals.DaysWorked.ToString(CultureInfo.InvariantCulture),
+            PdfText.Number(totals.BasicPay), PdfText.Number(totals.OvertimePay),
+            PdfText.Number(totals.TotalDeductions), PdfText.Number(totals.NetPay)], true);
         if (y < 225) NewPage();
         y -= 25;
-        Block("Total Net Salary: AED " + Number(totals.TotalPay), 12, true);
+        Block("Total Net Salary: AED " + PdfText.Number(totals.NetPay), 12, true);
         y -= 25;
         var signatureTop = y;
         foreach (var line in Wrap("Prepared By: " + report.Company.PreparedByLabel, 240, 9, bold)) { Text(line, 36, y, 9, true); y -= 13; }
@@ -125,11 +129,34 @@ public sealed class PayrollPdf
         }
         return document.Build();
     }
+}
 
-    private static byte[] Font(string weight)
+/// <summary>Shared font, asset and text helpers for the payroll report and payslips.</summary>
+internal static class PdfText
+{
+    private static readonly TimeZoneInfo CompanyTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Dubai");
+
+    /// <summary>
+    /// The embedded font covers Latin letters only. Anything outside Latin (Arabic, Bengali, ...) would print as "?" without
+    /// an error, so it is refused up front and the caller reports that the PDF supports English text.
+    /// </summary>
+    public static void EnsurePrintable(string text)
     {
-        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"HrPayroll.Api.Pdf.Fonts.NotoSans-{weight}.ttf")
-            ?? throw new InvalidOperationException("The payroll PDF font is missing.");
+        if (text.Any(c => c > 'ɏ' || (char.IsControl(c) && !char.IsWhiteSpace(c))))
+            throw new PdfTextNotSupportedException(new InvalidOperationException("Text outside the Latin range: " + text));
+    }
+
+    public static string Number(decimal value) => value.ToString("N2", CultureInfo.InvariantCulture);
+
+    public static DateTime CompanyTime(DateTime utc) =>
+        TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), CompanyTimeZone);
+
+    public static byte[] Font(string weight) => Asset($"NotoSans-{weight}.ttf", "Fonts");
+
+    public static byte[] Asset(string fileName, string folder = "Assets")
+    {
+        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"HrPayroll.Api.Pdf.{folder}.{fileName}")
+            ?? throw new InvalidOperationException($"The PDF resource {fileName} is missing.");
         using var bytes = new MemoryStream();
         stream.CopyTo(bytes);
         return bytes.ToArray();

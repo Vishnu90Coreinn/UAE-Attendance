@@ -98,6 +98,8 @@ beforeEach(() => {
       basicPay: 0,
       overtimePay: 0,
       totalPay: 0,
+      totalDeductions: 0,
+      netPay: 0,
     },
   });
 });

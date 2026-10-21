@@ -28,6 +28,7 @@ public static class PayrollCalculator
     {
         var rows = lines.ToArray();
         return new(rows.Sum(r => r.DaysWorked), rows.Sum(r => r.BasicHours), rows.Sum(r => r.OvertimeHours),
-            rows.Sum(r => r.BasicPay), rows.Sum(r => r.OvertimePay), rows.Sum(r => r.TotalPay));
+            rows.Sum(r => r.BasicPay), rows.Sum(r => r.OvertimePay), rows.Sum(r => r.TotalPay),
+            rows.Sum(r => r.TotalDeductions), rows.Sum(r => r.NetPay));
     }
 }

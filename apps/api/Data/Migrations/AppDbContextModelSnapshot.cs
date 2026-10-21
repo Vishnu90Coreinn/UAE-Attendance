@@ -132,6 +132,45 @@ namespace HrPayroll.Api.Data.Migrations
                     b.ToTable("AuditLogs");
                 });
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.DeductionType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .UseCollation("SQL_Latin1_General_CP1_CI_AS");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("DeductionTypes");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            IsActive = true,
+                            Name = "Advance / Loan"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            IsActive = true,
+                            Name = "Other Deductions"
+                        });
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.LeaveRequest", b =>
                 {
                     b.Property<int>("Id")
@@ -193,6 +232,38 @@ namespace HrPayroll.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.PayrollDeductionLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(9, 2)
+                        .HasColumnType("decimal(9,2)");
+
+                    b.Property<string>("DeductionTypeName")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("PayrollDetailId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PayrollDetailId");
+
+                    b.ToTable("PayrollDeductionLines");
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.PayrollDetail", b =>
                 {
                     b.Property<int>("Id")
@@ -235,6 +306,12 @@ namespace HrPayroll.Api.Data.Migrations
 
                     b.Property<int>("PeriodId")
                         .HasColumnType("int");
+
+                    b.Property<decimal>("TotalDeductions")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
 
                     b.Property<decimal>("TotalPay")
                         .HasPrecision(18, 2)
@@ -471,6 +548,9 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
 
+                    b.Property<DateOnly?>("JoinDate")
+                        .HasColumnType("date");
+
                     b.Property<decimal?>("OvertimeRate")
                         .HasPrecision(9, 2)
                         .HasColumnType("decimal(9,2)");
@@ -497,6 +577,58 @@ namespace HrPayroll.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.WorkerDeduction", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(9, 2)
+                        .HasColumnType("decimal(9,2)");
+
+                    b.Property<int>("DeductionTypeId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("WorkerId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeductionTypeId");
+
+                    b.HasIndex("WorkerId", "Year", "Month", "DeductionTypeId")
+                        .IsUnique();
+
+                    b.ToTable("WorkerDeductions", t =>
+                        {
+                            t.HasCheckConstraint("CK_WorkerDeductions_Amount", "[Amount] > 0");
+
+                            t.HasCheckConstraint("CK_WorkerDeductions_Month", "[Month] BETWEEN 1 AND 12");
+                        });
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.Attendance", b =>
                 {
                     b.HasOne("HrPayroll.Api.Data.Entities.Worker", "Worker")
@@ -519,6 +651,17 @@ namespace HrPayroll.Api.Data.Migrations
                     b.Navigation("Worker");
                 });
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.PayrollDeductionLine", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.PayrollDetail", "Detail")
+                        .WithMany("Deductions")
+                        .HasForeignKey("PayrollDetailId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Detail");
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.PayrollDetail", b =>
                 {
                     b.HasOne("HrPayroll.Api.Data.Entities.PayrollPeriod", "Period")
@@ -534,6 +677,30 @@ namespace HrPayroll.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Period");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.WorkerDeduction", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.DeductionType", "DeductionType")
+                        .WithMany()
+                        .HasForeignKey("DeductionTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.Worker", "Worker")
+                        .WithMany()
+                        .HasForeignKey("WorkerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DeductionType");
+
+                    b.Navigation("Worker");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.PayrollDetail", b =>
+                {
+                    b.Navigation("Deductions");
                 });
 
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.PayrollPeriod", b =>

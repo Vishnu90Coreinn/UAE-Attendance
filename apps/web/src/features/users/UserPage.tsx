@@ -126,19 +126,19 @@ export function UserPage() {
       {loading ? <p role="status" className="py-8 text-gray-600">Loading users...</p>
         : loadError ? <LoadError message={loadError} onRetry={() => setAttempt((value) => value + 1)} />
         : rows.length === 0 ? <p className="rounded-lg border bg-white p-8 text-center text-gray-600">No users found.</p>
-        : <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-          <table className="min-w-[720px] w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-700"><tr>{["Username", "Role", "Status", "Actions"].map((x) => <th key={x} className="px-4 py-3 font-semibold">{x}</th>)}</tr></thead>
-            <tbody className="divide-y divide-gray-200">{rows.map((row) => {
+        : <div className="overflow-x-auto md:rounded-lg md:border md:border-gray-200 md:bg-white md:shadow-sm">
+          <table className="block w-full text-left text-sm md:table md:min-w-[720px]">
+            <thead className="sr-only bg-slate-50 text-slate-700 md:not-sr-only md:table-header-group"><tr className="md:table-row">{["Username", "Role", "Status", "Actions"].map((x) => <th key={x} className="px-4 py-3 font-semibold">{x}</th>)}</tr></thead>
+            <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-gray-200">{rows.map((row) => {
               const self = row.id === current?.id;
-              return <tr key={row.id}>
-                <td className="px-4 py-3 font-medium text-gray-900">{row.username}{self && <span className="ml-2 text-xs text-gray-500">You</span>}</td>
-                <td className="px-4 py-3"><select aria-label={`Role for ${row.username}`} value={row.role} disabled={busy || self}
+              return <tr key={row.id} className="block rounded-lg border border-gray-200 bg-white p-3 shadow-sm md:table-row md:rounded-none md:border-0 md:p-0 md:shadow-none">
+                <td className="block break-words pb-1 font-semibold text-gray-900 md:table-cell md:px-4 md:py-3 md:font-medium">{row.username}{self && <span className="ml-2 text-xs text-gray-500">You</span>}</td>
+                <td data-label="Role" className="flex items-center justify-between gap-3 border-t border-gray-100 py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-gray-600 md:table-cell md:border-0 md:px-4 md:py-3 md:before:content-none"><select aria-label={`Role for ${row.username}`} value={row.role} disabled={busy || self}
                   className="min-h-11 rounded-lg border border-gray-300 bg-white px-3"
                   onChange={(event) => void mutate(() => updateUser(row.id, { role: event.target.value as ManagedUser["role"], active: row.isActive }), "User role updated.")}>
                   {(assignable.includes(row.role) ? assignable : [row.role, ...assignable]).map((role) => <option key={role}>{role}</option>)}</select></td>
-                <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${row.isActive ? "bg-green-100 text-green-800" : "bg-gray-200 text-gray-700"}`}>{row.isActive ? "Active" : "Inactive"}</span></td>
-                <td className="px-4 py-3"><div className="flex flex-wrap gap-2">
+                <td data-label="Status" className="flex items-center justify-between gap-3 border-t border-gray-100 py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-gray-600 md:table-cell md:border-0 md:px-4 md:py-3 md:before:content-none"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${row.isActive ? "bg-green-100 text-green-800" : "bg-gray-200 text-gray-700"}`}>{row.isActive ? "Active" : "Inactive"}</span></td>
+                <td className="block border-t border-gray-100 pt-3 md:table-cell md:border-0 md:px-4 md:py-3"><div className="flex flex-wrap gap-2">
                   {!self && <button type="button" disabled={busy} className={actionClass} aria-label={`${row.isActive ? "Deactivate" : "Activate"} ${row.username}`}
                     onClick={() => void mutate(() => updateUser(row.id, { role: row.role, active: !row.isActive }), row.isActive ? "User deactivated." : "User activated.")}>{row.isActive ? "Deactivate" : "Activate"}</button>}
                   <button type="button" disabled={busy} className={actionClass} aria-label={`Reset password for ${row.username}`}

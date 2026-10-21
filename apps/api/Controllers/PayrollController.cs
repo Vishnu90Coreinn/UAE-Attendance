@@ -9,7 +9,7 @@ namespace HrPayroll.Api.Controllers;
 [ApiController]
 [TypeFilter(typeof(PayrollConflictFilter))]
 [Route("api/payroll")]
-public sealed class PayrollController(PayrollService payroll, PayrollPdf pdf) : ControllerBase
+public sealed class PayrollController(PayrollService payroll, PayrollPdf pdf, PayslipService payslips) : ControllerBase
 {
     [HttpGet]
     [Authorize(Policy = Policies.ManagerOrAdmin)]
@@ -33,6 +33,34 @@ public sealed class PayrollController(PayrollService payroll, PayrollPdf pdf) : 
         catch (PdfTextNotSupportedException)
         {
             return Problem(statusCode: 422, title: "This PDF supports English text. Update unsupported characters or use Print for this report.");
+        }
+    }
+
+    [HttpGet("{month}/payslips/pdf")]
+    [Authorize(Policy = Policies.ManagerOrAdmin)]
+    public async Task<IActionResult> AllPayslips(string month, CancellationToken ct) => await PayslipFile(month, null, ct);
+
+    [HttpGet("{month}/payslips/{workerId:int}/pdf")]
+    [Authorize(Policy = Policies.ManagerOrAdmin)]
+    public async Task<IActionResult> Payslip(string month, int workerId, CancellationToken ct) => await PayslipFile(month, workerId, ct);
+
+    private async Task<IActionResult> PayslipFile(string month, int? workerId, CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "no-store";
+        if (!PayrollService.TryMonth(month, out var start)) return InvalidMonth();
+        try
+        {
+            var result = await payslips.GetAsync(start, workerId, ct);
+            return result.StatusCode switch
+            {
+                200 => File(result.Pdf!, "application/pdf", result.FileName),
+                404 => NotFound(),
+                _ => Problem(statusCode: 409, title: result.Message ?? "Payslips are not available. Reload and try again."),
+            };
+        }
+        catch (PdfTextNotSupportedException)
+        {
+            return Problem(statusCode: 422, title: "Payslips support English text. Update names or notes that use other scripts.");
         }
     }
 

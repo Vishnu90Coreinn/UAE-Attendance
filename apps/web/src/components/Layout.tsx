@@ -11,10 +11,10 @@ import { HealthChip } from "./HealthChip";
 import { navItemsForRole } from "./navItems";
 
 const headerButtonClass =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-600 px-3 text-sm font-medium text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300";
+  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-slate-600 px-2 text-xs font-medium text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 sm:gap-2 sm:px-3 sm:text-sm";
 
 const tabClass =
-  "inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-5 text-sm font-medium focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-300";
+  "inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-3 text-sm font-medium focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-300 sm:px-5";
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -58,20 +58,24 @@ export function Layout() {
       </a>
 
       <header className="bg-slate-900 text-white shadow-md">
-        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:py-4">
           <div className="min-w-0 max-w-full">
-            <h1 className="break-words text-lg font-bold leading-tight">
+            <h1 className="break-words text-base font-bold leading-tight sm:text-lg">
               {companySettings?.companyName ?? COMPANY_NAME}
             </h1>
-            <p className="break-words text-xs text-blue-300">
+            <p className="hidden break-words text-xs text-blue-300 sm:block">
               {companySettings?.tagline ?? "Official HR & Payroll System"}
             </p>
           </div>
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <HealthChip />
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+              <HealthChip />
+              {user && (
+                <p className="min-w-0 break-words text-xs text-slate-100 sm:text-sm">{`Logged in as ${user.username} (${user.role})`}</p>
+              )}
+            </div>
             {user && (
-              <>
-                <p className="min-w-0 break-words text-sm text-slate-100">{`Logged in as ${user.username} (${user.role})`}</p>
+              <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:gap-3">
                 {isManagement(user.role) && (
                   <Link to="/users" className={headerButtonClass}>
                     <UsersRound aria-hidden="true" size={16} />
@@ -94,7 +98,7 @@ export function Layout() {
                   <LogOut aria-hidden="true" size={16} />
                   Sign out
                 </button>
-              </>
+              </div>
             )}
           </div>
         </div>
@@ -104,7 +108,7 @@ export function Layout() {
         aria-label="Main"
         className="border-b border-slate-700 bg-slate-800 text-white shadow-sm"
       >
-        <div className="mx-auto flex w-full max-w-7xl overflow-x-auto px-4">
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap px-2 sm:flex-nowrap sm:overflow-x-auto sm:px-4">
           {tabs.map((item) =>
             item.path ? (
               <NavLink
