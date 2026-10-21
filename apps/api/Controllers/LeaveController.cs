@@ -1,0 +1,48 @@
+using HrPayroll.Api.Auth;
+using HrPayroll.Api.Dtos;
+using HrPayroll.Api.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HrPayroll.Api.Controllers;
+
+[ApiController]
+[Route("api/leave")]
+public sealed class LeaveController(LeaveService leave) : ControllerBase
+{
+    [HttpGet]
+    [Authorize(Policy = Policies.AnyUser)]
+    public async Task<IActionResult> List([FromQuery] string? status, [FromQuery] string? workerId, CancellationToken ct) => Map(await leave.ListAsync(status, workerId, ct));
+
+    /// <summary>Supervisors raise leave; the Manager decides it.</summary>
+    [HttpPost]
+    [Authorize(Policy = Policies.SupervisorOrAbove)]
+    public async Task<IActionResult> Create(CreateLeaveRequest request, CancellationToken ct) => Map(await leave.CreateAsync(request, User.Identity!.Name!, ct));
+
+    /// <summary>Only a Manager or the Administrator decides leave, so a supervisor can never approve even their own request.</summary>
+    [HttpPost("{id:int}/approve")]
+    [Authorize(Policy = Policies.ManagerOrAdmin)]
+    public async Task<IActionResult> Approve(int id, CancellationToken ct) => Map(await leave.ChangeAsync(id, "Approved", User.Identity!.Name!, CanDeleteAny(), ct));
+
+    [HttpPost("{id:int}/reject")]
+    [Authorize(Policy = Policies.ManagerOrAdmin)]
+    public async Task<IActionResult> Reject(int id, CancellationToken ct) => Map(await leave.ChangeAsync(id, "Rejected", User.Identity!.Name!, CanDeleteAny(), ct));
+
+    /// <summary>A Manager or the Administrator deletes any request; a supervisor only their own request while it is pending.</summary>
+    [HttpDelete("{id:int}")]
+    [Authorize(Policy = Policies.SupervisorOrAbove)]
+    public async Task<IActionResult> Delete(int id, CancellationToken ct) => Map(await leave.ChangeAsync(id, null, User.Identity!.Name!, CanDeleteAny(), ct));
+
+    private bool CanDeleteAny() => User.IsInRole(Roles.Manager) || User.IsInRole(Roles.Administrator);
+
+    private IActionResult Map(LeaveResult r) => r.StatusCode switch
+    {
+        200 => Ok(r.Value),
+        201 => StatusCode(201, r.Value),
+        204 => NoContent(),
+        400 => ValidationProblem(new ValidationProblemDetails(r.Errors!)),
+        403 => Problem(statusCode: 403, title: "You can delete only your own pending leave requests."),
+        404 => Problem(statusCode: 404, title: "Leave request not found."),
+        _ => Problem(statusCode: 409, title: "Leave overlaps another request or another change is in progress. Reload and try again."),
+    };
+}

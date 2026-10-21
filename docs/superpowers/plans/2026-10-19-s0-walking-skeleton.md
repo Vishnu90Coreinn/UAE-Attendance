@@ -10,7 +10,7 @@
 
 **Master plan:** `docs/superpowers/plans/2026-10-19-hr-payroll-vertical-slices.md` (slice S0).
 
-> **Verified.** Every code block below was built and run in a scratch copy on 2026-10-19 on this machine (.NET SDK 10.0.300, Node 24.14, LocalDB): 18 API tests pass, 15 web tests pass, `tsc` and `vite build` are clean, and the page was checked in a browser against the live API. Expected outputs below are from those runs; durations and timestamps will differ.
+> **Verified.** Every code block below was built and run in a scratch copy on 2026-10-19 on this machine (.NET SDK 10.0.300, Node 24.14, LocalDB): 18 API tests pass, 16 web tests pass, `tsc` and `vite build` are clean, and the page was checked in a browser against the live API. Expected outputs below are from those runs; durations and timestamps will differ.
 
 ---
 
@@ -58,6 +58,7 @@ Expected: only `docs/` untracked, no commits yet. All remaining commands run fro
 ```
 .editorconfig  .gitattributes  .gitignore  .env.example  global.json  README.md  HrPayroll.sln
 .claude/launch.json
+docs/design-system.md
 apps/
   api/
     HrPayroll.Api.csproj  Program.cs  appsettings.json  appsettings.Development.json
@@ -554,6 +555,8 @@ public class ExceptionHandlingMiddlewareTests
         Assert.DoesNotContain("InvalidOperationException", body);
 
         using var json = JsonDocument.Parse(body);
+        var propertyNames = json.RootElement.EnumerateObject().Select(property => property.Name).Order().ToArray();
+        Assert.Equal(["correlationId", "status", "title", "type"], propertyNames);
         Assert.Equal(500, json.RootElement.GetProperty("status").GetInt32());
         Assert.Equal("An unexpected error occurred.", json.RootElement.GetProperty("title").GetString());
         Assert.Equal("test-correlation-id", json.RootElement.GetProperty("correlationId").GetString());
@@ -699,6 +702,7 @@ namespace HrPayroll.Api.Tests.Helpers;
 /// Creates a throw-away SQL Server database, applies the real EF migrations to it, and drops it
 /// afterwards. Uses LocalDB by default; set TEST_SQL_CONNECTION to point at another SQL Server
 /// (the Database/Initial Catalog part is ignored).
+/// A remote server with an untrusted certificate needs TrustServerCertificate=True in that string.
 /// </summary>
 public sealed class TestDatabase : IAsyncLifetime
 {
@@ -712,7 +716,8 @@ public sealed class TestDatabase : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var serverConnection = Environment.GetEnvironmentVariable("TEST_SQL_CONNECTION") ?? DefaultServerConnection;
+        var configured = Environment.GetEnvironmentVariable("TEST_SQL_CONNECTION");
+        var serverConnection = string.IsNullOrWhiteSpace(configured) ? DefaultServerConnection : configured;
         _masterConnectionString = new SqlConnectionStringBuilder(serverConnection) { InitialCatalog = "master" }.ConnectionString;
         ConnectionString = new SqlConnectionStringBuilder(serverConnection) { InitialCatalog = _databaseName }.ConnectionString;
 
@@ -727,7 +732,7 @@ public sealed class TestDatabase : IAsyncLifetime
     {
         SqlConnection.ClearAllPools();
         await ExecuteOnMasterAsync(
-            $"ALTER DATABASE [{_databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{_databaseName}];");
+            $"IF DB_ID(N'{_databaseName}') IS NOT NULL BEGIN ALTER DATABASE [{_databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{_databaseName}]; END");
     }
 
     private async Task ExecuteOnMasterAsync(string sql)
@@ -789,6 +794,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 Create `apps/api/Data/DesignTimeDbContextFactory.cs`:
 
 ```csharp
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -813,6 +819,9 @@ public sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<App
         var connectionString = configuration.GetConnectionString("Default")
             ?? throw new InvalidOperationException(
                 "ConnectionStrings:Default is not configured. Set the ConnectionStrings__Default environment variable.");
+
+        var target = new SqlConnectionStringBuilder(connectionString);
+        Console.WriteLine($"EF design-time target: server '{target.DataSource}', database '{target.InitialCatalog}'.");
 
         var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
         return new AppDbContext(options);
@@ -1712,6 +1721,13 @@ describe("Layout", () => {
     expect(screen.getByText("page content")).toBeInTheDocument();
     expect(screen.getByText("health chip")).toBeInTheDocument();
   });
+
+  it("offers a skip link that targets the main content", () => {
+    renderLayout();
+
+    expect(screen.getByRole("link", { name: "Skip to main content" })).toHaveAttribute("href", "#main");
+    expect(screen.getByRole("main")).toHaveAttribute("id", "main");
+  });
 });
 ```
 
@@ -1785,6 +1801,13 @@ import { NAV_ITEMS } from "./navItems";
 export function Layout() {
   return (
     <div className="flex min-h-screen flex-col bg-gray-100 text-gray-800">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-slate-900 focus:shadow"
+      >
+        Skip to main content
+      </a>
+
       <header className="bg-slate-900 text-white shadow-md">
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4">
           <div>
@@ -1802,7 +1825,7 @@ export function Layout() {
               key={item.key}
               type="button"
               disabled
-              className="whitespace-nowrap border-b-2 border-transparent px-5 py-3 text-sm font-medium text-gray-400 disabled:cursor-not-allowed"
+              className="min-h-11 whitespace-nowrap border-b-2 border-transparent px-5 text-sm font-medium text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-300 disabled:cursor-not-allowed"
             >
               {item.label}
             </button>
@@ -1810,7 +1833,7 @@ export function Layout() {
         </div>
       </nav>
 
-      <main className="mx-auto w-full max-w-7xl flex-grow px-4 py-6">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-grow px-4 py-6">
         <Outlet />
       </main>
     </div>
@@ -1819,6 +1842,8 @@ export function Layout() {
 ```
 
 The company name is a literal here for now; a later slice reads it from `PayrollSettings`.
+
+The skip link, 44px tabs and focus rings come from the ui-ux-pro-max rules in `docs/design-system.md`.
 
 - [ ] **Step 5: Implement the pages, app routes and entry point**
 
@@ -1896,7 +1921,7 @@ npm test
 npm run lint
 npm run build
 ```
-Expected: `Test Files  5 passed (5)`, `Tests  15 passed (15)`; `tsc --noEmit` prints nothing; the build prints `✓ 31 modules transformed.` and writes `dist/` (ignored by git).
+Expected: `Test Files  5 passed (5)`, `Tests  16 passed (16)`; `tsc --noEmit` prints nothing; the build prints `✓ 31 modules transformed.` and writes `dist/` (ignored by git).
 
 - [ ] **Step 7: Commit**
 
@@ -1977,7 +2002,7 @@ dotnet build
 dotnet test
 cd apps/web && npm ci && npm test && npm run lint && npm run build
 ```
-Expected: build `0 Warning(s) 0 Error(s)`; `Passed: 18`; web `Tests  15 passed (15)`; lint and build clean.
+Expected: build `0 Warning(s) 0 Error(s)`; `Passed: 18`; web `Tests  16 passed (16)`; lint and build clean.
 
 - [ ] **Step 2: Check each Definition-of-Done item from the master plan**
 
@@ -2009,7 +2034,7 @@ Push and merge are the repository owner's call; do not push without being asked.
 
 ## Self-review
 
-**Master-plan coverage (S0 task list):** solution and three projects → Tasks 2, 8 · `AppDbContext`, env-var connection string, first migration → Tasks 5, 6 · health endpoint, Serilog, correlation id, exception handling → Tasks 3, 4, 6 · web `Layout` with five disabled nav items, typed client, health chip → Tasks 9–11 · health integration test against real SQL Server, one Vitest render test (delivered as 15) → Tasks 5, 6, 9–11 · `.gitignore`, `.editorconfig`, README, `.env.example` → Task 1.
+**Master-plan coverage (S0 task list):** solution and three projects → Tasks 2, 8 · `AppDbContext`, env-var connection string, first migration → Tasks 5, 6 · health endpoint, Serilog, correlation id, exception handling → Tasks 3, 4, 6 · web `Layout` with five disabled nav items, typed client, health chip → Tasks 9–11 · health integration test against real SQL Server, one Vitest render test (delivered as 16) → Tasks 5, 6, 9–11 · `.gitignore`, `.editorconfig`, README, `.env.example` → Task 1.
 
 **Placeholder scan:** none; every code step contains the full file.
 

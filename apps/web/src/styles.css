@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 15mm;
+  }
+  html,
+  body,
+  #root {
+    background: white !important;
+    color: #111 !important;
+  }
+  #root > div > header,
+  #root > div > nav,
+  #root > div > a,
+  dialog,
+  .payroll-controls {
+    display: none !important;
+  }
+  #root > div,
+  main,
+  .payroll-page {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .payroll-report {
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+  .payroll-letterhead {
+    break-inside: avoid;
+  }
+  .payroll-table-scroll {
+    overflow: visible !important;
+  }
+  .payroll-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed;
+    font-size: 9pt !important;
+  }
+  .payroll-table th,
+  .payroll-table td {
+    padding: 7pt 4pt !important;
+    overflow-wrap: anywhere;
+  }
+  .payroll-table td {
+    white-space: normal !important;
+  }
+  .payroll-table thead {
+    display: table-header-group;
+  }
+  .payroll-table tfoot {
+    display: table-row-group;
+  }
+  .payroll-table tr {
+    break-inside: avoid;
+  }
+  .payroll-signatures {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 24pt;
+    break-inside: avoid;
+  }
+}

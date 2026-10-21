@@ -22,6 +22,14 @@ coverage/
 !.env.example
 appsettings.Production.json
 appsettings.*.local.json
+*.pfx
+*.pem
+*.key
+
+# Database files and backups
+*.bak
+*.mdf
+*.ldf
 
 # Local tooling and editors
 .idea/

@@ -6,7 +6,7 @@
 
 **Architecture:** One ASP.NET Core Web API (controllers → services → EF Core → SQL Server) and one React + TypeScript SPA, mirroring the layout of the existing TimeSheet app (`apps/api`, `apps/web`, `apps/api.tests`). All money and payroll arithmetic lives in one server-side `PayrollCalculator`; the browser never decides a payable amount.
 
-**Tech Stack:** net10.0, ASP.NET Core Web API, EF Core 10 + SQL Server, JWT bearer auth, Serilog, QuestPDF, xUnit; React 19, TypeScript 5.9, Vite 8, Tailwind CSS 4, React Router 7, Vitest 5. (Versions as pinned and verified in the S0 plan; EF Core 10 replaces the EF Core 9 first drafted here, to match the .NET 10 SDK.)
+**Tech Stack:** net10.0, ASP.NET Core Web API, EF Core 10 + SQL Server, JWT bearer auth, Serilog, PdfPig, xUnit; React 19, TypeScript 5.9, Vite 8, Tailwind CSS 4, React Router 7, Vitest 5. (Versions as pinned and verified in the S0 plan; EF Core 10 replaces the EF Core 9 first drafted here, to match the .NET 10 SDK.)
 
 **Sources:** `Design.html` (functional reference), quotation QTN-HR-2026-001 v2 (contract scope), the project handover.
 
@@ -64,12 +64,12 @@ Everything the prototype does, including behaviour that is only implied by its c
 | P3 | Grand totals row | KEEP | Sum of the rounded rows |
 | P4 | Letterhead: company, tagline, email, "Monthly Payroll Report", month | KEEP | |
 | P5 | Print button (`window.print`, print-only CSS) | KEEP | |
-| P6 | Export PDF (`html2pdf`, rasterised in the browser) | REPLACE | Server-generated PDF (QuestPDF), selectable text, identical on every machine |
+| P6 | Export PDF (`html2pdf`, rasterised in the browser) | REPLACE | Server-generated PDF (PdfPig; owner requested a free alternative on 2026-10-20), selectable text, identical on every machine |
 | P7 | Signature blocks: "Prepared By: HR Department", "Approved By: General Manager" | KEEP | Labels from `PayrollSettings` |
 | P8 | File name `Payroll_YYYY-MM.pdf` | KEEP | |
 | P9 | Pay uses each worker's current rate, so history changes when a rate changes | FIX | Month can be finalised: figures frozen in a snapshot |
 | P10 | Overtime rate hardcoded `2.22` in code | FIX | `PayrollSettings.OvertimeRatePerHour` |
-| P11 | Column titled "Total Net Salary" but it is basic + OT only | FIX | Relabel "Total Salary" (no deductions exist) — confirm wording |
+| P11 | Column titled "Total Net Salary" (basic + OT only; no deductions exist) | KEEP | Owner decision 2026-10-20: keep the prototype wording "Total Net Salary" |
 
 ### Leave Management
 
@@ -117,7 +117,7 @@ Everything the prototype does, including behaviour that is only implied by its c
 |----|----------|---------------------------|
 | O1 | "Mark all present (8 h)" button on the attendance screen. Fills the form; nothing is saved until Save day. Keeps the prototype's convenience without the silent default | Not built |
 | O2 | "Show inactive workers" toggle in the directory | Built (needed if deactivation is chosen) |
-| O3 | Administrator settings screen for overtime rate and company details | Not built. Values live in `PayrollSettings`; changing them is a developer task. The quote treats rule changes as change requests |
+| O3 | Administrator settings screen for overtime rate and company details | **Approved 2026-10-20 — built as slice S2b**, together with an optional per-worker overtime rate that overrides the company rate. (Worker hourly rate was already editable per worker in S2.) |
 
 **Not delivering (quote exclusions and YAGNI).**
 Leave accrual or entitlement balances · deductions, advances, loans · public-holiday rules · WPS file export · biometric, WhatsApp or any third-party integration · multi-company or multi-tenant · import of existing worker/attendance records · user training · native mobile app · email notifications · password-reset by email · MFA · audit-log screen · report builder or Excel export · attendance calendar or bulk-month entry.
@@ -130,7 +130,7 @@ Leave accrual or entitlement balances · deductions, advances, loans · public-h
 
 | ID | Decision | Recommendation | Reason |
 |----|----------|----------------|--------|
-| D1 | PDF generation | Server-side with QuestPDF | The TimeSheet app already uses it; the prototype's browser PDF is a rasterised JPEG. Check QuestPDF's Community licence terms apply to this business |
+| D1 | PDF generation | Server-side with PdfPig 0.1.16 | Owner requested a free alternative on 2026-10-20; preserves selectable text without a revenue-based PDF licence. Supersedes QuestPDF. English prototype scope confirmed; fonts are embedded. |
 | D2 | Authentication | JWT bearer, 8-hour expiry, no refresh tokens, `PasswordHasher` (PBKDF2) | Same pattern as TimeSheet; no refresh-token machinery for a small internal tool |
 | D3 | Schema deviations from the handover's suggested list | Drop `Roles` (3 fixed roles → a checked column); drop `EmployeePayRates` (rate snapshot at finalise + audited changes cover the need); name the table `Workers` to match the UI | Fewer tables to build and test. Say so if you want them back |
 | D4 | Attendance save model | One batch `PUT` per day, explicit Save | Autosave per keystroke hides failures |
@@ -218,10 +218,10 @@ UAE-Attendance/
 | `Users` | Id, Username, PasswordHash, Role, IsActive, FailedLoginCount, LockoutEndUtc, CreatedUtc | Unique `Username` (case-insensitive); `Role` check in (Administrator, HR Staff, Viewer) | S1 |
 | `AuditLogs` | Id, TimestampUtc, ActorUsername, Action, EntityType, EntityId, DetailsJson | No FK to Users (survives user deletion) | S1 |
 | `PayrollSettings` | Id (=1), CompanyName, Tagline, ContactEmail, OvertimeRatePerHour, MaxBasicHoursPerDay, ShiftDescription, PreparedByLabel, ApprovedByLabel | Single-row check | S2 |
-| `Workers` | Id, WorkerCode, FullName, Designation, HourlyRate, IsActive, CreatedUtc, UpdatedUtc | Unique `WorkerCode` (case-insensitive); `HourlyRate` > 0 | S2 |
+| `Workers` | Id, WorkerCode, FullName, Designation, HourlyRate, **OvertimeRate (nullable)**, IsActive, CreatedUtc, UpdatedUtc | Unique `WorkerCode` (case-insensitive); `HourlyRate` > 0; `OvertimeRate` is NULL (= company rate) or ≥ 0 (added in S2b) | S2 / S2b |
 | `Attendance` | Id, WorkerId, WorkDate, Status, BasicHours, OvertimeHours, UpdatedUtc, UpdatedBy | Unique (`WorkerId`, `WorkDate`); `Status` in (Present, Absent); hours ≥ 0; absent ⇒ hours 0; index on `WorkDate`; FK restrict | S3 |
-| `PayrollPeriods` | Id, Year, Month, OvertimeRateApplied, FinalisedUtc, FinalisedBy | Unique (`Year`, `Month`). A row exists only for finalised months | S5 |
-| `PayrollDetails` | Id, PeriodId, WorkerId, WorkerCode, WorkerName, Designation, HourlyRate, DaysWorked, BasicHours, OvertimeHours, BasicPay, OvertimePay, TotalPay | FK `PeriodId` cascade; unique (`PeriodId`, `WorkerId`) | S5 |
+| `PayrollPeriods` | Id, Year, Month, OvertimeRateApplied, FinalisedUtc, FinalisedBy, CompanyName, Tagline, ContactEmail, PreparedByLabel, ApprovedByLabel | Unique (`Year`, `Month`). A row exists only for finalised months. Letterhead is frozen with figures | S5 |
+| `PayrollDetails` | Id, PeriodId, WorkerId, WorkerCode, WorkerName, Designation, HourlyRate, **OvertimeRate** (the effective rate used), DaysWorked, BasicHours, OvertimeHours, BasicPay, OvertimePay, TotalPay | FK `PeriodId` cascade; unique (`PeriodId`, `WorkerId`) | S5 |
 | `LeaveRequests` | Id, WorkerId, LeaveType, StartDate, EndDate, Days, Status, CreatedBy, CreatedUtc, DecidedBy, DecidedUtc | Check `EndDate >= StartDate`; `LeaveType` in the four types; `Status` in (Pending, Approved, Rejected); FK restrict | S6 |
 
 ---
@@ -233,14 +233,14 @@ These rules are implemented once in `PayrollCalculator` and covered by `docs/pay
 | # | Rule |
 |---|------|
 | R1 | Daily basic pay = `BasicHours × WorkerHourlyRate`, rounded to 2 dp (half away from zero) |
-| R2 | Daily overtime pay = `OvertimeHours × OvertimeRatePerHour`, rounded to 2 dp |
+| R2 | Daily overtime pay = `OvertimeHours × effective overtime rate`, rounded to 2 dp. Effective rate = the worker's own `OvertimeRate` if set, otherwise the company `OvertimeRatePerHour` from `PayrollSettings` (both user-editable from S2b) |
 | R3 | Daily total = R1 + R2. **Absent or Not recorded = 0.00** |
 | R4 | Days worked = count of days with Status = Present |
 | R5 | Month basic / OT / total = sum of the rounded daily figures; grand totals = sum of the rounded worker rows |
 | R6 | Present requires basic hours > 0. Absent forces both hours to 0 |
 | R7 | Basic hours ≤ `MaxBasicHoursPerDay` (8). Basic + overtime ≤ 24 |
 | R8 | A finalised month rejects any attendance write for a date inside it (HTTP 409) |
-| R9 | Draft payroll uses the worker's current rate and the current overtime rate. Finalising copies both into the snapshot; the finalised view and PDF read only the snapshot |
+| R9 | Draft payroll uses the worker's current hourly rate and current effective overtime rate, so a rate change recalculates every month that is **not finalised**. Finalising copies both rates (per worker) into the snapshot; the finalised view and PDF read only the snapshot |
 | R10 | Payroll lists every active worker, plus any inactive worker with attendance in that month |
 | R11 | Leave days = `EndDate − StartDate + 1` (calendar days). End before start is rejected. A worker cannot have two overlapping non-rejected requests |
 
@@ -318,6 +318,16 @@ A slice is complete only when a user can do the thing in the browser, backed by 
 - [ ] Web: `features/workers` list, form with client-side validation mirroring server rules, role-aware buttons
 - [ ] `utils/money.ts` formatter (2 dp, "AED")
 
+### S2b — Settings and overtime rates (0.5–0.75 day; added 2026-10-20, built before S3)
+
+**Why:** the owner wants the salary and overtime amounts to be user-defined. A worker's hourly rate is already editable (S2); the overtime rate was fixed at AED 2.22. This slice makes overtime configurable at two levels so `PayrollCalculator` (S3) is built on final rules.
+
+**Demo:** the Administrator opens **Settings**, changes the company overtime rate from 2.22 to 2.50 and saves; on a worker, sets an overtime rate of 3.00 (blank = company rate); the worker list shows the effective overtime rate; HR Staff and Viewer cannot open Settings or change the company rate.
+
+**Rules:** `PUT /api/settings/payroll` (**Administrator only**; reads stay `AnyUser`) updates `companyName`, `tagline`, `contactEmail`, `overtimeRatePerHour` (0–999.99, ≤ 2 dp), `maxBasicHoursPerDay` (> 0, ≤ 24), `shiftDescription`, `preparedByLabel`, `approvedByLabel`; every field validated and trimmed; an audit row `SettingsChanged` holds only changed fields as `{old,new}`; nothing changed → no audit row. `Workers.OvertimeRate` nullable decimal(9,2), NULL or ≥ 0 (0 = no overtime pay); create/update accept an optional `overtimeRate` (blank/null = use the company rate); changes are audited like the hourly rate; worker JSON gains `overtimeRate` (nullable) and `effectiveOvertimeRate`. Migration `AddOvertimeRates`. R2/R9 as above.
+**UI:** a **Settings** tab (Administrator only) with labelled fields, a note "Changing the overtime rate recalculates every month that is not finalised", success/error feedback; the worker form gets "Overtime rate (AED/hr) — optional" with the hint "Leave blank to use the company rate (X)"; the worker table gets an "Overtime Rate (AED/hr)" column showing the value or "Company rate (X)".
+**Tests:** role matrix for the PUT (HR/Viewer 403), validation matrix, audit rows, worker override round-trip, constraint (negative override rejected), existing worker tests keep passing, web tests for the Settings screen, tab visibility by role and the worker form/table changes.
+
 ### S3 — Daily attendance (1–1.5 days)
 
 **Demo:** pick a date, mark workers Present with hours and overtime, see live pay, save; reopen the date and the values persist; an unrecorded worker shows "Not recorded" and 0.00; basic hours of 9 are refused.
@@ -346,11 +356,13 @@ A slice is complete only when a user can do the thing in the browser, backed by 
 **Tasks**
 - [ ] Tests first: month aggregation against the worked month example; R10 worker listing; zero-attendance worker shows 0 days and 0.00; totals equal sum of rows; PDF endpoint returns `application/pdf` with a non-empty body and the right filename
 - [ ] `PayrollCalculator.MonthSummary`; `PayrollService.GetDraft(month)`
-- [ ] `PayrollPdfBuilder` (QuestPDF): letterhead, table, totals, Prepared By / Approved By blocks, page numbers, A4 portrait
+- [ ] `PayrollPdf` (PdfPig): letterhead, table, totals, Prepared By / Approved By blocks, page numbers, A4 portrait
 - [ ] Web: `features/payroll` report component; `@media print` rules hiding everything except the report
 - [ ] Manually compare screen, print preview and PDF for the same month; numbers must be identical
 
 ### S5 — Finalise and lock a month (0.5–1 day)
+
+**Completed:** `slice/s5-finalise`; see [S5 report](../../reports/s5-finalise.md) and [implementation plan](2026-10-20-s5-finalise.md). POST requires the displayed report revision; reopening requires a trimmed reason of 1–500 characters. Transactions use shared/exclusive SQL month locks to coordinate report/attendance access with finalisation.
 
 **Demo:** Administrator finalises October; the report shows "Finalised" with who and when; change a worker's rate and the October report does not move; try to edit October attendance and get a clear refusal; Administrator reopens with a reason.
 
@@ -359,11 +371,11 @@ A slice is complete only when a user can do the thing in the browser, backed by 
 **UI:** Finalise button with a confirm dialog that restates the totals; "Finalised by {user} on {date}" banner; Reopen action with a reason field; attendance screen shows a lock notice for finalised dates.
 
 **Tasks**
-- [ ] Tests first: snapshot equals the draft at the moment of finalising; later rate change leaves the snapshot untouched (R9); attendance write inside a finalised month → 409 (R8); finalising twice → 409; future month → 400; reopen requires `AdminOnly` and a reason; reopen and re-finalise produces new figures
-- [ ] Entities, migration; the finalise service runs in a single SQL transaction
-- [ ] Replace the S3 stub with the real lock check
-- [ ] Audit rows for finalise and reopen (reopen stores the previous totals in `DetailsJson`)
-- [ ] Web: finalised state in the report, lock notices
+- [x] Tests first: snapshot equals the draft at the moment of finalising; later rate change leaves the snapshot untouched (R9); attendance write inside a finalised month → 409 (R8); finalising twice → 409; future month → 400; reopen requires `AdminOnly` and a reason; reopen and re-finalise produces new figures
+- [x] Entities, migration; the finalise service runs in a single SQL transaction
+- [x] Replace the S3 stub with the real lock check
+- [x] Audit rows for finalise and reopen (reopen stores the previous totals in `DetailsJson`)
+- [x] Web: finalised state in the report, lock notices
 - [ ] Confirm C5 or proceed on defaults
 
 ### S6 — Leave management (0.75–1 day)
@@ -451,7 +463,7 @@ Roughly 7–11 engineering days. The handover's 6–9 days holds only if the gen
 | Client changes payroll rules mid-build | Rework, cost | Quote section 3 makes it a change request; rules are isolated in `PayrollCalculator` and test vectors |
 | Browser and server pay calculations drift | Screen shows a different amount from the report | One JSON vector file tested in both xUnit and Vitest; server value is authoritative |
 | SQL Server Express has no scheduled backups | Quote promises daily backups | Decide the mechanism in T-H; test a restore in S8 |
-| QuestPDF licence terms | Compliance | Check Community licence eligibility before S4 |
+| PDF font coverage | English prototype scope | Embedded Noto Sans; unsupported glyphs return a clear error; complex scripts excluded by owner |
 | Generated code quality varies | Hidden bugs | TDD per slice, role-matrix tests, review each slice before merge |
 | Existing data must be entered by someone | Client expects it done | Quote excludes it; say so explicitly at the demonstration |
 
