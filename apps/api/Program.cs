@@ -9,6 +9,7 @@ using HrPayroll.Api.Middleware;
 using HrPayroll.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
@@ -216,6 +217,44 @@ using (var scope = app.Services.CreateScope())
     await scope.ServiceProvider.GetRequiredService<AdminSeeder>().SeedWhenReadyAsync();
 }
 
+// Behind a load balancer (for example an AWS ALB that terminates HTTPS) the real client IP and scheme arrive in
+// X-Forwarded-* headers. Off by default: enable it only when the server is reachable solely through that proxy,
+// because it trusts those headers from any caller.
+if (app.Configuration.GetValue<bool>("Hosting:BehindProxy"))
+{
+    var forwarded = new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    };
+    forwarded.KnownIPNetworks.Clear();
+    forwarded.KnownProxies.Clear();
+    app.UseForwardedHeaders(forwarded);
+}
+
+// A published build carries the web app in wwwroot, so one site serves both the API and the UI (no CORS needed).
+// Hashed files under /assets never change and cache for a year; the entry page, manifest and service worker must
+// always revalidate so a new release (and a changed service worker) reaches users promptly.
+var webRoot = app.Environment.WebRootPath;
+var hasWebApp = webRoot is not null && File.Exists(Path.Combine(webRoot, "index.html"));
+var webFileOptions = new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        context.Context.Response.Headers.CacheControl = context.Context.Request.Path.StartsWithSegments("/assets")
+            ? "public,max-age=31536000,immutable"
+            : "no-cache";
+    },
+};
+if (hasWebApp)
+{
+    app.UseDefaultFiles();
+    app.UseStaticFiles(webFileOptions);
+}
+
+// Routing is placed explicitly, after the static files: the host would otherwise add it first, and an already-matched
+// fallback endpoint would shadow the files above.
+app.UseRouting();
+
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseSerilogRequestLogging();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
@@ -224,6 +263,12 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+if (hasWebApp)
+{
+    // Client-side routes (/payroll, /leave, ...) load the app shell; unknown /api paths stay a plain 404.
+    app.MapFallbackToFile("{*path:regex(^(?!api(/|$)).*$)}", "index.html", webFileOptions).AllowAnonymous();
+}
 
 app.Run();
 

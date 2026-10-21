@@ -116,6 +116,11 @@ See `.env.example`. Production must set `ConnectionStrings__Default` and `Jwt__K
 
 .NET does not read `.env` files. `.env.example` only documents the variables; set them in the real environment (IIS/service settings, or `$env:NAME = "value"` in PowerShell).
 
+## Deploying
+
+Production on Windows Server + IIS (AWS) is covered in [docs/DEPLOY.md](docs/DEPLOY.md). CI (`.github/workflows/ci.yml`)
+tests every pull request and, on `master`, builds a ready-to-copy IIS release (`./scripts/publish-iis.ps1`).
+
 ## Database migrations
 
 ```bash
