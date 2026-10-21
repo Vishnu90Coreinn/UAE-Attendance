@@ -16,7 +16,6 @@ import {
 import { NavLink, useLocation } from "react-router-dom";
 import type { CurrentUser } from "../api/auth";
 import { Dialog } from "./Dialog";
-import { HealthChip } from "./HealthChip";
 import { phoneNavFor, type NavItem } from "./navItems";
 
 const ICONS: Record<string, LucideIcon> = {
@@ -173,9 +172,6 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
         {user && (
           <div className="mt-2 space-y-3">
             <p className="break-words text-sm text-gray-700">{`Logged in as ${user.username} (${user.role})`}</p>
-            <div className="inline-flex rounded-lg bg-slate-900 px-3 py-2">
-              <HealthChip />
-            </div>
             <div className="space-y-1">
               <button
                 type="button"

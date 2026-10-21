@@ -11,7 +11,6 @@ import { AuthProvider, TOKEN_STORAGE_KEY } from "../contexts/AuthContext";
 import { mockViewport, restoreViewport } from "../test-viewport";
 import { Layout } from "./Layout";
 
-vi.mock("./HealthChip", () => ({ HealthChip: () => <div>health chip</div> }));
 vi.mock("../api/auth");
 vi.mock("../api/settings");
 vi.mock("../api/attendance");
@@ -137,7 +136,7 @@ describe("Layout on a phone", () => {
     expect(screen.getByRole("button", { name: "More" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("shows who is signed in and the system status in the account menu", async () => {
+  it("shows who is signed in in the account menu", async () => {
     await renderPhone("Supervisor", "sup.omar");
     const user = userEvent.setup();
 
@@ -145,7 +144,6 @@ describe("Layout on a phone", () => {
 
     const sheet = await screen.findByRole("dialog", { name: "Account" });
     expect(within(sheet).getByText("Logged in as sup.omar (Supervisor)")).toBeInTheDocument();
-    expect(within(sheet).getByText("health chip")).toBeInTheDocument();
   });
 
   it("signs out from the account menu", async () => {

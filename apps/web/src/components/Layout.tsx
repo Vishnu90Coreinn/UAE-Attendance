@@ -7,16 +7,15 @@ import { isManagement } from "../permissions";
 import { useAuth } from "../contexts/AuthContext";
 import { ChangePasswordDialog } from "../features/auth/ChangePasswordDialog";
 import { useAttendanceSummary } from "../features/attendance/useAttendanceSummary";
-import { HealthChip } from "./HealthChip";
 import { useIsDesktop } from "../utils/useIsDesktop";
 import { navItemsForRole } from "./navItems";
 import { PhoneShell } from "./PhoneShell";
 
 const headerButtonClass =
-  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-slate-600 px-2 text-xs font-medium text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 sm:gap-2 sm:px-3 sm:text-sm";
+  "inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg border border-slate-600 px-2 text-xs font-medium text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 sm:gap-2 sm:px-3 sm:text-sm";
 
 const tabClass =
-  "inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-3 text-sm font-medium focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-300 sm:px-5";
+  "inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-2.5 text-sm font-medium focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-300 lg:px-3 xl:px-5";
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -91,7 +90,6 @@ export function Layout() {
           </div>
           <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-              <HealthChip />
               {user && (
                 <p className="min-w-0 break-words text-xs text-slate-100 sm:text-sm">{`Logged in as ${user.username} (${user.role})`}</p>
               )}
@@ -99,26 +97,30 @@ export function Layout() {
             {user && (
               <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:gap-3">
                 {isManagement(user.role) && (
-                  <Link to="/users" className={headerButtonClass}>
+                  <Link to="/users" className={headerButtonClass} aria-label="User Access" title="User Access">
                     <UsersRound aria-hidden="true" size={16} />
-                    User Access
+                    <span className="hidden xl:inline">User Access</span>
                   </Link>
                 )}
                 <button
                   type="button"
                   onClick={() => setChangePasswordOpen(true)}
                   className={headerButtonClass}
+                  aria-label="Change password"
+                  title="Change password"
                 >
                   <KeyRound aria-hidden="true" size={16} />
-                  Change password
+                  <span className="hidden xl:inline">Change password</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleSignOut}
                   className={headerButtonClass}
+                  aria-label="Sign out"
+                  title="Sign out"
                 >
                   <LogOut aria-hidden="true" size={16} />
-                  Sign out
+                  <span className="hidden xl:inline">Sign out</span>
                 </button>
               </div>
             )}
@@ -130,7 +132,7 @@ export function Layout() {
         aria-label="Main"
         className="border-b border-slate-700 bg-slate-800 text-white shadow-sm"
       >
-        <div className="mx-auto flex w-full max-w-7xl flex-wrap px-2 sm:flex-nowrap sm:overflow-x-auto sm:px-4">
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap px-2 sm:flex-nowrap sm:overflow-x-auto sm:px-2 lg:px-4">
           {tabs.map((item) =>
             item.path ? (
               <NavLink

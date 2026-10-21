@@ -58,7 +58,10 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-100 px-4 py-8 text-gray-800">
-      <h1 className="max-w-md text-center text-lg font-bold leading-tight text-slate-900">{COMPANY_NAME}</h1>
+      <div className="flex flex-col items-center gap-4">
+        <img src="/icons/icon-192.png" alt="" width={72} height={72} className="size-[72px] rounded-2xl bg-white shadow-sm" />
+        <h1 className="max-w-md text-center text-lg font-bold leading-tight text-slate-900">{COMPANY_NAME}</h1>
+      </div>
 
       <div className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex items-center gap-3">
