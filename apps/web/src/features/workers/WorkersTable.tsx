@@ -36,6 +36,7 @@ function ActionButton({
   worker,
   tone,
   disabled,
+  iconOnlyOnPhone = false,
   onClick,
 }: {
   icon: LucideIcon;
@@ -43,6 +44,7 @@ function ActionButton({
   worker: Worker;
   tone: string;
   disabled: boolean;
+  iconOnlyOnPhone?: boolean;
   onClick: (worker: Worker) => void;
 }) {
   return (
@@ -56,7 +58,7 @@ function ActionButton({
     >
       <Icon aria-hidden="true" size={16} />
       {/* Shown in the phone card layout; icon-only from md to xl; the aria-label above keeps the accessible name. */}
-      <span className="md:hidden xl:inline">{label}</span>
+      <span className={iconOnlyOnPhone ? "max-md:hidden xl:inline" : "md:hidden xl:inline"}>{label}</span>
     </button>
   );
 }
@@ -99,8 +101,8 @@ function WorkerRow({
       </td>
       {actions && (
         <td className="px-4 py-2 md:table-cell md:p-3 xl:p-4">
-          {/* Phone: Edit and Deactivate share a row; the destructive Delete sits apart on its own full-width row. */}
-          <div className="grid grid-cols-2 gap-2 md:flex md:flex-nowrap md:justify-end">
+          {/* Phone: Edit and Deactivate share a row with an icon-only Delete at the end, keeping the card short. */}
+          <div className="grid grid-cols-[1fr_1fr_auto] gap-2 md:flex md:flex-nowrap md:justify-end">
             <ActionButton
               icon={Pencil}
               label="Edit"
@@ -133,8 +135,9 @@ function WorkerRow({
               label="Delete"
               worker={worker}
               disabled={busy}
+              iconOnlyOnPhone
               onClick={actions.onDelete}
-              tone="border-red-200 bg-red-50 text-red-700 hover:bg-red-100 max-md:col-span-2 max-md:bg-white max-md:hover:bg-red-50"
+              tone="border-red-200 bg-red-50 text-red-700 hover:bg-red-100 max-md:bg-white max-md:hover:bg-red-50"
             />
           </div>
         </td>

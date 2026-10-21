@@ -17,6 +17,15 @@ if (typeof HTMLDialogElement !== "undefined" && typeof HTMLDialogElement.prototy
   };
 }
 
+// jsdom has no ResizeObserver, which the chart library uses to size itself.
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
 afterEach(() => {
   cleanup();
 });

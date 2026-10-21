@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   Download,
   LockKeyhole,
-  Printer,
   RefreshCw,
   UnlockKeyhole,
 } from "lucide-react";
@@ -168,69 +167,54 @@ export function PayrollPage() {
       if (mounted.current) setExporting(false);
     }
   }
-  function print() {
-    if (!ready || stale || busy || dialog) return;
-    try {
-      window.print();
-    } catch (reason) {
-      setError(failure(reason));
-    }
-  }
-
   return (
     <section className="payroll-page min-w-0 space-y-4">
       <div className="payroll-controls space-y-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Payroll Summary</h2>
           <p className="mt-1 text-sm text-gray-600">
-            Review monthly pay, then print or export the report.
+            Review monthly pay, then export the report.
           </p>
         </div>
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="max-sm:w-full">
-            <label
-              htmlFor="payroll-month"
-              className="mb-1 block text-sm font-medium text-gray-800"
-            >
-              Payroll month
-            </label>
-            <input
-              type="month"
-              id="payroll-month"
-              value={month}
-              disabled={busy || !!dialog}
-              onChange={(event) => {
-                if (event.target.value) setMonth(event.target.value);
-              }}
-              className="min-h-11 rounded-lg border border-gray-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-            />
-          </div>
-          {/* Phone: Export PDF leads as the full-width primary action; the rest share two columns below it. */}
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+          <div className="flex items-end gap-2 max-sm:w-full">
+            <div className="min-w-0 max-sm:flex-1">
+              <label
+                htmlFor="payroll-month"
+                className="mb-1 block text-sm font-medium text-gray-800"
+              >
+                Payroll month
+              </label>
+              <input
+                type="month"
+                id="payroll-month"
+                value={month}
+                disabled={busy || !!dialog}
+                onChange={(event) => {
+                  if (event.target.value) setMonth(event.target.value);
+                }}
+                className="min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+              />
+            </div>
             <button
               type="button"
               onClick={() => setAttempt((value) => value + 1)}
               disabled={loading || busy || !!dialog}
-              className={secondaryButtonClass}
+              aria-label="Reload report"
+              title="Reload report"
+              className={`${secondaryButtonClass} size-11 shrink-0 !px-0`}
             >
-              <RefreshCw aria-hidden="true" size={16} />
-              Reload report
+              <RefreshCw aria-hidden="true" size={18} />
             </button>
-            <button
-              type="button"
-              onClick={print}
-              disabled={!ready || stale || busy || !!dialog}
-              className={secondaryButtonClass}
-            >
-              <Printer aria-hidden="true" size={16} />
-              Print
-            </button>
+          </div>
+          {/* Phone: Export PDF and Finalise month are full-width actions under the month picker. */}
+          <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap">
             <button
               type="button"
               onClick={exportPdf}
               disabled={!ready || stale || busy || !!dialog}
               aria-busy={exporting}
-              className={`${primaryButtonClass} disabled:cursor-not-allowed disabled:opacity-60 max-sm:order-first max-sm:col-span-2`}
+              className={`${primaryButtonClass} disabled:cursor-not-allowed disabled:opacity-60 max-sm:order-first`}
             >
               <Download aria-hidden="true" size={16} />
               {exporting ? "Exporting..." : "Export PDF"}
@@ -250,7 +234,7 @@ export function PayrollPage() {
                   !!dialog ||
                   (report?.status !== "Finalised" && future)
                 }
-                className={`${secondaryButtonClass} max-sm:col-span-2`}
+                className={secondaryButtonClass}
               >
                 {report?.status === "Finalised" ? (
                   <UnlockKeyhole aria-hidden="true" size={16} />
@@ -311,6 +295,15 @@ export function PayrollPage() {
                 </button>
               </div>
             )}
+            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:hidden">
+              <p className="text-xs font-semibold uppercase text-gray-600">Total net payroll (AED)</p>
+              <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">
+                {report.totals.netPay.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              <p className="mt-1 text-sm text-gray-600">
+                {report.lines.length} {report.lines.length === 1 ? "worker" : "workers"} · {report.status}
+              </p>
+            </div>
             <PayrollReport
               report={report}
               onPayslip={isManagement(user?.role) ? (id) => downloadPayslips(id) : undefined}

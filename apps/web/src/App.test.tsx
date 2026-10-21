@@ -142,12 +142,11 @@ describe("App", () => {
     expect(leaveApi.listLeave).not.toHaveBeenCalled();
   });
   it.each(["Administrator", "Manager"] as const)(
-    "allows %s to print/export and finalise payroll",
+    "allows %s to export and finalise payroll",
     async (role) => {
       signInWithStoredToken(role);
       renderAt("/payroll");
       expect(await screen.findByRole("table")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Print" })).toBeEnabled();
       expect(screen.getByRole("button", { name: "Export PDF" })).toBeEnabled();
       expect(
         screen.getByRole("button", { name: "Finalise month" }),
@@ -267,17 +266,39 @@ describe("App", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("opens the Worker Directory at the root when signed in", async () => {
-    signInWithStoredToken();
+  it.each(["Administrator", "Manager"] as const)("opens the Dashboard at the root for %s", async (role) => {
+    signInWithStoredToken(role);
+    vi.mocked(attendanceApi.getAttendanceSummary).mockResolvedValue({
+      submittedTotal: 3,
+      submitted: [{ date: "2026-10-19", count: 3 }],
+      rejectedTotal: 0,
+      rejected: [],
+    });
     renderAt("/");
 
+    // The first visit loads the chart library on demand, which can take longer than the default wait.
     expect(
-      await screen.findByRole("heading", { name: "Worker Directory" }),
+      await screen.findByRole("heading", { name: /^Good (morning|afternoon|evening), / }, { timeout: 10000 }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
+    expect(await screen.findByText("Across 1 day")).toBeInTheDocument();
+  });
+
+  it("opens the Worker Directory at the root for a Supervisor, who has no dashboard", async () => {
+    signInWithStoredToken("Supervisor");
+    renderAt("/");
+
+    expect(await screen.findByRole("heading", { name: "Worker Directory" })).toBeInTheDocument();
     expect(workersApi.listWorkers).toHaveBeenCalledWith(false);
-    expect(
-      screen.getByRole("link", { name: "Worker Directory" }),
-    ).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
+  });
+
+  it("refuses the Dashboard to a Supervisor without loading its figures", async () => {
+    signInWithStoredToken("Supervisor");
+    renderAt("/dashboard");
+
+    expect(await screen.findByText("You do not have access to this page")).toBeInTheDocument();
+    expect(payrollApi.getPayroll).not.toHaveBeenCalled();
   });
 
   it("serves the Worker Directory at /workers inside the layout", async () => {
@@ -355,13 +376,13 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
-  it("redirects a signed-in visit to /login to the Worker Directory", async () => {
+  it("redirects a signed-in visit to /login to the home screen", async () => {
     signInWithStoredToken();
     renderAt("/login");
 
-    expect(
-      await screen.findByRole("heading", { name: "Worker Directory" }),
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: /^Good (morning|afternoon|evening), / })).toBeInTheDocument(),
+    );
   });
 
   it("returns to the originally requested page after signing in", async () => {

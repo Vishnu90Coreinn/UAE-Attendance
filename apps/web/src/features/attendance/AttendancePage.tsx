@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Save } from "lucide-react";
+import { Check, CheckCheck, ChevronLeft, ChevronRight, Save } from "lucide-react";
 import {
   approveAttendance,
   getAttendance,
@@ -32,6 +32,7 @@ import {
   changed,
   formFromRow,
   formInput,
+  previewPay,
   validateHours,
   type AttendanceForm,
 } from "./attendanceForm";
@@ -84,6 +85,23 @@ export function AttendancePage({
   const editable = !!user && !day?.isFinalised;
   const unsaved = day ? forms.filter((form, index) => changed(form, day.rows[index])).length : 0;
   const dirty = unsaved > 0;
+  const present = forms.filter((form) => form.status === "Present").length;
+  const absent = forms.filter((form) => form.status === "Absent").length;
+  const notRecorded = forms.length - present - absent;
+  const totalPay =
+    showPay && day && settings
+      ? day.rows.reduce(
+          (sum, row, index) =>
+            sum + (previewPay(row, forms[index], settings.maxBasicHoursPerDay, settings.overtimeRatePerHour) ?? 0),
+          0,
+        )
+      : null;
+  const canMarkAll =
+    editable &&
+    !!day &&
+    day.rows.some(
+      (row, index) => forms[index]?.status === null && (isManager || row.record?.approvalStatus !== "Approved"),
+    );
   const isDesktop = useIsDesktop();
   const List = isDesktop ? AttendanceTable : AttendanceCards;
 
@@ -127,6 +145,19 @@ export function AttendancePage({
     setForms((current) =>
       current.map((form) =>
         form.workerId === workerId ? { ...form, ...patch } : form,
+      ),
+    );
+    setSuccess(null);
+    setError(null);
+  }
+  /** Sets every worker who has no status yet to Present on the standard shift; recorded workers are left alone. */
+  function markAllPresent() {
+    if (!day || !settings) return;
+    setForms((current) =>
+      current.map((form, index) =>
+        form.status === null && (isManager || day.rows[index].record?.approvalStatus !== "Approved")
+          ? { ...form, status: "Present", basicHours: String(settings.maxBasicHoursPerDay), overtimeHours: "0" }
+          : form,
       ),
     );
     setSuccess(null);
@@ -292,6 +323,14 @@ export function AttendancePage({
               >
                 <ChevronRight aria-hidden="true" size={20} />
               </button>
+              <button
+                type="button"
+                disabled={pending || date === today()}
+                onClick={() => changeDate(today())}
+                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Today
+              </button>
             </div>
           )}
         </div>
@@ -375,6 +414,25 @@ export function AttendancePage({
                   <Check aria-hidden="true" size={16} />
                   Approve all ({day.pendingCount})
                 </button>
+              </div>
+            )}
+            {day.rows.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm">
+                <p className="font-medium text-gray-800">
+                  {present} present · {absent} absent · {notRecorded} not recorded
+                  {totalPay !== null && <span className="block font-semibold tabular-nums text-gray-900 sm:inline sm:before:content-['_·_']">{totalPay.toFixed(2)} AED</span>}
+                </p>
+                {canMarkAll && (
+                  <button
+                    type="button"
+                    onClick={markAllPresent}
+                    disabled={pending}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-green-700 bg-white px-4 font-semibold text-green-800 hover:bg-green-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:cursor-not-allowed disabled:opacity-60 max-sm:w-full"
+                  >
+                    <CheckCheck aria-hidden="true" size={16} />
+                    Mark all present
+                  </button>
+                )}
               </div>
             )}
             {day.rows.length ? (

@@ -187,8 +187,8 @@ export function LeavePage() {
           </button>
         )}
       </div>
-      <div className="flex flex-wrap gap-4">
-        <label className="flex max-w-full flex-col text-sm font-medium">
+      <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:gap-4">
+        <label className="flex min-w-0 max-w-full flex-col text-sm font-medium">
           Filter by status
           <select
             value={status}
@@ -202,7 +202,7 @@ export function LeavePage() {
             ))}
           </select>
         </label>
-        <label className="flex max-w-full flex-col text-sm font-medium">
+        <label className="flex min-w-0 max-w-full flex-col text-sm font-medium">
           Filter by worker
           <select
             value={workerId}

@@ -14,7 +14,7 @@ interface Props {
   onDelete: (row: LeaveRequest) => void;
 }
 const actionClass =
-  "inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-gray-300 px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-60 max-md:only:col-span-2";
+  "inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-gray-300 px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-60 max-md:flex-1";
 const statusClass = {
   Pending: "bg-amber-100 text-amber-900",
   Approved: "bg-green-100 text-green-900",
@@ -81,13 +81,22 @@ export function LeaveTable({
                   </span>
                 </span>
               </th>
-              <td data-label="Leave type" className={`${cellClass} md:whitespace-nowrap`}>
+              <td
+                data-label="Leave type"
+                className={`${cellClass} md:whitespace-nowrap`}
+              >
                 {row.leaveType}
               </td>
-              <td data-label="Start" className={`${cellClass} tabular-nums md:whitespace-nowrap`}>
+              <td
+                data-label="Start"
+                className={`${cellClass} tabular-nums md:whitespace-nowrap`}
+              >
                 {row.startDate}
               </td>
-              <td data-label="End" className={`${cellClass} tabular-nums md:whitespace-nowrap`}>
+              <td
+                data-label="End"
+                className={`${cellClass} tabular-nums md:whitespace-nowrap`}
+              >
                 {row.endDate}
               </td>
               <td data-label="Days" className={`${cellClass} tabular-nums`}>
@@ -102,42 +111,42 @@ export function LeaveTable({
               </td>
               {showActions && (
                 <td className="px-4 py-2 md:table-cell">
-                  {/* Phone: Approve and Reject share a row; Delete sits apart on its own full-width row. */}
-                  <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
-                    {manage && (
-                      <>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => onApprove(row)}
-                          className={`${actionClass} text-green-800`}
-                          aria-label={`Approve leave for ${row.workerName} starting ${row.startDate}`}
-                        >
-                          <Check aria-hidden="true" size={16} />
-                          Approve
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => onReject(row)}
-                          className={`${actionClass} text-red-700`}
-                          aria-label={`Reject leave for ${row.workerName} starting ${row.startDate}`}
-                        >
-                          <X aria-hidden="true" size={16} />
-                          Reject
-                        </button>
-                      </>
+                  {/* Phone: decision buttons share a row with an icon-only Delete; a decided request offers only the opposite decision. */}
+                  <div className="flex gap-2 md:flex-wrap">
+                    {manage && row.status !== "Approved" && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => onApprove(row)}
+                        className={`${actionClass} text-green-800`}
+                        aria-label={`Approve leave for ${row.workerName} starting ${row.startDate}`}
+                      >
+                        <Check aria-hidden="true" size={16} />
+                        Approve
+                      </button>
+                    )}
+                    {manage && row.status !== "Rejected" && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => onReject(row)}
+                        className={`${actionClass} text-red-700`}
+                        aria-label={`Reject leave for ${row.workerName} starting ${row.startDate}`}
+                      >
+                        <X aria-hidden="true" size={16} />
+                        Reject
+                      </button>
                     )}
                     {canDelete(row) && (
                       <button
                         type="button"
                         disabled={busy}
                         onClick={() => onDelete(row)}
-                        className={`${actionClass} text-red-700 max-md:col-span-2`}
+                        className={`${actionClass} text-red-700 max-md:w-11 max-md:flex-none max-md:px-0`}
                         aria-label={`Delete leave for ${row.workerName} starting ${row.startDate}`}
                       >
                         <Trash2 aria-hidden="true" size={16} />
-                        Delete
+                        <span className="max-md:hidden">Delete</span>
                       </button>
                     )}
                   </div>

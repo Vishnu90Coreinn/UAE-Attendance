@@ -59,7 +59,6 @@ beforeEach(() => {
   vi.mocked(api.getPayrollPdf).mockResolvedValue(
     new Blob(["%PDF-1.7"], { type: "application/pdf" }),
   );
-  vi.spyOn(window, "print").mockImplementation(() => {});
   vi.stubGlobal(
     "URL",
     Object.assign(URL, {
@@ -80,11 +79,10 @@ async function loaded() {
   await screen.findByRole("table");
   return user;
 }
-it("shows loading and prevents print/export until ready", () => {
+it("shows loading and prevents export until ready", () => {
   vi.mocked(api.getPayroll).mockReturnValue(new Promise(() => {}));
   render(<PayrollPage />);
   expect(screen.getByText("Loading payroll...")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Print" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Export PDF" })).toBeDisabled();
 });
 it("uses the current UAE month at the UTC month boundary", async () => {
@@ -128,11 +126,10 @@ it("renders the server's report, exact column labels, totals and signature block
   expect(screen.getByText("Signature & Date")).toBeInTheDocument();
   expect(screen.getByText("Signature & Stamp")).toBeInTheDocument();
 });
-it("prints the same displayed report", async () => {
-  const user = await loaded();
-  await user.click(screen.getByRole("button", { name: "Print" }));
-  expect(window.print).toHaveBeenCalledOnce();
-  expect(screen.getAllByText("2,222.20")).toHaveLength(2);
+it("shows the total net payroll in the phone summary as well as the report", async () => {
+  await loaded();
+  expect(screen.queryByRole("button", { name: "Print" })).not.toBeInTheDocument();
+  expect(screen.getAllByText("2,222.20")).toHaveLength(3);
 });
 it("exports the visible period/revision and names the downloaded file", async () => {
   const user = await loaded();
@@ -154,7 +151,6 @@ it("keeps report visible when export fails, and requests reload for a revision c
     "Payroll changed. Reload the report before exporting.",
   );
   expect(screen.getByRole("table")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Print" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Export PDF" })).toBeDisabled();
   await user.click(screen.getByRole("button", { name: "Reload report" }));
   await screen.findByRole("table");
@@ -214,7 +210,7 @@ it("renders an empty report with zero totals and explanation", async () => {
   });
   await loaded();
   expect(screen.getByText("No workers for this month.")).toBeInTheDocument();
-  expect(screen.getAllByText("0.00")).toHaveLength(4);
+  expect(screen.getAllByText("0.00")).toHaveLength(5);
 });
 it("locks month and duplicate export while downloading", async () => {
   let resolve!: (value: Blob) => void;
@@ -361,7 +357,6 @@ it("disables conflicting controls and dismissal while finalising", async () => {
     }),
   );
   expect(screen.getByLabelText("Payroll month")).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Print" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Export PDF" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
   await user.keyboard("{Escape}");
