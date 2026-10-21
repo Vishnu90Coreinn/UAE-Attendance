@@ -4,7 +4,6 @@ using System.Text.RegularExpressions;
 using HrPayroll.Api.Dtos;
 using Microsoft.Extensions.Configuration;
 using UglyToad.PdfPig.Content;
-using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Writer;
 
 namespace HrPayroll.Api.Services;
@@ -14,8 +13,8 @@ public sealed class PdfTextNotSupportedException(Exception inner) : Exception("T
 /// <summary>A4 payroll report with the company letterhead, embedded openly licensed fonts and selectable text.</summary>
 public sealed class PayrollPdf(IConfiguration? configuration = null)
 {
-    private const double Left = 36;
-    private const double Right = 559;
+    private const double Left = PdfLetterhead.Left;
+    private const double Right = PdfLetterhead.Right;
 
     public byte[] Generate(PayrollResponse report)
     {
@@ -33,111 +32,72 @@ public sealed class PayrollPdf(IConfiguration? configuration = null)
         var logo = PdfText.Asset("logo.png");
         var details = PdfText.Letterhead(configuration, report.Company.ContactEmail);
         var pages = new List<PdfPageBuilder>();
-        PdfPageBuilder page = null!;
+        PdfCanvas cv = null!;
         double y = 0;
         // Columns fill the 523pt text width.
         double[] widths = [118, 100, 46, 66, 58, 66, 69];
         string[] headers = ["Worker Name", "Designation", "Days Worked", "Basic Pay", "OT Pay", "Deductions", "Total Net Salary"];
 
-        List<string> Wrap(string text, double width, double size, PdfDocumentBuilder.AddedFont font)
-        {
-            var result = new List<string>();
-            var normalized = Regex.Replace(text, @"\s+", " ").Trim();
-            var current = "";
-            double Measure(string value) => page.MeasureText(value, size, new PdfPoint(0, 0), font)
-                .Select(l => l.BoundingBox.Right).DefaultIfEmpty(0).Max();
-            foreach (var word in normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-            {
-                var candidate = current.Length == 0 ? word : current + " " + word;
-                if (Measure(candidate) <= width) { current = candidate; continue; }
-                if (current.Length > 0) { result.Add(current); current = ""; }
-                // Only a single word wider than its column is split within the word.
-                foreach (var character in word)
-                {
-                    candidate = current + character;
-                    if (Measure(candidate) > width && current.Length > 0)
-                    { result.Add(current); current = character.ToString(); }
-                    else current = candidate;
-                }
-            }
-            result.Add(current.TrimEnd());
-            return result;
-        }
-
-        void Text(string text, double x, double baseline, double size = 8, bool strong = false, PdfStyle.Rgb? color = null)
-        {
-            page.SetTextAndFillColor(color ?? PdfStyle.Ink);
-            page.AddText(PdfText.Flatten(text), size, new PdfPoint(x, baseline), strong ? bold : regular);
-        }
-        double Width(string text, double size, bool strong) => page.MeasureText(PdfText.Flatten(text), size, new PdfPoint(0, 0), strong ? bold : regular)
-            .Select(l => l.BoundingBox.Right).DefaultIfEmpty(0).Max();
-        void RightText(string text, double rightEdge, double baseline, double size = 8, bool strong = false, PdfStyle.Rgb? color = null) =>
-            Text(text, rightEdge - Width(text, size, strong), baseline, size, strong, color);
-        void Fill(double x, double bottom, double width, double height, PdfStyle.Rgb color)
-        {
-            page.SetTextAndFillColor(color);
-            page.DrawRectangle(new PdfPoint(x, bottom), width, height, 0, true);
-        }
-        void Rule(double x1, double x2, double at, double width, PdfStyle.Rgb color)
-        {
-            page.SetStrokeColor(color.R, color.G, color.B);
-            page.DrawLine(new PdfPoint(x1, at), new PdfPoint(x2, at), width);
-            page.ResetColor();
-        }
-
         void Header()
         {
-            // Letterhead: logo, company identity on the left; report title and status on the right.
-            page.AddPng(logo, new PdfRectangle(Left, 742, Left + 100, 807));
-            Text(report.Company.CompanyName, 148, 800, 13, true, PdfStyle.Teal);
-            Text(report.Company.Tagline, 148, 786, 8.5, false, PdfStyle.Muted);
-            Text(details.Address1, 148, 773, 7.8, false, PdfStyle.Muted);
-            Text(details.Address2, 148, 762, 7.8, false, PdfStyle.Muted);
-            Text(details.Contact, 148, 751, 7.8, false, PdfStyle.Muted);
-            RightText($"Month: {report.Period}", Right, 784, 13, true);
-            var statusWidth = Width(report.Status.ToUpperInvariant(), 7.5, true) + 18;
-            var finalised = report.Status == "Finalised";
-            Fill(Right - statusWidth, 762, statusWidth, 14, finalised ? PdfStyle.Teal : PdfStyle.Amber);
-            page.SetTextAndFillColor(PdfStyle.White);
-            page.AddText(report.Status.ToUpperInvariant(), 7.5, new PdfPoint(Right - statusWidth + 9, 766), bold);
-            Rule(Left, Right, 740, 2.2, PdfStyle.Teal);
-            y = 722;
-            Text("MONTHLY PAYROLL REPORT", Left, y, 11, true, PdfStyle.Teal);
-            y -= 18;
-            if (report.FinalisedBy is not null && report.FinalisedUtc is { } finalisedUtc)
+            var rule = PdfLetterhead.Draw(cv, logo, report.Company, details, "PAYROLL REPORT", $"Month: {report.Period}", report.Status.ToUpperInvariant());
+
+            // Summary strip: the four figures a reader looks for first.
+            var top = rule - 16;
+            const double stripHeight = 42;
+            var totals = report.Totals;
+            cv.Fill(Left, top - stripHeight, Right - Left, stripHeight, PdfStyle.Panel);
+            string[] labels = ["WORKERS", "GROSS PAY (AED)", "DEDUCTIONS (AED)", "NET PAYABLE (AED)"];
+            string[] values =
+            [
+                report.Lines.Count.ToString(CultureInfo.InvariantCulture), PdfText.Number(totals.TotalPay),
+                PdfText.Number(totals.TotalDeductions), PdfText.Number(totals.NetPay),
+            ];
+            var cellWidth = (Right - Left) / labels.Length;
+            for (var i = 0; i < labels.Length; i++)
             {
-                Text($"Finalised by {report.FinalisedBy} on {PdfText.CompanyTime(finalisedUtc):dd MMM yyyy HH:mm} (UAE)", Left, y, 8, false, PdfStyle.Muted);
-                y -= 16;
+                var x = Left + i * cellWidth;
+                cv.Text(labels[i], x + 12, top - 16, 6.8, true, PdfStyle.Muted);
+                cv.Text(values[i], x + 12, top - 33, 12.5, true, i == labels.Length - 1 ? PdfStyle.Teal : PdfStyle.Ink);
+                if (i > 0) cv.VRule(x, top - stripHeight + 9, top - 9, 0.5, PdfStyle.Hairline);
             }
-            y -= 6;
+
+            y = top - stripHeight - 16;
+            var note = report.FinalisedBy is not null && report.FinalisedUtc is { } finalisedUtc
+                ? $"Finalised by {report.FinalisedBy} on {PdfText.CompanyTime(finalisedUtc):dd MMM yyyy HH:mm} (UAE)"
+                : "Draft: figures are provisional until the month is finalised.";
+            cv.Text(cv.Fit(note, 380, 7.8), Left, y, 7.8, false, PdfStyle.Muted);
+            cv.RightText("All amounts in AED", Right, y, 7.8, false, PdfStyle.Muted);
+            y -= 12;
             TableHeading();
         }
 
         void TableHeading()
         {
-            var height = 24.0;
+            const double height = 28;
             if (y - height < 100) { NewPage(); return; }
-            Fill(Left, y - height, Right - Left, height, PdfStyle.Teal);
+            cv.Fill(Left, y - height, Right - Left, height, PdfStyle.Panel);
             var x = Left;
-            for (var c = 0; c < headers.Length; c++)
+            for (var col = 0; col < headers.Length; col++)
             {
-                var text = headers[c];
-                var lines = Wrap(text, widths[c] - 8, 8.5, bold);
+                var lines = cv.Wrap(headers[col], widths[col] - 8, 8, true);
                 for (var l = 0; l < lines.Count; l++)
                 {
-                    var baseline = y - 10 - l * 11;
-                    if (c >= 2) RightText(lines[l], x + widths[c] - 4, baseline, 8.5, true, PdfStyle.White);
-                    else Text(lines[l], x + 4, baseline, 8.5, true, PdfStyle.White);
+                    var baseline = y - 11 - l * 10;
+                    if (col >= 2) cv.RightText(lines[l], x + widths[col] - 4, baseline, 8, true);
+                    else cv.Text(lines[l], x + 4, baseline, 8, true);
                 }
-                x += widths[c];
+                x += widths[col];
             }
             y -= height;
+            cv.Rule(Left, Right, y, 1.2, PdfStyle.Teal);
         }
 
         void NewPage()
         {
-            page = document.AddPage(PageSize.A4);
+            var page = document.AddPage(PageSize.A4);
             pages.Add(page);
+            cv = new PdfCanvas(page, regular, bold);
             if (pages.Count == 1)
             {
                 y = 820;
@@ -145,11 +105,11 @@ public sealed class PayrollPdf(IConfiguration? configuration = null)
                 return;
             }
             // Continuation pages carry a slim running header instead of the full letterhead.
-            page.AddPng(logo, new PdfRectangle(Left, 790, Left + 52, 823));
-            Text(report.Company.CompanyName, 96, 806, 9, true, PdfStyle.Teal);
-            Text($"Monthly Payroll Report, {report.Period} (continued)", 96, 795, 8, false, PdfStyle.Muted);
-            Rule(Left, Right, 780, 1, PdfStyle.Teal);
-            y = 766;
+            cv.Image(logo, Left, 792, Left + 46, 822);
+            cv.Text(cv.Fit(report.Company.CompanyName, 400, 9, true), 94, 808, 9, true, PdfStyle.Teal);
+            cv.Text($"Payroll Report, Month: {report.Period} (continued)", 94, 796, 7.8, false, PdfStyle.Muted);
+            PdfLetterhead.Accent(cv, 784);
+            y = 770;
             TableHeading();
         }
 
@@ -163,76 +123,71 @@ public sealed class PayrollPdf(IConfiguration? configuration = null)
                 PdfText.Number(line.BasicPay), PdfText.Number(line.OvertimePay),
                 PdfText.Number(line.TotalDeductions), PdfText.Number(line.NetPay),
             };
-            var wrapped = cells.Select((v, i) => Wrap(v, widths[i] - 8, 8.5, regular)).ToArray();
-            var rowHeight = wrapped.Max(c => c.Count) * 11 + 10;
+            var wrapped = cells.Select((v, i) => cv.Wrap(v, widths[i] - 8, 8.5)).ToArray();
+            var rowHeight = wrapped.Max(w => w.Count) * 11 + 10;
             if (y - rowHeight < 100)
             {
                 NewPage();
                 rowIndex = 0;
             }
-            if (rowIndex % 2 == 1) Fill(Left, y - rowHeight, Right - Left, rowHeight, PdfStyle.Stripe);
+            if (rowIndex % 2 == 1) cv.Fill(Left, y - rowHeight, Right - Left, rowHeight, PdfStyle.Stripe);
             var x = Left;
-            for (var c = 0; c < wrapped.Length; c++)
+            for (var col = 0; col < wrapped.Length; col++)
             {
-                var strong = c == wrapped.Length - 1;
-                for (var l = 0; l < wrapped[c].Count; l++)
+                var strong = col == wrapped.Length - 1;
+                for (var l = 0; l < wrapped[col].Count; l++)
                 {
                     var baseline = y - 13 - l * 11;
-                    if (c >= 2) RightText(wrapped[c][l], x + widths[c] - 4, baseline, 8.5, strong);
-                    else Text(wrapped[c][l], x + 4, baseline, 8.5, strong);
+                    if (col >= 2) cv.RightText(wrapped[col][l], x + widths[col] - 4, baseline, 8.5, strong);
+                    else cv.Text(wrapped[col][l], x + 4, baseline, 8.5, strong);
                 }
-                x += widths[c];
+                x += widths[col];
             }
             y -= rowHeight;
-            Rule(Left, Right, y, 0.4, PdfStyle.Hairline);
+            cv.Rule(Left, Right, y, 0.4, PdfStyle.Hairline);
             rowIndex++;
         }
 
-        // Totals row, then the net salary box.
-        var totals = report.Totals;
+        // Totals row, closed with an accounting-style double rule.
+        var grand = report.Totals;
         var totalCells = new[]
         {
-            "TOTAL PAYROLL", "", totals.DaysWorked.ToString(CultureInfo.InvariantCulture),
-            PdfText.Number(totals.BasicPay), PdfText.Number(totals.OvertimePay),
-            PdfText.Number(totals.TotalDeductions), PdfText.Number(totals.NetPay),
+            "TOTAL PAYROLL", "", grand.DaysWorked.ToString(CultureInfo.InvariantCulture),
+            PdfText.Number(grand.BasicPay), PdfText.Number(grand.OvertimePay),
+            PdfText.Number(grand.TotalDeductions), PdfText.Number(grand.NetPay),
         };
         if (y - 26 < 150) NewPage();
-        Fill(Left, y - 24, Right - Left, 24, PdfStyle.TealTint);
-        Rule(Left, Right, y, 1.2, PdfStyle.Teal);
+        cv.Fill(Left, y - 24, Right - Left, 24, PdfStyle.Panel);
+        cv.Rule(Left, Right, y, 1.2, PdfStyle.Teal);
         var tx = Left;
-        for (var c = 0; c < totalCells.Length; c++)
+        for (var col = 0; col < totalCells.Length; col++)
         {
-            if (c == 0) Text(totalCells[c], tx + 4, y - 15, 8.5, true, PdfStyle.Teal);
-            else if (c >= 2) RightText(totalCells[c], tx + widths[c] - 4, y - 15, 8.5, true);
-            tx += widths[c];
+            if (col == 0) cv.Text(totalCells[col], tx + 4, y - 15, 8.5, true, PdfStyle.Teal);
+            else if (col >= 2) cv.RightText(totalCells[col], tx + widths[col] - 4, y - 15, 8.5, true, col == totalCells.Length - 1 ? PdfStyle.Teal : PdfStyle.Ink);
+            tx += widths[col];
         }
         y -= 24;
-        Rule(Left, Right, y, 1.2, PdfStyle.Teal);
-
-        y -= 26;
-        if (y < 200) NewPage();
-        Fill(Left, y - 30, Right - Left, 34, PdfStyle.TealTint);
-        Text("TOTAL NET SALARY (AED)", Left + 10, y - 19, 9, true, PdfStyle.Teal);
-        RightText(PdfText.Number(totals.NetPay), Right - 10, y - 20, 13, true, PdfStyle.Teal);
-        y -= 66;
+        cv.Rule(Left, Right, y, 0.6, PdfStyle.Teal);
+        cv.Rule(Left, Right, y - 2.4, 0.6, PdfStyle.Teal);
 
         // Signatures.
-        if (y < 150) NewPage();
-        Text("Prepared By: " + report.Company.PreparedByLabel, Left, y, 9, true);
-        Text("Approved By: " + report.Company.ApprovedByLabel, 310, y, 9, true);
-        y -= 46;
-        Rule(Left, 266, y, 0.6, PdfStyle.Ink);
-        Rule(310, Right, y, 0.6, PdfStyle.Ink);
-        Text("Signature & Date", Left, y - 13, 8, false, PdfStyle.Muted);
-        Text("Signature & Stamp", 310, y - 13, 8, false, PdfStyle.Muted);
+        y -= 44;
+        if (y < 130) NewPage();
+        var signatureLine = y - 30;
+        cv.Rule(Left, 266, signatureLine, 0.6, PdfStyle.Ink);
+        cv.Rule(310, Right, signatureLine, 0.6, PdfStyle.Ink);
+        cv.Text("Prepared By: " + report.Company.PreparedByLabel, Left, signatureLine - 12, 8.5, true);
+        cv.Text("Approved By: " + report.Company.ApprovedByLabel, 310, signatureLine - 12, 8.5, true);
+        cv.Text("Signature & Date", Left, signatureLine - 23, 7.6, false, PdfStyle.Muted);
+        cv.Text("Signature & Stamp", 310, signatureLine - 23, 7.6, false, PdfStyle.Muted);
 
-        // Footer on every page: company contact on the left, page numbers and status on the right.
+        // Footer on every page: confidentiality and company on the left, status and page numbers on the right.
         for (var i = 0; i < pages.Count; i++)
         {
-            page = pages[i];
-            Rule(Left, Right, 58, 0.6, PdfStyle.Hairline);
-            Text(report.Company.CompanyName, Left, 44, 7.2, false, PdfStyle.Muted);
-            RightText($"{report.Status}  |  Page {i + 1} of {pages.Count}", Right, 44, 7.2, false, PdfStyle.Muted);
+            cv = new PdfCanvas(pages[i], regular, bold);
+            cv.Rule(Left, Right, 58, 0.5, PdfStyle.Hairline);
+            cv.Text(cv.Fit("Confidential  |  " + report.Company.CompanyName, 330, 7), Left, 44, 7, false, PdfStyle.Muted);
+            cv.RightText($"{report.Status}  |  Page {i + 1} of {pages.Count}", Right, 44, 7, false, PdfStyle.Muted);
         }
         return document.Build();
     }
@@ -244,11 +199,12 @@ internal static class PdfStyle
     public readonly record struct Rgb(byte R, byte G, byte B);
 
     public static readonly Rgb Teal = new(19, 78, 82);
-    public static readonly Rgb TealTint = new(232, 242, 242);
-    public static readonly Rgb Stripe = new(246, 249, 249);
-    public static readonly Rgb Hairline = new(214, 224, 224);
-    public static readonly Rgb Ink = new(26, 32, 36);
-    public static readonly Rgb Muted = new(96, 104, 110);
+    public static readonly Rgb TealPale = new(190, 214, 216);
+    public static readonly Rgb Panel = new(240, 244, 245);
+    public static readonly Rgb Stripe = new(248, 250, 250);
+    public static readonly Rgb Hairline = new(212, 220, 223);
+    public static readonly Rgb Ink = new(28, 34, 38);
+    public static readonly Rgb Muted = new(98, 106, 112);
     public static readonly Rgb White = new(255, 255, 255);
     public static readonly Rgb Amber = new(180, 110, 20);
 
