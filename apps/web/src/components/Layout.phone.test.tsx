@@ -70,7 +70,7 @@ describe("Layout on a phone", () => {
     const nav = screen.getByRole("navigation", { name: "Main" });
 
     const links = within(nav).getAllByRole("link");
-    expect(links.map((link) => link.getAttribute("href"))).toEqual(["/attendance", "/workers", "/payroll", "/leave"]);
+    expect(links.map((link) => link.getAttribute("href"))).toEqual(["/dashboard", "/attendance", "/workers", "/payroll"]);
     expect(within(nav).getByRole("link", { name: "Daily Attendance" })).toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Worker Directory" })).toBeInTheDocument();
     expect(within(nav).getByRole("button", { name: "More" })).toBeInTheDocument();
@@ -119,6 +119,7 @@ describe("Layout on a phone", () => {
     await user.click(screen.getByRole("button", { name: "More" }));
     const sheet = await screen.findByRole("dialog", { name: "More" });
     expect(within(sheet).getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+      ["Leave Management", "/leave"],
       ["Deductions", "/deductions"],
       ["User Manager", "/users"],
       ["Settings", "/settings"],

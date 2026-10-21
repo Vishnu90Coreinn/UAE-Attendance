@@ -314,3 +314,9 @@ it("reports a conflicting decision and reloads the authoritative list", async ()
   expect(await screen.findByRole("table")).toBeInTheDocument();
   expect(api.listLeave).toHaveBeenCalledTimes(2);
 });
+it("offers only the opposite decision once a request is decided", async () => {
+  vi.mocked(api.listLeave).mockResolvedValue([{ ...row, status: "Approved" }]);
+  await setup();
+  expect(screen.queryByRole("button", { name: /^Approve leave/ })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^Reject leave/ })).toBeInTheDocument();
+});

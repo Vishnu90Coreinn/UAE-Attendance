@@ -14,8 +14,9 @@ function labelsFor(role: Parameters<typeof navItemsForRole>[0]) {
 }
 
 describe("navItemsForRole", () => {
-  it("gives an Administrator the four modules plus User Manager and Settings, in order", () => {
+  it("gives an Administrator the Dashboard, the modules, User Manager and Settings, in order", () => {
     expect(labelsFor("Administrator")).toEqual([
+      "Dashboard",
       ...MODULES,
       "User Manager",
       "Settings",
@@ -23,7 +24,7 @@ describe("navItemsForRole", () => {
   });
 
   it("gives a Manager the same tabs as an Administrator", () => {
-    expect(labelsFor("Manager")).toEqual([...MODULES, "User Manager", "Settings"]);
+    expect(labelsFor("Manager")).toEqual(["Dashboard", ...MODULES, "User Manager", "Settings"]);
   });
 
   it("gives a Supervisor only Worker Directory, Daily Attendance and Leave Management", () => {
@@ -40,6 +41,7 @@ describe("navItemsForRole", () => {
     );
 
     expect(paths).toEqual({
+      Dashboard: "/dashboard",
       "Worker Directory": "/workers",
       "Daily Attendance": "/attendance",
       "Payroll Summary": "/payroll",
@@ -54,11 +56,11 @@ describe("navItemsForRole", () => {
 describe("phoneNavFor", () => {
   const labels = (items: { label: string }[]) => items.map((item) => item.label);
 
-  it("puts attendance first and moves the rarely used screens behind More for a Manager", () => {
+  it("puts the dashboard first and moves the rarely used screens behind More for a Manager", () => {
     const { tabs, more } = phoneNavFor("Manager");
 
-    expect(labels(tabs)).toEqual(["Daily Attendance", "Worker Directory", "Payroll Summary", "Leave Management"]);
-    expect(labels(more)).toEqual(["Deductions", "User Manager", "Settings"]);
+    expect(labels(tabs)).toEqual(["Dashboard", "Daily Attendance", "Worker Directory", "Payroll Summary"]);
+    expect(labels(more)).toEqual(["Leave Management", "Deductions", "User Manager", "Settings"]);
   });
 
   it("gives an Administrator the same split as a Manager", () => {

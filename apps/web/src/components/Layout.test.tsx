@@ -95,7 +95,7 @@ describe("Layout", () => {
   it("shows the module tabs and Settings in order to an Administrator", async () => {
     await renderLayout("Administrator");
 
-    expect(tabLabels()).toEqual([...MODULES, "User Manager", "Settings"]);
+    expect(tabLabels()).toEqual(["Dashboard", ...MODULES, "User Manager", "Settings"]);
   });
 
   it("renders every built screen as a link", async () => {
@@ -107,6 +107,7 @@ describe("Layout", () => {
         .getAllByRole("link")
         .map((link) => link.textContent),
     ).toEqual([
+      "Dashboard",
       "Worker Directory",
       "Daily Attendance",
       "Payroll Summary",
@@ -163,7 +164,7 @@ describe("Layout", () => {
   it("shows a Manager the same tabs as an Administrator", async () => {
     await renderLayout("Manager", "mgr.sam");
 
-    expect(tabLabels()).toEqual([...MODULES, "User Manager", "Settings"]);
+    expect(tabLabels()).toEqual(["Dashboard", ...MODULES, "User Manager", "Settings"]);
   });
 
   it("shows a Supervisor only the three site tabs", async () => {

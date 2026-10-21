@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   Ellipsis,
   KeyRound,
+  LayoutDashboard,
   LogOut,
   ReceiptText,
   Settings,
@@ -19,6 +20,7 @@ import { Dialog } from "./Dialog";
 import { phoneNavFor, type NavItem } from "./navItems";
 
 const ICONS: Record<string, LucideIcon> = {
+  dashboard: LayoutDashboard,
   attendance: ClipboardCheck,
   workers: UsersRound,
   payroll: Banknote,
@@ -98,7 +100,7 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
       <header className="sticky top-0 z-30 bg-slate-900 pt-[env(safe-area-inset-top)] text-white shadow-md">
         <div className="flex min-h-14 items-center gap-3 px-4 py-2">
           <img src="/icons/favicon-48.png" alt="" width={32} height={32} className="size-8 shrink-0 rounded-md bg-white p-0.5" />
-          <h1 className="line-clamp-2 min-w-0 flex-1 break-words text-sm font-bold leading-tight">{companyName}</h1>
+          <h1 className="min-w-0 flex-1 truncate text-sm font-bold leading-tight" title={companyName}>{companyName}</h1>
           {user && (
             <button
               type="button"

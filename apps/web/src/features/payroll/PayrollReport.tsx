@@ -30,15 +30,15 @@ export function PayrollReport({
       aria-label={`Monthly Payroll Report ${report.period}`}
     >
       <header className="payroll-letterhead space-y-2 border-b-2 border-slate-800 pb-5 text-center">
-        <p className="break-words text-lg font-bold text-slate-900 sm:text-2xl">
+        <p className="break-words text-lg font-bold text-slate-900 max-sm:hidden sm:text-2xl">
           {report.company.companyName}
         </p>
         {report.company.tagline && (
-          <p className="break-words text-sm text-gray-700">
+          <p className="break-words text-sm text-gray-700 max-sm:hidden">
             {report.company.tagline}
           </p>
         )}
-        <p className="break-words text-sm text-gray-700">
+        <p className="break-words text-sm text-gray-700 max-sm:hidden">
           Email: {report.company.contactEmail} • United Arab Emirates
         </p>
         <h3 className="pt-2 text-lg font-bold text-gray-900">
