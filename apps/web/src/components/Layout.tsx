@@ -8,7 +8,9 @@ import { useAuth } from "../contexts/AuthContext";
 import { ChangePasswordDialog } from "../features/auth/ChangePasswordDialog";
 import { useAttendanceSummary } from "../features/attendance/useAttendanceSummary";
 import { HealthChip } from "./HealthChip";
+import { useIsDesktop } from "../utils/useIsDesktop";
 import { navItemsForRole } from "./navItems";
+import { PhoneShell } from "./PhoneShell";
 
 const headerButtonClass =
   "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-slate-600 px-2 text-xs font-medium text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 sm:gap-2 sm:px-3 sm:text-sm";
@@ -46,6 +48,26 @@ export function Layout() {
   function handleSignOut() {
     logout();
     navigate("/login", { replace: true });
+  }
+
+  const isDesktop = useIsDesktop();
+  const page = <Outlet context={{ onPayrollSettingsChanged: setCompanySettings }} />;
+
+  if (!isDesktop) {
+    return (
+      <>
+        <PhoneShell
+          companyName={companySettings?.companyName ?? COMPANY_NAME}
+          user={user}
+          attendanceAttention={attendanceAttention}
+          onChangePassword={() => setChangePasswordOpen(true)}
+          onSignOut={handleSignOut}
+        >
+          {page}
+        </PhoneShell>
+        <ChangePasswordDialog open={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
+      </>
+    );
   }
 
   return (
@@ -153,7 +175,7 @@ export function Layout() {
         tabIndex={-1}
         className="mx-auto w-full max-w-7xl flex-grow px-4 py-6"
       >
-        <Outlet context={{ onPayrollSettingsChanged: setCompanySettings }} />
+        {page}
       </main>
 
       <ChangePasswordDialog

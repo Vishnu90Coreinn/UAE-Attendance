@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Save } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Save } from "lucide-react";
 import {
   approveAttendance,
   getAttendance,
@@ -13,12 +13,14 @@ import { getPayrollSettings, type PayrollSettings } from "../../api/settings";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { isManagement } from "../../permissions";
 import { useAuth } from "../../contexts/AuthContext";
+import { useIsDesktop } from "../../utils/useIsDesktop";
 import {
   ActionFailure,
   LoadError,
   primaryButtonClass,
   SuccessRegion,
 } from "../workers/WorkersFeedback";
+import { AttendanceCards } from "./AttendanceCards";
 import { AttendanceTable } from "./AttendanceTable";
 import { RejectDialog } from "./RejectDialog";
 import {
@@ -42,6 +44,14 @@ function today(): string {
     day: "2-digit",
   }).format(new Date());
 }
+/** The date one or more days before or after `value` (both yyyy-MM-dd). */
+function shiftDate(value: string, days: number): string {
+  const date = new Date(`${value}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+const dayButtonClass =
+  "inline-flex size-11 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-40";
 function errorMessage(error: unknown): string {
   if (error instanceof ApiError)
     return error.fieldErrors
@@ -72,8 +82,10 @@ export function AttendancePage({
   const isManager = isManagement(user?.role);
   const showPay = isManagement(user?.role);
   const editable = !!user && !day?.isFinalised;
-  const dirty =
-    !!day && forms.some((form, index) => changed(form, day.rows[index]));
+  const unsaved = day ? forms.filter((form, index) => changed(form, day.rows[index])).length : 0;
+  const dirty = unsaved > 0;
+  const isDesktop = useIsDesktop();
+  const List = isDesktop ? AttendanceTable : AttendanceCards;
 
   useEffect(() => {
     let cancelled = false;
@@ -210,6 +222,30 @@ export function AttendancePage({
     );
     if (ok) setRejecting(null);
   }
+  const showSave = !loading && !loadError && editable;
+  const renderSave = (className: string) => (
+    <button
+      type="button"
+      onClick={save}
+      disabled={!dirty || pending}
+      aria-busy={pending}
+      className={`${primaryButtonClass} ${className} disabled:cursor-not-allowed disabled:opacity-60`}
+    >
+      <Save aria-hidden="true" size={16} />
+      {pending ? "Saving..." : "Save day"}
+    </button>
+  );
+  const dateInput = (
+    <input
+      id="work-date"
+      type="date"
+      value={date}
+      max={today()}
+      disabled={pending}
+      onChange={(e) => changeDate(e.target.value)}
+      className={`min-h-11 rounded-lg border border-gray-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${isDesktop ? "" : "min-w-0 flex-1 text-center"}`}
+    />
+  );
   const attention = isManager
     ? { label: "Waiting for approval", days: summary?.submitted ?? [] }
     : { label: "Sent back for correction", days: summary?.rejected ?? [] };
@@ -220,41 +256,46 @@ export function AttendancePage({
         <AttendanceNavigationGuard dirty={dirty} pending={pending} />
       )}
       <div>
-        <h1 className="text-2xl font-bold text-gray-800">Daily Attendance</h1>
-        <p className="mt-1 text-sm text-gray-600">
+        <h1 className="text-xl font-bold text-gray-800 md:text-2xl">Daily Attendance</h1>
+        <p className="mt-1 hidden text-sm text-gray-600 md:block">
           Record daily status and hours, then save the day.
         </p>
       </div>
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
+        <div className={isDesktop ? "" : "w-full"}>
           <label
             htmlFor="work-date"
             className="mb-1 block text-sm font-medium text-gray-800"
           >
             Work date
           </label>
-          <input
-            id="work-date"
-            type="date"
-            value={date}
-            max={today()}
-            disabled={pending}
-            onChange={(e) => changeDate(e.target.value)}
-            className="min-h-11 rounded-lg border border-gray-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-          />
+          {isDesktop ? (
+            dateInput
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label="Previous day"
+                disabled={pending}
+                onClick={() => changeDate(shiftDate(date, -1))}
+                className={dayButtonClass}
+              >
+                <ChevronLeft aria-hidden="true" size={20} />
+              </button>
+              {dateInput}
+              <button
+                type="button"
+                aria-label="Next day"
+                disabled={pending || date >= today()}
+                onClick={() => changeDate(shiftDate(date, 1))}
+                className={dayButtonClass}
+              >
+                <ChevronRight aria-hidden="true" size={20} />
+              </button>
+            </div>
+          )}
         </div>
-        {!loading && !loadError && editable && (
-          <button
-            type="button"
-            onClick={save}
-            disabled={!dirty || pending}
-            aria-busy={pending}
-            className={`${primaryButtonClass} disabled:cursor-not-allowed disabled:opacity-60`}
-          >
-            <Save aria-hidden="true" size={16} />
-            {pending ? "Saving..." : "Save day"}
-          </button>
-        )}
+        {showSave && isDesktop && renderSave("")}
       </div>
       {attention.days.length > 0 && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
@@ -291,7 +332,7 @@ export function AttendancePage({
       )}
       <SuccessRegion message={success} />
       {error && <ActionFailure message={error} />}
-      {dirty && (
+      {dirty && isDesktop && (
         <p role="status" className="text-sm font-medium text-amber-900">
           Unsaved changes
         </p>
@@ -337,7 +378,7 @@ export function AttendancePage({
               </div>
             )}
             {day.rows.length ? (
-              <AttendanceTable
+              <List
                 rows={day.rows}
                 forms={forms}
                 editable={editable}
@@ -359,6 +400,14 @@ export function AttendancePage({
             )}
           </>
         )
+      )}
+      {showSave && !isDesktop && (
+        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 -mx-4 flex items-center gap-3 border-t border-gray-200 bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgba(15,23,42,0.08)] backdrop-blur">
+          <p role="status" className="min-w-0 flex-1 text-sm font-medium text-amber-900">
+            {dirty ? `${unsaved} unsaved ${unsaved === 1 ? "change" : "changes"}` : ""}
+          </p>
+          {renderSave("min-h-12 px-6 text-base")}
+        </div>
       )}
       <RejectDialog
         open={rejecting !== null}

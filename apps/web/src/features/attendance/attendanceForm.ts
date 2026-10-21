@@ -3,6 +3,7 @@ import type {
   AttendanceRow,
   AttendanceStatus,
 } from "../../api/attendance";
+import { dailyPay } from "../../utils/dailyPay";
 
 export interface AttendanceForm {
   workerId: number;
@@ -61,4 +62,33 @@ export function validateHours(
   if (basic + overtime > 24)
     return "Basic and overtime hours together must not exceed 24.";
   return null;
+}
+
+/** Moves an hours field up or down by one step, staying between 0 and the maximum, with at most two decimals. */
+export function stepHours(value: string, delta: number, maximum: number): string {
+  const current = Number(value);
+  const start = value.trim() && Number.isFinite(current) ? current : 0;
+  return String(Math.min(maximum, Math.max(0, Math.round((start + delta) * 100) / 100)));
+}
+
+/** The live pay preview for a row being edited; null means "show a dash". Never run for roles without wage access. */
+export function previewPay(
+  row: AttendanceRow,
+  form: AttendanceForm,
+  maximum: number,
+  companyRate: number | null,
+): number | null {
+  if (!changed(form, row)) return row.dailyPay?.totalPay ?? null;
+  if (validateHours(form, maximum)) return null;
+  const hourlyRate = row.worker.hourlyRate;
+  const overtimeRate = row.worker.overtimeRate ?? companyRate;
+  if (hourlyRate === null || overtimeRate === null) return null;
+  return dailyPay(
+    form.status,
+    Number(form.basicHours),
+    Number(form.overtimeHours),
+    hourlyRate,
+    overtimeRate,
+    null,
+  ).totalPay;
 }
