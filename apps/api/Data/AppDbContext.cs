@@ -14,6 +14,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     public DbSet<PayrollPeriod> PayrollPeriods => Set<PayrollPeriod>();
     public DbSet<PayrollDetail> PayrollDetails => Set<PayrollDetail>();
+    public DbSet<DeductionType> DeductionTypes => Set<DeductionType>();
+    public DbSet<WorkerDeduction> WorkerDeductions => Set<WorkerDeduction>();
+    public DbSet<PayrollDeductionLine> PayrollDeductionLines => Set<PayrollDeductionLine>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

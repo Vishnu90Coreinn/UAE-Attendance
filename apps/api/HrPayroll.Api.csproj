@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Pdf/Fonts/*.ttf" />
+    <EmbeddedResource Include="Pdf/Assets/*.jpg" />
     <None Update="Pdf/Fonts/LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="Pdf/Licenses/PdfPig-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>

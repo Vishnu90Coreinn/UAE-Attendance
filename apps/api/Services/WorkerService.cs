@@ -128,6 +128,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             Designation = input.Designation,
             HourlyRate = input.HourlyRate,
             OvertimeRate = input.OvertimeRate,
+            JoinDate = request.JoinDate,
             IsActive = true,
             CreatedUtc = now,
             UpdatedUtc = now,
@@ -193,6 +194,13 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         {
             changes["hourlyRate"] = new FieldChange(worker.HourlyRate, input.HourlyRate);
             worker.HourlyRate = input.HourlyRate;
+        }
+
+        if (worker.JoinDate != request.JoinDate)
+        {
+            changes["joinDate"] = new FieldChange(worker.JoinDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                request.JoinDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+            worker.JoinDate = request.JoinDate;
         }
 
         if (worker.OvertimeRate != input.OvertimeRate)
@@ -385,5 +393,5 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
 
     private static WorkerResponse ToResponse(Worker worker, decimal companyOvertimeRate) =>
         new(worker.Id, worker.WorkerCode, worker.FullName, worker.Designation, worker.HourlyRate,
-            worker.OvertimeRate, worker.OvertimeRate ?? companyOvertimeRate, worker.IsActive);
+            worker.OvertimeRate, worker.OvertimeRate ?? companyOvertimeRate, worker.IsActive, worker.JoinDate);
 }

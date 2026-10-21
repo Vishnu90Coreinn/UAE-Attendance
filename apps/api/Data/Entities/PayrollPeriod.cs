@@ -33,4 +33,6 @@ public sealed class PayrollDetail
     public decimal BasicPay { get; set; }
     public decimal OvertimePay { get; set; }
     public decimal TotalPay { get; set; }
+    public decimal TotalDeductions { get; set; }
+    public List<PayrollDeductionLine> Deductions { get; set; } = [];
 }

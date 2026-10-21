@@ -22,6 +22,7 @@ public class WorkerConfiguration : IEntityTypeConfiguration<Worker>
         builder.Property(w => w.HourlyRate).HasPrecision(9, 2);
         builder.Property(w => w.OvertimeRate).HasPrecision(9, 2);
         builder.Property(w => w.IsActive).HasDefaultValue(true);
+        builder.Property(w => w.JoinDate).HasColumnType("date");
         builder.Property(w => w.CreatedUtc).HasColumnType("datetime2");
         builder.Property(w => w.UpdatedUtc).HasColumnType("datetime2");
     }

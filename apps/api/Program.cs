@@ -68,6 +68,9 @@ builder.Services.AddScoped<AttendanceService>();
 builder.Services.AddScoped<LeaveService>();
 builder.Services.AddScoped<PayrollService>();
 builder.Services.AddSingleton<PayrollPdf>();
+builder.Services.AddSingleton<PayslipPdf>();
+builder.Services.AddScoped<PayslipService>();
+builder.Services.AddScoped<DeductionService>();
 builder.Services.AddScoped<IPayrollPeriodLock, PayrollPeriodLock>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
