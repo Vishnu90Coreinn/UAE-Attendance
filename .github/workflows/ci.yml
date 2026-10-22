@@ -2,9 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [master]   # a merged pull request is a push to master
   pull_request:
     branches: [master]
+  workflow_dispatch:      # redeploy by hand from the Actions tab
 
 permissions:
   contents: read
@@ -78,3 +79,25 @@ jobs:
           path: ${{ runner.temp }}/iis
           if-no-files-found: error
           retention-days: 30
+
+  deploy:
+    name: Deploy to IIS
+    needs: package
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    # Runs on the Windows server itself (self-hosted runner, labels below), so no inbound access is needed.
+    runs-on: [self-hosted, windows, hr-payroll-prod]
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+      - uses: actions/download-artifact@v4
+        with:
+          name: hr-payroll-iis
+          path: ${{ runner.temp }}/release
+      - name: Deploy
+        shell: pwsh
+        run: ./scripts/deploy-iis.ps1 -Source "$env:RUNNER_TEMP/release" -SitePath "${{ vars.IIS_SITE_PATH || 'C:\inetpub\hr-payroll' }}"

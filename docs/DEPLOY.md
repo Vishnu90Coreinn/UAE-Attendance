@@ -78,7 +78,27 @@ Changing `Jwt__Key` later signs everyone out.
 With the seed variables set, the first start creates the administrator. Sign in at `https://<your domain>`, change the
 password from the account menu, then **remove `Seed__AdminUsername` and `Seed__AdminPassword`** and recycle the pool.
 
-## 8. Releasing an update
+## 8. Automatic deploy on merge (GitHub Actions)
+
+Merging a pull request into `master` runs `.github/workflows/ci.yml`: web checks, API tests, the IIS package, then the
+**Deploy to IIS** job. That job runs on a **self-hosted runner installed on the server**, so the server needs no
+inbound access from GitHub.
+
+One-time setup:
+
+1. GitHub repo > Settings > Actions > Runners > **New self-hosted runner** (Windows). Follow the commands on the
+   server, give it the extra label `hr-payroll-prod`, and install it as a service (`./config.cmd ... --runasservice`).
+   The service account needs modify rights on the site folder and permission to write `app_offline.htm` there.
+2. Install `pwsh` (PowerShell 7) on the server; the workflow uses it.
+3. Repo > Settings > Environments > create **production**. Add required reviewers if you want an approval click before
+   each deploy.
+4. Optional: repository variable `IIS_SITE_PATH` if the site is not at `C:\inetpub\hr-payroll`.
+
+The job copies the release over the site (keeping `logs`), shows `app_offline.htm` meanwhile and fails the run if
+`/api/health` does not return `database: ok`. It does **not** touch the database: apply new migrations (step 3)
+before merging a change that adds one. Re-run a deploy from Actions > CI > Run workflow.
+
+## 9. Releasing an update by hand
 
 1. Take a database backup (RDS snapshot or `BACKUP DATABASE`).
 2. Apply any new migrations (step 3).
@@ -89,7 +109,7 @@ password from the account menu, then **remove `Seed__AdminUsername` and `Seed__A
 **Rollback:** redeploy the previous release folder. Migrations are forward-only, so restore the backup if a migration
 must be undone.
 
-## 9. Operations
+## 10. Operations
 
 - Logs: `C:\inetpub\hr-payroll\logs\hrpayroll-*.log` (daily files). Every request line carries a correlation id.
 - Back up the database daily and test a restore. The finalised payroll months live there.

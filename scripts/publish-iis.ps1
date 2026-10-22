@@ -25,9 +25,7 @@ function Invoke-Step([string]$Name, [scriptblock]$Command) {
 if (Test-Path $Output) { Remove-Item $Output -Recurse -Force }
 
 if (-not $SkipInstall) {
-  if (-not $SkipInstall) {
   Invoke-Step 'Install web dependencies' { npm --prefix "$root/apps/web" ci }
-}
 }
 Invoke-Step 'Build web app' { npm --prefix "$root/apps/web" run build }
 Invoke-Step 'Publish API' { dotnet publish "$root/apps/api" -c Release -o $Output --nologo }
