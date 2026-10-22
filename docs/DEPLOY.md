@@ -92,7 +92,9 @@ One-time setup:
 2. Install `pwsh` (PowerShell 7) on the server; the workflow uses it.
 3. Repo > Settings > Environments > create **production**. Add required reviewers if you want an approval click before
    each deploy.
-4. Optional: repository variable `IIS_SITE_PATH` if the site is not at `C:\inetpub\hr-payroll`.
+4. Repository variables (Settings > Secrets and variables > Actions > Variables): `IIS_SITE_PATH` if the site is not at
+   `C:\inetpub\hr-payroll`, and `IIS_HEALTH_URL` (for example `http://localhost:8080/api/health`) if the site is not on
+   port 80 or needs a host name.
 
 The job copies the release over the site (keeping `logs`), shows `app_offline.htm` meanwhile and fails the run if
 `/api/health` does not return `database: ok`. It does **not** touch the database: apply new migrations (step 3)

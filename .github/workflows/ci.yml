@@ -100,4 +100,4 @@ jobs:
           path: ${{ runner.temp }}/release
       - name: Deploy
         shell: pwsh
-        run: ./scripts/deploy-iis.ps1 -Source "$env:RUNNER_TEMP/release" -SitePath "${{ vars.IIS_SITE_PATH || 'C:\inetpub\hr-payroll' }}"
+        run: ./scripts/deploy-iis.ps1 -Source "$env:RUNNER_TEMP/release" -SitePath "${{ vars.IIS_SITE_PATH || 'C:\inetpub\hr-payroll' }}" -HealthUrl "${{ vars.IIS_HEALTH_URL || 'http://localhost/api/health' }}"
