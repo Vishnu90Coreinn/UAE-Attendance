@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [master]   # a merged pull request is a push to master
+  pull_request:
+    branches: [master]
+  workflow_dispatch:      # redeploy by hand from the Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web (type check, tests, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  api:
+    name: API (tests)
+    runs-on: ubuntu-latest
+    services:
+      sql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "Ci-Passw0rd!x1"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Ci-Passw0rd!x1' -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 20s
+    env:
+      # The integration tests create and drop their own throw-away databases on this server.
+      TEST_SQL_CONNECTION: Server=localhost,1433;User Id=sa;Password=Ci-Passw0rd!x1;Encrypt=False;TrustServerCertificate=True
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet test apps/api.tests --nologo
+
+  package:
+    name: Package for IIS
+    # Only releases from master are packaged.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [web, api]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Build release folder
+        shell: pwsh
+        run: ./scripts/publish-iis.ps1 -Output "$env:RUNNER_TEMP/iis"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hr-payroll-iis
+          path: ${{ runner.temp }}/iis
+          if-no-files-found: error
+          retention-days: 30
+
+  deploy:
+    name: Deploy to IIS
+    needs: package
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    # Runs on the Windows server itself (self-hosted runner, labels below), so no inbound access is needed.
+    runs-on: [self-hosted, windows, hr-payroll-prod]
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+      - uses: actions/download-artifact@v4
+        with:
+          name: hr-payroll-iis
+          path: ${{ runner.temp }}/release
+      - name: Deploy
+        shell: pwsh
+        run: ./scripts/deploy-iis.ps1 -Source "$env:RUNNER_TEMP/release" -SitePath "${{ vars.IIS_SITE_PATH || 'C:\inetpub\hr-payroll' }}" -HealthUrl "${{ vars.IIS_HEALTH_URL || 'http://localhost/api/health' }}"
