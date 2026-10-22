@@ -22,8 +22,8 @@ $offline = Join-Path $SitePath 'app_offline.htm'
 Set-Content $offline '<html><body><h1>Updating, back in a minute.</h1></body></html>'
 Start-Sleep -Seconds 3
 try {
-  # Mirror the release but keep the server's own logs and the offline marker.
-  robocopy $Source $SitePath /MIR /XD logs /XF app_offline.htm /R:3 /W:5 /NFL /NDL /NJH /NJS /NP
+  # Mirror the release but keep the server's own logs, the offline marker and its production settings file.
+  robocopy $Source $SitePath /MIR /XD logs /XF app_offline.htm appsettings.Production.json /R:3 /W:5 /NFL /NDL /NJH /NJS /NP
   if ($LASTEXITCODE -ge 8) { throw "robocopy failed (exit code $LASTEXITCODE)" }
 }
 finally {
