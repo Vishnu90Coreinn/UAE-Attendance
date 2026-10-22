@@ -36,7 +36,7 @@ $env:ConnectionStrings__Default = "<production connection string>"
 dotnet ef database update --project apps/api
 ```
 
-   Keep `Database__MigrateOnStartup` unset in production, so the running site never changes the schema on its own.
+   Or skip this step: with `Database:MigrateOnStartup` set to `true` in `appsettings.Production.json`, the site applies pending migrations itself on every start, so a deploy updates the schema automatically. Take a database backup before releasing migrations that drop or change data.
 
 ## 4. Configure the server
 
@@ -97,8 +97,7 @@ One-time setup:
    port 80 or needs a host name.
 
 The job copies the release over the site (keeping `logs`), shows `app_offline.htm` meanwhile and fails the run if
-`/api/health` does not return `database: ok`. It does **not** touch the database: apply new migrations (step 3)
-before merging a change that adds one. Re-run a deploy from Actions > CI > Run workflow.
+`/api/health` does not return `database: ok`. With `Database:MigrateOnStartup` on, the site applies new migrations when it starts after the deploy. Re-run a deploy from Actions > CI > Run workflow.
 
 ## 9. Releasing an update by hand
 

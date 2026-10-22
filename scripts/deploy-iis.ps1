@@ -31,7 +31,7 @@ finally {
 }
 
 Write-Host "Waiting for $HealthUrl" -ForegroundColor Cyan
-for ($i = 1; $i -le 20; $i++) {
+for ($i = 1; $i -le 60; $i++) {
   try {
     $r = Invoke-WebRequest $HealthUrl -UseBasicParsing -TimeoutSec 10
     if ($r.StatusCode -eq 200 -and $r.Content -match '"database":"ok"') {
