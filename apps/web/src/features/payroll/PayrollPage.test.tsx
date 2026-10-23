@@ -112,6 +112,7 @@ it("renders the server's report, exact column labels, totals and signature block
     "OT Pay",
     "Deductions",
     "Total Net Salary",
+    "Payslip",
   ]);
   expect(screen.getByText("Gulf Glass LLC")).toBeInTheDocument();
   expect(

@@ -10,8 +10,8 @@ const cellClass =
   "flex items-center justify-between gap-3 whitespace-nowrap border-t border-gray-100 py-2 text-right tabular-nums before:content-[attr(data-label)] before:text-left before:text-xs before:font-semibold before:uppercase before:text-gray-600 md:table-cell md:border-0 md:px-3 md:py-3 md:before:content-none";
 
 /**
- * The same server response and markup are used on screen and in print. Payslip buttons appear only when the month is
- * finalised and a handler is given; they are hidden from print.
+ * The same server response and markup are used on screen and in print. Payslip buttons appear when a handler is given
+ * (draft or finalised month); they are hidden from print.
  */
 export function PayrollReport({
   report,
@@ -22,7 +22,7 @@ export function PayrollReport({
   onPayslip?: (workerId: number) => void;
   payslipBusy?: boolean;
 }) {
-  const showPayslips = !!onPayslip && report.status === "Finalised";
+  const showPayslips = !!onPayslip;
   return (
     <article
       id="payroll-report"

@@ -108,7 +108,8 @@ describe("Daily Attendance on a phone", () => {
     await user.click(within(card("Ahmed Khan")).getByRole("button", { name: "Present" }));
 
     expect(within(card("Ahmed Khan")).getByRole("button", { name: "Present" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByLabelText("Basic hours for Ahmed Khan")).toHaveValue(8);
+    expect(screen.queryByLabelText("Basic hours for Ahmed Khan")).not.toBeInTheDocument();
+    expect(within(card("Ahmed Khan")).getByText("8.00")).toBeInTheDocument();
     expect(screen.getByLabelText("Overtime hours for Ahmed Khan")).toHaveValue(0);
     expect(screen.getByText("1 unsaved change")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save day" })).toBeEnabled();
@@ -128,15 +129,6 @@ describe("Daily Attendance on a phone", () => {
 
     await user.click(screen.getByRole("button", { name: "Decrease overtime hours for Ahmed Khan" }));
     expect(screen.getByRole("button", { name: "Decrease overtime hours for Ahmed Khan" })).toBeDisabled();
-  });
-
-  it("stops the basic hours at the standard shift maximum", async () => {
-    const user = await loaded();
-    await user.click(within(card("Ahmed Khan")).getByRole("button", { name: "Present" }));
-
-    expect(screen.getByRole("button", { name: "Increase basic hours for Ahmed Khan" })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "Decrease basic hours for Ahmed Khan" }));
-    expect(screen.getByLabelText("Basic hours for Ahmed Khan")).toHaveValue(7.5);
   });
 
   it("marks a worker Absent with no hours, and tapping the choice again clears it", async () => {

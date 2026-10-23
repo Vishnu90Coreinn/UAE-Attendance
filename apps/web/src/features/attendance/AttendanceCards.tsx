@@ -185,15 +185,10 @@ export function AttendanceCards({
             {form.status === "Present" &&
               (rowEditable ? (
                 <div className="mt-3 grid grid-cols-2 gap-3">
-                  <HoursField
-                    label="Basic hours"
-                    workerName={name}
-                    id={`basicHours-${form.workerId}`}
-                    value={form.basicHours}
-                    maximum={maximum}
-                    disabled={pending}
-                    onChange={(value) => onChange(form.workerId, { basicHours: value })}
-                  />
+                  <div>
+                    <p className={labelClass}>Basic hours</p>
+                    <p className="mt-1 font-medium tabular-nums text-gray-800">{Number(form.basicHours).toFixed(2)}</p>
+                  </div>
                   <HoursField
                     label="Overtime hours"
                     workerName={name}

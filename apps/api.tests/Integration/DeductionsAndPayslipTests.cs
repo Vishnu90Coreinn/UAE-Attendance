@@ -117,7 +117,7 @@ public class DeductionsAndPayslipTests(ApiFixture api) : IClassFixture<ApiFixtur
     }
 
     [Fact]
-    public async Task Payslips_NeedAFinalisedMonth_AndAreManagerOnly()
+    public async Task Payslips_AreAvailableBeforeFinalising_AndAreManagerOnly()
     {
         var (_, supervisor) = await TestWorkers.SignInAsync(api, Roles.Supervisor);
         var (_, manager) = await TestWorkers.SignInAsync(api, Roles.Manager);
@@ -125,7 +125,9 @@ public class DeductionsAndPayslipTests(ApiFixture api) : IClassFixture<ApiFixtur
         const string month = "2024-04";
         await PresentAsync("2024-04-10", worker.Id, 8m, manager);
 
-        Assert.Equal(HttpStatusCode.Conflict, (await api.GetAsync($"/api/payroll/{month}/payslips/{worker.Id}/pdf", manager)).StatusCode);
+        var draftPayslip = await api.GetAsync($"/api/payroll/{month}/payslips/{worker.Id}/pdf", manager);
+        Assert.Equal(HttpStatusCode.OK, draftPayslip.StatusCode);
+        Assert.Equal("%PDF", Encoding.ASCII.GetString(await draftPayslip.Content.ReadAsByteArrayAsync(), 0, 4));
         Assert.Equal(HttpStatusCode.Forbidden, (await api.GetAsync($"/api/payroll/{month}/payslips/{worker.Id}/pdf", supervisor)).StatusCode);
 
         Assert.Equal(HttpStatusCode.OK, (await FinaliseAsync(month, manager)).StatusCode);
