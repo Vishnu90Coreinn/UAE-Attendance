@@ -20,7 +20,7 @@ public sealed class DeductionsController(DeductionService deductions) : Controll
     }
 
     [HttpPut("{month}")]
-    [Authorize(Policy = Policies.ManagerOrAdmin)]
+    [Authorize(Policy = Policies.ManagerAdminOrHr)]
     public async Task<IActionResult> Save(string month, [FromBody] MonthDeductionsSaveRequest? request, CancellationToken ct)
     {
         if (!PayrollService.TryMonth(month, out var start)) return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>

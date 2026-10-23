@@ -52,15 +52,23 @@ public class HrRoleTests(ApiFixture api) : IClassFixture<ApiFixture>
     [InlineData("PUT", "/api/settings/payroll")]
     [InlineData("POST", "/api/payroll/2026-02/finalise")]
     [InlineData("DELETE", "/api/payroll/2026-02/finalise")]
-    [InlineData("PUT", "/api/deductions/2026-02")]
-    [InlineData("POST", "/api/deduction-types")]
-    [InlineData("PUT", "/api/deduction-types/1")]
     [InlineData("GET", "/api/users")]
     [InlineData("POST", "/api/users")]
     public async Task Hr_CannotChangeOrApprove(string verb, string url)
     {
         var response = await api.SendAsync(new HttpMethod(verb), url, verb == "GET" ? null : new { }, await HrToken());
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Hr_CanAddDeductionsAndTypes()
+    {
+        var token = await HrToken();
+        var worker = await TestWorkers.CreateAsync(api.ConnectionString);
+        var type = await api.SendAsync(HttpMethod.Post, "/api/deduction-types", new { name = $"HR type {Guid.NewGuid():N}"[..20] }, token);
+        Assert.Equal(HttpStatusCode.Created, type.StatusCode);
+        var save = await api.SendAsync(HttpMethod.Put, "/api/deductions/2026-01", new { workers = Array.Empty<object>() }, token);
+        Assert.Equal(HttpStatusCode.OK, save.StatusCode);
     }
 
     [Fact]
