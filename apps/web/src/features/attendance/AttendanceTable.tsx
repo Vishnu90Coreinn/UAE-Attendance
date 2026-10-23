@@ -117,6 +117,8 @@ export function AttendanceTable({
                         <option value="">Not recorded</option>
                         <option>Present</option>
                         <option>Absent</option>
+                        <option>Leave</option>
+                        <option>Sick Leave</option>
                       </select>
                     </>
                   ) : (

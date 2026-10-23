@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -80,6 +81,22 @@ it("starts unrecorded with zero pay and disabled hours; settings supply the shif
     "Overtime Rate: 2.22 AED/hr",
   );
   expect(screen.getByRole("button", { name: "Save day" })).toBeDisabled();
+});
+it("offers Leave and Sick Leave and saves them with zero hours", async () => {
+  const user = await loaded();
+  const select = screen.getByLabelText("Status for Ahmed Khan");
+  expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
+    "Not recorded",
+    "Present",
+    "Absent",
+    "Leave",
+    "Sick Leave",
+  ]);
+  await user.selectOptions(select, "Sick Leave");
+  await user.click(screen.getByRole("button", { name: "Save day" }));
+  expect(api.saveAttendance).toHaveBeenCalledWith(expect.any(String), [
+    { workerId: 1, status: "Sick Leave", basicHours: 0, overtimeHours: 0 },
+  ]);
 });
 it("previews pay and saves only after Save day, then uses server values", async () => {
   const user = await loaded();

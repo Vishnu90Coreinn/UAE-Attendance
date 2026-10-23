@@ -87,6 +87,25 @@ public class AttendanceRulesTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(HttpStatusCode.BadRequest, (await api.SendJsonAsync(HttpMethod.Put, $"/api/attendance/{Date}", $"[{row}]", token)).StatusCode);
     }
 
+    [Theory]
+    [InlineData("Leave")]
+    [InlineData("Sick Leave")]
+    public async Task LeaveStatuses_AreSavedWithZeroHours_AndEarnNothing(string status)
+    {
+        var token = await Token();
+        var worker = await TestWorkers.CreateAsync(api.ConnectionString);
+        var saved = await api.SendAsync(HttpMethod.Put, $"/api/attendance/{Date}", new[] { Row(worker.Id, status, 8, 2) }, token);
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        await using var db = TestUsers.NewContext(api.ConnectionString);
+        var record = await db.Attendance.SingleAsync(a => a.WorkerId == worker.Id);
+        Assert.Equal(status, record.Status);
+        Assert.Equal(0, record.BasicHours);
+        Assert.Equal(0, record.OvertimeHours);
+        var pay = HrPayroll.Api.Services.PayrollCalculator.DailyPay(status, 0, 0, 12m, 6m);
+        Assert.Equal(0m, pay.TotalPay);
+        Assert.Equal(0, pay.DaysWorked);
+    }
+
     [Fact]
     public async Task Absent_NormalisesHours_UpsertIsUnique_AndAuditContainsChangedWorkers()
     {

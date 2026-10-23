@@ -119,7 +119,7 @@ export function AttendanceCards({
         const pay = showPay ? previewPay(row, form, maximum, companyRate) : null;
 
         /** Tapping the chosen status again clears it back to "not recorded". A present worker starts on the standard shift. */
-        function choose(status: "Present" | "Absent") {
+        function choose(status: "Present" | "Absent" | "Leave" | "Sick Leave") {
           const next = form.status === status ? null : status;
           onChange(form.workerId, {
             status: next,
@@ -173,6 +173,22 @@ export function AttendanceCards({
                   <X aria-hidden="true" size={18} />
                   Absent
                 </button>
+                {(["Leave", "Sick Leave"] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    aria-pressed={form.status === option}
+                    disabled={pending}
+                    onClick={() => choose(option)}
+                    className={`${choiceClass} ${
+                      form.status === option
+                        ? "border-slate-700 bg-slate-700 text-white"
+                        : "border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
               </div>
             ) : (
               <p className="mt-3">
