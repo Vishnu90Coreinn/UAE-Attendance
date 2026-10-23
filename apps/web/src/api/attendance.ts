@@ -25,6 +25,8 @@ export interface AttendanceRow {
   record: AttendanceRecord | null;
   /** Null for Supervisors, who never see pay. */
   dailyPay: DailyPay | null;
+  /** The leave type when approved leave covers this day; the day is then filled in and locked. */
+  approvedLeave?: string | null;
 }
 export interface AttendanceDay {
   date: string;

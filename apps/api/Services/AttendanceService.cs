@@ -32,6 +32,7 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
             var ids = requests.Where(r => r is not null).Select(r => r!.WorkerId).ToArray();
             var workers = await db.Workers.Where(w => ids.Contains(w.Id)).ToDictionaryAsync(w => w.Id, ct);
             var existing = await db.Attendance.Where(a => a.WorkDate == day && ids.Contains(a.WorkerId)).ToDictionaryAsync(a => a.WorkerId, ct);
+            var onLeave = await ApprovedLeaveAsync(day, ids, ct);
             var manager = IsManager;
             var actor = httpContext.HttpContext?.User.Identity?.Name ?? "";
             var now = time.GetUtcNow().UtcDateTime;
@@ -45,6 +46,8 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
                 if (!seen.Add(row.WorkerId)) Error("workerId", "Each worker may appear only once.");
                 if (!workers.TryGetValue(row.WorkerId, out var worker)) Error("workerId", "Worker does not exist.");
                 else if (!worker.IsActive && !existing.ContainsKey(row.WorkerId)) Error("workerId", "Inactive workers can only edit an existing record for this date.");
+                if (onLeave.TryGetValue(row.WorkerId, out var covering) && row.Status != LeaveAttendanceSync.AttendanceStatus(covering))
+                    Error("status", $"This worker is on approved {covering}. Change the leave request instead.");
                 if (row.Status is not (null or "Present" or "Absent") && !LeaveEntitlements.IsLeave(row.Status)) Error("status", "Choose Present, Absent, Annual Leave, Sick Leave, Emergency Leave or Not recorded.");
                 ValidateHours(row.BasicHours, "basicHours");
                 ValidateHours(row.OvertimeHours, "overtimeHours");
@@ -59,7 +62,7 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
                     if (row.BasicHours + row.OvertimeHours > 24) Error("overtimeHours", "Total hours cannot exceed 24.");
                 }
                 if (row.Status is null && (row.BasicHours != 0 || row.OvertimeHours != 0)) Error("status", "Not recorded requires zero hours.");
-                if (!manager && existing.TryGetValue(row.WorkerId, out var approvedRecord) && approvedRecord.ApprovalStatus == ApprovalStatuses.Approved
+                if (!manager && !onLeave.ContainsKey(row.WorkerId) && existing.TryGetValue(row.WorkerId, out var approvedRecord) && approvedRecord.ApprovalStatus == ApprovalStatuses.Approved
                     && ChangesRecord(approvedRecord, row))
                     Error("status", "This entry is already approved. Ask a Manager to change it.");
             }
@@ -112,7 +115,25 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
         return result.StatusCode == 200 ? new(204) : result;
     }
 
+    /// <summary>Leave type of the approved leave request covering <paramref name="day"/>, per worker (all workers when none given).</summary>
+    private async Task<Dictionary<int, string>> ApprovedLeaveAsync(DateOnly day, int[]? workerIds, CancellationToken ct)
+    {
+        var query = db.LeaveRequests.AsNoTracking().Where(l => l.Status == "Approved" && l.StartDate <= day && l.EndDate >= day);
+        if (workerIds is not null) query = query.Where(l => workerIds.Contains(l.WorkerId));
+        return (await query.Select(l => new { l.WorkerId, l.LeaveType }).ToListAsync(ct)).ToDictionary(l => l.WorkerId, l => l.LeaveType);
+    }
+
     private async Task<AttendanceDayResponse> ReadAsync(DateOnly date, CancellationToken ct)
+    {
+        var day = await ReadRowsAsync(date, ct);
+        var onLeave = await ApprovedLeaveAsync(date, null, ct);
+        return onLeave.Count == 0 ? day : day with
+        {
+            Rows = day.Rows.Select(r => onLeave.TryGetValue(r.Worker.Id, out var type) ? r with { ApprovedLeave = type } : r).ToList(),
+        };
+    }
+
+    private async Task<AttendanceDayResponse> ReadRowsAsync(DateOnly date, CancellationToken ct)
     {
         var settings = await db.PayrollSettings.AsNoTracking().SingleAsync(ct);
         var records = await db.Attendance.AsNoTracking().Where(a => a.WorkDate == date).ToDictionaryAsync(a => a.WorkerId, ct);

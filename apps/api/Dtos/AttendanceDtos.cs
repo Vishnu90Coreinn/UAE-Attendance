@@ -15,7 +15,8 @@ public sealed class AttendanceRequest
 
 public sealed record AttendanceRecordResponse(string Status, decimal BasicHours, decimal OvertimeHours,
     string ApprovalStatus, string? RejectionReason);
-public sealed record AttendanceRowResponse(WorkerResponse Worker, AttendanceRecordResponse? Record, DailyPay? DailyPay);
+/// <summary><paramref name="ApprovedLeave"/> is the leave type when an approved leave request covers this day; such rows are locked.</summary>
+public sealed record AttendanceRowResponse(WorkerResponse Worker, AttendanceRecordResponse? Record, DailyPay? DailyPay, string? ApprovedLeave = null);
 public sealed record AttendanceDayResponse(DateOnly Date, bool IsFinalised, List<AttendanceRowResponse> Rows, int PendingCount = 0);
 
 public sealed class ApproveAttendanceRequest

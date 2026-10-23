@@ -135,7 +135,7 @@ public sealed class LeaveIntegrityTests(ApiFixture api) : IClassFixture<ApiFixtu
         var worker = await TestWorkers.CreateAsync(api.ConnectionString);
         await using (var db = TestUsers.NewContext(api.ConnectionString))
         {
-            var service = new LeaveService(db, new ThrowingAudit(), TimeProvider.System);
+            var service = new LeaveService(db, new ThrowingAudit(), TimeProvider.System, new LeaveAttendanceSync(db, new PayrollPeriodLock()));
             await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(new CreateLeaveRequest(worker.Id, "Annual Leave", "2028-01-01", "2028-01-01"), "actor", default));
         }
         await using (var db = TestUsers.NewContext(api.ConnectionString)) Assert.False(await db.LeaveRequests.AnyAsync(x => x.WorkerId == worker.Id));
@@ -143,7 +143,7 @@ public sealed class LeaveIntegrityTests(ApiFixture api) : IClassFixture<ApiFixtu
         var id = await Id(await Create(worker.Id, token));
         await using (var db = TestUsers.NewContext(api.ConnectionString))
         {
-            var service = new LeaveService(db, new ThrowingAudit(), TimeProvider.System);
+            var service = new LeaveService(db, new ThrowingAudit(), TimeProvider.System, new LeaveAttendanceSync(db, new PayrollPeriodLock()));
             await Assert.ThrowsAsync<InvalidOperationException>(() => service.ChangeAsync(id, "Approved", "actor", false, default));
         }
         await using (var db = TestUsers.NewContext(api.ConnectionString))
@@ -222,7 +222,7 @@ public sealed class LeaveIntegrityTests(ApiFixture api) : IClassFixture<ApiFixtu
         var pause = new PauseAfterLookup();
         var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(api.ConnectionString).AddInterceptors(pause).Options;
         await using var db = new AppDbContext(options);
-        var service = new LeaveService(db, new AuditLogger(db, new HttpContextAccessor()), TimeProvider.System);
+        var service = new LeaveService(db, new AuditLogger(db, new HttpContextAccessor()), TimeProvider.System, new LeaveAttendanceSync(db, new PayrollPeriodLock()));
         var operation = service.ChangeAsync(id, status, "racing-editor", false, default);
         await pause.Reached.Task.WaitAsync(TimeSpan.FromSeconds(10));
         try
