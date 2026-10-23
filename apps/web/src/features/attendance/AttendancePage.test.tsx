@@ -99,6 +99,22 @@ it("offers Annual, Sick and Emergency Leave and lets the server decide the paid 
     { workerId: 1, status: "Sick Leave", basicHours: 0, overtimeHours: 0 },
   ]);
 });
+it("locks a day covered by approved leave and says where to change it", async () => {
+  vi.mocked(api.getAttendance).mockResolvedValue({
+    ...day,
+    rows: [
+      {
+        ...day.rows[0],
+        record: { status: "Annual Leave", basicHours: 8, overtimeHours: 0, approvalStatus: "Approved", rejectionReason: null },
+        approvedLeave: "Annual Leave",
+      },
+    ],
+  });
+  await loaded();
+  expect(screen.queryByLabelText("Status for Ahmed Khan")).not.toBeInTheDocument();
+  expect(screen.getByText("Annual Leave")).toBeInTheDocument();
+  expect(screen.getByText(/Change it in Leave Management/)).toBeInTheDocument();
+});
 it("previews pay and saves only after Save day, then uses server values", async () => {
   const user = await loaded();
   await user.selectOptions(

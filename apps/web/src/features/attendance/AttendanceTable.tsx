@@ -73,7 +73,7 @@ export function AttendanceTable({
             const form = forms[index];
             // Supervisors cannot change an entry once a manager has approved it.
             const rowEditable =
-              editable && (isManager || row.record?.approvalStatus !== "Approved");
+              editable && !row.approvedLeave && (isManager || row.record?.approvalStatus !== "Approved");
             const pay = showPay
               ? previewPay(row, form, maximum, companyRate)
               : null;
@@ -124,9 +124,14 @@ export function AttendanceTable({
                       </select>
                     </>
                   ) : (
-                    <span className="whitespace-nowrap rounded-full bg-gray-100 px-3 py-1 text-gray-800">
-                      {form.status ?? "Not recorded"}
-                    </span>
+                    <>
+                      <span className="whitespace-nowrap rounded-full bg-gray-100 px-3 py-1 text-gray-800">
+                        {form.status ?? "Not recorded"}
+                      </span>
+                      {row.approvedLeave && (
+                        <span className="mt-1 block text-xs text-gray-600">Approved leave. Change it in Leave Management.</span>
+                      )}
+                    </>
                   )}
                 </td>
                 {(["basicHours", "overtimeHours"] as const).map((field) => (

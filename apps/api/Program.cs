@@ -68,6 +68,7 @@ builder.Services.AddScoped<WageRedactor>();
 builder.Services.AddScoped<AttendanceService>();
 builder.Services.AddScoped<LeaveService>();
 builder.Services.AddScoped<LeaveBalanceService>();
+builder.Services.AddScoped<LeaveAttendanceSync>();
 builder.Services.AddScoped<PayrollService>();
 builder.Services.AddSingleton<PayrollPdf>();
 builder.Services.AddSingleton<PayslipPdf>();

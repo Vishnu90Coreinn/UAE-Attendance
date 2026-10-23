@@ -48,6 +48,6 @@ public sealed class LeaveController(LeaveService leave, LeaveBalanceService bala
         400 => ValidationProblem(new ValidationProblemDetails(r.Errors!)),
         403 => Problem(statusCode: 403, title: "You can delete only your own pending leave requests."),
         404 => Problem(statusCode: 404, title: "Leave request not found."),
-        _ => Problem(statusCode: 409, title: "Leave overlaps another request or another change is in progress. Reload and try again."),
+        _ => Problem(statusCode: 409, title: r.Value as string ?? "Leave overlaps another request or another change is in progress. Reload and try again."),
     };
 }

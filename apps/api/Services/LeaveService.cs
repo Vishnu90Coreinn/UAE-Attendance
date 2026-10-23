@@ -11,7 +11,7 @@ namespace HrPayroll.Api.Services;
 
 public sealed record LeaveResult(int StatusCode, object? Value = null, Dictionary<string, string[]>? Errors = null);
 
-public sealed class LeaveService(AppDbContext db, IAuditLogger audit, TimeProvider time)
+public sealed class LeaveService(AppDbContext db, IAuditLogger audit, TimeProvider time, LeaveAttendanceSync attendance)
 {
     private static readonly string[] Types = ["Annual Leave", "Sick Leave", "Unpaid Leave", "Emergency Leave"];
     private static readonly string[] Statuses = ["Pending", "Approved", "Rejected"];
@@ -80,6 +80,7 @@ public sealed class LeaveService(AppDbContext db, IAuditLogger audit, TimeProvid
             if (status is null)
             {
                 if (!canDeleteAny && (leave.Status != "Pending" || !string.Equals(leave.CreatedBy, actor, StringComparison.OrdinalIgnoreCase))) return new(403);
+                if (leave.Status == "Approved" && !await attendance.ClearAsync(leave, ct)) return Finalised();
                 Audit("LeaveDeleted", leave, actor);
                 db.LeaveRequests.Remove(leave);
             }
@@ -87,6 +88,10 @@ public sealed class LeaveService(AppDbContext db, IAuditLogger audit, TimeProvid
             {
                 if (status == "Approved" && await Overlaps(leave.WorkerId, leave.StartDate, leave.EndDate, id, ct)) return new(409);
                 var previousStatus = leave.Status;
+                var now = time.GetUtcNow().UtcDateTime;
+                // Approved leave fills Daily Attendance for every day of the request; losing the approval clears those days.
+                if (status == "Approved" && previousStatus != "Approved" && !await attendance.ApplyAsync(leave, actor, now, ct)) return Finalised();
+                if (status != "Approved" && previousStatus == "Approved" && !await attendance.ClearAsync(leave, ct)) return Finalised();
                 leave.Status = status;
                 leave.DecidedBy = actor;
                 leave.DecidedUtc = time.GetUtcNow().UtcDateTime;
@@ -98,6 +103,8 @@ public sealed class LeaveService(AppDbContext db, IAuditLogger audit, TimeProvid
         }
         catch (Exception e) when (Conflict(e)) { return new(409); }
     }
+
+    private static LeaveResult Finalised() => new(409, "Part of this leave falls in a finalised payroll month. Reopen that month first.");
 
     private Task<bool> Overlaps(int worker, DateOnly start, DateOnly end, int exceptId, CancellationToken ct) =>
         db.LeaveRequests.AnyAsync(x => x.WorkerId == worker && x.Id != exceptId && x.Status != "Rejected" && x.StartDate <= end && x.EndDate >= start, ct);
