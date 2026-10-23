@@ -8,8 +8,13 @@ namespace HrPayroll.Api.Controllers;
 
 [ApiController]
 [Route("api/leave")]
-public sealed class LeaveController(LeaveService leave) : ControllerBase
+public sealed class LeaveController(LeaveService leave, LeaveBalanceService balances) : ControllerBase
 {
+    /// <summary>Paid-leave allowance, used and remaining days per active worker for their current year.</summary>
+    [HttpGet("balances")]
+    [Authorize(Policy = Policies.AnyUser)]
+    public async Task<IActionResult> Balances(CancellationToken ct) => Ok(await balances.ListAsync(ct));
+
     [HttpGet]
     [Authorize(Policy = Policies.AnyUser)]
     public async Task<IActionResult> List([FromQuery] string? status, [FromQuery] string? workerId, CancellationToken ct) => Map(await leave.ListAsync(status, workerId, ct));

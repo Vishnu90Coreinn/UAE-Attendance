@@ -1,4 +1,5 @@
 import type { AttendanceRow } from "../../api/attendance";
+import { LEAVE_STATUSES } from "../../utils/leaveStatuses";
 import { ApprovalCell } from "./ApprovalCell";
 import { previewPay, type AttendanceForm } from "./attendanceForm";
 
@@ -109,7 +110,7 @@ export function AttendanceTable({
                           onChange(form.workerId, {
                             status: (e.target.value ||
                               null) as AttendanceForm["status"],
-                            basicHours: e.target.value === "Present" ? String(maximum) : "0",
+                            basicHours: e.target.value === "Present" || LEAVE_STATUSES.some((leave) => leave === e.target.value) ? String(maximum) : "0",
                             overtimeHours: "0",
                           })
                         }
@@ -117,8 +118,9 @@ export function AttendanceTable({
                         <option value="">Not recorded</option>
                         <option>Present</option>
                         <option>Absent</option>
-                        <option>Leave</option>
-                        <option>Sick Leave</option>
+                        {LEAVE_STATUSES.map((leave) => (
+                          <option key={leave}>{leave}</option>
+                        ))}
                       </select>
                     </>
                   ) : (

@@ -1,5 +1,6 @@
 import { Check, Minus, Plus, X } from "lucide-react";
 import type { AttendanceRow } from "../../api/attendance";
+import { isLeaveStatus, LEAVE_STATUSES, type LeaveStatusValue } from "../../utils/leaveStatuses";
 import { ApprovalContent } from "./ApprovalCell";
 import { changed, previewPay, stepHours, type AttendanceForm } from "./attendanceForm";
 
@@ -119,11 +120,11 @@ export function AttendanceCards({
         const pay = showPay ? previewPay(row, form, maximum, companyRate) : null;
 
         /** Tapping the chosen status again clears it back to "not recorded". A present worker starts on the standard shift. */
-        function choose(status: "Present" | "Absent" | "Leave" | "Sick Leave") {
+        function choose(status: "Present" | "Absent" | LeaveStatusValue) {
           const next = form.status === status ? null : status;
           onChange(form.workerId, {
             status: next,
-            basicHours: next === "Present" ? String(maximum) : "0",
+            basicHours: next === "Present" || isLeaveStatus(next) ? String(maximum) : "0",
             overtimeHours: "0",
           });
         }
@@ -173,7 +174,7 @@ export function AttendanceCards({
                   <X aria-hidden="true" size={18} />
                   Absent
                 </button>
-                {(["Leave", "Sick Leave"] as const).map((option) => (
+                {LEAVE_STATUSES.map((option) => (
                   <button
                     key={option}
                     type="button"

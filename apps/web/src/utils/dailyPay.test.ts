@@ -61,4 +61,16 @@ describe("dailyPay preview", () => {
       });
     },
   );
+  it.each(["Annual Leave", "Sick Leave", "Emergency Leave"] as const)(
+    "pays %s at basic hours only and counts a worked day",
+    (status) => {
+      expect(dailyPay(status, 8, 2, 12.5, 2.22)).toEqual({
+        basicPay: 100,
+        overtimePay: 0,
+        totalPay: 100,
+        daysWorked: 1,
+      });
+      expect(dailyPay(status, 0, 0, 12.5, 2.22).totalPay).toBe(0);
+    },
+  );
 });

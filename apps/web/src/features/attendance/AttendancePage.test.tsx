@@ -82,15 +82,16 @@ it("starts unrecorded with zero pay and disabled hours; settings supply the shif
   );
   expect(screen.getByRole("button", { name: "Save day" })).toBeDisabled();
 });
-it("offers Leave and Sick Leave and saves them with zero hours", async () => {
+it("offers Annual, Sick and Emergency Leave and lets the server decide the paid hours", async () => {
   const user = await loaded();
   const select = screen.getByLabelText("Status for Ahmed Khan");
   expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
     "Not recorded",
     "Present",
     "Absent",
-    "Leave",
+    "Annual Leave",
     "Sick Leave",
+    "Emergency Leave",
   ]);
   await user.selectOptions(select, "Sick Leave");
   await user.click(screen.getByRole("button", { name: "Save day" }));

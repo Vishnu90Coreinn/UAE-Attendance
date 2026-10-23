@@ -9,6 +9,7 @@ import {
   type AttendanceRow,
 } from "../../api/attendance";
 import { ApiError } from "../../api/client";
+import { isLeaveStatus } from "../../utils/leaveStatuses";
 import { getPayrollSettings, type PayrollSettings } from "../../api/settings";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { canViewAll, isManagement } from "../../permissions";
@@ -87,7 +88,7 @@ export function AttendancePage({
   const dirty = unsaved > 0;
   const present = forms.filter((form) => form.status === "Present").length;
   const absent = forms.filter((form) => form.status === "Absent").length;
-  const onLeave = forms.filter((form) => form.status === "Leave" || form.status === "Sick Leave").length;
+  const onLeave = forms.filter((form) => isLeaveStatus(form.status)).length;
   const notRecorded = forms.length - present - absent - onLeave;
   const totalPay =
     showPay && day && settings

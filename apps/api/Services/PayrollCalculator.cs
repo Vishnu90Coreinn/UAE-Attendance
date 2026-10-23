@@ -10,7 +10,10 @@ public static class PayrollCalculator
     public static DailyPay DailyPay(string? status, decimal basicHours, decimal overtimeHours,
         decimal hourlyRate, decimal companyOvertimeRate, decimal? workerOvertimeRate = null)
     {
-        if (status != "Present") return new(0m, 0m, 0m, 0);
+        // Paid leave is worked at the standard shift with no overtime; an over-limit leave day is stored with 0 hours and earns nothing.
+        var paidLeave = LeaveEntitlements.IsLeave(status) && basicHours > 0;
+        if (status != "Present" && !paidLeave) return new(0m, 0m, 0m, 0);
+        if (paidLeave) overtimeHours = 0;
         var basic = decimal.Round(basicHours * hourlyRate, 2, MidpointRounding.AwayFromZero);
         var overtime = decimal.Round(overtimeHours * (workerOvertimeRate ?? companyOvertimeRate), 2, MidpointRounding.AwayFromZero);
         return new(basic, overtime, basic + overtime, 1);

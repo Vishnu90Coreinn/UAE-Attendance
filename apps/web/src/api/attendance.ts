@@ -1,7 +1,9 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "./client";
 import type { Worker } from "./workers";
 
-export type AttendanceStatus = "Present" | "Absent" | "Leave" | "Sick Leave" | null;
+import type { LeaveStatusValue } from "../utils/leaveStatuses";
+
+export type AttendanceStatus = "Present" | "Absent" | LeaveStatusValue | null;
 /** Where an entry is in the supervisor-to-manager approval flow. Only Approved entries reach payroll. */
 export type ApprovalStatus = "Submitted" | "Approved" | "Rejected";
 export interface AttendanceRecord {
