@@ -45,7 +45,7 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
                 if (!seen.Add(row.WorkerId)) Error("workerId", "Each worker may appear only once.");
                 if (!workers.TryGetValue(row.WorkerId, out var worker)) Error("workerId", "Worker does not exist.");
                 else if (!worker.IsActive && !existing.ContainsKey(row.WorkerId)) Error("workerId", "Inactive workers can only edit an existing record for this date.");
-                if (row.Status is not (null or "Present" or "Absent")) Error("status", "Choose Present, Absent or Not recorded.");
+                if (row.Status is not (null or "Present" or "Absent" or "Leave" or "Sick Leave")) Error("status", "Choose Present, Absent, Leave, Sick Leave or Not recorded.");
                 ValidateHours(row.BasicHours, "basicHours");
                 ValidateHours(row.OvertimeHours, "overtimeHours");
                 void ValidateHours(decimal? hours, string field)
@@ -74,8 +74,8 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
                     if (record is not null) { db.Attendance.Remove(record); changed.Add(row.WorkerId); }
                     continue;
                 }
-                var basic = row.Status == "Absent" ? 0m : row.BasicHours!.Value;
-                var overtime = row.Status == "Absent" ? 0m : row.OvertimeHours!.Value;
+                var basic = row.Status != "Present" ? 0m : row.BasicHours!.Value;
+                var overtime = row.Status != "Present" ? 0m : row.OvertimeHours!.Value;
                 var sameValues = record is not null && record.Status == row.Status && record.BasicHours == basic && record.OvertimeHours == overtime;
                 // A supervisor re-saving a rejected entry unchanged is resubmitting it for approval.
                 var resubmit = sameValues && !manager && record!.ApprovalStatus == ApprovalStatuses.Rejected;
@@ -144,8 +144,8 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
     private static bool ChangesRecord(Attendance record, AttendanceRequest row)
     {
         if (row.Status is null) return true;
-        var basic = row.Status == "Absent" ? 0m : row.BasicHours ?? 0m;
-        var overtime = row.Status == "Absent" ? 0m : row.OvertimeHours ?? 0m;
+        var basic = row.Status != "Present" ? 0m : row.BasicHours ?? 0m;
+        var overtime = row.Status != "Present" ? 0m : row.OvertimeHours ?? 0m;
         return record.Status != row.Status || record.BasicHours != basic || record.OvertimeHours != overtime;
     }
 

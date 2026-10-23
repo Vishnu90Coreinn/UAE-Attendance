@@ -87,7 +87,8 @@ export function AttendancePage({
   const dirty = unsaved > 0;
   const present = forms.filter((form) => form.status === "Present").length;
   const absent = forms.filter((form) => form.status === "Absent").length;
-  const notRecorded = forms.length - present - absent;
+  const onLeave = forms.filter((form) => form.status === "Leave" || form.status === "Sick Leave").length;
+  const notRecorded = forms.length - present - absent - onLeave;
   const totalPay =
     showPay && day && settings
       ? day.rows.reduce(
@@ -419,7 +420,7 @@ export function AttendancePage({
             {day.rows.length > 0 && (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm">
                 <p className="font-medium text-gray-800">
-                  {present} present · {absent} absent · {notRecorded} not recorded
+                  {present} present · {absent} absent · {onLeave} on leave · {notRecorded} not recorded
                   {totalPay !== null && <span className="block font-semibold tabular-nums text-gray-900 sm:inline sm:before:content-['_·_']">{totalPay.toFixed(2)} AED</span>}
                 </p>
                 {canMarkAll && (

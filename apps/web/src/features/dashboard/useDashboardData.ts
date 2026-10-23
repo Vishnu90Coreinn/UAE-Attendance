@@ -104,7 +104,7 @@ export function useDashboardData(): DashboardData {
         label: weekday(dates[index]),
         present,
         absent,
-        notRecorded: day.rows.length - present - absent,
+        notRecorded: day.rows.filter((row) => !row.record).length,
         total: day.rows.length,
       };
     });
