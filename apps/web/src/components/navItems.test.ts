@@ -27,9 +27,10 @@ describe("navItemsForRole", () => {
     expect(labelsFor("Manager")).toEqual(["Dashboard", ...MODULES, "User Manager", "Settings"]);
   });
 
-  it("gives HR every screen except User Manager", () => {
+  it("gives HR every screen except User Manager and Settings", () => {
     expect(labelsFor("HR")).not.toContain("User Manager");
-    expect(labelsFor("HR")).toEqual(expect.arrayContaining(["Dashboard", "Payroll Summary", "Deductions", "Settings"]));
+    expect(labelsFor("HR")).not.toContain("Settings");
+    expect(labelsFor("HR")).toEqual(expect.arrayContaining(["Dashboard", "Payroll Summary", "Deductions"]));
   });
 
   it("gives a Supervisor only Worker Directory, Daily Attendance and Leave Management", () => {

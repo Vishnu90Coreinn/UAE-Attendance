@@ -31,18 +31,18 @@ public sealed class UserService(
     public const string SelfMutationMessage = "You cannot delete or deactivate your own account.";
     public const string LastAdministratorMessage = "At least one active Administrator account is required.";
     public const string DuplicateUsernameMessage = "Username already exists.";
-    public const string SupervisorsOnlyMessage = "Managers can manage Supervisor accounts only.";
+    public const string SupervisorsOnlyMessage = "Managers can manage Supervisor and HR accounts only.";
 
-    /// <summary>An Administrator sees every account; a Manager sees Supervisor accounts only.</summary>
+    /// <summary>An Administrator sees every account; a Manager sees Supervisor and HR accounts only.</summary>
     public async Task<List<UserResponse>> ListAsync(bool administrator, CancellationToken ct) =>
-        (await db.Users.AsNoTracking().Where(x => administrator || x.Role == Roles.Supervisor).OrderBy(x => x.Username).ToListAsync(ct)).Select(Response).ToList();
+        (await db.Users.AsNoTracking().Where(x => administrator || x.Role == Roles.Supervisor || x.Role == Roles.HR).OrderBy(x => x.Username).ToListAsync(ct)).Select(Response).ToList();
 
     public async Task<UserResult> CreateAsync(CreateUserRequest request, string actor, bool administrator, CancellationToken ct)
     {
         var username = request.Username.Trim();
         var errors = Validate(username, request.Password, request.Role, validatePassword: true);
         if (errors.Count > 0) return Invalid(errors);
-        if (!administrator && request.Role != Roles.Supervisor) return Forbidden();
+        if (!administrator && !IsManagerAssignable(request.Role)) return Forbidden();
 
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         await LockAsync(ct);
@@ -82,7 +82,7 @@ public sealed class UserService(
         await LockAsync(ct);
         var user = await db.Users.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (user is null) return new(UserOutcome.NotFound);
-        if (!administrator && (user.Role != Roles.Supervisor || request.Role != Roles.Supervisor)) return Forbidden();
+        if (!administrator && (!IsManagerAssignable(user.Role) || !IsManagerAssignable(request.Role))) return Forbidden();
         if (id == actorId && !request.Active) return new(UserOutcome.Conflict, Message: SelfMutationMessage);
         if (RemovesActiveAdministrator(user, request.Role, request.Active) &&
             !await db.Users.AnyAsync(x => x.Id != id && x.IsActive && x.Role == Roles.Administrator, ct))
@@ -119,7 +119,7 @@ public sealed class UserService(
         await LockAsync(ct);
         var user = await db.Users.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (user is null) return new(UserOutcome.NotFound);
-        if (!administrator && user.Role != Roles.Supervisor) return Forbidden();
+        if (!administrator && !IsManagerAssignable(user.Role)) return Forbidden();
         var error = PasswordPolicy.Validate(request.Password, user.Username);
         if (error is not null) return Invalid(new() { ["password"] = error });
 
@@ -138,7 +138,7 @@ public sealed class UserService(
         await LockAsync(ct);
         var user = await db.Users.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (user is null) return new(UserOutcome.NotFound);
-        if (!administrator && user.Role != Roles.Supervisor) return Forbidden();
+        if (!administrator && !IsManagerAssignable(user.Role)) return Forbidden();
         if (id == actorId) return new(UserOutcome.Conflict, Message: SelfMutationMessage);
         if (user.IsActive && user.Role == Roles.Administrator &&
             !await db.Users.AnyAsync(x => x.Id != id && x.IsActive && x.Role == Roles.Administrator, ct))
@@ -177,6 +177,8 @@ public sealed class UserService(
     private static bool RemovesActiveAdministrator(User user, string role, bool active) =>
         user.IsActive && user.Role == Roles.Administrator && (!active || role != Roles.Administrator);
     private static UserResult Invalid(Dictionary<string, string> errors) => new(UserOutcome.Invalid, Errors: errors);
+    private static bool IsManagerAssignable(string role) => role is Roles.Supervisor or Roles.HR;
+
     private static UserResult Forbidden() => new(UserOutcome.Forbidden, Message: SupervisorsOnlyMessage);
     private static string Id(User user) => user.Id.ToString(CultureInfo.InvariantCulture);
     private static UserResponse Response(User user) =>

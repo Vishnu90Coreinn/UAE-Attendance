@@ -115,7 +115,7 @@ export function UserPage() {
   return (
     <section className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div><h2 className="text-2xl font-bold text-gray-800">User Manager</h2><p className="text-sm text-gray-600">{current?.role === "Administrator" ? "Manage access roles and account status." : "Manage Supervisor accounts."}</p></div>
+        <div><h2 className="text-2xl font-bold text-gray-800">User Manager</h2><p className="text-sm text-gray-600">{current?.role === "Administrator" ? "Manage access roles and account status." : "Manage HR and Supervisor accounts."}</p></div>
         <button type="button" disabled={busy} className={`${primaryButtonClass} disabled:opacity-60`}
           onClick={() => { clearFeedback(); setDialogError(null); setFieldErrors(undefined); setAddOpen(true); }}>
           <UserPlus aria-hidden="true" size={16} />Add User
