@@ -62,18 +62,19 @@ it("offers an Administrator all four roles when adding a user and changing a rol
   expect(within(dialog).getByLabelText("Role")).toHaveValue("Supervisor");
 });
 
-it("offers a Manager only the Supervisor role and lists only the accounts the API returns", async () => {
+it("offers a Manager only the HR and Supervisor roles and lists only the accounts the API returns", async () => {
   auth.user = { id: 5, username: "mgr.sam", role: "Manager" };
   vi.mocked(usersApi.listUsers).mockResolvedValue([rows[1]]);
   const user = await setup();
   expect(screen.queryByText("admin")).not.toBeInTheDocument();
   expect(within(screen.getByLabelText("Role for site.user")).getAllByRole("option").map((o) => o.textContent)).toEqual([
+    "HR",
     "Supervisor",
   ]);
   await user.click(screen.getByRole("button", { name: "Add User" }));
   const dialog = screen.getByRole("dialog", { name: "Add User" });
   const options = within(within(dialog).getByLabelText("Role")).getAllByRole("option").map((o) => o.textContent);
-  expect(options).toEqual(["Supervisor"]);
+  expect(options).toEqual(["HR", "Supervisor"]);
   expect(document.body).not.toHaveTextContent(/HR Staff|Viewer|null|undefined|NaN/);
 });
 

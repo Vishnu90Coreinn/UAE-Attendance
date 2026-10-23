@@ -90,7 +90,7 @@ export default function App() {
           <Route
             path="settings"
             element={
-              <RequireRole roles={VIEW_ALL_ROLES}>
+              <RequireRole roles={MANAGEMENT_ROLES}>
                 <SettingsPage />
               </RequireRole>
             }

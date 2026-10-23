@@ -23,7 +23,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "deductions", label: "Deductions", shortLabel: "Deductions", roles: VIEW_ALL_ROLES, path: "/deductions" },
   { key: "leave", label: "Leave Management", shortLabel: "Leave", roles: ALL_ROLES, path: "/leave" },
   { key: "users", label: "User Manager", shortLabel: "Users", roles: MANAGEMENT_ROLES, path: "/users" },
-  { key: "settings", label: "Settings", shortLabel: "Settings", roles: VIEW_ALL_ROLES, path: "/settings" },
+  { key: "settings", label: "Settings", shortLabel: "Settings", roles: MANAGEMENT_ROLES, path: "/settings" },
 ];
 
 export function navItemsForRole(role: Role): NavItem[] {
