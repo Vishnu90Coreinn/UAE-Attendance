@@ -23,7 +23,7 @@ import {
 import { PayrollReport } from "./PayrollReport";
 import { downloadPdf, saveBlob } from "./downloadPdf";
 import { PayrollFinalisationDialog } from "./PayrollFinalisationDialog";
-import { isManagement } from "../../permissions";
+import { canViewAll, isManagement } from "../../permissions";
 import { useAuth } from "../../contexts/AuthContext";
 
 function currentMonth(): string {
@@ -281,7 +281,7 @@ export function PayrollPage() {
       ) : (
         report && (
           <>
-            {isManagement(user?.role) && (
+            {canViewAll(user?.role) && (
               <div className="no-print flex justify-end">
                 <button
                   type="button"
@@ -306,7 +306,7 @@ export function PayrollPage() {
             </div>
             <PayrollReport
               report={report}
-              onPayslip={isManagement(user?.role) ? (id) => downloadPayslips(id) : undefined}
+              onPayslip={canViewAll(user?.role) ? (id) => downloadPayslips(id) : undefined}
               payslipBusy={busy || !!dialog}
             />
           </>

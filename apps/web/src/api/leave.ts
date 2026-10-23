@@ -48,3 +48,26 @@ export function rejectLeave(id: number): Promise<LeaveRequest> {
 export function deleteLeave(id: number): Promise<void> {
   return apiDelete(`/api/leave/${id}`);
 }
+
+/** One paid-leave type for a worker in their current allowance year. Used counts paid days only. */
+export interface LeaveTypeBalance {
+  leaveType: "Annual Leave" | "Sick Leave" | "Emergency Leave";
+  allowance: number;
+  used: number;
+  remaining: number;
+  /** False when the worker cannot take this leave yet (annual leave before 10 months, or no join date). */
+  available: boolean;
+  eligibleFrom: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+}
+export interface WorkerLeaveBalance {
+  workerId: number;
+  workerCode: string;
+  workerName: string;
+  joinDate: string | null;
+  balances: LeaveTypeBalance[];
+}
+export function getLeaveBalances(): Promise<WorkerLeaveBalance[]> {
+  return apiGet("/api/leave/balances");
+}

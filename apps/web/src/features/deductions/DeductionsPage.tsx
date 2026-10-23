@@ -10,6 +10,8 @@ import {
   type MonthDeductions,
 } from "../../api/deductions";
 import { ApiError } from "../../api/client";
+import { useAuth } from "../../contexts/AuthContext";
+import { isManagement } from "../../permissions";
 import {
   ActionFailure,
   LoadError,
@@ -70,6 +72,9 @@ function firstProblem(data: MonthDeductions, draft: DraftRows, types: DeductionT
 }
 
 export function DeductionsPage() {
+  const { user } = useAuth();
+  /** HR can read deductions but only a Manager or Administrator can change them. */
+  const readOnly = !isManagement(user?.role);
   const [month, setMonth] = useState(currentMonth);
   const [data, setData] = useState<MonthDeductions | null>(null);
   const [types, setTypes] = useState<DeductionType[]>([]);
@@ -87,7 +92,8 @@ export function DeductionsPage() {
     if (!data) return false;
     return JSON.stringify(draft) !== JSON.stringify(draftFrom(data));
   }, [draft, data]);
-  const locked = !!data?.isFinalised;
+  const finalised = !!data?.isFinalised;
+  const locked = finalised || readOnly;
 
   useEffect(() => {
     let cancelled = false;
@@ -243,7 +249,7 @@ export function DeductionsPage() {
         )}
       </div>
 
-      {locked && (
+      {finalised && (
         <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           This month is finalised. Its deductions are locked and appear on the payslips.
         </p>
@@ -261,6 +267,7 @@ export function DeductionsPage() {
               <button
                 type="button"
                 onClick={() => toggleType(type)}
+                disabled={readOnly}
                 aria-pressed={type.isActive}
                 className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${type.isActive ? "border-slate-700 bg-slate-100 text-slate-900" : "border-gray-300 bg-white text-gray-500 line-through"}`}
               >
@@ -270,7 +277,7 @@ export function DeductionsPage() {
             </li>
           ))}
         </ul>
-        <div className="mt-4 flex flex-wrap items-end gap-3">
+        {!readOnly && <div className="mt-4 flex flex-wrap items-end gap-3">
           <div>
             <label htmlFor="new-deduction-type" className="mb-1 block text-sm font-medium text-gray-800">
               New deduction type
@@ -292,7 +299,7 @@ export function DeductionsPage() {
             <Plus aria-hidden="true" size={16} />
             Add type
           </button>
-        </div>
+        </div>}
       </section>
 
       {loading ? (

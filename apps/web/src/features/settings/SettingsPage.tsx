@@ -4,6 +4,8 @@ import { useOutletContext } from "react-router-dom";
 import type { LayoutContext } from "../../components/LayoutContext";
 import { ApiError } from "../../api/client";
 import { getPayrollSettings, updatePayrollSettings } from "../../api/settings";
+import { useAuth } from "../../contexts/AuthContext";
+import { isManagement } from "../../permissions";
 import { TextField } from "../../components/TextField";
 import { LoadError, primaryButtonClass, SuccessRegion } from "../workers/WorkersFeedback";
 import {
@@ -30,6 +32,9 @@ const sectionClass = "space-y-4";
 const sectionTitleClass = "text-lg font-semibold text-gray-800";
 
 export function SettingsPage() {
+  const { user } = useAuth();
+  /** HR can read the settings but only a Manager or Administrator can change them. */
+  const readOnly = !isManagement(user?.role);
   const layout = useOutletContext<LayoutContext | null>();
   const [load, setLoad] = useState<LoadState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -183,6 +188,7 @@ export function SettingsPage() {
             noValidate
             className="max-w-3xl space-y-8 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6"
           >
+            <fieldset disabled={readOnly} className="m-0 min-w-0 space-y-8 border-0 p-0">
             <div className={sectionClass}>
               <h3 className={sectionTitleClass}>Company</h3>
               <TextField label="Company name" autoComplete="off" {...field("companyName")} />
@@ -229,6 +235,8 @@ export function SettingsPage() {
               />
             </div>
 
+            </fieldset>
+
             {summary.length > 0 && (
               <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 <p className="font-medium">Please fix the following:</p>
@@ -240,7 +248,7 @@ export function SettingsPage() {
               </div>
             )}
 
-            <div className="flex flex-wrap items-center justify-end gap-3">
+            {!readOnly && <div className="flex flex-wrap items-center justify-end gap-3">
               {!dirty && !pending && <p className="text-sm text-gray-500">No changes to save.</p>}
               <button
                 type="submit"
@@ -260,7 +268,7 @@ export function SettingsPage() {
                   </>
                 )}
               </button>
-            </div>
+            </div>}
           </form>
         </>
       )}

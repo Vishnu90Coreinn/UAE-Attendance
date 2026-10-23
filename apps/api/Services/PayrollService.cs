@@ -135,7 +135,7 @@ public sealed class PayrollService(AppDbContext db, IAuditLogger? audit = null, 
             var records = byWorker[w.Id].ToArray();
             var summary = PayrollCalculator.MonthSummary(records.Select(a => PayrollCalculator.DailyPay(a.Status, a.BasicHours,
                 a.OvertimeHours, w.HourlyRate, settings.OvertimeRatePerHour, w.OvertimeRate)),
-                records.Where(a => a.Status == "Present").Select(a => (a.BasicHours, a.OvertimeHours)));
+                records.Where(a => a.Status == "Present" || (LeaveEntitlements.IsLeave(a.Status) && a.BasicHours > 0)).Select(a => (a.BasicHours, a.OvertimeHours)));
             var items = deductions[w.Id].OrderBy(d => d.DeductionType.Name, StringComparer.Ordinal)
                 .Select(d => new PayrollDeductionItem(d.DeductionType.Name, Money(d.Amount), d.Note)).ToArray();
             var totalDeductions = Money(items.Sum(i => i.Amount));

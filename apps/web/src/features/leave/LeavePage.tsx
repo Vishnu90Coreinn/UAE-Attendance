@@ -13,6 +13,7 @@ import {
 import { listWorkers, type Worker } from "../../api/workers";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
+import { LeaveBalances } from "./LeaveBalances";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import {
   ActionFailure,
@@ -169,7 +170,7 @@ export function LeavePage() {
             dates.
           </p>
         </div>
-        {user && (
+        {user && user.role !== "HR" && (
           <button
             type="button"
             disabled={busy || !workersReady || !workers.some((w) => w.isActive)}
@@ -285,6 +286,7 @@ export function LeavePage() {
         }}
         onCancel={() => setConfirmation(null)}
       />
+      <LeaveBalances refreshKey={attempt} />
     </section>
   );
 }

@@ -38,7 +38,7 @@ afterEach(() => {
 
 it("describes an installable standalone app", () => {
   const m = manifest();
-  expect(m.name).toBe("HR & Payroll");
+  expect(m.name).toBe("DE AKS BE HR & Payroll");
   expect(m.short_name).toBeTruthy();
   expect(m.short_name.length).toBeLessThanOrEqual(12);
   expect(m.start_url).toBe("/");

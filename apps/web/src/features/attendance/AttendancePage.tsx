@@ -9,9 +9,10 @@ import {
   type AttendanceRow,
 } from "../../api/attendance";
 import { ApiError } from "../../api/client";
+import { isLeaveStatus } from "../../utils/leaveStatuses";
 import { getPayrollSettings, type PayrollSettings } from "../../api/settings";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
-import { isManagement } from "../../permissions";
+import { canViewAll, isManagement } from "../../permissions";
 import { useAuth } from "../../contexts/AuthContext";
 import { useIsDesktop } from "../../utils/useIsDesktop";
 import {
@@ -81,13 +82,13 @@ export function AttendancePage({
   const [rejecting, setRejecting] = useState<AttendanceRow | null>(null);
   const summary = useAttendanceSummary(!!user);
   const isManager = isManagement(user?.role);
-  const showPay = isManagement(user?.role);
-  const editable = !!user && !day?.isFinalised;
+  const showPay = canViewAll(user?.role);
+  const editable = !!user && user.role !== "HR" && !day?.isFinalised;
   const unsaved = day ? forms.filter((form, index) => changed(form, day.rows[index])).length : 0;
   const dirty = unsaved > 0;
   const present = forms.filter((form) => form.status === "Present").length;
   const absent = forms.filter((form) => form.status === "Absent").length;
-  const onLeave = forms.filter((form) => form.status === "Leave" || form.status === "Sick Leave").length;
+  const onLeave = forms.filter((form) => isLeaveStatus(form.status)).length;
   const notRecorded = forms.length - present - absent - onLeave;
   const totalPay =
     showPay && day && settings

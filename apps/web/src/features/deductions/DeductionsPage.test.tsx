@@ -3,9 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import * as deductionsApi from "../../api/deductions";
 import type { MonthDeductions } from "../../api/deductions";
+import { useAuth } from "../../contexts/AuthContext";
 import { DeductionsPage } from "./DeductionsPage";
 
 vi.mock("../../api/deductions");
+vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
 
 const types = [
   { id: 1, name: "Advance / Loan", isActive: true },
@@ -26,6 +28,13 @@ function monthData(overrides: Partial<MonthDeductions> = {}): MonthDeductions {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(useAuth).mockReturnValue({
+    status: "signedIn",
+    user: { id: 1, username: "u", role: "Manager" },
+    token: "t",
+    login: vi.fn(),
+    logout: vi.fn(),
+  });
   vi.mocked(deductionsApi.listDeductionTypes).mockResolvedValue(types);
   vi.mocked(deductionsApi.getDeductions).mockResolvedValue(monthData());
 });
@@ -75,4 +84,18 @@ it("locks the entries for a finalised month", async () => {
   expect(await screen.findByText(/this month is finalised/i)).toBeInTheDocument();
   expect(screen.getByLabelText("Advance / Loan amount for Ahmed Khan")).toBeDisabled();
   expect(screen.queryByRole("button", { name: "Save deductions" })).not.toBeInTheDocument();
+});
+
+it("shows HR the deductions read-only", async () => {
+  vi.mocked(useAuth).mockReturnValue({
+    status: "signedIn",
+    user: { id: 2, username: "hr", role: "HR" },
+    token: "t",
+    login: vi.fn(),
+    logout: vi.fn(),
+  });
+  render(<DeductionsPage />);
+  expect(await screen.findByLabelText("Advance / Loan amount for Ahmed Khan")).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Save deductions" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Add type" })).not.toBeInTheDocument();
 });

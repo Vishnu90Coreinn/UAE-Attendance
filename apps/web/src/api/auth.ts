@@ -1,6 +1,6 @@
 import { apiGet, apiPost } from "./client";
 
-export type Role = "Administrator" | "Manager" | "Supervisor";
+export type Role = "Administrator" | "Manager" | "Supervisor" | "HR";
 
 export interface CurrentUser {
   id: number;

@@ -4,9 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../../api/client";
 import * as settingsApi from "../../api/settings";
 import type { PayrollSettings } from "../../api/settings";
+import { useAuth } from "../../contexts/AuthContext";
 import { SettingsPage } from "./SettingsPage";
 
 vi.mock("../../api/settings");
+vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
 
 const current: PayrollSettings = {
   companyName: "Gulf Glass LLC",
@@ -44,6 +46,13 @@ function setValue(field: HTMLElement, value: string) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(useAuth).mockReturnValue({
+    status: "signedIn",
+    user: { id: 1, username: "u", role: "Manager" },
+    token: "t",
+    login: vi.fn(),
+    logout: vi.fn(),
+  });
 });
 
 describe("SettingsPage - loading", () => {
@@ -449,4 +458,18 @@ describe("SettingsPage - failed saves", () => {
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Settings saved."));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+});
+
+it("shows HR the settings read-only, with no Save button", async () => {
+  vi.mocked(settingsApi.getPayrollSettings).mockResolvedValue(current);
+  vi.mocked(useAuth).mockReturnValue({
+    status: "signedIn",
+    user: { id: 2, username: "hr", role: "HR" },
+    token: "t",
+    login: vi.fn(),
+    logout: vi.fn(),
+  });
+  render(<SettingsPage />);
+  expect(await screen.findByLabelText("Company name")).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Save settings" })).not.toBeInTheDocument();
 });

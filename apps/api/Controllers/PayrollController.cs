@@ -12,7 +12,7 @@ namespace HrPayroll.Api.Controllers;
 public sealed class PayrollController(PayrollService payroll, PayrollPdf pdf, PayslipService payslips) : ControllerBase
 {
     [HttpGet]
-    [Authorize(Policy = Policies.ManagerOrAdmin)]
+    [Authorize(Policy = Policies.ManagerAdminOrHr)]
     public async Task<IActionResult> Get([FromQuery] string? month, CancellationToken ct)
     {
         Response.Headers.CacheControl = "no-store";
@@ -21,7 +21,7 @@ public sealed class PayrollController(PayrollService payroll, PayrollPdf pdf, Pa
     }
 
     [HttpGet("pdf")]
-    [Authorize(Policy = Policies.ManagerOrAdmin)]
+    [Authorize(Policy = Policies.ManagerAdminOrHr)]
     public async Task<IActionResult> Pdf([FromQuery] string? month, [FromQuery] string? revision, CancellationToken ct)
     {
         Response.Headers.CacheControl = "no-store";
@@ -37,11 +37,11 @@ public sealed class PayrollController(PayrollService payroll, PayrollPdf pdf, Pa
     }
 
     [HttpGet("{month}/payslips/pdf")]
-    [Authorize(Policy = Policies.ManagerOrAdmin)]
+    [Authorize(Policy = Policies.ManagerAdminOrHr)]
     public async Task<IActionResult> AllPayslips(string month, CancellationToken ct) => await PayslipFile(month, null, ct);
 
     [HttpGet("{month}/payslips/{workerId:int}/pdf")]
-    [Authorize(Policy = Policies.ManagerOrAdmin)]
+    [Authorize(Policy = Policies.ManagerAdminOrHr)]
     public async Task<IActionResult> Payslip(string month, int workerId, CancellationToken ct) => await PayslipFile(month, workerId, ct);
 
     private async Task<IActionResult> PayslipFile(string month, int? workerId, CancellationToken ct)

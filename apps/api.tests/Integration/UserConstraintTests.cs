@@ -85,8 +85,8 @@ public class UserConstraintTests(TestDatabase database) : IClassFixture<TestData
     }
 
     [Fact]
-    public void Roles_All_ListsTheThreeRoles()
+    public void Roles_All_ListsTheFourRoles()
     {
-        Assert.Equal(new[] { "Administrator", "Manager", "Supervisor" }, Roles.All);
+        Assert.Equal(new[] { "Administrator", "Manager", "Supervisor", "HR" }, Roles.All);
     }
 }

@@ -21,7 +21,7 @@ export interface UpdateUserInput {
 }
 
 /** Roles an Administrator may assign. */
-export const ADMIN_ASSIGNABLE_ROLES: readonly Role[] = ["Administrator", "Manager", "Supervisor"];
+export const ADMIN_ASSIGNABLE_ROLES: readonly Role[] = ["Administrator", "Manager", "HR", "Supervisor"];
 /** Roles a Manager may assign: Supervisors only. */
 export const MANAGER_ASSIGNABLE_ROLES: readonly Role[] = ["Supervisor"];
 

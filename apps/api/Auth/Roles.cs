@@ -11,5 +11,8 @@ public static class Roles
     /// <summary>A site supervisor: enters attendance and raises leave; never sees pay.</summary>
     public const string Supervisor = "Supervisor";
 
-    public static readonly string[] All = [Administrator, Manager, Supervisor];
+    /// <summary>Head-office HR: sees everything a manager sees, including pay, but cannot change or approve anything.</summary>
+    public const string HR = "HR";
+
+    public static readonly string[] All = [Administrator, Manager, Supervisor, HR];
 }

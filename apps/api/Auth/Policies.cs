@@ -9,6 +9,9 @@ public static class Policies
     /// <summary>Manager or Administrator: management actions (workers, leave decisions, payroll, settings, users).</summary>
     public const string ManagerOrAdmin = "ManagerOrAdmin";
 
+    /// <summary>Administrator, Manager or HR: read access to pay, payroll, deductions and the other management screens.</summary>
+    public const string ManagerAdminOrHr = "ManagerAdminOrHr";
+
     /// <summary>Supervisor, Manager or Administrator: entering attendance and raising leave.</summary>
     public const string SupervisorOrAbove = "SupervisorOrAbove";
 }

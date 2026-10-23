@@ -58,8 +58,8 @@ namespace HrPayroll.Api.Data.Migrations
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<string>("UpdatedBy")
                         .IsRequired()
@@ -88,9 +88,9 @@ namespace HrPayroll.Api.Data.Migrations
 
                             t.HasCheckConstraint("CK_Attendance_Hours", "[BasicHours] >= 0 AND [OvertimeHours] >= 0 AND [BasicHours] + [OvertimeHours] <= 24");
 
-                            t.HasCheckConstraint("CK_Attendance_Status", "[Status] COLLATE Latin1_General_100_BIN2 IN ('Present', 'Absent', 'Leave', 'Sick Leave')");
+                            t.HasCheckConstraint("CK_Attendance_Status", "[Status] COLLATE Latin1_General_100_BIN2 IN ('Present', 'Absent', 'Annual Leave', 'Sick Leave', 'Emergency Leave')");
 
-                            t.HasCheckConstraint("CK_Attendance_StatusHours", "([Status] <> 'Present' AND [BasicHours] = 0 AND [OvertimeHours] = 0) OR ([Status] = 'Present' AND [BasicHours] > 0)");
+                            t.HasCheckConstraint("CK_Attendance_StatusHours", "([Status] = 'Absent' AND [BasicHours] = 0 AND [OvertimeHours] = 0) OR ([Status] = 'Present' AND [BasicHours] > 0) OR ([Status] IN ('Annual Leave', 'Sick Leave', 'Emergency Leave') AND [OvertimeHours] = 0)");
                         });
                 });
 
@@ -514,7 +514,7 @@ namespace HrPayroll.Api.Data.Migrations
 
                     b.ToTable("Users", t =>
                         {
-                            t.HasCheckConstraint("CK_Users_Role", "[Role] IN ('Administrator', 'Manager', 'Supervisor')");
+                            t.HasCheckConstraint("CK_Users_Role", "[Role] IN ('Administrator', 'Manager', 'Supervisor', 'HR')");
                         });
                 });
 
