@@ -11,7 +11,7 @@ import { WorkersPage } from "./features/workers/WorkersPage";
 import { LeavePage } from "./features/leave/LeavePage";
 import { DeductionsPage } from "./features/deductions/DeductionsPage";
 import { UserPage } from "./features/users/UserPage";
-import { isManagement, MANAGEMENT_ROLES } from "./permissions";
+import { canViewAll, MANAGEMENT_ROLES, VIEW_ALL_ROLES } from "./permissions";
 import { useAuth } from "./contexts/AuthContext";
 import { NotFound } from "./pages/NotFound";
 
@@ -27,7 +27,7 @@ function Home() {
   const { user } = useAuth();
   return (
     <Navigate
-      to={isManagement(user?.role) ? "/dashboard" : "/workers"}
+      to={canViewAll(user?.role) ? "/dashboard" : "/workers"}
       replace
     />
   );
@@ -44,7 +44,7 @@ export default function App() {
           <Route
             path="dashboard"
             element={
-              <RequireRole roles={MANAGEMENT_ROLES}>
+              <RequireRole roles={VIEW_ALL_ROLES}>
                 <Suspense
                   fallback={
                     <p role="status" className="py-8 text-gray-600">
@@ -65,7 +65,7 @@ export default function App() {
           <Route
             path="payroll"
             element={
-              <RequireRole roles={MANAGEMENT_ROLES}>
+              <RequireRole roles={VIEW_ALL_ROLES}>
                 <PayrollPage />
               </RequireRole>
             }
@@ -73,7 +73,7 @@ export default function App() {
           <Route
             path="deductions"
             element={
-              <RequireRole roles={MANAGEMENT_ROLES}>
+              <RequireRole roles={VIEW_ALL_ROLES}>
                 <DeductionsPage />
               </RequireRole>
             }
@@ -90,7 +90,7 @@ export default function App() {
           <Route
             path="settings"
             element={
-              <RequireRole roles={MANAGEMENT_ROLES}>
+              <RequireRole roles={VIEW_ALL_ROLES}>
                 <SettingsPage />
               </RequireRole>
             }

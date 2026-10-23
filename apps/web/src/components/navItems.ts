@@ -1,5 +1,5 @@
 import type { Role } from "../api/auth";
-import { MANAGEMENT_ROLES } from "../permissions";
+import { MANAGEMENT_ROLES, VIEW_ALL_ROLES } from "../permissions";
 
 export interface NavItem {
   key: string;
@@ -12,18 +12,18 @@ export interface NavItem {
   path?: string;
 }
 
-const ALL_ROLES: readonly Role[] = ["Administrator", "Manager", "Supervisor"];
+const ALL_ROLES: readonly Role[] = ["Administrator", "Manager", "Supervisor", "HR"];
 
 /** The five prototype tabs in prototype order, then Settings. Each becomes a real route in its own slice. */
 export const NAV_ITEMS: readonly NavItem[] = [
-  { key: "dashboard", label: "Dashboard", shortLabel: "Home", roles: MANAGEMENT_ROLES, path: "/dashboard" },
+  { key: "dashboard", label: "Dashboard", shortLabel: "Home", roles: VIEW_ALL_ROLES, path: "/dashboard" },
   { key: "workers", label: "Worker Directory", shortLabel: "Workers", roles: ALL_ROLES, path: "/workers" },
   { key: "attendance", label: "Daily Attendance", shortLabel: "Attendance", roles: ALL_ROLES, path: "/attendance" },
-  { key: "payroll", label: "Payroll Summary", shortLabel: "Payroll", roles: MANAGEMENT_ROLES, path: "/payroll" },
-  { key: "deductions", label: "Deductions", shortLabel: "Deductions", roles: MANAGEMENT_ROLES, path: "/deductions" },
+  { key: "payroll", label: "Payroll Summary", shortLabel: "Payroll", roles: VIEW_ALL_ROLES, path: "/payroll" },
+  { key: "deductions", label: "Deductions", shortLabel: "Deductions", roles: VIEW_ALL_ROLES, path: "/deductions" },
   { key: "leave", label: "Leave Management", shortLabel: "Leave", roles: ALL_ROLES, path: "/leave" },
   { key: "users", label: "User Manager", shortLabel: "Users", roles: MANAGEMENT_ROLES, path: "/users" },
-  { key: "settings", label: "Settings", shortLabel: "Settings", roles: MANAGEMENT_ROLES, path: "/settings" },
+  { key: "settings", label: "Settings", shortLabel: "Settings", roles: VIEW_ALL_ROLES, path: "/settings" },
 ];
 
 export function navItemsForRole(role: Role): NavItem[] {

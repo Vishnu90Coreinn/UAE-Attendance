@@ -169,7 +169,7 @@ export function LeavePage() {
             dates.
           </p>
         </div>
-        {user && (
+        {user && user.role !== "HR" && (
           <button
             type="button"
             disabled={busy || !workersReady || !workers.some((w) => w.isActive)}

@@ -49,15 +49,15 @@ it("shows the prototype columns and protects the signed-in account", async () =>
   expect(within(ownRow).queryByRole("button", { name: "Delete admin" })).not.toBeInTheDocument();
 });
 
-it("offers an Administrator all three roles when adding a user and changing a role", async () => {
+it("offers an Administrator all four roles when adding a user and changing a role", async () => {
   const user = await setup();
   expect(within(screen.getByLabelText("Role for site.user")).getAllByRole("option").map((o) => o.textContent)).toEqual([
-    "Administrator", "Manager", "Supervisor",
+    "Administrator", "Manager", "HR", "Supervisor",
   ]);
   await user.click(screen.getByRole("button", { name: "Add User" }));
   const dialog = screen.getByRole("dialog", { name: "Add User" });
   expect(within(within(dialog).getByLabelText("Role")).getAllByRole("option").map((o) => o.textContent)).toEqual([
-    "Administrator", "Manager", "Supervisor",
+    "Administrator", "Manager", "HR", "Supervisor",
   ]);
   expect(within(dialog).getByLabelText("Role")).toHaveValue("Supervisor");
 });

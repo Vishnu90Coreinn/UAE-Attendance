@@ -5,8 +5,8 @@ namespace HrPayroll.Api.Services;
 
 /// <summary>
 /// The single place that removes pay information from API responses. Site supervisors never see hourly or overtime
-/// rates, daily pay or the company overtime rate; managers and administrators see everything. Fails closed: any caller
-/// who is not a manager or an administrator gets the redacted view.
+/// rates, daily pay or the company overtime rate; managers, administrators and HR see everything. Fails closed: any caller
+/// who is none of those gets the redacted view.
 /// </summary>
 public sealed class WageRedactor(IHttpContextAccessor httpContext)
 {
@@ -15,7 +15,7 @@ public sealed class WageRedactor(IHttpContextAccessor httpContext)
         get
         {
             var user = httpContext.HttpContext?.User;
-            return user is null || !(user.IsInRole(Roles.Manager) || user.IsInRole(Roles.Administrator));
+            return user is null || !(user.IsInRole(Roles.Manager) || user.IsInRole(Roles.Administrator) || user.IsInRole(Roles.HR));
         }
     }
 

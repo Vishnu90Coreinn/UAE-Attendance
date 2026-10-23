@@ -3,7 +3,7 @@ import { Trash2, UserPlus, UserX } from "lucide-react";
 import { ApiError } from "../../api/client";
 import { activateWorker, deactivateWorker, deleteWorker, type Worker } from "../../api/workers";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
-import { isManagement } from "../../permissions";
+import { canViewAll, isManagement } from "../../permissions";
 import { useAuth } from "../../contexts/AuthContext";
 import { useWorkerList } from "./useWorkerList";
 import { WorkerFormDialog } from "./WorkerFormDialog";
@@ -144,7 +144,7 @@ export function WorkersPage() {
       {list.status === "ready" && list.workers.length > 0 && (
         <WorkersTable
           workers={list.workers}
-          showRates={canManage}
+          showRates={canViewAll(user?.role)}
           busyId={busyId}
           actions={
             canManage
