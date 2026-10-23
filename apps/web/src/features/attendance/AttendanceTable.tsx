@@ -109,7 +109,7 @@ export function AttendanceTable({
                           onChange(form.workerId, {
                             status: (e.target.value ||
                               null) as AttendanceForm["status"],
-                            basicHours: "0",
+                            basicHours: e.target.value === "Present" ? String(maximum) : "0",
                             overtimeHours: "0",
                           })
                         }
@@ -133,23 +133,20 @@ export function AttendanceTable({
                     }
                     className={cellClass}
                   >
-                    {rowEditable ? (
+                    {rowEditable && field === "overtimeHours" ? (
                       <>
                         <label
                           className="sr-only"
                           htmlFor={`${field}-${form.workerId}`}
                         >
-                          {field === "basicHours"
-                            ? "Basic hours"
-                            : "Overtime hours"}{" "}
-                          for {row.worker.fullName}
+                          Overtime hours for {row.worker.fullName}
                         </label>
                         <input
                           id={`${field}-${form.workerId}`}
                           type="number"
                           inputMode="decimal"
                           min="0"
-                          max={field === "basicHours" ? maximum : 24}
+                          max={24}
                           step="0.01"
                           className={inputClass}
                           value={form[field]}

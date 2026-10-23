@@ -74,7 +74,7 @@ it("shows a loading state", () => {
 it("starts unrecorded with zero pay and disabled hours; settings supply the shift note", async () => {
   await loaded();
   expect(screen.getByLabelText("Status for Ahmed Khan")).toHaveValue("");
-  expect(screen.getByLabelText("Basic hours for Ahmed Khan")).toBeDisabled();
+  expect(screen.queryByLabelText("Basic hours for Ahmed Khan")).not.toBeInTheDocument();
   expect(screen.getByLabelText("Overtime hours for Ahmed Khan")).toBeDisabled();
   expect(screen.getByText(/Standard Shift: 06:00 AM/)).toHaveTextContent(
     "Overtime Rate: 2.22 AED/hr",
@@ -87,8 +87,6 @@ it("previews pay and saves only after Save day, then uses server values", async 
     screen.getByLabelText("Status for Ahmed Khan"),
     "Present",
   );
-  await user.clear(screen.getByLabelText("Basic hours for Ahmed Khan"));
-  await user.type(screen.getByLabelText("Basic hours for Ahmed Khan"), "8");
   await user.clear(screen.getByLabelText("Overtime hours for Ahmed Khan"));
   await user.type(screen.getByLabelText("Overtime hours for Ahmed Khan"), "2");
   expect(screen.getByText("104.44")).toBeInTheDocument();
@@ -116,20 +114,14 @@ it("previews pay and saves only after Save day, then uses server values", async 
   expect(await screen.findByText("Attendance saved.")).toBeInTheDocument();
   expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
 });
-it("refuses excessive or blank present hours before sending", async () => {
+it("fills basic hours with the standard shift and does not let them be edited", async () => {
   const user = await loaded();
   await user.selectOptions(
     screen.getByLabelText("Status for Ahmed Khan"),
     "Present",
   );
-  fireEvent.change(screen.getByLabelText("Basic hours for Ahmed Khan"), {
-    target: { value: "9" },
-  });
-  await user.click(screen.getByRole("button", { name: "Save day" }));
-  expect(screen.getByRole("alert")).toHaveTextContent(
-    "Basic hours must be greater than 0 and at most 8",
-  );
-  expect(api.saveAttendance).not.toHaveBeenCalled();
+  expect(screen.queryByLabelText("Basic hours for Ahmed Khan")).not.toBeInTheDocument();
+  expect(screen.getByText("8.00")).toBeInTheDocument();
 });
 it("switching to absent clears both hours", async () => {
   const user = await loaded();
@@ -221,9 +213,6 @@ it("a Supervisor records attendance without any pay column, overtime rate or liv
     screen.getByLabelText("Status for Ahmed Khan"),
     "Present",
   );
-  fireEvent.change(screen.getByLabelText("Basic hours for Ahmed Khan"), {
-    target: { value: "8" },
-  });
   fireEvent.change(screen.getByLabelText("Overtime hours for Ahmed Khan"), {
     target: { value: "2" },
   });
@@ -250,7 +239,6 @@ it("gives Supervisor inputs a thumb-sized touch target", async () => {
   await loaded();
   for (const label of [
     "Status for Ahmed Khan",
-    "Basic hours for Ahmed Khan",
     "Overtime hours for Ahmed Khan",
     "Work date",
   ]) {
@@ -329,18 +317,13 @@ it("requires confirmation before a date change discards edits", async () => {
 });
 it.each([
   ["8", "17", "must not exceed 24"],
-  ["7.751", "0", "at most 2 decimal places"],
   ["8", "-1", "0 or greater"],
-  ["", "0", "greater than 0"],
-])("rejects basic %s and overtime %s", async (basic, overtime, message) => {
+])("rejects basic %s and overtime %s", async (_basic, overtime, message) => {
   const user = await loaded();
   await user.selectOptions(
     screen.getByLabelText("Status for Ahmed Khan"),
     "Present",
   );
-  fireEvent.change(screen.getByLabelText("Basic hours for Ahmed Khan"), {
-    target: { value: basic },
-  });
   fireEvent.change(screen.getByLabelText("Overtime hours for Ahmed Khan"), {
     target: { value: overtime },
   });

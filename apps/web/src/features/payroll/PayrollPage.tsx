@@ -147,9 +147,9 @@ export function PayrollPage() {
       if (mounted.current) setExporting(false);
     }
   }
-  /** Payslips come from the finalised snapshot only; the server refuses them for a draft month. */
+  /** Payslips follow the report on screen: the live draft before finalising, the frozen snapshot after. */
   async function downloadPayslips(workerId?: number) {
-    if (!report || report.status !== "Finalised" || busy || dialog) return;
+    if (!report || busy || dialog) return;
     setExporting(true);
     setError(null);
     setSuccess(null);
@@ -281,7 +281,7 @@ export function PayrollPage() {
       ) : (
         report && (
           <>
-            {report.status === "Finalised" && isManagement(user?.role) && (
+            {isManagement(user?.role) && (
               <div className="no-print flex justify-end">
                 <button
                   type="button"
