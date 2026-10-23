@@ -15,12 +15,12 @@ public sealed class DeductionTypesController(DeductionService deductions) : Cont
     public async Task<IActionResult> Get(CancellationToken ct) => Ok(await deductions.ListTypesAsync(ct));
 
     [HttpPost]
-    [Authorize(Policy = Policies.ManagerOrAdmin)]
+    [Authorize(Policy = Policies.ManagerAdminOrHr)]
     public async Task<IActionResult> Create([FromBody] DeductionTypeRequest? request, CancellationToken ct) =>
         Map(await deductions.CreateTypeAsync(request ?? new(), ct));
 
     [HttpPut("{id:int}")]
-    [Authorize(Policy = Policies.ManagerOrAdmin)]
+    [Authorize(Policy = Policies.ManagerAdminOrHr)]
     public async Task<IActionResult> Update(int id, [FromBody] DeductionTypeRequest? request, CancellationToken ct) =>
         Map(await deductions.UpdateTypeAsync(id, request ?? new(), ct));
 
