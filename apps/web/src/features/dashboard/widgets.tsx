@@ -24,6 +24,7 @@ import type { Load, TrendDay } from "./useDashboardData";
 export const CHART = {
   present: "#16a34a",
   absent: "#dc2626",
+  onLeave: "#f59e0b",
   notRecorded: "#94a3b8",
   basic: "#2563eb",
   overtime: "#38bdf8",
@@ -229,13 +230,13 @@ export function AttendanceTrend({ state }: { state: Load<TrendDay[]> }) {
   return (
     <Panel
       title="Attendance, last 7 days"
-      hint="Workers present, absent and not yet recorded each day"
+      hint="Workers present, absent, on leave and not yet recorded each day"
       className="lg:col-span-2"
     >
       {state.status === "loading" && <Skeleton height={240} />}
       {state.status === "error" && <Failed />}
       {state.status === "ready" &&
-        (state.value.every((day) => day.present + day.absent === 0) ? (
+        (state.value.every((day) => day.present + day.absent + day.onLeave === 0) ? (
           <p className="rounded-lg bg-slate-50 p-6 text-center text-sm text-slate-600">
             No attendance has been recorded in the last 7 days.
           </p>
@@ -246,7 +247,7 @@ export function AttendanceTrend({ state }: { state: Load<TrendDay[]> }) {
               aria-label={`Attendance for the last 7 days. ${state.value
                 .map(
                   (day) =>
-                    `${day.label}: ${day.present} present, ${day.absent} absent, ${day.notRecorded} not recorded`,
+                    `${day.label}: ${day.present} present, ${day.absent} absent, ${day.onLeave} on leave, ${day.notRecorded} not recorded`,
                 )
                 .join(". ")}.`}
               className="h-56 sm:h-64"
@@ -290,6 +291,14 @@ export function AttendanceTrend({ state }: { state: Load<TrendDay[]> }) {
                     isAnimationActive={false}
                   />
                   <Bar
+                    name="On leave"
+                    dataKey="onLeave"
+                    stackId="a"
+                    fill={CHART.onLeave}
+                    maxBarSize={36}
+                    isAnimationActive={false}
+                  />
+                  <Bar
                     name="Not recorded"
                     dataKey="notRecorded"
                     stackId="a"
@@ -306,6 +315,7 @@ export function AttendanceTrend({ state }: { state: Load<TrendDay[]> }) {
                 items={[
                   { label: "Present", color: CHART.present },
                   { label: "Absent", color: CHART.absent },
+                  { label: "On leave", color: CHART.onLeave },
                   { label: "Not recorded", color: CHART.notRecorded },
                 ]}
               />
@@ -327,6 +337,7 @@ export function TodayDonut({ state }: { state: Load<TrendDay[]> }) {
     ? [
         { name: "Present", value: today.present, color: CHART.present },
         { name: "Absent", value: today.absent, color: CHART.absent },
+        { name: "On leave", value: today.onLeave, color: CHART.onLeave },
         {
           name: "Not recorded",
           value: today.notRecorded,
@@ -347,7 +358,7 @@ export function TodayDonut({ state }: { state: Load<TrendDay[]> }) {
         <>
           <div
             role="img"
-            aria-label={`${rate}% present today: ${today.present} present, ${today.absent} absent, ${today.notRecorded} not recorded.`}
+            aria-label={`${rate}% present today: ${today.present} present, ${today.absent} absent, ${today.onLeave} on leave, ${today.notRecorded} not recorded.`}
             className="relative mx-auto h-44 w-44"
           >
             <ResponsiveContainer width="100%" height="100%">
@@ -394,7 +405,10 @@ export function TodayDonut({ state }: { state: Load<TrendDay[]> }) {
 export function PayrollBreakdown({ state }: { state: Load<PayrollReport> }) {
   const report = state.status === "ready" ? state.value : null;
   const earners = report
-    ? [...report.lines].sort((a, b) => b.netPay - a.netPay).slice(0, 5)
+    ? [...report.lines]
+        .filter((line) => line.netPay > 0)
+        .sort((a, b) => b.netPay - a.netPay)
+        .slice(0, 5)
     : [];
   const parts = report
     ? [
@@ -488,45 +502,55 @@ export function PayrollBreakdown({ state }: { state: Load<PayrollReport> }) {
               <p className="text-xs font-semibold uppercase text-slate-600">
                 Highest net pay
               </p>
-              <div
-                role="img"
-                aria-label={`Highest net pay: ${earners.map((line) => `${line.workerName} ${money.format(line.netPay)}`).join(", ")}`}
-                style={{ height: Math.max(earners.length, 2) * 44 }}
-                className="mt-2"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={earners}
-                    layout="vertical"
-                    margin={{ top: 0, right: 8, bottom: 0, left: 0 }}
-                  >
-                    <XAxis type="number" hide />
-                    <YAxis
-                      type="category"
-                      dataKey="workerName"
-                      width={92}
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fill: "#334155", fontSize: 12 }}
-                    />
-                    <Tooltip
-                      cursor={{ fill: "#f1f5f9" }}
-                      contentStyle={tooltipStyle}
-                      formatter={(value) => [
-                        money.format(Number(value)),
-                        "Net pay (AED)",
-                      ]}
-                    />
-                    <Bar
-                      dataKey="netPay"
-                      fill={CHART.basic}
-                      radius={[0, 6, 6, 0]}
-                      barSize={18}
-                      isAnimationActive={false}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              {earners.length === 0 ? (
+                <p className="mt-2 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
+                  No positive net pay yet this month.
+                </p>
+              ) : (
+                <div
+                  role="img"
+                  aria-label={`Highest net pay: ${earners.map((line) => `${line.workerName} ${money.format(line.netPay)}`).join(", ")}`}
+                  style={{ height: Math.max(earners.length, 2) * 44 }}
+                  className="mt-2"
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={earners}
+                      layout="vertical"
+                      margin={{ top: 0, right: 8, bottom: 0, left: 0 }}
+                    >
+                      <XAxis type="number" hide domain={[0, "dataMax"]} />
+                      <YAxis
+                        type="category"
+                        dataKey="workerName"
+                        width={110}
+                        interval={0}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(name: string) =>
+                          name.length > 16 ? `${name.slice(0, 15)}…` : name
+                        }
+                        tick={{ fill: "#334155", fontSize: 12 }}
+                      />
+                      <Tooltip
+                        cursor={{ fill: "#f1f5f9" }}
+                        contentStyle={tooltipStyle}
+                        formatter={(value) => [
+                          money.format(Number(value)),
+                          "Net pay (AED)",
+                        ]}
+                      />
+                      <Bar
+                        dataKey="netPay"
+                        fill={CHART.basic}
+                        radius={[0, 6, 6, 0]}
+                        barSize={18}
+                        isAnimationActive={false}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
           </div>
         ))}

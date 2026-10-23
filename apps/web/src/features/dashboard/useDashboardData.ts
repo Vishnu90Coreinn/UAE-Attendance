@@ -4,6 +4,7 @@ import {
   getAttendanceSummary,
   type AttendanceSummary,
 } from "../../api/attendance";
+import { isLeaveStatus } from "../../utils/leaveStatuses";
 import { listLeave, type LeaveRequest } from "../../api/leave";
 import { getPayroll, type PayrollReport } from "../../api/payroll";
 
@@ -17,6 +18,8 @@ export interface TrendDay {
   label: string;
   present: number;
   absent: number;
+  /** Annual, sick or emergency leave. */
+  onLeave: number;
   notRecorded: number;
   total: number;
 }
@@ -99,11 +102,15 @@ export function useDashboardData(): DashboardData {
       const absent = day.rows.filter(
         (row) => row.record?.status === "Absent",
       ).length;
+      const onLeave = day.rows.filter((row) =>
+        isLeaveStatus(row.record?.status),
+      ).length;
       return {
         date: dates[index],
         label: weekday(dates[index]),
         present,
         absent,
+        onLeave,
         notRecorded: day.rows.filter((row) => !row.record).length,
         total: day.rows.length,
       };
