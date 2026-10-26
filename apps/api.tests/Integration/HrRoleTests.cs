@@ -46,8 +46,6 @@ public class HrRoleTests(ApiFixture api) : IClassFixture<ApiFixture>
     [InlineData("POST", "/api/leave/1/approve")]
     [InlineData("POST", "/api/leave/1/reject")]
     [InlineData("DELETE", "/api/leave/1")]
-    [InlineData("POST", "/api/workers")]
-    [InlineData("PUT", "/api/workers/1")]
     [InlineData("DELETE", "/api/workers/1")]
     [InlineData("PUT", "/api/settings/payroll")]
     [InlineData("POST", "/api/payroll/2026-02/finalise")]
@@ -58,6 +56,24 @@ public class HrRoleTests(ApiFixture api) : IClassFixture<ApiFixture>
     {
         var response = await api.SendAsync(new HttpMethod(verb), url, verb == "GET" ? null : new { }, await HrToken());
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Hr_CanAddAndEditWorkers_ButNotDeactivateOrDelete()
+    {
+        var token = await HrToken();
+        var code = TestWorkers.UniqueCode();
+        var created = await api.SendAsync(HttpMethod.Post, "/api/workers",
+            new { workerCode = code, fullName = "Hr Added", designation = "Glazier", hourlyRate = 10m }, token);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var id = (await TestWorkers.ReadJsonAsync(created)).GetProperty("id").GetInt32();
+
+        var edited = await api.SendAsync(HttpMethod.Put, $"/api/workers/{id}",
+            new { workerCode = code, fullName = "Hr Edited", designation = "Glazier", hourlyRate = 11m }, token);
+        Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.SendAsync(HttpMethod.Post, $"/api/workers/{id}/deactivate", null, token)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.SendAsync(HttpMethod.Delete, $"/api/workers/{id}", null, token)).StatusCode);
     }
 
     [Fact]

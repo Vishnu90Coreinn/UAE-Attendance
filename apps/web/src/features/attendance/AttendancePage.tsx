@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Check, CheckCheck, ChevronLeft, ChevronRight, Save } from "lucide-react";
+import { Check, CheckCheck, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Save } from "lucide-react";
 import {
   approveAttendance,
   getAttendance,
+  getAttendanceExport,
   rejectAttendance,
   saveAttendance,
   type AttendanceDay,
@@ -21,6 +22,7 @@ import {
   primaryButtonClass,
   SuccessRegion,
 } from "../workers/WorkersFeedback";
+import { saveBlob } from "../payroll/downloadPdf";
 import { AttendanceCards } from "./AttendanceCards";
 import { AttendanceTable } from "./AttendanceTable";
 import { RejectDialog } from "./RejectDialog";
@@ -79,6 +81,7 @@ export function AttendancePage({
   const [success, setSuccess] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [nextDate, setNextDate] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<"pdf" | "excel" | null>(null);
   const [rejecting, setRejecting] = useState<AttendanceRow | null>(null);
   const summary = useAttendanceSummary(!!user);
   const isManager = isManagement(user?.role);
@@ -255,6 +258,22 @@ export function AttendancePage({
     );
     if (ok) setRejecting(null);
   }
+  async function exportDay(format: "pdf" | "excel") {
+    if (exporting || dirty) return;
+    setExporting(format);
+    setError(null);
+    setSuccess(null);
+    try {
+      saveBlob(await getAttendanceExport(date, format), `Attendance_${date}.${format === "pdf" ? "pdf" : "xlsx"}`);
+      setSuccess(`Attendance for ${date} downloaded as ${format === "pdf" ? "PDF" : "Excel"}.`);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setExporting(null);
+    }
+  }
+  const exportButtonClass =
+    "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60 max-sm:flex-1";
   const showSave = !loading && !loadError && editable;
   const renderSave = (className: string) => (
     <button
@@ -424,6 +443,30 @@ export function AttendancePage({
                   {present} present · {absent} absent · {onLeave} on leave · {notRecorded} not recorded
                   {totalPay !== null && <span className="block font-semibold tabular-nums text-gray-900 sm:inline sm:before:content-['_·_']">{totalPay.toFixed(2)} AED</span>}
                 </p>
+                <div className="flex flex-wrap gap-2 max-sm:w-full" role="group" aria-label="Print or export this day">
+                  <button
+                    type="button"
+                    onClick={() => exportDay("pdf")}
+                    disabled={dirty || exporting !== null}
+                    aria-busy={exporting === "pdf"}
+                    title={dirty ? "Save your changes first; the export contains saved attendance." : undefined}
+                    className={exportButtonClass}
+                  >
+                    <FileText aria-hidden="true" size={16} />
+                    {exporting === "pdf" ? "Preparing..." : "Print PDF"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => exportDay("excel")}
+                    disabled={dirty || exporting !== null}
+                    aria-busy={exporting === "excel"}
+                    title={dirty ? "Save your changes first; the export contains saved attendance." : undefined}
+                    className={exportButtonClass}
+                  >
+                    <FileSpreadsheet aria-hidden="true" size={16} />
+                    {exporting === "excel" ? "Preparing..." : "Excel"}
+                  </button>
+                </div>
                 {canMarkAll && (
                   <button
                     type="button"

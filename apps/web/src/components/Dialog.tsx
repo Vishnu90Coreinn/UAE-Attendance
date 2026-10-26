@@ -16,6 +16,8 @@ interface DialogProps {
   descriptionId?: string;
   /** "sheet" slides up from the bottom edge of a phone screen; the default is a centred modal. */
   variant?: "center" | "sheet";
+  /** Width of the centred modal; "wide" suits long forms. */
+  size?: "default" | "wide";
 }
 
 const CENTER_CLASS =
@@ -28,7 +30,7 @@ const SHEET_CLASS =
  * The parent owns `open`. Children are mounted only while it is open, so every opening starts with
  * fresh state, and focus goes back to whatever opened the dialog when it closes.
  */
-export function Dialog({ open, onClose, title, children, initialFocusRef, descriptionId, variant = "center" }: DialogProps) {
+export function Dialog({ open, onClose, title, children, initialFocusRef, descriptionId, variant = "center", size = "default" }: DialogProps) {
   const headingId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
@@ -77,7 +79,7 @@ export function Dialog({ open, onClose, title, children, initialFocusRef, descri
       onKeyDown={handleKeyDown}
       onCancel={handleCancel}
       onClick={handleBackdropClick}
-      className={variant === "sheet" ? SHEET_CLASS : CENTER_CLASS}
+      className={variant === "sheet" ? SHEET_CLASS : size === "wide" ? CENTER_CLASS.replace("max-w-md", "max-w-3xl") : CENTER_CLASS}
     >
       {variant === "sheet" ? (
         <div className="flex items-center justify-between gap-3">

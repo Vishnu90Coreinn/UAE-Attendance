@@ -60,6 +60,88 @@ public class WorkersWriteEndpointTests(ApiFixture api) : IClassFixture<ApiFixtur
     // --- create --------------------------------------------------------------------------------------------
 
     [Fact]
+    public async Task Create_StoresTheOptionalProfileFields_TrimmedAndReturnsThem()
+    {
+        var (_, token) = await HrAsync();
+        var body = new
+        {
+            workerCode = TestWorkers.UniqueCode(), fullName = "Tariq", designation = "Glazier", hourlyRate = 12.5m,
+            department = "  Glass Installation ", emiratesId = "784-1988-1294857-1", passportNumber = "A0948392",
+            phone = "+971 50 432 1098", email = "tariq@example.com", emergencyContact = "Omar: +971 50 111 2233",
+            workLocation = "Musaffah", notes = "   ",
+        };
+
+        var response = await api.SendAsync(HttpMethod.Post, "/api/workers", body, token);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var json = await TestWorkers.ReadJsonAsync(response);
+        Assert.Equal("Glass Installation", json.GetProperty("department").GetString());
+        Assert.Equal("784-1988-1294857-1", json.GetProperty("emiratesId").GetString());
+        Assert.Equal("A0948392", json.GetProperty("passportNumber").GetString());
+        Assert.Equal("tariq@example.com", json.GetProperty("email").GetString());
+        Assert.Equal(JsonValueKind.Null, json.GetProperty("notes").ValueKind);
+    }
+
+    [Fact]
+    public async Task Update_SavesTheOnboardingChecklist_AndLeavesOmittedItemsAlone()
+    {
+        var (_, token) = await HrAsync();
+        var created = await api.SendAsync(HttpMethod.Post, "/api/workers",
+            new { workerCode = TestWorkers.UniqueCode(), fullName = "Rashid", designation = "Fabricator", hourlyRate = 10m, contractSigned = true }, token);
+        var id = (await TestWorkers.ReadJsonAsync(created)).GetProperty("id").GetInt32();
+        var worker = await TestWorkers.FindAsync(api.ConnectionString, id);
+
+        var response = await api.SendAsync(HttpMethod.Put, $"/api/workers/{id}",
+            new { workerCode = worker!.WorkerCode, fullName = "Rashid", designation = "Fabricator", hourlyRate = 10m, badgeIssued = true }, token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await TestWorkers.ReadJsonAsync(response);
+        Assert.True(json.GetProperty("contractSigned").GetBoolean());
+        Assert.True(json.GetProperty("badgeIssued").GetBoolean());
+        Assert.False(json.GetProperty("wpsRegistered").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ProfilePdf_ReturnsAPdfForManagers_AndIsForbiddenToSupervisors_AndNotFoundForUnknownIds()
+    {
+        var (_, token) = await HrAsync();
+        var created = await api.SendAsync(HttpMethod.Post, "/api/workers", Body(TestWorkers.UniqueCode()), token);
+        var id = (await TestWorkers.ReadJsonAsync(created)).GetProperty("id").GetInt32();
+
+        var pdf = await api.SendAsync(HttpMethod.Get, $"/api/workers/{id}/profile/pdf", null, token);
+        Assert.Equal(HttpStatusCode.OK, pdf.StatusCode);
+        Assert.Equal("application/pdf", pdf.Content.Headers.ContentType?.MediaType);
+        Assert.EndsWith("_Mohammed_Ali_Information.pdf", pdf.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
+        Assert.StartsWith("%PDF", System.Text.Encoding.ASCII.GetString((await pdf.Content.ReadAsByteArrayAsync()).Take(4).ToArray()));
+
+        var (_, supervisorToken) = await TestWorkers.SignInAsync(api, Roles.Supervisor);
+        var forbidden = await api.SendAsync(HttpMethod.Get, $"/api/workers/{id}/profile/pdf", null, supervisorToken);
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+
+        var missing = await api.SendAsync(HttpMethod.Get, "/api/workers/999999/profile/pdf", null, token);
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+    }
+
+    [Fact]
+    public async Task Create_RejectsAnInvalidEmailAndTooLongProfileText()
+    {
+        var (_, token) = await HrAsync();
+        var body = new
+        {
+            workerCode = TestWorkers.UniqueCode(), fullName = "Tariq", designation = "Glazier", hourlyRate = 12.5m,
+            email = "not-an-email", passportNumber = new string('P', 21),
+        };
+
+        var response = await api.SendAsync(HttpMethod.Post, "/api/workers", body, token);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var text = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Enter a valid email address.", text);
+        Assert.Contains("Passport number must be 20 characters or fewer.", text);
+    }
+
+
+    [Fact]
     public async Task Create_ReturnsCreatedWithTheWorkerAndALocation()
     {
         var (_, token) = await HrAsync();
@@ -73,7 +155,7 @@ public class WorkersWriteEndpointTests(ApiFixture api) : IClassFixture<ApiFixtur
         Assert.True(id > 0);
         Assert.EndsWith($"/api/workers/{id}", response.Headers.Location?.ToString());
         Assert.Equal(
-            new[] { "designation", "effectiveOvertimeRate", "fullName", "hourlyRate", "id", "isActive", "joinDate", "overtimeRate", "workerCode" },
+            new[] { "badgeIssued", "contractSigned", "department", "designation", "effectiveOvertimeRate", "email", "emergencyContact", "emiratesId", "fullName", "hourlyRate", "id", "isActive", "joinDate", "notes", "overtimeRate", "passportNumber", "phone", "safetyGearIssued", "siteOrientationDone", "visaMedicalCleared", "workerCode", "workLocation", "wpsRegistered" },
             json.EnumerateObject().Select(p => p.Name).Order().ToArray());
         Assert.Equal(code, json.GetProperty("workerCode").GetString());
         Assert.Equal("Mohammed Ali", json.GetProperty("fullName").GetString());
