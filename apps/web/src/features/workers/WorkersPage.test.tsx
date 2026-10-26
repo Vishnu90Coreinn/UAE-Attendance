@@ -111,10 +111,11 @@ describe("WorkersPage - content", () => {
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
     expect(headers).toEqual([
       "ID",
-      "Full Name",
-      "Designation",
-      "Base Rate (AED/hr)",
-      "Overtime Rate (AED/hr)",
+      "Worker",
+      "Role",
+      "Contact",
+      "Rates (AED/hr)",
+      "Onboarding",
       "Status",
       "Actions",
     ]);
@@ -221,8 +222,8 @@ describe("WorkersPage - roles", () => {
     await renderLoaded("Manager", [ahmed, sara]);
 
     const expectations = [
-      { code: "EMP-001", name: "Ahmed Khan", labels: ["Edit", "Deactivate", "Delete"] },
-      { code: "EMP-002", name: "Sara Ali", labels: ["Edit", "Activate", "Delete"] },
+      { code: "EMP-001", name: "Ahmed Khan", labels: ["Edit", "Deactivate", "Print", "Delete"] },
+      { code: "EMP-002", name: "Sara Ali", labels: ["Edit", "Activate", "Print", "Delete"] },
     ];
     for (const { code, name, labels } of expectations) {
       const row = screen.getByRole("row", { name: new RegExp(code) });
@@ -234,16 +235,31 @@ describe("WorkersPage - roles", () => {
     }
   });
 
+  it("downloads the worker's record as a PDF from the Print button", async () => {
+    const blob = new Blob(["%PDF"], { type: "application/pdf" });
+    vi.mocked(workersApi.getWorkerProfilePdf).mockResolvedValue(blob);
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:x");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const { user } = await renderLoaded("Manager", [ahmed]);
+
+    await user.click(screen.getByRole("button", { name: "Print Ahmed Khan" }));
+
+    await waitFor(() => expect(workersApi.getWorkerProfilePdf).toHaveBeenCalledWith(1));
+    expect(await screen.findByText("Record for Ahmed Khan downloaded.")).toBeInTheDocument();
+  });
+
   it("gives a Supervisor a read-only table without wage columns: no Add, no Actions, no rates", async () => {
     await renderLoaded("Supervisor", [supervisorView(ahmed), supervisorView({ ...sara, isActive: true })]);
 
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
       "ID",
-      "Full Name",
-      "Designation",
+      "Worker",
+      "Role",
+      "Contact",
+      "Onboarding",
       "Status",
     ]);
-    expect(screen.queryByText(/Base Rate|Overtime Rate/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Rates \(AED/)).not.toBeInTheDocument();
     expect(screen.getByRole("table")).not.toHaveTextContent(/null|NaN|undefined/);
     expect(screen.queryByText(/AED/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Manage employee profiles/)).not.toBeInTheDocument();
@@ -280,6 +296,20 @@ describe("WorkersPage - add and edit", () => {
       hourlyRate: 8,
       overtimeRate: null,
       joinDate: null,
+      department: null,
+      emiratesId: null,
+      passportNumber: null,
+      phone: null,
+      email: null,
+      emergencyContact: null,
+      workLocation: null,
+      notes: null,
+      contractSigned: false,
+      visaMedicalCleared: false,
+      safetyGearIssued: false,
+      siteOrientationDone: false,
+      wpsRegistered: false,
+      badgeIssued: false,
     });
     await waitFor(() => expect(screen.getByText("EMP-005", { selector: "td" })).toBeInTheDocument());
     expect(workersApi.listWorkers).toHaveBeenCalledTimes(2);
@@ -443,5 +473,38 @@ describe("WorkersPage - delete", () => {
     await user.click(await screen.findByRole("button", { name: "Delete" }));
 
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  });
+});
+
+describe("WorkersPage - search and filter", () => {
+  it("filters the table by search text and department, and offers to clear when nothing matches", async () => {
+    const welder = { ...sara, id: 3, workerCode: "EMP-003", fullName: "Zaid Noor", department: "Fabrication", isActive: true };
+    const { user } = await renderLoaded("Manager", [{ ...ahmed, department: "Glass" }, welder]);
+
+    await user.type(screen.getByLabelText("Search workers"), "zaid");
+    expect(screen.queryByText("Ahmed Khan")).not.toBeInTheDocument();
+    expect(screen.getByText("Zaid Noor")).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("Search workers"));
+    await user.selectOptions(screen.getByLabelText("Department"), "Glass");
+    expect(screen.getByText("Ahmed Khan")).toBeInTheDocument();
+    expect(screen.queryByText("Zaid Noor")).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Search workers"), "nobody");
+    expect(screen.getByText(/No workers match/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(screen.getByText("Ahmed Khan")).toBeInTheDocument();
+    expect(screen.getByText("Zaid Noor")).toBeInTheDocument();
+  });
+});
+
+describe("WorkersPage - HR", () => {
+  it("lets HR add, edit and print, but not deactivate or delete", async () => {
+    await renderLoaded("HR", [ahmed]);
+
+    expect(screen.getByRole("button", { name: "Add New Worker" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit Ahmed Khan" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Print Ahmed Khan" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Deactivate|Delete/ })).not.toBeInTheDocument();
   });
 });

@@ -213,7 +213,7 @@ public class WorkerConstraintTests(TestDatabase database) : IClassFixture<TestDa
             .ToDictionary(r => (string)r["COLUMN_NAME"]!);
 
         Assert.Equal(
-            new[] { "CreatedUtc", "Designation", "FullName", "HourlyRate", "Id", "IsActive", "JoinDate", "OvertimeRate", "UpdatedUtc", "WorkerCode" },
+            new[] { "BadgeIssued", "ContractSigned", "CreatedUtc", "Department", "Designation", "Email", "EmergencyContact", "EmiratesId", "FullName", "HourlyRate", "Id", "IsActive", "JoinDate", "Notes", "OvertimeRate", "PassportNumber", "Phone", "SafetyGearIssued", "SiteOrientationDone", "UpdatedUtc", "VisaMedicalCleared", "WorkerCode", "WorkLocation", "WpsRegistered" },
             columns.Keys.Order().ToArray());
 
         Assert.Equal("nvarchar", columns["WorkerCode"]["DATA_TYPE"]);
@@ -235,7 +235,7 @@ public class WorkerConstraintTests(TestDatabase database) : IClassFixture<TestDa
         Assert.Equal("YES", columns["JoinDate"]["IS_NULLABLE"]);
         Assert.Equal("datetime2", columns["CreatedUtc"]["DATA_TYPE"]);
         Assert.Equal("datetime2", columns["UpdatedUtc"]["DATA_TYPE"]);
-        Assert.All(columns.Where(c => c.Key is not ("OvertimeRate" or "JoinDate")).Select(c => c.Value), column => Assert.Equal("NO", column["IS_NULLABLE"]));
+        Assert.All(columns.Where(c => c.Key is not ("OvertimeRate" or "JoinDate" or "Department" or "EmiratesId" or "PassportNumber" or "Phone" or "Email" or "EmergencyContact" or "WorkLocation" or "Notes")).Select(c => c.Value), column => Assert.Equal("NO", column["IS_NULLABLE"]));
     }
 
     [Fact]

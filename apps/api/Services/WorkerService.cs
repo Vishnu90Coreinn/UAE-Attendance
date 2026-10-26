@@ -38,6 +38,14 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
     public const int MaxDesignationLength = 80;
     public const decimal MaxHourlyRate = 999.99m;
     public const decimal MaxOvertimeRate = 999.99m;
+    public const int MaxDepartmentLength = 80;
+    public const int MaxEmiratesIdLength = 25;
+    public const int MaxPassportLength = 20;
+    public const int MaxPhoneLength = 25;
+    public const int MaxEmailLength = 120;
+    public const int MaxEmergencyContactLength = 150;
+    public const int MaxWorkLocationLength = 120;
+    public const int MaxNotesLength = 1000;
 
     private const string CodePrefix = "EMP-";
     private const int MinCodeDigits = 3;
@@ -49,6 +57,9 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
 
     [GeneratedRegex(@"^[A-Za-z0-9_-]+\z")]
     private static partial Regex CodePattern();
+
+    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+\z")]
+    private static partial Regex EmailPattern();
 
     [GeneratedRegex(@"^EMP-([0-9]+)\z", RegexOptions.IgnoreCase)]
     private static partial Regex GeneratedCodePattern();
@@ -129,6 +140,20 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             HourlyRate = input.HourlyRate,
             OvertimeRate = input.OvertimeRate,
             JoinDate = request.JoinDate,
+            Department = input.Department,
+            EmiratesId = input.EmiratesId,
+            PassportNumber = input.PassportNumber,
+            Phone = input.Phone,
+            Email = input.Email,
+            EmergencyContact = input.EmergencyContact,
+            WorkLocation = input.WorkLocation,
+            Notes = input.Notes,
+            ContractSigned = request.ContractSigned ?? false,
+            VisaMedicalCleared = request.VisaMedicalCleared ?? false,
+            SafetyGearIssued = request.SafetyGearIssued ?? false,
+            SiteOrientationDone = request.SiteOrientationDone ?? false,
+            WpsRegistered = request.WpsRegistered ?? false,
+            BadgeIssued = request.BadgeIssued ?? false,
             IsActive = true,
             CreatedUtc = now,
             UpdatedUtc = now,
@@ -209,6 +234,71 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             worker.OvertimeRate = input.OvertimeRate;
         }
 
+        if (worker.Department != input.Department)
+        {
+            changes["department"] = new FieldChange(worker.Department, input.Department);
+            worker.Department = input.Department;
+        }
+
+        if (worker.EmiratesId != input.EmiratesId)
+        {
+            changes["emiratesId"] = new FieldChange(worker.EmiratesId, input.EmiratesId);
+            worker.EmiratesId = input.EmiratesId;
+        }
+
+        if (worker.PassportNumber != input.PassportNumber)
+        {
+            changes["passportNumber"] = new FieldChange(worker.PassportNumber, input.PassportNumber);
+            worker.PassportNumber = input.PassportNumber;
+        }
+
+        if (worker.Phone != input.Phone)
+        {
+            changes["phone"] = new FieldChange(worker.Phone, input.Phone);
+            worker.Phone = input.Phone;
+        }
+
+        if (worker.Email != input.Email)
+        {
+            changes["email"] = new FieldChange(worker.Email, input.Email);
+            worker.Email = input.Email;
+        }
+
+        if (worker.EmergencyContact != input.EmergencyContact)
+        {
+            changes["emergencyContact"] = new FieldChange(worker.EmergencyContact, input.EmergencyContact);
+            worker.EmergencyContact = input.EmergencyContact;
+        }
+
+        if (worker.WorkLocation != input.WorkLocation)
+        {
+            changes["workLocation"] = new FieldChange(worker.WorkLocation, input.WorkLocation);
+            worker.WorkLocation = input.WorkLocation;
+        }
+
+        if (worker.Notes != input.Notes)
+        {
+            changes["notes"] = new FieldChange(worker.Notes, input.Notes);
+            worker.Notes = input.Notes;
+        }
+
+        // A checklist item missing from the request is left as it is.
+        void Check(string key, bool current, bool? requested, Action<bool> set)
+        {
+            if (requested is { } value && value != current)
+            {
+                changes[key] = new FieldChange(current, value);
+                set(value);
+            }
+        }
+
+        Check("contractSigned", worker.ContractSigned, request.ContractSigned, v => worker.ContractSigned = v);
+        Check("visaMedicalCleared", worker.VisaMedicalCleared, request.VisaMedicalCleared, v => worker.VisaMedicalCleared = v);
+        Check("safetyGearIssued", worker.SafetyGearIssued, request.SafetyGearIssued, v => worker.SafetyGearIssued = v);
+        Check("siteOrientationDone", worker.SiteOrientationDone, request.SiteOrientationDone, v => worker.SiteOrientationDone = v);
+        Check("wpsRegistered", worker.WpsRegistered, request.WpsRegistered, v => worker.WpsRegistered = v);
+        Check("badgeIssued", worker.BadgeIssued, request.BadgeIssued, v => worker.BadgeIssued = v);
+
         if (changes.Count == 0)
         {
             return new WorkerResult(WorkerOutcome.Success, ToResponse(worker, await CompanyOvertimeRateAsync(cancellationToken)));
@@ -261,7 +351,27 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
 
     // --- helpers -------------------------------------------------------------------------------------------
 
-    private sealed record ValidWorker(string Code, string FullName, string Designation, decimal HourlyRate, decimal? OvertimeRate);
+    private sealed record ValidWorker(
+        string Code, string FullName, string Designation, decimal HourlyRate, decimal? OvertimeRate,
+        string? Department, string? EmiratesId, string? PassportNumber, string? Phone,
+        string? Email, string? EmergencyContact, string? WorkLocation, string? Notes);
+
+    /// <summary>Trims an optional text field; blank becomes null and too-long text records an error under <paramref name="key"/>.</summary>
+    private static string? OptionalText(string? value, int maxLength, string key, string label, Dictionary<string, string> errors)
+    {
+        var text = (value ?? "").Trim();
+        if (text.Length == 0)
+        {
+            return null;
+        }
+
+        if (text.Length > maxLength)
+        {
+            errors[key] = $"{label} must be {maxLength} characters or fewer.";
+        }
+
+        return text;
+    }
 
     /// <summary>Returns the cleaned-up values, or null with <paramref name="errors"/> filled in (one message per field).</summary>
     private static ValidWorker? Validate(WorkerRequest request, out Dictionary<string, string> errors)
@@ -335,7 +445,24 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             errors["overtimeRate"] = "Overtime rate can have at most 2 decimal places.";
         }
 
-        return errors.Count == 0 ? new ValidWorker(code, fullName, designation, rate!.Value, overtime) : null;
+        var department = OptionalText(request.Department, MaxDepartmentLength, "department", "Department", errors);
+        var emiratesId = OptionalText(request.EmiratesId, MaxEmiratesIdLength, "emiratesId", "Emirates ID", errors);
+        var passport = OptionalText(request.PassportNumber, MaxPassportLength, "passportNumber", "Passport number", errors);
+        var phone = OptionalText(request.Phone, MaxPhoneLength, "phone", "Phone", errors);
+        var email = OptionalText(request.Email, MaxEmailLength, "email", "Email", errors);
+        if (email is not null && !errors.ContainsKey("email") && !EmailPattern().IsMatch(email))
+        {
+            errors["email"] = "Enter a valid email address.";
+        }
+
+        var emergency = OptionalText(request.EmergencyContact, MaxEmergencyContactLength, "emergencyContact", "Emergency contact", errors);
+        var location = OptionalText(request.WorkLocation, MaxWorkLocationLength, "workLocation", "Work location", errors);
+        var notes = OptionalText(request.Notes, MaxNotesLength, "notes", "Notes", errors);
+
+        return errors.Count == 0
+            ? new ValidWorker(code, fullName, designation, rate!.Value, overtime,
+                department, emiratesId, passport, phone, email, emergency, location, notes)
+            : null;
     }
 
     private enum SaveOutcome
@@ -393,5 +520,9 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
 
     private static WorkerResponse ToResponse(Worker worker, decimal companyOvertimeRate) =>
         new(worker.Id, worker.WorkerCode, worker.FullName, worker.Designation, worker.HourlyRate,
-            worker.OvertimeRate, worker.OvertimeRate ?? companyOvertimeRate, worker.IsActive, worker.JoinDate);
+            worker.OvertimeRate, worker.OvertimeRate ?? companyOvertimeRate, worker.IsActive, worker.JoinDate,
+            worker.Department, worker.EmiratesId, worker.PassportNumber, worker.Phone,
+            worker.Email, worker.EmergencyContact, worker.WorkLocation, worker.Notes,
+            worker.ContractSigned, worker.VisaMedicalCleared, worker.SafetyGearIssued,
+            worker.SiteOrientationDone, worker.WpsRegistered, worker.BadgeIssued);
 }

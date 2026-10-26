@@ -8,7 +8,7 @@ namespace HrPayroll.Api.Controllers;
 
 [ApiController]
 [Route("api/attendance")]
-public sealed class AttendanceController(AttendanceService attendance, WageRedactor wages) : ControllerBase
+public sealed class AttendanceController(AttendanceService attendance, WageRedactor wages, AttendanceExportService exports) : ControllerBase
 {
     [HttpGet]
     [Authorize(Policy = Policies.AnyUser)]
@@ -31,6 +31,33 @@ public sealed class AttendanceController(AttendanceService attendance, WageRedac
     [Authorize(Policy = Policies.ManagerOrAdmin)]
     public async Task<IActionResult> Reject(string date, [FromBody] RejectAttendanceRequest? request, CancellationToken ct) =>
         Map(await attendance.RejectAsync(date, request?.WorkerIds, request?.Reason, ct));
+
+    [HttpGet("{date}/export/pdf")]
+    [Authorize(Policy = Policies.AnyUser)]
+    public async Task<IActionResult> ExportPdf(string date, CancellationToken ct) => await Export(date, AttendanceExportFormat.Pdf, ct);
+
+    [HttpGet("{date}/export/excel")]
+    [Authorize(Policy = Policies.AnyUser)]
+    public async Task<IActionResult> ExportExcel(string date, CancellationToken ct) => await Export(date, AttendanceExportFormat.Excel, ct);
+
+    private async Task<IActionResult> Export(string date, AttendanceExportFormat format, CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "no-store";
+        try
+        {
+            var result = await exports.ExportAsync(date, format, ct);
+            return result.StatusCode switch
+            {
+                200 => File(result.File!, result.ContentType!, result.FileName),
+                400 => ValidationProblem(new ValidationProblemDetails(result.Errors!)),
+                _ => Problem(statusCode: 409, title: "The attendance export is not available. Reload and try again."),
+            };
+        }
+        catch (PdfTextNotSupportedException)
+        {
+            return Problem(statusCode: 422, title: "The PDF supports English text. Update names that use other scripts.");
+        }
+    }
 
     [HttpGet("summary")]
     [Authorize(Policy = Policies.AnyUser)]

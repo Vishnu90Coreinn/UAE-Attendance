@@ -1,6 +1,20 @@
 import type { WorkerInput } from "../../api/workers";
 
-export type WorkerField = "workerCode" | "fullName" | "designation" | "hourlyRate" | "overtimeRate" | "joinDate";
+export type WorkerField =
+  | "workerCode"
+  | "fullName"
+  | "designation"
+  | "hourlyRate"
+  | "overtimeRate"
+  | "joinDate"
+  | "department"
+  | "emiratesId"
+  | "passportNumber"
+  | "phone"
+  | "email"
+  | "emergencyContact"
+  | "workLocation"
+  | "notes";
 
 /** Form order, which is also the order errors are listed and the first invalid field is focused. */
 export const FIELD_ORDER: readonly WorkerField[] = [
@@ -10,7 +24,28 @@ export const FIELD_ORDER: readonly WorkerField[] = [
   "hourlyRate",
   "overtimeRate",
   "joinDate",
+  "department",
+  "emiratesId",
+  "passportNumber",
+  "phone",
+  "email",
+  "emergencyContact",
+  "workLocation",
+  "notes",
 ];
+
+/** The onboarding checklist, in display order. Keys match the API's booleans. */
+export const CHECKLIST = [
+  { key: "contractSigned", label: "Labor Contract Signed" },
+  { key: "visaMedicalCleared", label: "Visa & Medical Fitness" },
+  { key: "safetyGearIssued", label: "Safety PPE Gear Issued" },
+  { key: "siteOrientationDone", label: "Factory Site Orientation" },
+  { key: "wpsRegistered", label: "WPS Payroll Registered" },
+  { key: "badgeIssued", label: "ID Badge Printed & Issued" },
+] as const;
+
+export type ChecklistKey = (typeof CHECKLIST)[number]["key"];
+export type ChecklistValues = Record<ChecklistKey, boolean>;
 
 export type WorkerFormValues = Record<WorkerField, string>;
 export type FieldMessages = Partial<Record<WorkerField, string>>;
@@ -19,6 +54,19 @@ const MAX_CODE = 20;
 const MAX_NAME = 120;
 const MAX_DESIGNATION = 80;
 const MAX_RATE = 999.99;
+
+/** Optional profile fields and their length limits (mirroring the server) with the label used in messages. */
+const OPTIONAL_TEXT: readonly { field: WorkerField; max: number; label: string }[] = [
+  { field: "department", max: 80, label: "Department" },
+  { field: "emiratesId", max: 25, label: "Emirates ID" },
+  { field: "passportNumber", max: 20, label: "Passport number" },
+  { field: "phone", max: 25, label: "Phone" },
+  { field: "email", max: 120, label: "Email" },
+  { field: "emergencyContact", max: 150, label: "Emergency contact" },
+  { field: "workLocation", max: 120, label: "Work location" },
+  { field: "notes", max: 1000, label: "Notes" },
+];
+const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 const CODE_PATTERN = /^[A-Za-z0-9_-]+$/;
 const NUMBER_PATTERN = /^-?(\d+\.?\d*|\.\d+)$/;
@@ -105,11 +153,26 @@ export function validateWorker(values: WorkerFormValues): FieldMessages {
   if (overtimeError) {
     errors.overtimeRate = overtimeError;
   }
+
+  for (const { field, max, label } of OPTIONAL_TEXT) {
+    if (values[field].trim().length > max) {
+      errors[field] = `${label} must be at most ${max} characters.`;
+    }
+  }
+  const email = values.email.trim();
+  if (!errors.email && email !== "" && !EMAIL_PATTERN.test(email)) {
+    errors.email = "Enter a valid email address.";
+  }
   return errors;
 }
 
+function optional(text: string): string | null {
+  const trimmed = text.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
 /** Only call this for values that passed validateWorker. A blank overtime rate becomes null (company rate). */
-export function toWorkerInput(values: WorkerFormValues): WorkerInput {
+export function toWorkerInput(values: WorkerFormValues, checklist?: ChecklistValues): WorkerInput {
   const overtime = values.overtimeRate.trim();
   return {
     workerCode: values.workerCode.trim(),
@@ -118,5 +181,14 @@ export function toWorkerInput(values: WorkerFormValues): WorkerInput {
     hourlyRate: Number(values.hourlyRate.trim()),
     overtimeRate: overtime === "" ? null : Number(overtime),
     joinDate: values.joinDate.trim() === "" ? null : values.joinDate.trim(),
+    department: optional(values.department),
+    emiratesId: optional(values.emiratesId),
+    passportNumber: optional(values.passportNumber),
+    phone: optional(values.phone),
+    email: optional(values.email),
+    emergencyContact: optional(values.emergencyContact),
+    workLocation: optional(values.workLocation),
+    notes: optional(values.notes),
+    ...checklist,
   };
 }

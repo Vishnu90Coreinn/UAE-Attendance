@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost, apiPut } from "./client";
+import { apiDelete, apiGet, apiGetBlob, apiGetFile, apiPost, apiPut } from "./client";
 import type { Worker } from "./workers";
 
 import type { LeaveStatusValue } from "../utils/leaveStatuses";
@@ -87,6 +87,14 @@ export function rejectAttendance(
     reason,
   });
 }
+export const EXCEL_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/** The saved attendance for a day as a printable PDF or an Excel workbook. */
+export function getAttendanceExport(date: string, format: "pdf" | "excel"): Promise<Blob> {
+  const path = `/api/attendance/${encodeURIComponent(date)}/export/${format}`;
+  return format === "pdf" ? apiGetBlob(path) : apiGetFile(path, EXCEL_TYPE);
+}
+
 export function getAttendanceSummary(): Promise<AttendanceSummary> {
   return apiGet("/api/attendance/summary");
 }

@@ -8,7 +8,7 @@ namespace HrPayroll.Api.Controllers;
 
 [ApiController]
 [Route("api/workers")]
-public sealed class WorkersController(WorkerService workers, WageRedactor wages) : ControllerBase
+public sealed class WorkersController(WorkerService workers, WageRedactor wages, WorkerProfileService profiles) : ControllerBase
 {
     [HttpGet]
     [Authorize(Policy = Policies.AnyUser)]
@@ -29,8 +29,24 @@ public sealed class WorkersController(WorkerService workers, WageRedactor wages)
         return worker is null ? NotFound() : Ok(wages.Apply(worker));
     }
 
+    [HttpGet("{id:int}/profile/pdf")]
+    [Authorize(Policy = Policies.ManagerAdminOrHr)]
+    public async Task<IActionResult> ProfilePdf(int id, CancellationToken cancellationToken)
+    {
+        Response.Headers.CacheControl = "no-store";
+        try
+        {
+            var result = await profiles.GetAsync(id, includeRates: !wages.HidesWages, cancellationToken);
+            return result is null ? NotFound() : File(result.Value.Pdf, "application/pdf", result.Value.FileName);
+        }
+        catch (PdfTextNotSupportedException)
+        {
+            return Problem(statusCode: 422, title: "Worker records support English text. Update details that use other scripts.");
+        }
+    }
+
     [HttpPost]
-    [Authorize(Policy = Policies.ManagerOrAdmin)]
+    [Authorize(Policy = Policies.ManagerAdminOrHr)]
     public async Task<ActionResult<WorkerResponse>> Create(WorkerRequest request, CancellationToken cancellationToken)
     {
         var result = await workers.CreateAsync(request, cancellationToken);
@@ -40,7 +56,7 @@ public sealed class WorkersController(WorkerService workers, WageRedactor wages)
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Policy = Policies.ManagerOrAdmin)]
+    [Authorize(Policy = Policies.ManagerAdminOrHr)]
     public async Task<ActionResult<WorkerResponse>> Update(int id, WorkerRequest request, CancellationToken cancellationToken) =>
         ToActionResult(await workers.UpdateAsync(id, request, cancellationToken));
 

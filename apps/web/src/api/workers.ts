@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost, apiPut } from "./client";
+import { apiDelete, apiGet, apiGetBlob, apiPost, apiPut } from "./client";
 
 export interface Worker {
   id: number;
@@ -14,6 +14,20 @@ export interface Worker {
   isActive: boolean;
   /** YYYY-MM-DD, or null when not recorded. */
   joinDate?: string | null;
+  department?: string | null;
+  emiratesId?: string | null;
+  passportNumber?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  emergencyContact?: string | null;
+  workLocation?: string | null;
+  notes?: string | null;
+  contractSigned?: boolean;
+  visaMedicalCleared?: boolean;
+  safetyGearIssued?: boolean;
+  siteOrientationDone?: boolean;
+  wpsRegistered?: boolean;
+  badgeIssued?: boolean;
 }
 
 /** The editable fields, sent as the body of create and update. */
@@ -26,6 +40,22 @@ export interface WorkerInput {
   overtimeRate?: number | null;
   /** YYYY-MM-DD, or null when unknown. Printed on the payslip. */
   joinDate?: string | null;
+  /** Optional profile details; null or omitted means not recorded. */
+  department?: string | null;
+  emiratesId?: string | null;
+  passportNumber?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  emergencyContact?: string | null;
+  workLocation?: string | null;
+  notes?: string | null;
+  /** Onboarding checklist; an omitted item is left unchanged on update. */
+  contractSigned?: boolean;
+  visaMedicalCleared?: boolean;
+  safetyGearIssued?: boolean;
+  siteOrientationDone?: boolean;
+  wpsRegistered?: boolean;
+  badgeIssued?: boolean;
 }
 
 export function listWorkers(includeInactive: boolean): Promise<Worker[]> {
@@ -44,6 +74,11 @@ export function createWorker(input: WorkerInput): Promise<Worker> {
 
 export function updateWorker(id: number, input: WorkerInput): Promise<Worker> {
   return apiPut<Worker>(`/api/workers/${id}`, input);
+}
+
+/** The worker's record as a PDF (Managers, Administrators and HR). */
+export function getWorkerProfilePdf(id: number): Promise<Blob> {
+  return apiGetBlob(`/api/workers/${id}/profile/pdf`);
 }
 
 export function deactivateWorker(id: number): Promise<Worker> {

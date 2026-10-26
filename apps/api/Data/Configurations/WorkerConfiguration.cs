@@ -23,6 +23,20 @@ public class WorkerConfiguration : IEntityTypeConfiguration<Worker>
         builder.Property(w => w.OvertimeRate).HasPrecision(9, 2);
         builder.Property(w => w.IsActive).HasDefaultValue(true);
         builder.Property(w => w.JoinDate).HasColumnType("date");
+        builder.Property(w => w.Department).HasMaxLength(80);
+        builder.Property(w => w.EmiratesId).HasMaxLength(25);
+        builder.Property(w => w.PassportNumber).HasMaxLength(20);
+        builder.Property(w => w.Phone).HasMaxLength(25);
+        builder.Property(w => w.Email).HasMaxLength(120);
+        builder.Property(w => w.EmergencyContact).HasMaxLength(150);
+        builder.Property(w => w.WorkLocation).HasMaxLength(120);
+        builder.Property(w => w.Notes).HasMaxLength(1000);
+        builder.Property(w => w.ContractSigned).HasDefaultValue(false);
+        builder.Property(w => w.VisaMedicalCleared).HasDefaultValue(false);
+        builder.Property(w => w.SafetyGearIssued).HasDefaultValue(false);
+        builder.Property(w => w.SiteOrientationDone).HasDefaultValue(false);
+        builder.Property(w => w.WpsRegistered).HasDefaultValue(false);
+        builder.Property(w => w.BadgeIssued).HasDefaultValue(false);
         builder.Property(w => w.CreatedUtc).HasColumnType("datetime2");
         builder.Property(w => w.UpdatedUtc).HasColumnType("datetime2");
     }

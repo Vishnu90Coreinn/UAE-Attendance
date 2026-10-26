@@ -123,6 +123,20 @@ describe("WorkerFormDialog - add", () => {
       hourlyRate: 11.5,
       overtimeRate: null,
       joinDate: null,
+      department: null,
+      emiratesId: null,
+      passportNumber: null,
+      phone: null,
+      email: null,
+      emergencyContact: null,
+      workLocation: null,
+      notes: null,
+      contractSigned: false,
+      visaMedicalCleared: false,
+      safetyGearIssued: false,
+      siteOrientationDone: false,
+      wpsRegistered: false,
+      badgeIssued: false,
     });
     expect(workersApi.updateWorker).not.toHaveBeenCalled();
   });
@@ -178,6 +192,20 @@ describe("WorkerFormDialog - edit", () => {
       hourlyRate: 14,
       overtimeRate: null,
       joinDate: null,
+      department: null,
+      emiratesId: null,
+      passportNumber: null,
+      phone: null,
+      email: null,
+      emergencyContact: null,
+      workLocation: null,
+      notes: null,
+      contractSigned: false,
+      visaMedicalCleared: false,
+      safetyGearIssued: false,
+      siteOrientationDone: false,
+      wpsRegistered: false,
+      badgeIssued: false,
     });
     expect(workersApi.createWorker).not.toHaveBeenCalled();
   });
@@ -238,6 +266,21 @@ describe("WorkerFormDialog - overtime rate", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     await user.click(save());
     await waitFor(() => expect(workersApi.createWorker).toHaveBeenCalled());
+  });
+
+  it("sends the ticked onboarding checklist items", async () => {
+    vi.mocked(workersApi.createWorker).mockResolvedValue(existing);
+    const { user } = setup();
+    await fillValid(user);
+    await user.click(screen.getByLabelText("Labor Contract Signed"));
+    await user.click(screen.getByLabelText("ID Badge Printed & Issued"));
+    await user.click(save());
+
+    await waitFor(() =>
+      expect(workersApi.createWorker).toHaveBeenCalledWith(
+        expect.objectContaining({ contractSigned: true, badgeIssued: true, wpsRegistered: false }),
+      ),
+    );
   });
 
   it("sends the typed overtime rate as a number", async () => {

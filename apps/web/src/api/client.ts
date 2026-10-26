@@ -90,10 +90,11 @@ async function send<T>(
   path: string,
   init: RequestInit,
   options?: RequestOptions,
-  pdf = false,
+  /** true expects a PDF; a string expects a download of that content type. */
+  pdf: boolean | string = false,
 ): Promise<T> {
   const headers: Record<string, string> = {
-    Accept: pdf ? "application/pdf" : "application/json",
+    Accept: pdf ? (typeof pdf === "string" ? pdf : "application/pdf") : "application/json",
     ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
     ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
   };
@@ -118,11 +119,13 @@ async function send<T>(
         .get("Content-Type")
         ?.split(";")[0]
         .trim()
-        .toLowerCase() !== "application/pdf"
+        .toLowerCase() !== (typeof pdf === "string" ? pdf : "application/pdf")
     ) {
       throw new ApiError(
         502,
-        "The server did not return a PDF. Please try again.",
+        typeof pdf === "string"
+          ? "The server did not return the file. Please try again."
+          : "The server did not return a PDF. Please try again.",
       );
     }
     return (await response.blob()) as T;
@@ -140,6 +143,11 @@ async function send<T>(
 
 export function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
   return send<T>(path, { method: "GET", signal });
+}
+
+/** Authenticated file download of a given content type, for example an Excel workbook. */
+export function apiGetFile(path: string, contentType: string, signal?: AbortSignal): Promise<Blob> {
+  return send<Blob>(path, { method: "GET", signal }, undefined, contentType);
 }
 
 /** Authenticated PDF download; failures use the same problem parser and 401 handler as JSON requests. */

@@ -1,0 +1,1 @@
+{"nodes": [{"id": "authdtos", "label": "AuthDtos.cs", "file_type": "code", "source_file": "apps\\api\\Dtos\\AuthDtos.cs", "source_location": "L1"}], "edges": [{"source": "authdtos", "target": "dataannotations", "relation": "imports", "confidence": "EXTRACTED", "source_file": "apps\\api\\Dtos\\AuthDtos.cs", "source_location": "L1", "weight": 1.0}]}

@@ -13,6 +13,25 @@ public class Worker
 
     public bool IsActive { get; set; } = true;
     public DateOnly? JoinDate { get; set; }
+
+    // Optional profile details; null means "not recorded".
+    public string? Department { get; set; }
+    public string? EmiratesId { get; set; }
+    public string? PassportNumber { get; set; }
+    public string? Phone { get; set; }
+    public string? Email { get; set; }
+    public string? EmergencyContact { get; set; }
+    public string? WorkLocation { get; set; }
+    public string? Notes { get; set; }
+
+    // Onboarding checklist.
+    public bool ContractSigned { get; set; }
+    public bool VisaMedicalCleared { get; set; }
+    public bool SafetyGearIssued { get; set; }
+    public bool SiteOrientationDone { get; set; }
+    public bool WpsRegistered { get; set; }
+    public bool BadgeIssued { get; set; }
+
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
 }
