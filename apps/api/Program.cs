@@ -75,6 +75,7 @@ builder.Services.AddSingleton<PayslipPdf>();
 builder.Services.AddSingleton<WorkerProfilePdf>();
 builder.Services.AddScoped<WorkerProfileService>();
 builder.Services.AddScoped<AttendanceExportService>();
+builder.Services.AddScoped<LeaveExportService>();
 builder.Services.AddScoped<PayslipService>();
 builder.Services.AddScoped<DeductionService>();
 builder.Services.AddScoped<IPayrollPeriodLock, PayrollPeriodLock>();

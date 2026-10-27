@@ -13,7 +13,7 @@ public sealed class WorkerProfilePdf(IConfiguration configuration)
     private const double Left = PdfLetterhead.Left;
     private const double Right = PdfLetterhead.Right;
 
-    public byte[] Generate(Worker worker, PayrollCompany company, bool includeRates)
+    public byte[] Generate(Worker worker, PayrollCompany company, bool includeRates, byte[]? photo = null)
     {
         foreach (var text in new[]
                  {
@@ -30,7 +30,7 @@ public sealed class WorkerProfilePdf(IConfiguration configuration)
             var regular = document.AddTrueTypeFont(PdfText.Font("Regular"));
             var bold = document.AddTrueTypeFont(PdfText.Font("Bold"));
             var page = document.AddPage(PageSize.A4);
-            Draw(new PdfCanvas(page, regular, bold), worker, company, includeRates, PdfText.Asset("logo.png"));
+            Draw(new PdfCanvas(page, regular, bold), worker, company, includeRates, PdfText.Asset("logo.png"), photo);
             return document.Build();
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("The font does not contain a character:", StringComparison.Ordinal))
@@ -39,7 +39,7 @@ public sealed class WorkerProfilePdf(IConfiguration configuration)
         }
     }
 
-    private void Draw(PdfCanvas cv, Worker worker, PayrollCompany company, bool includeRates, byte[] logo)
+    private void Draw(PdfCanvas cv, Worker worker, PayrollCompany company, bool includeRates, byte[] logo, byte[]? photo)
     {
         var details = PdfText.Letterhead(configuration, company.ContactEmail);
         var rule = PdfLetterhead.Draw(cv, logo, company, details, "EMPLOYEE RECORD", "Confidential personnel file", null);
@@ -48,8 +48,20 @@ public sealed class WorkerProfilePdf(IConfiguration configuration)
         var y = rule - 18;
         const double bannerHeight = 66;
         cv.Fill(Left, y - bannerHeight, Right - Left, bannerHeight, PdfStyle.Panel);
-        cv.Text(cv.Fit(worker.FullName, 340, 15, true), Left + 18, y - 29, 15, true, PdfStyle.Teal);
-        cv.Text(cv.Fit(worker.Designation, 340, 9.5), Left + 18, y - 45, 9.5, false, PdfStyle.Muted);
+        // The portrait fills the left end of the banner like an ID card photo (3:4); the name moves right to make room.
+        var textLeft = Left + 18;
+        var textWidth = 340.0;
+        if (photo is not null)
+        {
+            const double photoWidth = bannerHeight * 3 / 4;
+            cv.Jpeg(photo, Left, y - bannerHeight, photoWidth, bannerHeight);
+            cv.Outline(Left, y - bannerHeight, photoWidth, bannerHeight, 0.6, PdfStyle.Hairline);
+            textLeft = Left + photoWidth + 16;
+            textWidth = 290;
+        }
+
+        cv.Text(cv.Fit(worker.FullName, textWidth, 15, true), textLeft, y - 29, 15, true, PdfStyle.Teal);
+        cv.Text(cv.Fit(worker.Designation, textWidth, 9.5), textLeft, y - 45, 9.5, false, PdfStyle.Muted);
 
         var statusColor = worker.IsActive ? PdfStyle.Teal : PdfStyle.Amber;
         var statusText = worker.IsActive ? "ACTIVE" : "INACTIVE";

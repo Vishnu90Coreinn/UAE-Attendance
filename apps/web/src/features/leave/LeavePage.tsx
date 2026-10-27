@@ -23,6 +23,8 @@ import {
 } from "../workers/WorkersFeedback";
 import { LeaveFormDialog } from "./LeaveFormDialog";
 import { LeaveTable } from "./LeaveTable";
+import { LeavePhotoDialog } from "./LeavePhotoDialog";
+import { LeaveReport } from "./LeaveReport";
 
 function message(error: unknown) {
   return error instanceof ApiError
@@ -52,6 +54,7 @@ export function LeavePage() {
   >();
   const [confirmation, setConfirmation] = useState<LeaveRequest | null>(null);
   const [pending, setPending] = useState(false);
+  const [photoRow, setPhotoRow] = useState<LeaveRequest | null>(null);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -159,7 +162,7 @@ export function LeavePage() {
       }
     }
   }
-  const busy = pending || formOpen || !!confirmation;
+  const busy = pending || formOpen || !!confirmation || !!photoRow;
   return (
     <section className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -188,6 +191,18 @@ export function LeavePage() {
           </button>
         )}
       </div>
+      <LeaveReport
+        workers={workers}
+        disabled={busy || !workersReady}
+        onDone={(message) => {
+          setError(null);
+          setSuccess(message);
+        }}
+        onError={(message) => {
+          setSuccess(null);
+          setError(message);
+        }}
+      />
       <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:gap-4">
         <label className="flex min-w-0 max-w-full flex-col text-sm font-medium">
           Filter by status
@@ -250,6 +265,7 @@ export function LeavePage() {
           busy={busy}
           onApprove={(row) => act("approve", row)}
           onReject={(row) => act("reject", row)}
+          onViewPhoto={setPhotoRow}
           onDelete={(row) => {
             setError(null);
             setSuccess(null);
@@ -270,6 +286,9 @@ export function LeavePage() {
           onSubmit={submit}
           onClose={() => setFormOpen(false)}
         />
+      )}
+      {photoRow && (
+        <LeavePhotoDialog row={photoRow} onClose={() => setPhotoRow(null)} />
       )}
       <ConfirmDialog
         open={!!confirmation}

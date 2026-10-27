@@ -1,4 +1,5 @@
-import { apiDelete, apiGet, apiPost } from "./client";
+import { apiDelete, apiGet, apiGetBlob, apiGetFile, apiPost } from "./client";
+import { EXCEL_TYPE } from "./attendance";
 
 export const LEAVE_TYPES = [
   "Annual Leave",
@@ -13,9 +14,12 @@ export interface LeaveInput {
   leaveType: LeaveType;
   startDate: string;
   endDate: string;
+  /** Optional JPEG photo of the leave request or doctor's note, base64 encoded. */
+  attachmentBase64?: string;
 }
-export interface LeaveRequest extends LeaveInput {
+export interface LeaveRequest extends Omit<LeaveInput, "attachmentBase64"> {
   id: number;
+  hasAttachment: boolean;
   workerCode: string;
   workerName: string;
   workerIsActive: boolean;
@@ -38,6 +42,17 @@ export function listLeave(filters: LeaveFilters): Promise<LeaveRequest[]> {
 }
 export function createLeave(input: LeaveInput): Promise<LeaveRequest> {
   return apiPost("/api/leave", input);
+}
+/** Leave requests that touch a month (yyyy-MM), for every worker or one, as a PDF or Excel file. */
+export function getLeaveExport(month: string, workerId: number | undefined, format: "pdf" | "excel"): Promise<Blob> {
+  const query = new URLSearchParams({ month });
+  if (workerId) query.set("workerId", String(workerId));
+  const path = `/api/leave/export/${format}?${query}`;
+  return format === "pdf" ? apiGetBlob(path) : apiGetFile(path, EXCEL_TYPE);
+}
+/** The photo attached to a leave request, as a JPEG blob. */
+export function getLeaveAttachment(id: number): Promise<Blob> {
+  return apiGetFile(`/api/leave/${id}/attachment`, "image/jpeg");
 }
 export function approveLeave(id: number): Promise<LeaveRequest> {
   return apiPost(`/api/leave/${id}/approve`, undefined);

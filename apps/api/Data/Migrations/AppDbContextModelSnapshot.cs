@@ -171,6 +171,28 @@ namespace HrPayroll.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.LeaveAttachment", b =>
+                {
+                    b.Property<int>("LeaveRequestId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<DateTime>("UploadedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("LeaveRequestId");
+
+                    b.ToTable("LeaveAttachments", (string)null);
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.LeaveRequest", b =>
                 {
                     b.Property<int>("Id")
@@ -691,6 +713,23 @@ namespace HrPayroll.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.WorkerPhoto", b =>
+                {
+                    b.Property<int>("WorkerId")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("WorkerId");
+
+                    b.ToTable("WorkerPhotos", (string)null);
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.Attendance", b =>
                 {
                     b.HasOne("HrPayroll.Api.Data.Entities.Worker", "Worker")
@@ -700,6 +739,17 @@ namespace HrPayroll.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Worker");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.LeaveAttachment", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.LeaveRequest", "LeaveRequest")
+                        .WithOne()
+                        .HasForeignKey("HrPayroll.Api.Data.Entities.LeaveAttachment", "LeaveRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("LeaveRequest");
                 });
 
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.LeaveRequest", b =>
@@ -756,6 +806,17 @@ namespace HrPayroll.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("DeductionType");
+
+                    b.Navigation("Worker");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.WorkerPhoto", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.Worker", "Worker")
+                        .WithOne()
+                        .HasForeignKey("HrPayroll.Api.Data.Entities.WorkerPhoto", "WorkerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Worker");
                 });
