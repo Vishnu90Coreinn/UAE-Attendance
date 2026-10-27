@@ -27,8 +27,15 @@ public sealed class LeaveService(AppDbContext db, IAuditLogger audit, TimeProvid
         if (!string.IsNullOrEmpty(status)) q = q.Where(x => x.Status == status);
         if (workerId is not null) q = q.Where(x => x.WorkerId == id);
         var rows = await q.OrderByDescending(x => x.StartDate).ThenByDescending(x => x.Id).ToListAsync(ct);
-        return new(200, rows.Select(Response).ToList());
+        var ids = rows.Select(x => x.Id).ToList();
+        var withPhoto = (await db.LeaveAttachments.AsNoTracking().Where(a => ids.Contains(a.LeaveRequestId)).Select(a => a.LeaveRequestId).ToListAsync(ct)).ToHashSet();
+        return new(200, rows.Select(x => Response(x, withPhoto.Contains(x.Id))).ToList());
     }
+
+    /// <summary>The stored photo of a request, or null when it has none.</summary>
+    public async Task<LeaveAttachment?> GetAttachmentAsync(int id, CancellationToken ct) =>
+        await db.LeaveAttachments.AsNoTracking().SingleOrDefaultAsync(x => x.LeaveRequestId == id, ct);
+
 
     public async Task<LeaveResult> CreateAsync(CreateLeaveRequest input, string actor, CancellationToken ct)
     {
@@ -40,6 +47,7 @@ public sealed class LeaveService(AppDbContext db, IAuditLogger audit, TimeProvid
         if (!validStart) errors["startDate"] = ["Enter a valid date in yyyy-MM-dd format."];
         if (!validEnd) errors["endDate"] = ["Enter a valid date in yyyy-MM-dd format."];
         if (validStart && validEnd && end < start) errors["endDate"] = ["End date must be on or after start date."];
+        if (!PhotoUpload.TryDecode(input.AttachmentBase64, out var photo)) errors["attachment"] = ["The photo must be a JPEG image of at most 3 MB."];
         if (errors.Count > 0) return new(400, Errors: errors);
         try
         {
@@ -50,11 +58,12 @@ public sealed class LeaveService(AppDbContext db, IAuditLogger audit, TimeProvid
             if (await Overlaps(input.WorkerId.Value, start, end, 0, ct)) return new(409);
             var leave = new LeaveRequest { Worker = worker, WorkerId = worker.Id, LeaveType = input.LeaveType!, StartDate = start, EndDate = end, CreatedBy = actor, CreatedUtc = time.GetUtcNow().UtcDateTime };
             db.LeaveRequests.Add(leave);
+            if (photo is not null) db.LeaveAttachments.Add(new LeaveAttachment { LeaveRequest = leave, Data = photo, UploadedUtc = leave.CreatedUtc });
             await db.SaveChangesAsync(ct);
-            Audit("LeaveCreated", leave, actor);
+            Audit("LeaveCreated", leave, actor, hasAttachment: photo is not null);
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
-            return new(201, Response(leave));
+            return new(201, Response(leave, photo is not null));
         }
         catch (Exception e) when (Conflict(e)) { return new(409); }
     }
@@ -99,7 +108,7 @@ public sealed class LeaveService(AppDbContext db, IAuditLogger audit, TimeProvid
             }
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
-            return status is null ? new(204) : new(200, Response(leave));
+            return status is null ? new(204) : new(200, Response(leave, await db.LeaveAttachments.AnyAsync(a => a.LeaveRequestId == id, ct)));
         }
         catch (Exception e) when (Conflict(e)) { return new(409); }
     }
@@ -118,14 +127,14 @@ public sealed class LeaveService(AppDbContext db, IAuditLogger audit, TimeProvid
         if (Convert.ToInt32(await cmd.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture) < 0) throw new LeaveConflictException();
     }
 
-    private void Audit(string action, LeaveRequest l, string actor, string? previousStatus = null) => audit.Write(action, actor, nameof(LeaveRequest), l.Id.ToString(CultureInfo.InvariantCulture),
+    private void Audit(string action, LeaveRequest l, string actor, string? previousStatus = null, bool hasAttachment = false) => audit.Write(action, actor, nameof(LeaveRequest), l.Id.ToString(CultureInfo.InvariantCulture),
         new { requestId = l.Id, actor, workerId = l.WorkerId, workerCode = l.Worker.WorkerCode, workerName = l.Worker.FullName, leaveType = l.LeaveType,
             startDate = l.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), endDate = l.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), days = l.Days,
-            status = l.Status, previousStatus, createdBy = l.CreatedBy, createdUtc = l.CreatedUtc, decidedBy = l.DecidedBy, decidedUtc = l.DecidedUtc });
+            status = l.Status, previousStatus, createdBy = l.CreatedBy, createdUtc = l.CreatedUtc, decidedBy = l.DecidedBy, decidedUtc = l.DecidedUtc, hasAttachment });
     private static bool Parse(string? s, out DateOnly d) => DateOnly.TryParseExact(s, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out d);
-    private static LeaveResponse Response(LeaveRequest l) => new(l.Id, l.WorkerId, l.Worker.WorkerCode, l.Worker.FullName, l.Worker.IsActive, l.LeaveType,
+    private static LeaveResponse Response(LeaveRequest l, bool hasAttachment) => new(l.Id, l.WorkerId, l.Worker.WorkerCode, l.Worker.FullName, l.Worker.IsActive, l.LeaveType,
         l.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), l.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), l.Days, l.Status, l.CreatedBy,
-        DateTime.SpecifyKind(l.CreatedUtc, DateTimeKind.Utc), l.DecidedBy, l.DecidedUtc is null ? null : DateTime.SpecifyKind(l.DecidedUtc.Value, DateTimeKind.Utc));
+        DateTime.SpecifyKind(l.CreatedUtc, DateTimeKind.Utc), l.DecidedBy, l.DecidedUtc is null ? null : DateTime.SpecifyKind(l.DecidedUtc.Value, DateTimeKind.Utc), hasAttachment);
     private static bool Conflict(Exception e)
     {
         for (Exception? current = e; current is not null; current = current.InnerException)

@@ -34,6 +34,7 @@ const row: LeaveRequest = {
   createdUtc: "2026-10-20T10:00:00Z",
   decidedBy: null,
   decidedUtc: null,
+  hasAttachment: false,
 };
 beforeEach(() => {
   vi.resetAllMocks();
@@ -92,6 +93,7 @@ it("renders the authoritative calendar days and all prototype columns", async ()
       "End Date",
       "Days",
       "Status",
+      "Photo",
       "Actions",
     ],
   );

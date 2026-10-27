@@ -7,6 +7,10 @@ namespace HrPayroll.Api.Services;
 /// <summary>Drawing helpers for one PDF page: text in the two embedded fonts, rules, and filled or outlined boxes.</summary>
 internal sealed class PdfCanvas(PdfPageBuilder page, PdfDocumentBuilder.AddedFont regular, PdfDocumentBuilder.AddedFont bold)
 {
+    /// <summary>Draws a JPEG stretched to the box whose bottom-left corner is (<paramref name="x"/>, <paramref name="y"/>).</summary>
+    public void Jpeg(byte[] data, double x, double y, double width, double height) =>
+        page.AddJpeg(data, new PdfRectangle(x, y, x + width, y + height));
+
     public double Width(string text, double size, bool strong = false) =>
         page.MeasureText(PdfText.Flatten(text), size, new PdfPoint(0, 0), strong ? bold : regular)
             .Select(l => l.BoundingBox.Right).DefaultIfEmpty(0).Max();

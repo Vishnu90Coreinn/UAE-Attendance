@@ -5,6 +5,7 @@ import { getPayrollSettings } from "../../api/settings";
 import { createWorker, getNextWorkerCode, updateWorker, type Worker } from "../../api/workers";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
+import { WorkerPhotoField, type PhotoChange } from "./WorkerPhotoField";
 import { formatRate } from "../../utils/money";
 import {
   CHECKLIST,
@@ -148,6 +149,7 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
   const [serverErrors, setServerErrors] = useState<FieldMessages>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [photoChange, setPhotoChange] = useState<PhotoChange>({});
   // The company overtime rate, shown in the hint; stays null when it cannot be read.
   const [companyRate, setCompanyRate] = useState<number | null>(null);
 
@@ -244,7 +246,7 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
     setPending(true);
     setServerErrors({});
     try {
-      const input = toWorkerInput(values, checklist);
+      const input = { ...toWorkerInput(values, checklist), ...photoChange };
       const saved = worker ? await updateWorker(worker.id, input) : await createWorker(input);
       onSaved(saved);
     } catch (error) {
@@ -279,6 +281,7 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
     <form onSubmit={handleSubmit} noValidate className="mt-4 space-y-6">
       <fieldset className="space-y-4">
         <legend className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-800">Identity</legend>
+        <WorkerPhotoField worker={worker} disabled={pending} onChange={setPhotoChange} />
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField label="Worker ID" autoComplete="off" autoCapitalize="characters" spellCheck={false} {...field("workerCode")} />
           <TextField label="Full name" autoComplete="off" {...field("fullName")} />

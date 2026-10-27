@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiGetBlob, apiPost, apiPut } from "./client";
+import { apiDelete, apiGet, apiGetBlob, apiGetFile, apiPost, apiPut } from "./client";
 
 export interface Worker {
   id: number;
@@ -28,6 +28,8 @@ export interface Worker {
   siteOrientationDone?: boolean;
   wpsRegistered?: boolean;
   badgeIssued?: boolean;
+  /** True when a photo is stored; fetch it with getWorkerPhoto. */
+  hasPhoto?: boolean;
 }
 
 /** The editable fields, sent as the body of create and update. */
@@ -56,6 +58,10 @@ export interface WorkerInput {
   siteOrientationDone?: boolean;
   wpsRegistered?: boolean;
   badgeIssued?: boolean;
+  /** A new JPEG portrait, base64 encoded. Omit to keep the stored photo. */
+  photoBase64?: string;
+  /** True clears the stored photo (ignored when photoBase64 is sent). */
+  removePhoto?: boolean;
 }
 
 export function listWorkers(includeInactive: boolean): Promise<Worker[]> {
@@ -74,6 +80,11 @@ export function createWorker(input: WorkerInput): Promise<Worker> {
 
 export function updateWorker(id: number, input: WorkerInput): Promise<Worker> {
   return apiPut<Worker>(`/api/workers/${id}`, input);
+}
+
+/** The worker's stored portrait as a JPEG. */
+export function getWorkerPhoto(id: number): Promise<Blob> {
+  return apiGetFile(`/api/workers/${id}/photo`, "image/jpeg");
 }
 
 /** The worker's record as a PDF (Managers, Administrators and HR). */

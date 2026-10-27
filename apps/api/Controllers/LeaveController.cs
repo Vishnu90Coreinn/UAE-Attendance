@@ -8,8 +8,27 @@ namespace HrPayroll.Api.Controllers;
 
 [ApiController]
 [Route("api/leave")]
-public sealed class LeaveController(LeaveService leave, LeaveBalanceService balances) : ControllerBase
+public sealed class LeaveController(LeaveService leave, LeaveBalanceService balances, LeaveExportService exports) : ControllerBase
 {
+    /// <summary>Leave requests that touch one month (<c>month=yyyy-MM</c>), for everyone or one worker, as a PDF or Excel file.</summary>
+    [HttpGet("export/{format:regex(^(pdf|excel)$)}")]
+    [Authorize(Policy = Policies.AnyUser)]
+    public async Task<IActionResult> Export(string format, [FromQuery] string? month, [FromQuery] string? workerId, CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "no-store";
+        try
+        {
+            var result = await exports.ExportAsync(month, workerId, format == "pdf" ? AttendanceExportFormat.Pdf : AttendanceExportFormat.Excel, ct);
+            return result.StatusCode == 200
+                ? File(result.File!, result.ContentType!, result.FileName)
+                : ValidationProblem(new ValidationProblemDetails(result.Errors!));
+        }
+        catch (PdfTextNotSupportedException)
+        {
+            return Problem(statusCode: 422, title: "The PDF supports English text. Update names that use other scripts.");
+        }
+    }
+
     /// <summary>Paid-leave allowance, used and remaining days per active worker for their current year.</summary>
     [HttpGet("balances")]
     [Authorize(Policy = Policies.AnyUser)]
@@ -23,6 +42,17 @@ public sealed class LeaveController(LeaveService leave, LeaveBalanceService bala
     [HttpPost]
     [Authorize(Policy = Policies.SupervisorOrAbove)]
     public async Task<IActionResult> Create(CreateLeaveRequest request, CancellationToken ct) => Map(await leave.CreateAsync(request, User.Identity!.Name!, ct));
+
+    /// <summary>The photo of the leave request or doctor's note, when one was attached.</summary>
+    [HttpGet("{id:int}/attachment")]
+    [Authorize(Policy = Policies.AnyUser)]
+    public async Task<IActionResult> Attachment(int id, CancellationToken ct)
+    {
+        var photo = await leave.GetAttachmentAsync(id, ct);
+        if (photo is null) return Problem(statusCode: 404, title: "No photo is attached to this leave request.");
+        Response.Headers.CacheControl = "private, no-store";
+        return File(photo.Data, photo.ContentType);
+    }
 
     /// <summary>Only a Manager or the Administrator decides leave, so a supervisor can never approve even their own request.</summary>
     [HttpPost("{id:int}/approve")]

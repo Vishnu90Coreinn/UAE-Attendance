@@ -29,6 +29,16 @@ public sealed class WorkersController(WorkerService workers, WageRedactor wages,
         return worker is null ? NotFound() : Ok(wages.Apply(worker));
     }
 
+    [HttpGet("{id:int}/photo")]
+    [Authorize(Policy = Policies.AnyUser)]
+    public async Task<IActionResult> Photo(int id, CancellationToken cancellationToken)
+    {
+        var photo = await workers.GetPhotoAsync(id, cancellationToken);
+        if (photo is null) return Problem(statusCode: 404, title: "This worker has no photo.");
+        Response.Headers.CacheControl = "private, no-store";
+        return File(photo, "image/jpeg");
+    }
+
     [HttpGet("{id:int}/profile/pdf")]
     [Authorize(Policy = Policies.ManagerAdminOrHr)]
     public async Task<IActionResult> ProfilePdf(int id, CancellationToken cancellationToken)

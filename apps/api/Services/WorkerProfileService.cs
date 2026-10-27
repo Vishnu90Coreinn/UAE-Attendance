@@ -14,7 +14,8 @@ public sealed class WorkerProfileService(AppDbContext db, WorkerProfilePdf pdf)
         if (worker is null) return null;
         var s = await db.PayrollSettings.AsNoTracking().SingleAsync(x => x.Id == PayrollSettings.SingletonId, ct);
         var company = new PayrollCompany(s.CompanyName, s.Tagline, s.ContactEmail, s.PreparedByLabel, s.ApprovedByLabel);
-        return (pdf.Generate(worker, company, includeRates), FileName(worker));
+        var photo = await db.WorkerPhotos.AsNoTracking().Where(p => p.WorkerId == id).Select(p => (byte[]?)p.Data).SingleOrDefaultAsync(ct);
+        return (pdf.Generate(worker, company, includeRates, photo), FileName(worker));
     }
 
     /// <summary>For example <c>EMP-001_Employee1_Information.pdf</c>; anything not safe in a file name becomes an underscore.</summary>

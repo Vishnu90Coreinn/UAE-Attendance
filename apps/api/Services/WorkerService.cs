@@ -76,14 +76,23 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
 
         var workers = await query.OrderBy(w => w.WorkerCode).ToListAsync(cancellationToken);
         var companyRate = await CompanyOvertimeRateAsync(cancellationToken);
-        return workers.Select(w => ToResponse(w, companyRate)).ToList();
+        var withPhoto = (await db.WorkerPhotos.AsNoTracking().Select(p => p.WorkerId).ToListAsync(cancellationToken)).ToHashSet();
+        return workers.Select(w => ToResponse(w, companyRate, withPhoto.Contains(w.Id))).ToList();
     }
 
     public async Task<WorkerResponse?> GetAsync(int id, CancellationToken cancellationToken = default)
     {
         var worker = await db.Workers.AsNoTracking().SingleOrDefaultAsync(w => w.Id == id, cancellationToken);
-        return worker is null ? null : ToResponse(worker, await CompanyOvertimeRateAsync(cancellationToken));
+        return worker is null ? null : await RespondAsync(worker, cancellationToken);
     }
+
+    /// <summary>The worker's stored portrait (JPEG), or null when there is none.</summary>
+    public Task<byte[]?> GetPhotoAsync(int id, CancellationToken cancellationToken = default) =>
+        db.WorkerPhotos.AsNoTracking().Where(p => p.WorkerId == id).Select(p => (byte[]?)p.Data).SingleOrDefaultAsync(cancellationToken);
+
+    private async Task<WorkerResponse> RespondAsync(Worker worker, CancellationToken cancellationToken) =>
+        ToResponse(worker, await CompanyOvertimeRateAsync(cancellationToken),
+            await db.WorkerPhotos.AsNoTracking().AnyAsync(p => p.WorkerId == worker.Id, cancellationToken));
 
     /// <summary>
     /// <c>EMP-</c> plus one more than the highest number among codes shaped <c>EMP-</c>digits, padded to at least three
@@ -162,6 +171,12 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         // The audit row needs the new id, which exists only after the insert, so both saves share one transaction.
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         db.Workers.Add(worker);
+        PhotoUpload.TryDecode(request.PhotoBase64, out var photo);
+        if (photo is not null)
+        {
+            db.WorkerPhotos.Add(new WorkerPhoto { Worker = worker, Data = photo, UpdatedUtc = now });
+        }
+
         if (await TrySaveAsync(cancellationToken) == SaveOutcome.DuplicateCode)
         {
             return DuplicateCode();
@@ -174,7 +189,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         audit.Write("WorkerCreated", entityType: nameof(Worker), entityId: worker.Id.ToString(CultureInfo.InvariantCulture), details: details);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new WorkerResult(WorkerOutcome.Success, ToResponse(worker, await CompanyOvertimeRateAsync(cancellationToken)));
+        return new WorkerResult(WorkerOutcome.Success, ToResponse(worker, await CompanyOvertimeRateAsync(cancellationToken), photo is not null));
     }
 
     public async Task<WorkerResult> UpdateAsync(int id, WorkerRequest request, CancellationToken cancellationToken = default)
@@ -299,9 +314,26 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         Check("wpsRegistered", worker.WpsRegistered, request.WpsRegistered, v => worker.WpsRegistered = v);
         Check("badgeIssued", worker.BadgeIssued, request.BadgeIssued, v => worker.BadgeIssued = v);
 
+        // A new photo replaces the old one; RemovePhoto clears it. The image itself is never written to the audit log.
+        var stored = await db.WorkerPhotos.SingleOrDefaultAsync(p => p.WorkerId == id, cancellationToken);
+        PhotoUpload.TryDecode(request.PhotoBase64, out var photo);
+        var now = time.GetUtcNow().UtcDateTime;
+        if (photo is not null)
+        {
+            if (stored is null) db.WorkerPhotos.Add(new WorkerPhoto { WorkerId = id, Data = photo, UpdatedUtc = now });
+            else { stored.Data = photo; stored.UpdatedUtc = now; }
+            changes["photo"] = new FieldChange(stored is null ? null : "photo", "photo");
+        }
+        else if (request.RemovePhoto == true && stored is not null)
+        {
+            db.WorkerPhotos.Remove(stored);
+            stored = null;
+            changes["photo"] = new FieldChange("photo", null);
+        }
+
         if (changes.Count == 0)
         {
-            return new WorkerResult(WorkerOutcome.Success, ToResponse(worker, await CompanyOvertimeRateAsync(cancellationToken)));
+            return new WorkerResult(WorkerOutcome.Success, await RespondAsync(worker, cancellationToken));
         }
 
         worker.UpdatedUtc = time.GetUtcNow().UtcDateTime;
@@ -320,7 +352,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
 
         if (worker.IsActive == active)
         {
-            return new WorkerResult(WorkerOutcome.Success, ToResponse(worker, await CompanyOvertimeRateAsync(cancellationToken)));
+            return new WorkerResult(WorkerOutcome.Success, await RespondAsync(worker, cancellationToken));
         }
 
         worker.IsActive = active;
@@ -458,6 +490,10 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         var emergency = OptionalText(request.EmergencyContact, MaxEmergencyContactLength, "emergencyContact", "Emergency contact", errors);
         var location = OptionalText(request.WorkLocation, MaxWorkLocationLength, "workLocation", "Work location", errors);
         var notes = OptionalText(request.Notes, MaxNotesLength, "notes", "Notes", errors);
+        if (!PhotoUpload.TryDecode(request.PhotoBase64, out _))
+        {
+            errors["photo"] = "The photo must be a JPEG image of at most 3 MB.";
+        }
 
         return errors.Count == 0
             ? new ValidWorker(code, fullName, designation, rate!.Value, overtime,
@@ -502,7 +538,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
     private async Task<WorkerResult> SaveChangeAsync(Worker worker, CancellationToken cancellationToken) =>
         await TrySaveAsync(cancellationToken) switch
         {
-            SaveOutcome.Saved => new WorkerResult(WorkerOutcome.Success, ToResponse(worker, await CompanyOvertimeRateAsync(cancellationToken))),
+            SaveOutcome.Saved => new WorkerResult(WorkerOutcome.Success, await RespondAsync(worker, cancellationToken)),
             SaveOutcome.DuplicateCode => DuplicateCode(),
             _ => new WorkerResult(WorkerOutcome.NotFound),
         };
@@ -518,11 +554,11 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             .Select(s => s.OvertimeRatePerHour)
             .SingleAsync(cancellationToken);
 
-    private static WorkerResponse ToResponse(Worker worker, decimal companyOvertimeRate) =>
+    private static WorkerResponse ToResponse(Worker worker, decimal companyOvertimeRate, bool hasPhoto) =>
         new(worker.Id, worker.WorkerCode, worker.FullName, worker.Designation, worker.HourlyRate,
             worker.OvertimeRate, worker.OvertimeRate ?? companyOvertimeRate, worker.IsActive, worker.JoinDate,
             worker.Department, worker.EmiratesId, worker.PassportNumber, worker.Phone,
             worker.Email, worker.EmergencyContact, worker.WorkLocation, worker.Notes,
             worker.ContractSigned, worker.VisaMedicalCleared, worker.SafetyGearIssued,
-            worker.SiteOrientationDone, worker.WpsRegistered, worker.BadgeIssued);
+            worker.SiteOrientationDone, worker.WpsRegistered, worker.BadgeIssued, hasPhoto);
 }

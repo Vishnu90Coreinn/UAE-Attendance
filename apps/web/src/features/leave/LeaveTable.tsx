@@ -1,4 +1,4 @@
-import { Check, Trash2, X } from "lucide-react";
+import { Check, Paperclip, Trash2, X } from "lucide-react";
 import type { Role } from "../../api/auth";
 import type { LeaveRequest } from "../../api/leave";
 import { isManagement } from "../../permissions";
@@ -12,6 +12,7 @@ interface Props {
   onApprove: (row: LeaveRequest) => void;
   onReject: (row: LeaveRequest) => void;
   onDelete: (row: LeaveRequest) => void;
+  onViewPhoto: (row: LeaveRequest) => void;
 }
 const actionClass =
   "inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-gray-300 px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-60 max-md:flex-1";
@@ -32,6 +33,7 @@ export function LeaveTable({
   onApprove,
   onReject,
   onDelete,
+  onViewPhoto,
 }: Props) {
   const manage = isManagement(role);
   const canDelete = (row: LeaveRequest) =>
@@ -54,6 +56,7 @@ export function LeaveTable({
               "End Date",
               "Days",
               "Status",
+              "Photo",
               ...(showActions ? ["Actions"] : []),
             ].map((label) => (
               <th key={label} scope="col" className="px-4 py-3 font-semibold">
@@ -108,6 +111,22 @@ export function LeaveTable({
                 >
                   {row.status}
                 </span>
+              </td>
+              <td data-label="Photo" className={cellClass}>
+                {row.hasAttachment ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onViewPhoto(row)}
+                    className={`${actionClass} max-md:flex-none`}
+                    aria-label={`View photo for ${row.workerName} starting ${row.startDate}`}
+                  >
+                    <Paperclip aria-hidden="true" size={16} />
+                    View
+                  </button>
+                ) : (
+                  <span className="text-gray-500">None</span>
+                )}
               </td>
               {showActions && (
                 <td className="px-4 py-2 md:table-cell">

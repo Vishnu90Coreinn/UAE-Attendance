@@ -1,5 +1,7 @@
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { Camera, ImagePlus, Trash2 } from "lucide-react";
 import { Dialog } from "../../components/Dialog";
+import { preparePhoto } from "./photo";
 import { TextField } from "../../components/TextField";
 import { LEAVE_TYPES, type LeaveInput, type LeaveType } from "../../api/leave";
 import type { Worker } from "../../api/workers";
@@ -23,6 +25,8 @@ function today() {
 }
 const fieldClass =
   "mt-1 min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
+const photoButtonClass =
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
 export function LeaveFormDialog({
   workers,
   pending,
@@ -36,6 +40,34 @@ export function LeaveFormDialog({
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [photo, setPhoto] = useState<{ base64: string; previewUrl: string } | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const photoRef = useRef(photo);
+  photoRef.current = photo;
+  useEffect(() => () => {
+    if (photoRef.current) URL.revokeObjectURL(photoRef.current.previewUrl);
+  }, []);
+  async function pickPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setPhotoError(null);
+    setPhotoBusy(true);
+    try {
+      const next = await preparePhoto(file);
+      if (photo) URL.revokeObjectURL(photo.previewUrl);
+      setPhoto(next);
+    } catch {
+      setPhotoError("That image could not be read. Try another photo.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+  function removePhoto() {
+    if (photo) URL.revokeObjectURL(photo.previewUrl);
+    setPhoto(null);
+  }
   const workerRef = useRef<HTMLSelectElement>(null);
   const startRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLInputElement>(null);
@@ -61,7 +93,13 @@ export function LeaveFormDialog({
       ).current?.focus();
       return;
     }
-    onSubmit({ workerId: Number(workerId), leaveType, startDate, endDate });
+    onSubmit({
+      workerId: Number(workerId),
+      leaveType,
+      startDate,
+      endDate,
+      ...(photo ? { attachmentBase64: photo.base64 } : {}),
+    });
   }
   return (
     <Dialog
@@ -72,8 +110,8 @@ export function LeaveFormDialog({
     >
       <form noValidate onSubmit={submit} className="mt-4 space-y-4">
         <p className="text-sm text-gray-600">
-          Days are inclusive calendar days. Leave does not change attendance or
-          payroll.
+          Days are inclusive calendar days. Once approved, leave fills Daily
+          Attendance for every day of the request.
         </p>
         <div>
           <label htmlFor={workerKey} className="text-sm font-medium">
@@ -131,6 +169,7 @@ export function LeaveFormDialog({
             </p>
           )}
         </div>
+        <div className="grid gap-4 sm:grid-cols-2">
         <TextField
           label="Start date"
           type="date"
@@ -151,6 +190,45 @@ export function LeaveFormDialog({
           onChange={(e) => setEndDate(e.target.value)}
           error={message("endDate")}
         />
+        </div>
+        <fieldset className="space-y-2" disabled={pending}>
+          <legend className="text-sm font-medium">
+            Leave document photo{" "}
+            <span className="font-normal text-gray-600">(optional)</span>
+          </legend>
+          <p className="text-xs text-gray-600">
+            Photo of the signed request or doctor's note.
+          </p>
+          {photo ? (
+            <div className="flex items-end gap-3">
+              <img
+                src={photo.previewUrl}
+                alt="Attached leave document preview"
+                className="h-28 max-w-[50%] rounded-lg border border-gray-200 bg-gray-50 object-contain"
+              />
+              <button type="button" onClick={removePhoto} className={photoButtonClass}>
+                <Trash2 aria-hidden="true" size={16} />
+                Remove photo
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <label className={`${photoButtonClass} cursor-pointer has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-blue-600`}>
+                <Camera aria-hidden="true" size={16} />
+                Take photo
+                <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={photoBusy} onChange={pickPhoto} />
+              </label>
+              <label className={`${photoButtonClass} cursor-pointer has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-blue-600`}>
+                <ImagePlus aria-hidden="true" size={16} />
+                Upload
+                <input type="file" accept="image/*" className="sr-only" disabled={photoBusy} onChange={pickPhoto} />
+              </label>
+            </div>
+          )}
+          {photoBusy && <p role="status" className="text-sm text-gray-600">Preparing photo...</p>}
+          {photoError && <p role="alert" className="text-sm text-red-700">{photoError}</p>}
+          {message("attachment") && <p role="alert" className="text-sm text-red-700">{message("attachment")}</p>}
+        </fieldset>
         {error && <ActionFailure message={error} />}
         <div className="flex flex-wrap justify-end gap-3">
           <button
