@@ -213,7 +213,7 @@ public class WorkerConstraintTests(TestDatabase database) : IClassFixture<TestDa
             .ToDictionary(r => (string)r["COLUMN_NAME"]!);
 
         Assert.Equal(
-            new[] { "BadgeIssued", "ContractSigned", "CreatedUtc", "Department", "Designation", "Email", "EmergencyContact", "EmiratesId", "FullName", "HourlyRate", "Id", "IsActive", "JoinDate", "Notes", "OvertimeRate", "PassportNumber", "Phone", "SafetyGearIssued", "SiteOrientationDone", "UpdatedUtc", "VisaMedicalCleared", "WorkerCode", "WorkLocation", "WpsRegistered" },
+            new[] { "BadgeIssued", "ContractSigned", "CreatedUtc", "Department", "Designation", "Email", "EmergencyContact", "EmiratesId", "FullName", "HourlyRate", "Id", "IsActive", "JoinDate", "MonthlySalary", "Notes", "OvertimeRate", "PassportNumber", "Phone", "SafetyGearIssued", "SiteOrientationDone", "UpdatedUtc", "VisaMedicalCleared", "WorkerCode", "WorkLocation", "WpsRegistered" },
             columns.Keys.Order().ToArray());
 
         Assert.Equal("nvarchar", columns["WorkerCode"]["DATA_TYPE"]);

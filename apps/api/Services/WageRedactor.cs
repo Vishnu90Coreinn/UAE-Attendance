@@ -20,7 +20,7 @@ public sealed class WageRedactor(IHttpContextAccessor httpContext)
     }
 
     public WorkerResponse Apply(WorkerResponse worker) =>
-        HidesWages ? worker with { HourlyRate = null, OvertimeRate = null, EffectiveOvertimeRate = null } : worker;
+        HidesWages ? worker with { HourlyRate = null, MonthlySalary = null, OvertimeRate = null, EffectiveOvertimeRate = null } : worker;
 
     public List<WorkerResponse> Apply(List<WorkerResponse> workers) =>
         HidesWages ? workers.Select(Apply).ToList() : workers;

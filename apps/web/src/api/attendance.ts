@@ -95,6 +95,12 @@ export function getAttendanceExport(date: string, format: "pdf" | "excel"): Prom
   return format === "pdf" ? apiGetBlob(path) : apiGetFile(path, EXCEL_TYPE);
 }
 
+/** One PDF (a page per day) or one Excel workbook (a sheet per day) from `from` to `to`, inclusive, yyyy-MM-dd. */
+export function getAttendanceRangeExport(from: string, to: string, format: "pdf" | "excel"): Promise<Blob> {
+  const path = `/api/attendance/export/${format}?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+  return format === "pdf" ? apiGetBlob(path) : apiGetFile(path, EXCEL_TYPE);
+}
+
 export function getAttendanceSummary(): Promise<AttendanceSummary> {
   return apiGet("/api/attendance/summary");
 }

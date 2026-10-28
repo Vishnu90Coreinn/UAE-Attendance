@@ -40,12 +40,13 @@ public class AttendanceApprovalTests(ApiFixture api) : IClassFixture<ApiFixture>
         var record = Row(await TestWorkers.ReadJsonAsync(saved), worker.Id).GetProperty("record");
         Assert.Equal("Submitted", record.GetProperty("approvalStatus").GetString());
 
-        Assert.Equal(0m, await PayrollTotalAsync(manager, worker.Id));
+        // Salary 2400; March 2025 has 26 non-Sunday days, all unpaid until one is approved: 2400 - 26 x 80.
+        Assert.Equal(320m, await PayrollTotalAsync(manager, worker.Id));
 
         var approved = await api.SendAsync(HttpMethod.Post, $"/api/attendance/{Date}/approve", new { workerIds = new[] { worker.Id } }, manager);
         Assert.Equal(HttpStatusCode.OK, approved.StatusCode);
         Assert.Equal("Approved", Row(await DayAsync(manager), worker.Id).GetProperty("record").GetProperty("approvalStatus").GetString());
-        Assert.Equal(80m, await PayrollTotalAsync(manager, worker.Id));
+        Assert.Equal(400m, await PayrollTotalAsync(manager, worker.Id)); // the approved day is no longer deducted
     }
 
     [Fact]
@@ -55,7 +56,8 @@ public class AttendanceApprovalTests(ApiFixture api) : IClassFixture<ApiFixture>
         var worker = await TestWorkers.CreateAsync(api.ConnectionString, hourlyRate: 10m);
         var saved = await api.SendAsync(HttpMethod.Put, $"/api/attendance/{Date}", Present(worker.Id, 6m), manager);
         Assert.Equal("Approved", Row(await TestWorkers.ReadJsonAsync(saved), worker.Id).GetProperty("record").GetProperty("approvalStatus").GetString());
-        Assert.Equal(60m, await PayrollTotalAsync(manager, worker.Id));
+        // The salary is fixed, so a 6-hour day is still a paid day: 2400 - 25 x 80.
+        Assert.Equal(400m, await PayrollTotalAsync(manager, worker.Id));
     }
 
     [Fact]
@@ -118,7 +120,8 @@ public class AttendanceApprovalTests(ApiFixture api) : IClassFixture<ApiFixture>
         var record = Row(await DayAsync(supervisor), worker.Id).GetProperty("record");
         Assert.Equal("Rejected", record.GetProperty("approvalStatus").GetString());
         Assert.Equal("Check the overtime hours", record.GetProperty("rejectionReason").GetString());
-        Assert.Equal(0m, await PayrollTotalAsync(manager, worker.Id));
+        // Salary 2400; March 2025 has 26 non-Sunday days, all unpaid until one is approved: 2400 - 26 x 80.
+        Assert.Equal(320m, await PayrollTotalAsync(manager, worker.Id));
 
         // The supervisor corrects it: it is resubmitted and the reason is cleared.
         await api.SendAsync(HttpMethod.Put, $"/api/attendance/{Date}", Present(worker.Id, 7m), supervisor);

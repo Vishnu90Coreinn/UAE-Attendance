@@ -8,6 +8,6 @@ public sealed record PayrollDeductionItem(string Name, decimal Amount, string No
 public sealed record PayrollLine(int WorkerId, string WorkerCode, string WorkerName, string Designation,
     decimal HourlyRate, decimal OvertimeRate, int DaysWorked, decimal BasicHours, decimal OvertimeHours,
     decimal BasicPay, decimal OvertimePay, decimal TotalPay, decimal TotalDeductions = 0, decimal NetPay = 0,
-    IReadOnlyList<PayrollDeductionItem>? Deductions = null);
+    IReadOnlyList<PayrollDeductionItem>? Deductions = null, decimal MonthlySalary = 0, decimal AbsenceDeduction = 0);
 public sealed record PayrollResponse(string Period, string Status, PayrollCompany Company,
     IReadOnlyList<PayrollLine> Lines, PayrollTotals Totals, string Revision, string? FinalisedBy = null, DateTime? FinalisedUtc = null, int PendingApprovalCount = 0);

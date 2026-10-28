@@ -20,6 +20,7 @@ public class WorkerConfiguration : IEntityTypeConfiguration<Worker>
         builder.Property(w => w.FullName).HasMaxLength(120).IsRequired();
         builder.Property(w => w.Designation).HasMaxLength(80).IsRequired();
         builder.Property(w => w.HourlyRate).HasPrecision(9, 2);
+        builder.Property(w => w.MonthlySalary).HasPrecision(10, 2);
         builder.Property(w => w.OvertimeRate).HasPrecision(9, 2);
         builder.Property(w => w.IsActive).HasDefaultValue(true);
         builder.Property(w => w.JoinDate).HasColumnType("date");

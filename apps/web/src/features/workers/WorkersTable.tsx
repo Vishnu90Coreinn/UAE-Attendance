@@ -209,14 +209,17 @@ function WorkerRow({
       </td>
       {showRates && (
         <td
-          data-label="Rates (AED/hr)"
+          data-label="Pay (AED)"
           className={`${cellClass} text-gray-800`}
         >
           <div className="max-md:text-right">
             <div>
-              Base{" "}
+              Salary{" "}
               <span className="font-medium">
-                {formatRate(worker.hourlyRate ?? 0)}
+                {formatRate(worker.monthlySalary ?? 0)}
+              </span>
+              <span className="text-xs text-gray-600">
+                {" "}({formatRate(worker.hourlyRate ?? 0)}/hr)
               </span>
             </div>
             <div className="text-xs text-gray-600">
@@ -324,7 +327,7 @@ export function WorkersTable({
               </th>
               {showRates && (
                 <th scope="col" className="p-3 xl:whitespace-nowrap xl:p-4">
-                  Rates (AED/hr)
+                  Pay (AED)
                 </th>
               )}
               <th scope="col" className="p-3 xl:p-4">

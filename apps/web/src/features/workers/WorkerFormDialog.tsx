@@ -11,6 +11,8 @@ import {
   CHECKLIST,
   FIELD_ORDER,
   fieldForServerKey,
+  hourlyFromSalary,
+  salaryFromHourly,
   toWorkerInput,
   validateWorker,
   type ChecklistValues,
@@ -26,6 +28,7 @@ function initialValues(worker: Worker | null): WorkerFormValues {
         fullName: worker.fullName,
         designation: worker.designation,
         hourlyRate: worker.hourlyRate === null ? "" : formatRate(worker.hourlyRate),
+        monthlySalary: worker.monthlySalary == null ? "" : formatRate(worker.monthlySalary),
         overtimeRate: worker.overtimeRate === null ? "" : formatRate(worker.overtimeRate),
         joinDate: worker.joinDate ?? "",
         department: worker.department ?? "",
@@ -42,6 +45,7 @@ function initialValues(worker: Worker | null): WorkerFormValues {
         fullName: "",
         designation: "",
         hourlyRate: "",
+        monthlySalary: "",
         overtimeRate: "",
         joinDate: "",
         department: "",
@@ -116,6 +120,7 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
   const nameRef = useRef<HTMLInputElement>(null);
   const designationRef = useRef<HTMLInputElement>(null);
   const rateRef = useRef<HTMLInputElement>(null);
+  const hourlyRef = useRef<HTMLInputElement>(null);
   const overtimeRef = useRef<HTMLInputElement>(null);
   const joinRef = useRef<HTMLInputElement>(null);
   const departmentRef = useRef<HTMLInputElement>(null);
@@ -130,7 +135,8 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
     workerCode: firstFieldRef,
     fullName: nameRef,
     designation: designationRef,
-    hourlyRate: rateRef,
+    hourlyRate: hourlyRef,
+    monthlySalary: rateRef,
     overtimeRate: overtimeRef,
     joinDate: joinRef,
     department: departmentRef,
@@ -201,7 +207,15 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
   const summary = [...FIELD_ORDER.map((field) => shown[field]), generalError].filter((m): m is string => !!m);
 
   function change(field: WorkerField, value: string) {
-    setValues((current) => ({ ...current, [field]: value }));
+    setValues((current) => {
+      const next = { ...current, [field]: value };
+      // The two pay fields follow each other: a month is 240 hours, and the salary is what is actually paid.
+      const typed = Number(value.trim());
+      const usable = value.trim() !== "" && Number.isFinite(typed) && typed > 0;
+      if (field === "hourlyRate" && usable) next.monthlySalary = String(salaryFromHourly(typed));
+      if (field === "monthlySalary" && usable) next.hourlyRate = hourlyFromSalary(typed).toFixed(2);
+      return next;
+    });
     setServerErrors((current) => ({ ...current, [field]: undefined }));
     setGeneralError(null);
   }
@@ -301,6 +315,7 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
         <legend className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-800">Pay</legend>
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField label="Base hourly rate (AED)" type="text" inputMode="decimal" autoComplete="off" {...field("hourlyRate")} />
+          <TextField label="Monthly salary (AED)" type="text" inputMode="decimal" autoComplete="off" hint="Paid in full for a 30-day month. Fills from the hourly rate (x 240, to the nearest 10); edit it if different." {...field("monthlySalary")} />
           <TextField
             label="Overtime rate (AED/hr) - optional"
             type="text"

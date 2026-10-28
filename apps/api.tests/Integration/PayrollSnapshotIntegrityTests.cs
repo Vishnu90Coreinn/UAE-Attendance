@@ -194,7 +194,7 @@ public sealed class PayrollSnapshotIntegrityTests : IAsyncLifetime
         await db.SaveChangesAsync();
         var service = Payroll(db);
         var draft = await service.ReadAsync(Month, default);
-        Assert.Equal(7439999992.56m, draft.Totals.TotalPay);
+        Assert.Equal(2399999997.60m, draft.Totals.TotalPay);
         var frozen = await service.FinaliseAsync(Month, draft.Revision, default);
         Assert.Equal(200, frozen.StatusCode);
         await using var verify = NewDb();

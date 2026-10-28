@@ -130,6 +130,7 @@ public sealed class WorkerProfilePdf(IConfiguration configuration)
         };
         if (includeRates)
         {
+            employment.Add(("Monthly salary (AED)", PdfText.Number(worker.EffectiveSalary)));
             employment.Add(("Base hourly rate (AED)", PdfText.Number(worker.HourlyRate)));
             employment.Add(("Overtime rate (AED/hr)", worker.OvertimeRate is { } ot ? PdfText.Number(ot) : "Company rate"));
         }

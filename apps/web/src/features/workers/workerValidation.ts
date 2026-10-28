@@ -5,6 +5,7 @@ export type WorkerField =
   | "fullName"
   | "designation"
   | "hourlyRate"
+  | "monthlySalary"
   | "overtimeRate"
   | "joinDate"
   | "department"
@@ -22,6 +23,7 @@ export const FIELD_ORDER: readonly WorkerField[] = [
   "fullName",
   "designation",
   "hourlyRate",
+  "monthlySalary",
   "overtimeRate",
   "joinDate",
   "department",
@@ -54,6 +56,19 @@ const MAX_CODE = 20;
 const MAX_NAME = 120;
 const MAX_DESIGNATION = 80;
 const MAX_RATE = 999.99;
+const MAX_SALARY = 99999.99;
+/** A month is always paid as 30 days of 8 hours. */
+export const HOURS_PER_MONTH = 240;
+
+/** The salary a typed hourly rate implies, rounded to 10 AED like the client's figures (6.67 -> 1600). */
+export function salaryFromHourly(rate: number): number {
+  const rounded = Math.round((rate * HOURS_PER_MONTH) / 10) * 10;
+  return rounded > 0 ? rounded : Math.round(rate * HOURS_PER_MONTH * 100) / 100;
+}
+
+export function hourlyFromSalary(salary: number): number {
+  return Math.round((salary / HOURS_PER_MONTH) * 100) / 100;
+}
 
 /** Optional profile fields and their length limits (mirroring the server) with the label used in messages. */
 const OPTIONAL_TEXT: readonly { field: WorkerField; max: number; label: string }[] = [
@@ -74,6 +89,26 @@ const NUMBER_PATTERN = /^-?(\d+\.?\d*|\.\d+)$/;
 /** The API's validation keys (camelCase, compared case-insensitively) mapped to form fields. */
 export function fieldForServerKey(key: string): WorkerField | undefined {
   return FIELD_ORDER.find((field) => field.toLowerCase() === key.toLowerCase());
+}
+
+function validateSalary(text: string): string | undefined {
+  if (text === "") {
+    return "Enter the monthly salary.";
+  }
+  if (!NUMBER_PATTERN.test(text)) {
+    return "Enter the salary as a number, for example 1600.";
+  }
+  const salary = Number(text);
+  if (salary <= 0) {
+    return "Salary must be greater than 0.";
+  }
+  if ((text.split(".")[1]?.length ?? 0) > 2) {
+    return "Salary can have at most 2 decimal places.";
+  }
+  if (salary > MAX_SALARY) {
+    return `Salary must be at most ${MAX_SALARY}.`;
+  }
+  return undefined;
 }
 
 function validateRate(text: string): string | undefined {
@@ -149,6 +184,11 @@ export function validateWorker(values: WorkerFormValues): FieldMessages {
     errors.hourlyRate = rateError;
   }
 
+  const salaryError = validateSalary(values.monthlySalary.trim());
+  if (salaryError) {
+    errors.monthlySalary = salaryError;
+  }
+
   const overtimeError = validateOvertimeRate(values.overtimeRate.trim());
   if (overtimeError) {
     errors.overtimeRate = overtimeError;
@@ -178,6 +218,7 @@ export function toWorkerInput(values: WorkerFormValues, checklist?: ChecklistVal
     workerCode: values.workerCode.trim(),
     fullName: values.fullName.trim(),
     designation: values.designation.trim(),
+    monthlySalary: Number(values.monthlySalary.trim()),
     hourlyRate: Number(values.hourlyRate.trim()),
     overtimeRate: overtime === "" ? null : Number(overtime),
     joinDate: values.joinDate.trim() === "" ? null : values.joinDate.trim(),

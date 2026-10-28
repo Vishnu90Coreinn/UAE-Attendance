@@ -48,7 +48,7 @@ public class PayrollCoherenceTests : IAsyncLifetime
             gate.Release.TrySetResult();
         }
         var report = await reading;
-        Assert.Equal(80m, report.Totals.BasicPay);
+        Assert.Equal(320m, report.Totals.BasicPay);
         Assert.Equal(8m, report.Totals.BasicHours);
         Assert.Equal(2.22m, report.Totals.OvertimePay);
     }

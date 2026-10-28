@@ -26,6 +26,10 @@ public sealed class PayrollDetail
     public string WorkerName { get; set; } = "";
     public string Designation { get; set; } = "";
     public decimal HourlyRate { get; set; }
+    /// <summary>The fixed salary the month was paid on; 0 for months finalised before monthly salaries (then BasicPay is rate x hours).</summary>
+    public decimal MonthlySalary { get; set; }
+    /// <summary>The part of the salary withheld for absent, unpaid and unrecorded days.</summary>
+    public decimal AbsenceDeduction { get; set; }
     public decimal OvertimeRate { get; set; }
     public int DaysWorked { get; set; }
     public decimal BasicHours { get; set; }

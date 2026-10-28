@@ -30,6 +30,7 @@ const input: WorkerInput = {
   fullName: "Ahmed Khan",
   designation: "Glass Installer",
   hourlyRate: 12.5,
+  monthlySalary: 3000,
   overtimeRate: null,
 };
 

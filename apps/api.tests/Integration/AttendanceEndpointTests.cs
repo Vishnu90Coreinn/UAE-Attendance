@@ -86,6 +86,47 @@ public class AttendanceEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.DoesNotContain("Daily pay (AED)", headers);
     }
 
+    [Fact]
+    public async Task ExportRange_Excel_IsOneSheetWithARowPerWorkerPerDay()
+    {
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
+        var response = await api.GetAsync("/api/attendance/export/excel?from=2026-01-14&to=2026-01-16", token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Attendance_2026-01-14_to_2026-01-16.xlsx", response.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
+        using var book = new ClosedXML.Excel.XLWorkbook(new MemoryStream(await response.Content.ReadAsByteArrayAsync()));
+        var sheet = Assert.Single(book.Worksheets);
+        Assert.Equal("Date", sheet.Cell(6, 1).GetString());
+        var dates = sheet.Column(1).CellsUsed().Skip(6).Where(c => c.DataType == ClosedXML.Excel.XLDataType.DateTime)
+            .Select(c => c.GetDateTime().ToString("yyyy-MM-dd")).Distinct().ToList();
+        Assert.Equal(new[] { "2026-01-14", "2026-01-15", "2026-01-16" }, dates);
+    }
+
+    [Fact]
+    public async Task ExportRange_Pdf_IsOneDocumentWithAPagePerDay()
+    {
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
+        var response = await api.GetAsync("/api/attendance/export/pdf?from=2026-01-14&to=2026-01-16", token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Attendance_2026-01-14_to_2026-01-16.pdf", response.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(await response.Content.ReadAsByteArrayAsync());
+        Assert.True(pdf.NumberOfPages >= 3);
+        Assert.Contains("Thursday, 15 January 2026", pdf.GetPage(2).Text);
+    }
+
+    [Theory]
+    [InlineData("from=2026-01-16&to=2026-01-14")]
+    [InlineData("from=2026-01-01&to=2026-12-31")]
+    [InlineData("from=nope&to=2026-01-14")]
+    [InlineData("to=2026-01-14")]
+    public async Task ExportRange_RejectsABadRange_AndRequiresSignIn(string query)
+    {
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
+        Assert.Equal(HttpStatusCode.BadRequest, (await api.GetAsync($"/api/attendance/export/pdf?{query}", token)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await api.GetAsync("/api/attendance/export/pdf?from=2026-01-14&to=2026-01-15", null)).StatusCode);
+    }
+
     [Theory]
     [InlineData("pdf")]
     [InlineData("excel")]
