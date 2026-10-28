@@ -24,6 +24,7 @@ import {
 } from "../workers/WorkersFeedback";
 import { saveBlob } from "../payroll/downloadPdf";
 import { AttendanceCards } from "./AttendanceCards";
+import { AttendanceRangeExport } from "./AttendanceRangeExport";
 import { AttendanceTable } from "./AttendanceTable";
 import { RejectDialog } from "./RejectDialog";
 import {
@@ -397,6 +398,7 @@ export function AttendancePage({
           Unsaved changes
         </p>
       )}
+      <AttendanceRangeExport initialDate={today()} />
       {loading ? (
         <p role="status" className="py-8 text-gray-600">
           Loading attendance...

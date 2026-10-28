@@ -7,6 +7,8 @@ export interface Worker {
   designation: string;
   /** AED per hour; null for Supervisors, who never see wages. */
   hourlyRate: number | null;
+  /** AED per month, paid in full for a 30-day month; null for Supervisors. */
+  monthlySalary?: number | null;
   /** The worker's own overtime rate in AED per hour; null means the company rate applies (or hidden from Supervisors). */
   overtimeRate: number | null;
   /** The overtime rate that actually applies; null for Supervisors. */
@@ -37,7 +39,9 @@ export interface WorkerInput {
   workerCode: string;
   fullName: string;
   designation: string;
+  /** Derived from the salary (salary / 240); the server recomputes it. */
   hourlyRate: number;
+  monthlySalary: number;
   /** Null or omitted means the worker uses the company overtime rate. */
   overtimeRate?: number | null;
   /** YYYY-MM-DD, or null when unknown. Printed on the payslip. */

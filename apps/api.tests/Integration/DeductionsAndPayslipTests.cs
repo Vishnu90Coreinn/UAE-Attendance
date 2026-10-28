@@ -100,17 +100,17 @@ public class DeductionsAndPayslipTests(ApiFixture api) : IClassFixture<ApiFixtur
         var (_, manager) = await TestWorkers.SignInAsync(api, Roles.Manager);
         var worker = await WorkerAsync(rate: 10m);
         const string month = "2024-03";
-        await PresentAsync("2024-03-04", worker.Id, 8m, manager); // 80.00 gross
+        await PresentAsync("2024-03-04", worker.Id, 8m, manager); // salary 2400, 25 other weekdays unpaid: 2400 - 25 x 80 = 400 gross
 
         await SaveDeductionsAsync(month, new { workers = new[] { new { workerId = worker.Id, entries = new[] { Deduction(1, 25m) } } } }, manager);
         var report = await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/payroll?month={month}", manager));
         var line = report.GetProperty("lines").EnumerateArray().Single(l => l.GetProperty("workerId").GetInt32() == worker.Id);
-        Assert.Equal(80m, line.GetProperty("totalPay").GetDecimal());
+        Assert.Equal(400m, line.GetProperty("totalPay").GetDecimal());
         Assert.Equal(25m, line.GetProperty("totalDeductions").GetDecimal());
-        Assert.Equal(55m, line.GetProperty("netPay").GetDecimal());
+        Assert.Equal(375m, line.GetProperty("netPay").GetDecimal());
         Assert.Equal("Advance / Loan", line.GetProperty("deductions").EnumerateArray().Single().GetProperty("name").GetString());
 
-        await SaveDeductionsAsync(month, new { workers = new[] { new { workerId = worker.Id, entries = new[] { Deduction(1, 90m) } } } }, manager);
+        await SaveDeductionsAsync(month, new { workers = new[] { new { workerId = worker.Id, entries = new[] { Deduction(1, 500m) } } } }, manager);
         var refused = await FinaliseAsync(month, manager);
         Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
         Assert.Contains("more than the amount earned", await refused.Content.ReadAsStringAsync());
@@ -172,7 +172,8 @@ public class DeductionsAndPayslipTests(ApiFixture api) : IClassFixture<ApiFixtur
         var report = await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/payroll?month={month}", manager));
         Assert.Equal("Finalised", report.GetProperty("status").GetString());
         var line = report.GetProperty("lines").EnumerateArray().Single(l => l.GetProperty("workerId").GetInt32() == worker.Id);
-        Assert.Equal(65m, line.GetProperty("netPay").GetDecimal());
+        // June 2024: salary 2400 less 24 unpaid weekdays (1920) = 480, less the 15 advance.
+        Assert.Equal(465m, line.GetProperty("netPay").GetDecimal());
         Assert.Equal("Fuel advance", line.GetProperty("deductions").EnumerateArray().Single().GetProperty("note").GetString());
     }
 }

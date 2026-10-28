@@ -5,7 +5,9 @@ using UglyToad.PdfPig.Writer;
 namespace HrPayroll.Api.Services;
 
 /// <summary>Drawing helpers for one PDF page: text in the two embedded fonts, rules, and filled or outlined boxes.</summary>
-internal sealed class PdfCanvas(PdfPageBuilder page, PdfDocumentBuilder.AddedFont regular, PdfDocumentBuilder.AddedFont bold)
+internal sealed class PdfCanvas(
+    PdfPageBuilder page, PdfDocumentBuilder.AddedFont regular, PdfDocumentBuilder.AddedFont bold,
+    Dictionary<byte[], PdfPageBuilder.AddedImage>? images = null)
 {
     /// <summary>Draws a JPEG stretched to the box whose bottom-left corner is (<paramref name="x"/>, <paramref name="y"/>).</summary>
     public void Jpeg(byte[] data, double x, double y, double width, double height) =>
@@ -85,8 +87,14 @@ internal sealed class PdfCanvas(PdfPageBuilder page, PdfDocumentBuilder.AddedFon
         page.ResetColor();
     }
 
-    public void Image(byte[] png, double left, double bottom, double right, double top) =>
-        page.AddPng(png, new PdfRectangle(left, bottom, right, top));
+    /// <summary>Pages of one document can pass the same <c>images</c> cache so a repeated logo is embedded once.</summary>
+    public void Image(byte[] png, double left, double bottom, double right, double top)
+    {
+        var box = new PdfRectangle(left, bottom, right, top);
+        if (images is null) page.AddPng(png, box);
+        else if (images.TryGetValue(png, out var added)) page.AddImage(added, box);
+        else images[png] = page.AddPng(png, box);
+    }
 }
 
 /// <summary>The company letterhead shared by the payroll report and the payslips, so both read as one document family.</summary>

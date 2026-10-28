@@ -8,6 +8,14 @@ public class Worker
     public string Designation { get; set; } = "";
     public decimal HourlyRate { get; set; }
 
+    /// <summary>
+    /// The fixed monthly salary, paid in full for a 30-day month whatever the calendar length. <see cref="HourlyRate"/> is
+    /// derived from it (salary / 240). 0 means none was recorded, so the rate x 240 is used instead.
+    /// </summary>
+    public decimal MonthlySalary { get; set; }
+
+    public decimal EffectiveSalary => MonthlySalary > 0 ? MonthlySalary : decimal.Round(HourlyRate * 240m, 2, MidpointRounding.AwayFromZero);
+
     /// <summary>The worker's own overtime rate per hour; null means "use the company rate" (<c>PayrollSettings.OvertimeRatePerHour</c>). 0 means no overtime pay.</summary>
     public decimal? OvertimeRate { get; set; }
 

@@ -40,12 +40,28 @@ public sealed class AttendanceController(AttendanceService attendance, WageRedac
     [Authorize(Policy = Policies.AnyUser)]
     public async Task<IActionResult> ExportExcel(string date, CancellationToken ct) => await Export(date, AttendanceExportFormat.Excel, ct);
 
-    private async Task<IActionResult> Export(string date, AttendanceExportFormat format, CancellationToken ct)
+    [HttpGet("export/{format}")]
+    [Authorize(Policy = Policies.AnyUser)]
+    public async Task<IActionResult> ExportRange(string format, [FromQuery] string? from, [FromQuery] string? to, CancellationToken ct) =>
+        format switch
+        {
+            "pdf" => await Export(from, to, AttendanceExportFormat.Pdf, ct),
+            "excel" => await Export(from, to, AttendanceExportFormat.Excel, ct),
+            _ => NotFound(),
+        };
+
+    private Task<IActionResult> Export(string date, AttendanceExportFormat format, CancellationToken ct) =>
+        Export(() => exports.ExportAsync(date, format, ct));
+
+    private Task<IActionResult> Export(string? from, string? to, AttendanceExportFormat format, CancellationToken ct) =>
+        Export(() => exports.ExportRangeAsync(from, to, format, ct));
+
+    private async Task<IActionResult> Export(Func<Task<AttendanceExportResult>> run)
     {
         Response.Headers.CacheControl = "no-store";
         try
         {
-            var result = await exports.ExportAsync(date, format, ct);
+            var result = await run();
             return result.StatusCode switch
             {
                 200 => File(result.File!, result.ContentType!, result.FileName),

@@ -139,6 +139,7 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
         var records = await db.Attendance.AsNoTracking().Where(a => a.WorkDate == date).ToDictionaryAsync(a => a.WorkerId, ct);
         var ids = records.Keys.ToArray();
         var workers = await db.Workers.AsNoTracking().Where(w => w.IsActive || ids.Contains(w.Id)).OrderBy(w => w.WorkerCode).ToListAsync(ct);
+        var sunday = date.DayOfWeek == DayOfWeek.Sunday;
         var finalised = await periodLock.IsFinalisedAsync(db, date, ct);
         // R9: a finalised month's figures come only from the payroll snapshot (frozen per-worker rates).
         var frozen = finalised
@@ -150,14 +151,15 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
             records.TryGetValue(w.Id, out var a);
             var record = a is null ? null : new AttendanceRecordResponse(a.Status, a.BasicHours, a.OvertimeHours, a.ApprovalStatus, a.RejectionReason);
             if (!finalised)
-                return new AttendanceRowResponse(new(w.Id, w.WorkerCode, w.FullName, w.Designation, w.HourlyRate, w.OvertimeRate, w.OvertimeRate ?? settings.OvertimeRatePerHour, w.IsActive),
-                    record, PayrollCalculator.DailyPay(a?.Status, a?.BasicHours ?? 0, a?.OvertimeHours ?? 0, w.HourlyRate, settings.OvertimeRatePerHour, w.OvertimeRate));
+                return new AttendanceRowResponse(new(w.Id, w.WorkerCode, w.FullName, w.Designation, w.HourlyRate, w.OvertimeRate, w.OvertimeRate ?? settings.OvertimeRatePerHour, w.IsActive, MonthlySalary: w.EffectiveSalary),
+                    record, PayrollCalculator.DailyPay(a?.Status, a?.BasicHours ?? 0, a?.OvertimeHours ?? 0, PayrollCalculator.ExactHourlyFor(w.EffectiveSalary), settings.OvertimeRatePerHour, w.OvertimeRate, sunday));
             // No snapshot row: never invent pay from live rates; keep the record visible with zero pay.
             if (!frozen.TryGetValue(w.Id, out var snap))
                 return new AttendanceRowResponse(new(w.Id, w.WorkerCode, w.FullName, w.Designation, w.HourlyRate, w.OvertimeRate, w.OvertimeRate ?? settings.OvertimeRatePerHour, w.IsActive),
                     record, PayrollCalculator.DailyPay(null, 0, 0, 0, 0));
             return new AttendanceRowResponse(new(w.Id, w.WorkerCode, w.FullName, w.Designation, snap.HourlyRate, snap.OvertimeRate, snap.OvertimeRate, w.IsActive),
-                record, PayrollCalculator.DailyPay(a?.Status, a?.BasicHours ?? 0, a?.OvertimeHours ?? 0, snap.HourlyRate, snap.OvertimeRate));
+                record, PayrollCalculator.DailyPay(a?.Status, a?.BasicHours ?? 0, a?.OvertimeHours ?? 0,
+                    snap.MonthlySalary > 0 ? PayrollCalculator.ExactHourlyFor(snap.MonthlySalary) : snap.HourlyRate, snap.OvertimeRate, null, sunday));
         }).ToList(), records.Values.Count(r => r.ApprovalStatus == ApprovalStatuses.Submitted));
     }
 

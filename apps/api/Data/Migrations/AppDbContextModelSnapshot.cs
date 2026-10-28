@@ -294,6 +294,10 @@ namespace HrPayroll.Api.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<decimal>("AbsenceDeduction")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("BasicHours")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -313,6 +317,10 @@ namespace HrPayroll.Api.Data.Migrations
                     b.Property<decimal>("HourlyRate")
                         .HasPrecision(9, 2)
                         .HasColumnType("decimal(9,2)");
+
+                    b.Property<decimal>("MonthlySalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("OvertimeHours")
                         .HasPrecision(18, 2)
@@ -598,6 +606,10 @@ namespace HrPayroll.Api.Data.Migrations
 
                     b.Property<DateOnly?>("JoinDate")
                         .HasColumnType("date");
+
+                    b.Property<decimal>("MonthlySalary")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)

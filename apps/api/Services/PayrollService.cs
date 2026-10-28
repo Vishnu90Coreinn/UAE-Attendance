@@ -61,7 +61,8 @@ public sealed class PayrollService(AppDbContext db, IAuditLogger? audit = null, 
             Details = draft.Lines.Select(l => new PayrollDetail
             {
                 WorkerId = l.WorkerId, WorkerCode = l.WorkerCode, WorkerName = l.WorkerName, Designation = l.Designation,
-                HourlyRate = l.HourlyRate, OvertimeRate = l.OvertimeRate, DaysWorked = l.DaysWorked,
+                HourlyRate = l.HourlyRate, MonthlySalary = l.MonthlySalary, AbsenceDeduction = l.AbsenceDeduction,
+                OvertimeRate = l.OvertimeRate, DaysWorked = l.DaysWorked,
                 BasicHours = l.BasicHours, OvertimeHours = l.OvertimeHours, BasicPay = l.BasicPay,
                 OvertimePay = l.OvertimePay, TotalPay = l.TotalPay, TotalDeductions = l.TotalDeductions,
                 Deductions = (l.Deductions ?? []).Select(d => new PayrollDeductionLine
@@ -110,7 +111,8 @@ public sealed class PayrollService(AppDbContext db, IAuditLogger? audit = null, 
             Money(l.OvertimeHours), Money(l.BasicPay), Money(l.OvertimePay), Money(l.TotalPay),
             Money(l.TotalDeductions), Money(l.TotalPay - l.TotalDeductions),
             l.Deductions.OrderBy(d => d.DeductionTypeName, StringComparer.Ordinal)
-                .Select(d => new PayrollDeductionItem(d.DeductionTypeName, d.Amount, d.Note)).ToArray())).ToArray();
+                .Select(d => new PayrollDeductionItem(d.DeductionTypeName, d.Amount, d.Note)).ToArray(),
+            Money(l.MonthlySalary), Money(l.AbsenceDeduction))).ToArray();
         return WithRevision(new(new DateOnly(period.Year, period.Month, 1).ToString("yyyy-MM", CultureInfo.InvariantCulture), "Finalised",
             new(period.CompanyName, period.Tagline, period.ContactEmail, period.PreparedByLabel, period.ApprovedByLabel),
             lines, PayrollCalculator.GrandTotals(lines), "", period.FinalisedBy, DateTime.SpecifyKind(period.FinalisedUtc, DateTimeKind.Utc)));
@@ -130,19 +132,25 @@ public sealed class PayrollService(AppDbContext db, IAuditLogger? audit = null, 
         var byWorker = attendance.ToLookup(a => a.WorkerId);
         var deductions = (await db.WorkerDeductions.AsNoTracking().Include(d => d.DeductionType)
             .Where(d => d.Year == start.Year && d.Month == start.Month).ToListAsync(ct)).ToLookup(d => d.WorkerId);
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime((time ?? TimeProvider.System).GetUtcNow(), CompanyTimeZone).DateTime);
         var lines = workers.Select(w =>
         {
             var records = byWorker[w.Id].ToArray();
+            var salary = w.EffectiveSalary;
             var summary = PayrollCalculator.MonthSummary(records.Select(a => PayrollCalculator.DailyPay(a.Status, a.BasicHours,
-                a.OvertimeHours, w.HourlyRate, settings.OvertimeRatePerHour, w.OvertimeRate)),
+                a.OvertimeHours, PayrollCalculator.ExactHourlyFor(salary), settings.OvertimeRatePerHour, w.OvertimeRate)),
                 records.Where(a => a.Status == "Present" || (LeaveEntitlements.IsLeave(a.Status) && a.BasicHours > 0)).Select(a => (a.BasicHours, a.OvertimeHours)));
             var items = deductions[w.Id].OrderBy(d => d.DeductionType.Name, StringComparer.Ordinal)
                 .Select(d => new PayrollDeductionItem(d.DeductionType.Name, Money(d.Amount), d.Note)).ToArray();
             var totalDeductions = Money(items.Sum(i => i.Amount));
-            return new PayrollLine(w.Id, w.WorkerCode, w.FullName, w.Designation, w.HourlyRate,
+            // The salary is fixed: pay is the month's salary less the unpaid days, not the hours worked, plus overtime.
+            var (basic, absence) = PayrollCalculator.MonthlyBasic(salary, start, w.JoinDate, today,
+                records.ToDictionary(a => a.WorkDate, a => (a.Status, a.BasicHours)));
+            var totalPay = basic + summary.OvertimePay;
+            return new PayrollLine(w.Id, w.WorkerCode, w.FullName, w.Designation, PayrollCalculator.HourlyFor(salary),
                 w.OvertimeRate ?? settings.OvertimeRatePerHour, summary.DaysWorked, summary.BasicHours,
-                summary.OvertimeHours, summary.BasicPay, summary.OvertimePay, summary.TotalPay,
-                totalDeductions, Money(summary.TotalPay - totalDeductions), items);
+                summary.OvertimeHours, basic, summary.OvertimePay, totalPay,
+                totalDeductions, Money(totalPay - totalDeductions), items, salary, absence);
         }).ToArray();
         return WithRevision(new(start.ToString("yyyy-MM", CultureInfo.InvariantCulture), "Draft",
             new(settings.CompanyName, settings.Tagline, settings.ContactEmail, settings.PreparedByLabel, settings.ApprovedByLabel),

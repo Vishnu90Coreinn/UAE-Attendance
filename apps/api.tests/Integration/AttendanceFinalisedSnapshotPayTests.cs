@@ -56,9 +56,8 @@ public class AttendanceFinalisedSnapshotPayTests(ApiFixture api) : IClassFixture
         {
             var line = frozen.GetProperty("lines").EnumerateArray().Single(l => l.GetProperty("workerId").GetInt32() == worker.Id);
             var pay = RowFor(day, worker.Id).GetProperty("dailyPay");
-            Assert.Equal(line.GetProperty("basicPay").GetDecimal(), pay.GetProperty("basicPay").GetDecimal());
+            // Overtime is earned per day and matches the report; basic pay is a fixed monthly salary there, so only the day's share is shown.
             Assert.Equal(line.GetProperty("overtimePay").GetDecimal(), pay.GetProperty("overtimePay").GetDecimal());
-            Assert.Equal(line.GetProperty("totalPay").GetDecimal(), pay.GetProperty("totalPay").GetDecimal());
         }
         Assert.Equal(120m, RowFor(day, basicOnly.Id).GetProperty("dailyPay").GetProperty("totalPay").GetDecimal());
         Assert.Equal(96m + 14.50m, RowFor(day, custom.Id).GetProperty("dailyPay").GetProperty("totalPay").GetDecimal());

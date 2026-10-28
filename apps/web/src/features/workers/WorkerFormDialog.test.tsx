@@ -27,6 +27,7 @@ const existing: Worker = {
   fullName: "Ahmed Khan",
   designation: "Glass Installer",
   hourlyRate: 12.5,
+  monthlySalary: 3000,
   overtimeRate: null,
   effectiveOvertimeRate: 2.22,
   isActive: true,
@@ -44,6 +45,7 @@ const code = () => screen.getByLabelText("Worker ID");
 const name = () => screen.getByLabelText("Full name");
 const role = () => screen.getByLabelText("Designation");
 const rate = () => screen.getByLabelText("Base hourly rate (AED)");
+const salary = () => screen.getByLabelText("Monthly salary (AED)");
 const overtime = () => screen.getByLabelText("Overtime rate (AED/hr) - optional");
 const save = () => screen.getByRole("button", { name: "Save worker" });
 
@@ -107,7 +109,7 @@ describe("WorkerFormDialog - add", () => {
   });
 
   it("creates the worker with trimmed text and a numeric rate, then reports it saved", async () => {
-    const created: Worker = { ...existing, id: 9, workerCode: "EMP-009", fullName: "Sara Ali", designation: "Fabricator", hourlyRate: 11.5 };
+    const created: Worker = { ...existing, id: 9, workerCode: "EMP-009", fullName: "Sara Ali", designation: "Fabricator", hourlyRate: 11.5, monthlySalary: 2760 };
     vi.mocked(workersApi.createWorker).mockResolvedValue(created);
     const { user, onSaved } = setup();
     await fillValid(user);
@@ -120,6 +122,7 @@ describe("WorkerFormDialog - add", () => {
       workerCode: "EMP-009",
       fullName: "Sara Ali",
       designation: "Fabricator",
+      monthlySalary: 2760,
       hourlyRate: 11.5,
       overtimeRate: null,
       joinDate: null,
@@ -176,7 +179,7 @@ describe("WorkerFormDialog - edit", () => {
   });
 
   it("updates the worker by id with the edited fields", async () => {
-    const updated = { ...existing, hourlyRate: 14 };
+    const updated = { ...existing, hourlyRate: 14, monthlySalary: 3360 };
     vi.mocked(workersApi.updateWorker).mockResolvedValue(updated);
     const { user, onSaved } = setup(existing);
 
@@ -189,6 +192,7 @@ describe("WorkerFormDialog - edit", () => {
       workerCode: "EMP-007",
       fullName: "Ahmed Khan",
       designation: "Glass Installer",
+      monthlySalary: 3360,
       hourlyRate: 14,
       overtimeRate: null,
       joinDate: null,
@@ -385,6 +389,20 @@ describe("WorkerFormDialog - validation", () => {
     expect(workersApi.createWorker).not.toHaveBeenCalled();
   });
 
+  it("fills the monthly salary from the hourly rate, and the hourly rate from the salary", async () => {
+    const { user } = setup();
+    await user.type(rate(), "6.67");
+    expect(salary()).toHaveValue("1600");
+    await user.clear(salary());
+    await user.type(salary(), "1700");
+    expect(rate()).toHaveValue("7.08");
+  });
+
+  it("requires a monthly salary", async () => {
+    await submitWith({ ...valid, rate: "" });
+    expect(salary()).toHaveAccessibleDescription(expect.stringContaining("Enter the monthly salary."));
+  });
+
   it("treats a blank name as missing", async () => {
     await submitWith({ ...valid, name: "   " });
 
@@ -427,7 +445,7 @@ describe("WorkerFormDialog - validation", () => {
     expect(workersApi.createWorker).not.toHaveBeenCalled();
   });
 
-  it.each(["0.01", "999.99", "12", "12.5", ".5"])("accepts the rate %s", async (value) => {
+  it.each(["0.01", "416", "12", "12.5", ".5"])("accepts the rate %s", async (value) => {
     vi.mocked(workersApi.createWorker).mockResolvedValue(existing);
     await submitWith({ ...valid, rate: value });
 

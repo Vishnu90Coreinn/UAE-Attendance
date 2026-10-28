@@ -112,7 +112,9 @@ public sealed class PayslipPdf(IConfiguration configuration)
 
         string Decimal(decimal value) => value.ToString("N2", CultureInfo.InvariantCulture);
         Table("EARNINGS", ["Description", "Calculation", "Amount (AED)"], [
-            ["Basic Salary", $"Hourly rate AED {Decimal(line.HourlyRate)} x {Decimal(line.BasicHours)} hrs", PdfText.Number(line.BasicPay)],
+            ["Basic Salary", line.MonthlySalary > 0
+                ? $"Monthly salary AED {Decimal(line.MonthlySalary)}" + (line.AbsenceDeduction > 0 ? $" less AED {Decimal(line.AbsenceDeduction)} for unpaid days" : "")
+                : $"Hourly rate AED {Decimal(line.HourlyRate)} x {Decimal(line.BasicHours)} hrs", PdfText.Number(line.BasicPay)],
             ["Overtime (OT)", $"OT hours {Decimal(line.OvertimeHours)} x AED {Decimal(line.OvertimeRate)}", PdfText.Number(line.OvertimePay)],
         ], ["Gross Earnings", "Basic + OT", PdfText.Number(line.TotalPay)]);
 

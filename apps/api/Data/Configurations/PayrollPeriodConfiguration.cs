@@ -33,6 +33,8 @@ public sealed class PayrollDetailConfiguration : IEntityTypeConfiguration<Payrol
         b.Property(d => d.WorkerName).HasMaxLength(120).IsRequired();
         b.Property(d => d.Designation).HasMaxLength(80).IsRequired();
         b.Property(d => d.HourlyRate).HasPrecision(9, 2);
+        b.Property(d => d.MonthlySalary).HasPrecision(18, 2);
+        b.Property(d => d.AbsenceDeduction).HasPrecision(18, 2);
         b.Property(d => d.OvertimeRate).HasPrecision(9, 2);
         b.Property(d => d.BasicHours).HasPrecision(18, 2);
         b.Property(d => d.OvertimeHours).HasPrecision(18, 2);

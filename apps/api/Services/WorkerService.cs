@@ -37,6 +37,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
     public const int MaxNameLength = 120;
     public const int MaxDesignationLength = 80;
     public const decimal MaxHourlyRate = 999.99m;
+    public const decimal MaxMonthlySalary = 99999.99m;
     public const decimal MaxOvertimeRate = 999.99m;
     public const int MaxDepartmentLength = 80;
     public const int MaxEmiratesIdLength = 25;
@@ -147,6 +148,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             FullName = input.FullName,
             Designation = input.Designation,
             HourlyRate = input.HourlyRate,
+            MonthlySalary = input.MonthlySalary,
             OvertimeRate = input.OvertimeRate,
             JoinDate = request.JoinDate,
             Department = input.Department,
@@ -234,6 +236,14 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         {
             changes["hourlyRate"] = new FieldChange(worker.HourlyRate, input.HourlyRate);
             worker.HourlyRate = input.HourlyRate;
+        }
+
+        // A request that only repeats the stored hourly rate (6.67) must not reset a salary (1600) that rate rounds to.
+        var salary = request.MonthlySalary is null && input.HourlyRate == worker.HourlyRate ? worker.EffectiveSalary : input.MonthlySalary;
+        if (worker.EffectiveSalary != salary)
+        {
+            changes["monthlySalary"] = new FieldChange(worker.EffectiveSalary, salary);
+            worker.MonthlySalary = salary;
         }
 
         if (worker.JoinDate != request.JoinDate)
@@ -384,7 +394,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
     // --- helpers -------------------------------------------------------------------------------------------
 
     private sealed record ValidWorker(
-        string Code, string FullName, string Designation, decimal HourlyRate, decimal? OvertimeRate,
+        string Code, string FullName, string Designation, decimal HourlyRate, decimal MonthlySalary, decimal? OvertimeRate,
         string? Department, string? EmiratesId, string? PassportNumber, string? Phone,
         string? Email, string? EmergencyContact, string? WorkLocation, string? Notes);
 
@@ -444,8 +454,30 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             errors["designation"] = $"Designation must be {MaxDesignationLength} characters or fewer.";
         }
 
+        // The monthly salary is what the client contracts; the hourly rate (salary / 240) follows from it. An hourly rate on its
+        // own is still accepted and means salary = rate x 240.
+        var salary = request.MonthlySalary;
         var rate = request.HourlyRate;
-        if (rate is null)
+        if (salary is not null)
+        {
+            if (salary <= 0)
+            {
+                errors["monthlySalary"] = "Monthly salary must be greater than 0.";
+            }
+            else if (salary > MaxMonthlySalary)
+            {
+                errors["monthlySalary"] = $"Monthly salary must be {MaxMonthlySalary.ToString("0.00", CultureInfo.InvariantCulture)} or less.";
+            }
+            else if (decimal.Round(salary.Value, 2) != salary.Value)
+            {
+                errors["monthlySalary"] = "Monthly salary can have at most 2 decimal places.";
+            }
+            else
+            {
+                rate = PayrollCalculator.HourlyFor(salary.Value);
+            }
+        }
+        else if (rate is null)
         {
             errors["hourlyRate"] = "Hourly rate is required.";
         }
@@ -496,7 +528,8 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         }
 
         return errors.Count == 0
-            ? new ValidWorker(code, fullName, designation, rate!.Value, overtime,
+            ? new ValidWorker(code, fullName, designation, rate!.Value,
+                salary ?? decimal.Round(rate.Value * PayrollCalculator.HoursPerMonth, 2, MidpointRounding.AwayFromZero), overtime,
                 department, emiratesId, passport, phone, email, emergency, location, notes)
             : null;
     }
@@ -560,5 +593,5 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             worker.Department, worker.EmiratesId, worker.PassportNumber, worker.Phone,
             worker.Email, worker.EmergencyContact, worker.WorkLocation, worker.Notes,
             worker.ContractSigned, worker.VisaMedicalCleared, worker.SafetyGearIssued,
-            worker.SiteOrientationDone, worker.WpsRegistered, worker.BadgeIssued, hasPhoto);
+            worker.SiteOrientationDone, worker.WpsRegistered, worker.BadgeIssued, hasPhoto, worker.EffectiveSalary);
 }

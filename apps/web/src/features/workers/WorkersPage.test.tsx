@@ -19,6 +19,7 @@ const ahmed: Worker = {
   fullName: "Ahmed Khan",
   designation: "Glass Installer",
   hourlyRate: 12.5,
+  monthlySalary: 3000,
   overtimeRate: null,
   effectiveOvertimeRate: 2.22,
   isActive: true,
@@ -29,6 +30,7 @@ const sara: Worker = {
   fullName: "Sara Ali",
   designation: "Fabricator",
   hourlyRate: 9,
+  monthlySalary: 2160,
   overtimeRate: 3,
   effectiveOvertimeRate: 3,
   isActive: false,
@@ -36,7 +38,7 @@ const sara: Worker = {
 
 /** What the API returns to a Supervisor: no wages at all. */
 function supervisorView(worker: Worker): Worker {
-  return { ...worker, hourlyRate: null, overtimeRate: null, effectiveOvertimeRate: null };
+  return { ...worker, hourlyRate: null, monthlySalary: null, overtimeRate: null, effectiveOvertimeRate: null };
 }
 
 function signInAs(role: Role) {
@@ -114,7 +116,7 @@ describe("WorkersPage - content", () => {
       "Worker",
       "Role",
       "Contact",
-      "Rates (AED/hr)",
+      "Pay (AED)",
       "Onboarding",
       "Status",
       "Actions",
@@ -123,7 +125,8 @@ describe("WorkersPage - content", () => {
     expect(within(row).getByText("EMP-001")).toBeInTheDocument();
     expect(within(row).getByText("Ahmed Khan")).toBeInTheDocument();
     expect(within(row).getByText("Glass Installer")).toBeInTheDocument();
-    expect(within(row).getByText("12.50")).toBeInTheDocument();
+    expect(within(row).getByText("3000.00")).toBeInTheDocument();
+    expect(within(row).getByText(/12\.50\/hr/)).toBeInTheDocument();
     expect(within(row).getByText("Active")).toBeInTheDocument();
   });
 
@@ -259,7 +262,7 @@ describe("WorkersPage - roles", () => {
       "Onboarding",
       "Status",
     ]);
-    expect(screen.queryByText(/Rates \(AED/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Pay \(AED/)).not.toBeInTheDocument();
     expect(screen.getByRole("table")).not.toHaveTextContent(/null|NaN|undefined/);
     expect(screen.queryByText(/AED/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Manage employee profiles/)).not.toBeInTheDocument();
@@ -293,6 +296,7 @@ describe("WorkersPage - add and edit", () => {
       workerCode: "EMP-005",
       fullName: "Omar",
       designation: "Helper",
+      monthlySalary: 1920,
       hourlyRate: 8,
       overtimeRate: null,
       joinDate: null,
@@ -328,7 +332,7 @@ describe("WorkersPage - add and edit", () => {
     await user.click(within(dialog).getByRole("button", { name: "Save worker" }));
 
     expect(await screen.findByText("Worker updated.")).toBeInTheDocument();
-    expect(workersApi.updateWorker).toHaveBeenCalledWith(1, expect.objectContaining({ hourlyRate: 15 }));
+    expect(workersApi.updateWorker).toHaveBeenCalledWith(1, expect.objectContaining({ monthlySalary: 3600, hourlyRate: 15 }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
