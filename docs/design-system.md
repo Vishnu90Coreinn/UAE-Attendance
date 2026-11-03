@@ -4,7 +4,7 @@ Decided on 2026-10-19 using the ui-ux-pro-max rules. The client's `Design.html` 
 
 - **Product:** internal HR/payroll admin tool; data-dense tables and forms; mostly desktop, but must work at 375px.
 - **Style:** flat, minimal corporate. No glass, gradients or heavy shadows (`shadow-sm` on cards only).
-- **Colour (Tailwind defaults, as in the prototype):** shell `slate-900`, nav `slate-800`, page `gray-100`, surface `white`, border `gray-200`, text `gray-800`, muted `gray-500`, primary `blue-600` (hover `blue-700`), success `green-600`, danger `red-600`, warning `amber`. Status is never colour-only: badge text plus colour.
+- **Colour (Tailwind defaults, as in the prototype):** shell `slate-900`, nav `slate-800`, page `gray-100`, surface `white`, border `gray-200`, text `gray-800`, muted `gray-500`, primary `blue-600` (hover `blue-700`; since 2026-11-03 the `blue` scale is remapped to the client logo's teal in `apps/web/src/styles.css`, so keep using `blue-*` utilities and never `teal-*` directly), success `green-600`, danger `red-600`, warning `amber`. Status is never colour-only: badge text plus colour.
 - **Type:** one family, the system UI stack (Tailwind default). Form text 16px; table text 14px (data-dense exception); headings `text-2xl` / `text-lg`.
 - **Spacing and shape:** Tailwind 4px scale; `rounded-lg` for cards and inputs, `rounded-full` for badges and chips.
 - **Icons:** Lucide (`lucide-react`), 16px inline / 20px for actions, always with visible text or an `aria-label`. Never emoji: the prototype's edit/delete/approve/reject emoji become Lucide icons.

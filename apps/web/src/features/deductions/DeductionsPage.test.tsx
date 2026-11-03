@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import * as deductionsApi from "../../api/deductions";
 import type { MonthDeductions } from "../../api/deductions";
 import { useAuth } from "../../contexts/AuthContext";
@@ -27,6 +27,8 @@ function monthData(overrides: Partial<MonthDeductions> = {}): MonthDeductions {
 }
 
 beforeEach(() => {
+  // The page opens on the current month; pin the date (not the timers) so the fixtures' 2026-10 stays the current month.
+  vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-15T08:00:00Z") });
   vi.resetAllMocks();
   vi.mocked(useAuth).mockReturnValue({
     status: "signedIn",
@@ -37,6 +39,10 @@ beforeEach(() => {
   });
   vi.mocked(deductionsApi.listDeductionTypes).mockResolvedValue(types);
   vi.mocked(deductionsApi.getDeductions).mockResolvedValue(monthData());
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 it("asks for a reason before it saves an amount", async () => {

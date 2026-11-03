@@ -107,7 +107,7 @@ export function LeaveTable({
               </td>
               <td data-label="Status" className={cellClass}>
                 <span
-                  className={`rounded-full px-3 py-1 font-semibold ${statusClass[row.status]}`}
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass[row.status]}`}
                 >
                   {row.status}
                 </span>

@@ -312,7 +312,7 @@ export function WorkersTable({
       <div className="md:overflow-x-auto">
         <table className="block w-full border-collapse text-left text-sm md:table">
           <thead className="sr-only md:not-sr-only md:table-header-group">
-            <tr className="border-b bg-slate-100 text-xs font-semibold uppercase tracking-wider text-slate-700">
+            <tr className="border-b border-gray-200 bg-gray-50 font-semibold text-gray-700">
               <th scope="col" className="p-3 xl:p-4">
                 ID
               </th>
