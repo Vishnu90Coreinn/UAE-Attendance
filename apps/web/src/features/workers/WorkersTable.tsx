@@ -257,7 +257,7 @@ function WorkerRow({
                 worker={worker}
                 disabled={busy}
                 onClick={actions.onDeactivate}
-                tone="border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                tone="border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 md:border-transparent md:bg-transparent md:text-gray-600 md:hover:bg-amber-50 md:hover:text-amber-800"
               />
             )}
             {!worker.isActive && actions?.onActivate && (
@@ -267,7 +267,7 @@ function WorkerRow({
                 worker={worker}
                 disabled={busy}
                 onClick={actions.onActivate}
-                tone="border-green-200 bg-green-50 text-green-800 hover:bg-green-100"
+                tone="border-green-200 bg-green-50 text-green-800 hover:bg-green-100 md:border-transparent md:bg-transparent md:text-gray-600 md:hover:bg-green-50 md:hover:text-green-800"
               />
             )}
             {onPrint && (
@@ -278,7 +278,7 @@ function WorkerRow({
                 disabled={busy}
                 iconOnlyOnPhone={!!actions}
                 onClick={onPrint}
-                tone="border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
+                tone="border-gray-300 bg-white text-gray-800 hover:bg-gray-50 md:border-transparent md:bg-transparent md:text-gray-600 md:hover:bg-gray-100 md:hover:text-gray-900"
               />
             )}
             {actions?.onDelete && (
@@ -289,7 +289,7 @@ function WorkerRow({
                 disabled={busy}
                 iconOnlyOnPhone
                 onClick={actions.onDelete}
-                tone="border-red-200 bg-red-50 text-red-700 hover:bg-red-100 max-md:bg-white max-md:hover:bg-red-50"
+                tone="border-red-200 bg-red-50 text-red-700 hover:bg-red-100 max-md:bg-white max-md:hover:bg-red-50 md:border-transparent md:bg-transparent md:text-gray-600 md:hover:bg-red-50 md:hover:text-red-700"
               />
             )}
           </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { KeyRound, LogOut, UsersRound } from "lucide-react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { KeyRound, LogOut } from "lucide-react";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { COMPANY_NAME } from "../branding";
 import { getPayrollSettings, type PayrollSettings } from "../api/settings";
 import { isManagement } from "../permissions";
@@ -79,7 +79,7 @@ export function Layout() {
       </a>
 
       <header className="bg-slate-900 text-white shadow-md">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:py-4">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:py-2.5">
           <div className="min-w-0 max-w-full">
             <h1 className="break-words text-base font-bold leading-tight sm:text-lg">
               {companySettings?.companyName ?? COMPANY_NAME}
@@ -95,13 +95,7 @@ export function Layout() {
               )}
             </div>
             {user && (
-              <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:gap-3">
-                {isManagement(user.role) && (
-                  <Link to="/users" className={headerButtonClass} aria-label="User Access" title="User Access">
-                    <UsersRound aria-hidden="true" size={16} />
-                    <span className="hidden xl:inline">User Access</span>
-                  </Link>
-                )}
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
                 <button
                   type="button"
                   onClick={() => setChangePasswordOpen(true)}

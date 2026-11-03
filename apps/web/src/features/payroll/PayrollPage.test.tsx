@@ -107,7 +107,7 @@ it("renders the server's report, exact column labels, totals and signature block
   ).toEqual([
     "Worker Name",
     "Designation",
-    "Days Worked",
+    "Days Present",
     "Basic Pay",
     "OT Pay",
     "Deductions",
@@ -118,7 +118,7 @@ it("renders the server's report, exact column labels, totals and signature block
   expect(
     screen.getByText("Email: hr@example.com • United Arab Emirates"),
   ).toBeInTheDocument();
-  expect(screen.getByText("Month: 2026-10")).toBeInTheDocument();
+  expect(screen.getByText("Month: October 2026")).toBeInTheDocument();
   expect(screen.getByText("Draft")).toBeInTheDocument();
   expect(within(table).getAllByText("2,222.20")).toHaveLength(2);
   expect(screen.getByText("TOTAL PAYROLL")).toBeInTheDocument();
