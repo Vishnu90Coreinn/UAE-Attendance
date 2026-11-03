@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { apiDelete, apiGet, apiPut } from "./client";
-import { getAttendance, saveAttendance, deleteAttendance } from "./attendance";
+import { getAttendance, getAttendanceTrend, saveAttendance, deleteAttendance } from "./attendance";
 
 vi.mock("./client", () => ({
   apiGet: vi.fn(),
@@ -11,6 +11,10 @@ beforeEach(() => vi.clearAllMocks());
 it("loads the selected day", async () => {
   await getAttendance("2026-10-19");
   expect(apiGet).toHaveBeenCalledWith("/api/attendance?date=2026-10-19");
+});
+it("loads the head-count trend for a range in one request", async () => {
+  await getAttendanceTrend("2026-10-19", 7);
+  expect(apiGet).toHaveBeenCalledWith("/api/attendance/trend?to=2026-10-19&days=7");
 });
 it("saves one atomic batch including explicit clears", async () => {
   const rows = [{ workerId: 1, status: null, basicHours: 0, overtimeHours: 0 }];

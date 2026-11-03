@@ -31,6 +31,9 @@ public sealed class RejectAttendanceRequest
     public string? Reason { get; init; }
 }
 
+/// <summary>One day's head-count by status, with no pay. <paramref name="Total"/> is the workers listed on that day's sheet.</summary>
+public sealed record AttendanceTrendDay(DateOnly Date, int Present, int Absent, int OnLeave, int NotRecorded, int Total);
+
 public sealed record AttendanceDayCount(DateOnly Date, int Count);
 public sealed record AttendanceSummaryResponse(int SubmittedTotal, List<AttendanceDayCount> Submitted,
     int RejectedTotal, List<AttendanceDayCount> Rejected);
