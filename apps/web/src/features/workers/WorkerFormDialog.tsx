@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type RefObject } from "react";
+import { buttonClass } from "../../ui";
 import { Loader2, Save } from "lucide-react";
 import { ApiError } from "../../api/client";
 import { getPayrollSettings } from "../../api/settings";
@@ -83,7 +84,7 @@ function NotesField({ value, error, textareaRef, onChange, onBlur }: NotesFieldP
   const errorId = `${id}-error`;
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-medium text-gray-800">
+      <label htmlFor={id} className="block text-sm font-medium text-ink-800">
         Notes
       </label>
       <textarea
@@ -97,7 +98,7 @@ function NotesField({ value, error, textareaRef, onChange, onBlur }: NotesFieldP
         placeholder="Certifications, skills, remarks..."
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
-        className={`mt-1 block w-full rounded-lg border bg-white px-3 py-2 text-base text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${error ? "border-red-600" : "border-gray-300"}`}
+        className={`mt-1 block w-full rounded-lg border bg-white px-3 py-2 text-base text-ink-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${error ? "border-red-600" : "border-ink-300"}`}
       />
       {error && (
         <p id={errorId} className="mt-1 text-sm text-red-700">
@@ -311,7 +312,7 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
         </div>
       </fieldset>
 
-      <fieldset className="space-y-4 border-t border-gray-200 pt-4">
+      <fieldset className="space-y-4 border-t border-line pt-4">
         <legend className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-800">Pay</legend>
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField label="Base hourly rate (AED)" type="text" inputMode="decimal" autoComplete="off" {...field("hourlyRate")} />
@@ -331,7 +332,7 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
         </div>
       </fieldset>
 
-      <fieldset className="space-y-4 border-t border-gray-200 pt-4">
+      <fieldset className="space-y-4 border-t border-line pt-4">
         <legend className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-800">Contact & documents (optional)</legend>
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
@@ -358,16 +359,16 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
         </div>
       </fieldset>
 
-      <fieldset className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <fieldset className="rounded-lg border border-line bg-ink-50 p-3">
         <legend className="px-1 text-sm font-semibold uppercase tracking-wide text-teal-800">Onboarding checklist</legend>
         <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
           {CHECKLIST.map(({ key, label }) => (
-            <label key={key} className="flex min-h-11 items-center gap-3 text-sm text-gray-800">
+            <label key={key} className="flex min-h-11 items-center gap-3 text-sm text-ink-800">
               <input
                 type="checkbox"
                 checked={checklist[key]}
                 onChange={(event) => setChecklist((current) => ({ ...current, [key]: event.target.checked }))}
-                className="h-5 w-5 rounded border-gray-300 accent-blue-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                className="h-5 w-5 rounded border-ink-300 accent-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
               />
               {label}
             </label>
@@ -390,7 +391,7 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-base font-medium text-gray-800 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+          className={buttonClass("secondary", "md")}
         >
           Cancel
         </button>
@@ -398,7 +399,7 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
           type="submit"
           disabled={pending}
           aria-busy={pending}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-base font-medium text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-70"
+          className={buttonClass("primary", "md")}
         >
           {pending ? (
             <>

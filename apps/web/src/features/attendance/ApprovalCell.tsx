@@ -35,7 +35,7 @@ export function ApprovalContent({
   const name = row.worker.fullName;
   return (
     <div className={card ? "flex flex-col items-start gap-2" : "flex flex-col items-end gap-2 md:items-start"}>
-      {!record && <span className="text-gray-600">—</span>}
+      {!record && <span className="text-ink-600">—</span>}
       {record?.approvalStatus === "Approved" && (
         <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-green-800">
           <Check aria-hidden="true" size={14} />
@@ -91,7 +91,7 @@ export function ApprovalContent({
               disabled={pending}
               aria-label={`Resubmit ${name}`}
               onClick={() => onResubmit(row)}
-              className={`${actionClass} ${card ? "w-full" : ""} border-blue-700 text-blue-800 hover:bg-blue-50 focus-visible:outline-blue-700`}
+              className={`${actionClass} ${card ? "w-full" : ""} border-brand-700 text-brand-800 hover:bg-brand-50 focus-visible:outline-brand-500`}
             >
               <RotateCcw aria-hidden="true" size={16} />
               Resubmit

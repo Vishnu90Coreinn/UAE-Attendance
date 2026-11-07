@@ -26,9 +26,9 @@ function startsOpen() {
   }
 }
 const fieldClass =
-  "mt-1 min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-60";
+  "mt-1 min-h-11 w-full rounded-lg border border-ink-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-60";
 const buttonClass =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60 max-sm:flex-1";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-ink-300 bg-white px-4 text-sm font-medium text-ink-800 hover:bg-ink-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-60 max-sm:flex-1";
 
 /** Downloads the leave requests of one month, for everyone or a single worker. */
 export function LeaveReport({ workers, disabled, onDone, onError }: Props) {
@@ -58,18 +58,18 @@ export function LeaveReport({ workers, disabled, onDone, onError }: Props) {
   }
 
   return (
-    <section aria-labelledby={`${monthId}-title`} className="rounded-lg border border-gray-200 bg-white shadow-sm">
-      <h3 id={`${monthId}-title`} className="text-base font-semibold text-gray-800">
+    <section aria-labelledby={`${monthId}-title`} className="rounded-card border border-line bg-white shadow-card">
+      <h3 id={`${monthId}-title`} className="text-base font-semibold text-ink-800">
         <button
           type="button"
           aria-expanded={open}
           aria-controls={`${monthId}-body`}
           onClick={() => setOpen((value) => !value)}
-          className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-4 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+          className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-4 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
         >
           <span>
             Monthly leave report
-            <span className="block text-sm font-normal text-gray-600">Download every leave request that falls in a month.</span>
+            <span className="block text-sm font-normal text-ink-600">Download every leave request that falls in a month.</span>
           </span>
           <ChevronDown aria-hidden="true" size={18} className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
         </button>

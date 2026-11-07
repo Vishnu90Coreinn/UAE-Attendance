@@ -1,11 +1,11 @@
 import { useRef, useState, type FormEvent } from "react";
+import { buttonClass, cx, inputClass } from "../../ui";
 import { Loader2 } from "lucide-react";
 import type { Role } from "../../api/auth";
 import { type CreateUserInput, type ManagedUser } from "../../api/users";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
 
-const buttonClass = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-base font-medium focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60";
 const passwordHint = "Use 10 to 128 characters. The password cannot be the same as the username.";
 
 function validatePassword(password: string, username: string) {
@@ -50,15 +50,15 @@ export function AddUserDialog({ open, roles, pending, error, fieldErrors, onClos
         <TextField label="Password" type="password" value={password} maxLength={128} disabled={pending}
           hint={passwordHint} error={localErrors.password ?? fieldErrors?.password?.[0]}
           onChange={(e) => { setPassword(e.target.value); setLocalErrors((x) => ({ ...x, password: "" })); }} />
-        <label className="block text-sm font-medium text-gray-800">Role
+        <label className="block text-sm font-medium text-ink-800">Role
           <select aria-label="Role" value={role} disabled={pending} onChange={(e) => setRole(e.target.value as Role)}
-            className="mt-1 min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-base">
+            className={cx(inputClass, "mt-1 w-full")}>
             {roles.map((value) => <option key={value}>{value}</option>)}
           </select>
         </label>
         <div className="flex flex-wrap justify-end gap-3 pt-2">
-          <button type="button" disabled={pending} onClick={onClose} className={`${buttonClass} border border-gray-300 bg-white text-gray-800`}>Cancel</button>
-          <button type="submit" disabled={pending} className={`${buttonClass} bg-blue-600 text-white`}>
+          <button type="button" disabled={pending} onClick={onClose} className={buttonClass("secondary")}>Cancel</button>
+          <button type="submit" disabled={pending} className={buttonClass("primary")}>
             {pending && <Loader2 aria-hidden="true" size={16} className="animate-spin" />}{pending ? "Creating..." : "Create user"}
           </button>
         </div>
@@ -87,14 +87,14 @@ export function ResetPasswordDialog({ user, pending, error, fieldErrors, onClose
   return (
     <Dialog open={!!user} title="Reset password" onClose={pending ? () => {} : onClose} initialFocusRef={first}>
       <form onSubmit={submit} className="mt-4 space-y-4">
-        <p className="text-sm text-gray-600">Set a new password for <strong>{user?.username}</strong>.</p>
+        <p className="text-sm text-ink-600">Set a new password for <strong>{user?.username}</strong>.</p>
         {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         <TextField label="New password" type="password" value={password} maxLength={128} disabled={pending}
           inputRef={first} hint={passwordHint} error={localError ?? fieldErrors?.password?.[0]}
           onChange={(e) => { setPassword(e.target.value); setLocalError(undefined); }} />
         <div className="flex flex-wrap justify-end gap-3 pt-2">
-          <button type="button" disabled={pending} onClick={onClose} className={`${buttonClass} border border-gray-300 bg-white text-gray-800`}>Cancel</button>
-          <button type="submit" disabled={pending} className={`${buttonClass} bg-blue-600 text-white`}>
+          <button type="button" disabled={pending} onClick={onClose} className={buttonClass("secondary")}>Cancel</button>
+          <button type="submit" disabled={pending} className={buttonClass("primary")}>
             {pending && <Loader2 aria-hidden="true" size={16} className="animate-spin" />}{pending ? "Resetting..." : "Reset password"}
           </button>
         </div>

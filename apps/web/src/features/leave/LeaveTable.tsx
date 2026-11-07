@@ -1,4 +1,5 @@
 import { Check, Paperclip, Trash2, X } from "lucide-react";
+import { StatusBadge } from "../../ui";
 import type { Role } from "../../api/auth";
 import type { LeaveRequest } from "../../api/leave";
 import { isManagement } from "../../permissions";
@@ -15,15 +16,11 @@ interface Props {
   onViewPhoto: (row: LeaveRequest) => void;
 }
 const actionClass =
-  "inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-gray-300 px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-60 max-md:flex-1";
-const statusClass = {
-  Pending: "bg-amber-100 text-amber-900",
-  Approved: "bg-green-100 text-green-900",
-  Rejected: "bg-red-100 text-red-900",
-};
+  "inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-ink-300 px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-60 max-md:flex-1";
+const statusTone = { Pending: "warning", Approved: "success", Rejected: "danger" } as const;
 /** On phones each row becomes a labelled card; from md up it is an ordinary table row. */
 const cellClass =
-  "flex items-center justify-between gap-3 px-4 py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-gray-600 md:table-cell md:py-3 md:before:content-none";
+  "flex items-center justify-between gap-3 px-4 py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-ink-600 md:table-cell md:py-3 md:before:content-none";
 
 export function LeaveTable({
   rows,
@@ -44,10 +41,10 @@ export function LeaveTable({
       row.createdBy === username);
   const showActions = manage || rows.some(canDelete);
   return (
-    <div className="max-w-full rounded-lg border-gray-200 md:overflow-x-auto md:border md:bg-white md:shadow-sm">
+    <div className="max-w-full rounded-lg border-line md:overflow-x-auto md:border md:bg-white md:shadow-sm">
       <table className="block w-full text-left text-sm md:table">
         <caption className="sr-only">Leave requests</caption>
-        <thead className="sr-only border-b border-gray-200 bg-gray-50 md:not-sr-only md:table-header-group">
+        <thead className="sr-only border-b border-line bg-ink-50 md:not-sr-only md:table-header-group">
           <tr className="md:table-row">
             {[
               "Worker",
@@ -65,11 +62,11 @@ export function LeaveTable({
             ))}
           </tr>
         </thead>
-        <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-gray-200">
+        <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-line">
           {rows.map((row) => (
             <tr
               key={row.id}
-              className="block rounded-lg border border-gray-200 bg-white py-1 shadow-sm md:table-row md:rounded-none md:border-0 md:py-0 md:shadow-none"
+              className="block rounded-card border border-line bg-white py-1 shadow-card md:table-row md:rounded-none md:border-0 md:py-0 md:shadow-none"
             >
               <th
                 scope="row"
@@ -78,7 +75,7 @@ export function LeaveTable({
               >
                 <span className="text-left">
                   {row.workerName}
-                  <span className="block text-xs font-normal text-gray-600">
+                  <span className="block text-xs font-normal text-ink-600">
                     {row.workerCode}
                     {!row.workerIsActive && " · Inactive"}
                   </span>
@@ -106,11 +103,7 @@ export function LeaveTable({
                 {row.days}
               </td>
               <td data-label="Status" className={cellClass}>
-                <span
-                  className={`rounded-full px-3 py-1 font-semibold ${statusClass[row.status]}`}
-                >
-                  {row.status}
-                </span>
+                <StatusBadge tone={statusTone[row.status]}>{row.status}</StatusBadge>
               </td>
               <td data-label="Photo" className={cellClass}>
                 {row.hasAttachment ? (
@@ -125,7 +118,7 @@ export function LeaveTable({
                     View
                   </button>
                 ) : (
-                  <span className="text-gray-500">None</span>
+                  <span className="text-ink-500">None</span>
                 )}
               </td>
               {showActions && (

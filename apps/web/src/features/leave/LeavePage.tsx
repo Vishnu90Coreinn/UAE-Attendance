@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { PageHeader } from "../../ui";
 import { CalendarPlus } from "lucide-react";
 import {
   approveLeave,
@@ -32,7 +33,7 @@ function message(error: unknown) {
     : "Something went wrong. Please try again.";
 }
 const selectClass =
-  "mt-1 min-h-11 max-w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-60";
+  "mt-1 min-h-11 max-w-full rounded-lg border border-ink-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-60";
 export function LeavePage() {
   const { user } = useAuth();
   const [rows, setRows] = useState<LeaveRequest[]>([]);
@@ -165,15 +166,11 @@ export function LeavePage() {
   const busy = pending || formOpen || !!confirmation || !!photoRow;
   return (
     <section className="min-w-0 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">Leave Management</h2>
-          <p className="text-sm text-gray-600">
-            Manage leave requests and decisions. Days include both start and end
-            dates.
-          </p>
-        </div>
-        {user && user.role !== "HR" && (
+      <PageHeader
+        title="Leave Management"
+        description="Manage leave requests and decisions. Days include both start and end dates."
+        actions={
+          user && user.role !== "HR" && (
           <button
             type="button"
             disabled={busy || !workersReady || !workers.some((w) => w.isActive)}
@@ -189,8 +186,9 @@ export function LeavePage() {
             <CalendarPlus aria-hidden="true" size={16} />
             New Leave Request
           </button>
-        )}
-      </div>
+          )
+        }
+      />
       <LeaveReport
         workers={workers}
         disabled={busy || !workersReady}
@@ -242,14 +240,14 @@ export function LeavePage() {
         />
       )}
       {user && workersReady && !workers.some((w) => w.isActive) && (
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-ink-600">
           Add an active worker before requesting leave.
         </p>
       )}
       <SuccessRegion message={success} />
       {error && <ActionFailure message={error} />}
       {loading ? (
-        <p role="status" className="py-8 text-gray-600">
+        <p role="status" className="py-8 text-ink-600">
           Loading leave requests...
         </p>
       ) : loadError ? (
@@ -273,7 +271,7 @@ export function LeavePage() {
           }}
         />
       ) : (
-        <p className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-600">
+        <p className="rounded-card border border-line bg-white p-8 text-center text-ink-600">
           No leave requests match these filters.
         </p>
       )}

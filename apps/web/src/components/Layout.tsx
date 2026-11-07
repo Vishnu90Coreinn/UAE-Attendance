@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { KeyRound, LogOut, UsersRound } from "lucide-react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { KeyRound, LogOut, PanelLeftClose, PanelLeftOpen, UsersRound } from "lucide-react";
+import { Link, Outlet, useNavigate } from "react-router-dom";
 import { COMPANY_NAME } from "../branding";
 import { getPayrollSettings, type PayrollSettings } from "../api/settings";
 import { isManagement } from "../permissions";
@@ -10,12 +10,22 @@ import { useAttendanceSummary } from "../features/attendance/useAttendanceSummar
 import { useIsDesktop } from "../utils/useIsDesktop";
 import { navItemsForRole } from "./navItems";
 import { PhoneShell } from "./PhoneShell";
+import { Sidebar } from "./Sidebar";
 
 const headerButtonClass =
-  "inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg border border-slate-600 px-2 text-xs font-medium text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 sm:gap-2 sm:px-3 sm:text-sm";
+  "inline-flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-lg border border-transparent px-2.5 text-sm font-medium text-ink-700 hover:bg-ink-100 hover:text-ink-900";
 
-const tabClass =
-  "inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-2.5 text-sm font-medium focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-300 lg:px-3 xl:px-5";
+const SIDEBAR_KEY = "hrpayroll.sidebarCollapsed";
+
+function initialCollapsed(): boolean {
+  try {
+    const saved = localStorage.getItem(SIDEBAR_KEY);
+    if (saved !== null) return saved === "1";
+  } catch {
+    // Storage may be unavailable; fall back to the screen size.
+  }
+  return typeof window !== "undefined" && window.innerWidth < 1100;
+}
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -49,6 +59,18 @@ export function Layout() {
     navigate("/login", { replace: true });
   }
 
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(initialCollapsed);
+  function toggleSidebar() {
+    setSidebarCollapsed((current) => {
+      try {
+        localStorage.setItem(SIDEBAR_KEY, current ? "0" : "1");
+      } catch {
+        // Not persisting is harmless.
+      }
+      return !current;
+    });
+  }
+
   const isDesktop = useIsDesktop();
   const page = <Outlet context={{ onPayrollSettingsChanged: setCompanySettings }} />;
 
@@ -70,115 +92,86 @@ export function Layout() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-gray-100 text-gray-800">
+    <div className="flex h-screen flex-col bg-canvas text-ink-900">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-slate-900 focus:shadow"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-ink-900 focus:shadow"
       >
         Skip to main content
       </a>
 
-      <header className="bg-slate-900 text-white shadow-md">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:py-4">
-          <div className="min-w-0 max-w-full">
-            <h1 className="break-words text-base font-bold leading-tight sm:text-lg">
-              {companySettings?.companyName ?? COMPANY_NAME}
-            </h1>
-            <p className="hidden break-words text-xs text-blue-300 sm:block">
-              {companySettings?.tagline ?? "Official HR & Payroll System"}
-            </p>
-          </div>
-          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-              {user && (
-                <p className="min-w-0 break-words text-xs text-slate-100 sm:text-sm">{`Logged in as ${user.username} (${user.role})`}</p>
-              )}
-            </div>
-            {user && (
-              <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:gap-3">
-                {isManagement(user.role) && (
-                  <Link to="/users" className={headerButtonClass} aria-label="User Access" title="User Access">
-                    <UsersRound aria-hidden="true" size={16} />
-                    <span className="hidden xl:inline">User Access</span>
-                  </Link>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setChangePasswordOpen(true)}
-                  className={headerButtonClass}
-                  aria-label="Change password"
-                  title="Change password"
-                >
-                  <KeyRound aria-hidden="true" size={16} />
-                  <span className="hidden xl:inline">Change password</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSignOut}
-                  className={headerButtonClass}
-                  aria-label="Sign out"
-                  title="Sign out"
-                >
-                  <LogOut aria-hidden="true" size={16} />
-                  <span className="hidden xl:inline">Sign out</span>
-                </button>
-              </div>
-            )}
-          </div>
+      <header className="z-20 flex h-16 shrink-0 items-center gap-3 border-b border-line bg-white px-4">
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
+          aria-expanded={!sidebarCollapsed}
+          className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-ink-600 hover:bg-ink-100 hover:text-ink-900"
+        >
+          {sidebarCollapsed ? <PanelLeftOpen aria-hidden="true" size={20} /> : <PanelLeftClose aria-hidden="true" size={20} />}
+        </button>
+        <img src="/icons/favicon-48.png" alt="" width={36} height={36} className="size-9 shrink-0 rounded-lg border border-line" />
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-sm font-semibold leading-tight text-ink-900 lg:text-base">
+            {companySettings?.companyName ?? COMPANY_NAME}
+          </h1>
+          <p className="hidden truncate text-xs text-ink-500 sm:block">
+            {companySettings?.tagline ?? "Official HR & Payroll System"}
+          </p>
         </div>
+        {user && (
+          <div className="flex shrink-0 items-center gap-1.5">
+            <div className="mr-2 hidden items-center gap-2.5 lg:flex">
+              <span
+                aria-hidden="true"
+                className="inline-flex size-9 items-center justify-center rounded-full bg-brand-600 text-sm font-semibold uppercase text-white"
+              >
+                {user.username.slice(0, 1)}
+              </span>
+              <span aria-hidden="true" className="leading-tight">
+                <span className="block text-sm font-medium text-ink-900">{user.username}</span>
+                <span className="block text-xs text-ink-500">{user.role}</span>
+              </span>
+            </div>
+            <p className="sr-only">{`Logged in as ${user.username} (${user.role})`}</p>
+            {isManagement(user.role) && (
+              <Link to="/users" className={headerButtonClass} aria-label="User Access" title="User Access">
+                <UsersRound aria-hidden="true" size={16} />
+                <span className="hidden xl:inline">User Access</span>
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={() => setChangePasswordOpen(true)}
+              className={headerButtonClass}
+              aria-label="Change password"
+              title="Change password"
+            >
+              <KeyRound aria-hidden="true" size={16} />
+              <span className="hidden xl:inline">Change password</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className={headerButtonClass}
+              aria-label="Sign out"
+              title="Sign out"
+            >
+              <LogOut aria-hidden="true" size={16} />
+              <span className="hidden xl:inline">Sign out</span>
+            </button>
+          </div>
+        )}
       </header>
 
-      <nav
-        aria-label="Main"
-        className="border-b border-slate-700 bg-slate-800 text-white shadow-sm"
-      >
-        <div className="mx-auto flex w-full max-w-7xl flex-wrap px-2 sm:flex-nowrap sm:overflow-x-auto sm:px-2 lg:px-4">
-          {tabs.map((item) =>
-            item.path ? (
-              <NavLink
-                key={item.key}
-                to={item.path}
-                className={({ isActive }) =>
-                  `${tabClass} ${isActive ? "border-blue-500 text-blue-400" : "border-transparent text-gray-300 hover:text-white"}`
-                }
-              >
-                {item.label}
-                {item.key === "attendance" && attendanceAttention > 0 && (
-                  <>
-                    <span
-                      aria-hidden="true"
-                      className="ml-2 inline-flex min-w-6 items-center justify-center rounded-full bg-amber-400 px-2 text-xs font-bold text-slate-900"
-                    >
-                      {attendanceAttention}
-                    </span>
-                    <span className="sr-only">
-                      {" "}
-                      ({attendanceAttention} need attention)
-                    </span>
-                  </>
-                )}
-              </NavLink>
-            ) : (
-              <button
-                key={item.key}
-                type="button"
-                disabled
-                className={`${tabClass} border-transparent text-gray-400 disabled:cursor-not-allowed`}
-              >
-                {item.label}
-              </button>
-            ),
-          )}
+      <div className="flex min-h-0 flex-1">
+        <Sidebar items={tabs} collapsed={sidebarCollapsed} attendanceAttention={attendanceAttention} />
+        <div className="min-w-0 flex-1 overflow-y-auto">
+          <main id="main" tabIndex={-1} className="mx-auto w-full max-w-[90rem] px-6 py-8 outline-none lg:px-8">
+            {page}
+          </main>
         </div>
-      </nav>
-
-      <main
-        id="main"
-        tabIndex={-1}
-        className="mx-auto w-full max-w-7xl flex-grow px-4 py-6"
-      >
-        {page}
-      </main>
+      </div>
 
       <ChangePasswordDialog
         open={changePasswordOpen}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { PageHeader, cx, inputClass } from "../../ui";
 import {
   Download,
   LockKeyhole,
@@ -35,7 +36,7 @@ function currentMonth(): string {
   return `${parts.find((part) => part.type === "year")!.value}-${parts.find((part) => part.type === "month")!.value}`;
 }
 const secondaryButtonClass =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-800 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-ink-300 bg-white px-4 text-sm font-semibold text-ink-800 hover:bg-ink-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-60";
 function failure(reason: unknown): string {
   return reason instanceof ApiError
     ? reason.fieldErrors
@@ -170,18 +171,13 @@ export function PayrollPage() {
   return (
     <section className="payroll-page min-w-0 space-y-4">
       <div className="payroll-controls space-y-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">Payroll Summary</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Review monthly pay, then export the report.
-          </p>
-        </div>
+        <PageHeader title="Payroll Summary" description="Review monthly pay, then export the report." />
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="flex items-end gap-2 max-sm:w-full">
             <div className="min-w-0 max-sm:flex-1">
               <label
                 htmlFor="payroll-month"
-                className="mb-1 block text-sm font-medium text-gray-800"
+                className="mb-1 block text-sm font-medium text-ink-800"
               >
                 Payroll month
               </label>
@@ -193,7 +189,7 @@ export function PayrollPage() {
                 onChange={(event) => {
                   if (event.target.value) setMonth(event.target.value);
                 }}
-                className="min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                className={cx(inputClass, "w-full")}
               />
             </div>
             <button
@@ -251,13 +247,13 @@ export function PayrollPage() {
         <SuccessRegion message={success} />
         {error && <ActionFailure message={error} />}
         {report?.status === "Draft" && (
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-ink-600">
             Draft payroll uses current worker and overtime rates. Amounts are in
             AED.
           </p>
         )}
         {future && report?.status === "Draft" && (
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-ink-600">
             Future months cannot be finalised.
           </p>
         )}
@@ -268,7 +264,7 @@ export function PayrollPage() {
         )}
       </div>
       {loading ? (
-        <p role="status" className="payroll-controls py-8 text-gray-600">
+        <p role="status" className="payroll-controls py-8 text-ink-600">
           Loading payroll...
         </p>
       ) : loadError ? (
@@ -295,12 +291,12 @@ export function PayrollPage() {
                 </button>
               </div>
             )}
-            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:hidden">
-              <p className="text-xs font-semibold uppercase text-gray-600">Total net payroll (AED)</p>
-              <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">
+            <div className="rounded-card border border-line bg-white p-4 shadow-card sm:hidden">
+              <p className="text-xs font-semibold uppercase text-ink-600">Total net payroll (AED)</p>
+              <p className="mt-1 text-3xl font-bold tabular-nums text-ink-900">
                 {report.totals.netPay.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
-              <p className="mt-1 text-sm text-gray-600">
+              <p className="mt-1 text-sm text-ink-600">
                 {report.lines.length} {report.lines.length === 1 ? "worker" : "workers"} · {report.status}
               </p>
             </div>

@@ -29,7 +29,7 @@ describe("ConfirmDialog", () => {
     expect(within(dialog).getByText("Delete Ahmed Khan permanently?")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeInTheDocument();
     const confirm = within(dialog).getByRole("button", { name: "Delete" });
-    expect(confirm.className).toContain("bg-red-600");
+    expect(confirm.className).toContain("bg-danger");
     expect(confirm.querySelector("svg")).not.toBeNull();
   });
 

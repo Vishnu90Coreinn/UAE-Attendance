@@ -7,9 +7,9 @@ import { ActionFailure, SuccessRegion } from "../workers/WorkersFeedback";
 
 const MAX_DAYS = 62;
 const fieldClass =
-  "min-h-11 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
+  "min-h-11 rounded-lg border border-ink-300 bg-white px-3 text-sm text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500";
 const buttonClass =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60 max-sm:flex-1";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-ink-300 bg-white px-4 text-sm font-medium text-ink-800 hover:bg-ink-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-60 max-sm:flex-1";
 
 function dayCount(from: string, to: string): number {
   return (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000 + 1;
@@ -60,17 +60,17 @@ export function AttendanceRangeExport({ initialDate }: { initialDate: string }) 
   return (
     <section
       aria-labelledby="range-export-heading"
-      className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm"
+      className="flex flex-col gap-3 rounded-card border border-line bg-white px-4 py-3 text-sm"
     >
-      <h2 id="range-export-heading" className="font-medium text-gray-800">
+      <h2 id="range-export-heading" className="font-medium text-ink-800">
         Download several days at once
       </h2>
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-gray-700 max-sm:flex-1">
+        <label className="flex flex-col gap-1 text-ink-700 max-sm:flex-1">
           Start date
           <input type="date" value={from} max={initialDate} onChange={(e) => setFrom(e.target.value)} className={fieldClass} />
         </label>
-        <label className="flex flex-col gap-1 text-gray-700 max-sm:flex-1">
+        <label className="flex flex-col gap-1 text-ink-700 max-sm:flex-1">
           End date
           <input type="date" value={to} max={initialDate} onChange={(e) => setTo(e.target.value)} className={fieldClass} />
         </label>

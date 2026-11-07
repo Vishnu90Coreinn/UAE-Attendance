@@ -25,12 +25,12 @@ export const CHART = {
   present: "#16a34a",
   absent: "#dc2626",
   onLeave: "#f59e0b",
-  notRecorded: "#94a3b8",
-  basic: "#2563eb",
-  overtime: "#38bdf8",
+  notRecorded: "#94a5aa",
+  basic: "#0f5f63",
+  overtime: "#66b0b2",
   deductions: "#ef4444",
-  grid: "#e2e8f0",
-  axis: "#64748b",
+  grid: "#e3e8ea",
+  axis: "#51666b",
 } as const;
 
 export const money = new Intl.NumberFormat("en-US", {
@@ -41,13 +41,13 @@ const whole = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
 const tooltipStyle = {
   borderRadius: 8,
-  border: "1px solid #e2e8f0",
+  border: "1px solid #e3e8ea",
   boxShadow: "0 4px 12px rgba(15,23,42,0.08)",
   fontSize: 13,
 };
 
 const focusClass =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500";
 
 /** Reserves the widget's space while it loads, so nothing jumps when the figures arrive. */
 function Skeleton({ height }: { height: number }) {
@@ -56,7 +56,7 @@ function Skeleton({ height }: { height: number }) {
       role="status"
       aria-label="Loading"
       style={{ height }}
-      className="rounded-lg bg-slate-100 motion-safe:animate-pulse"
+      className="rounded-lg bg-ink-100 motion-safe:animate-pulse"
     />
   );
 }
@@ -85,12 +85,12 @@ export function Panel({
 }) {
   return (
     <section
-      className={`flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${className}`}
+      className={`flex min-w-0 flex-col rounded-2xl border border-line bg-white p-4 shadow-sm sm:p-5 ${className}`}
     >
       <header className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-          {hint && <p className="mt-0.5 text-sm text-slate-600">{hint}</p>}
+          <h2 className="text-base font-semibold text-ink-900">{title}</h2>
+          {hint && <p className="mt-0.5 text-sm text-ink-600">{hint}</p>}
         </div>
         {action}
       </header>
@@ -100,7 +100,7 @@ export function Panel({
 }
 
 const TONES = {
-  blue: "bg-blue-50 text-blue-700",
+  blue: "bg-brand-50 text-brand-700",
   green: "bg-green-50 text-green-700",
   amber: "bg-amber-50 text-amber-700",
   violet: "bg-violet-50 text-violet-700",
@@ -161,7 +161,7 @@ export function KpiCard<T>({
   return (
     <Link
       to={to}
-      className={`group block min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5 ${focusClass}`}
+      className={`group block min-w-0 rounded-2xl border border-line bg-white p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5 ${focusClass}`}
     >
       <div className="flex items-center justify-between gap-3">
         <span
@@ -172,10 +172,10 @@ export function KpiCard<T>({
         <ChevronRight
           aria-hidden="true"
           size={18}
-          className="text-slate-400 transition-transform group-hover:translate-x-0.5"
+          className="text-ink-400 transition-transform group-hover:translate-x-0.5"
         />
       </div>
-      <p className="mt-2 text-sm font-medium text-slate-600 sm:mt-3">{label}</p>
+      <p className="mt-2 text-sm font-medium text-ink-600 sm:mt-3">{label}</p>
       {state.status === "loading" && <Skeleton height={56} />}
       {state.status === "error" && (
         <p className="mt-1 text-sm text-red-800">Could not load.</p>
@@ -183,10 +183,10 @@ export function KpiCard<T>({
       {body && (
         <div className="mt-1 flex items-end justify-between gap-2">
           <div className="min-w-0">
-            <p className="truncate text-3xl font-bold tabular-nums text-slate-900">
+            <p className="truncate text-3xl font-bold tabular-nums text-ink-900">
               {body.value}
             </p>
-            <p className="mt-0.5 text-sm text-slate-600">{body.detail}</p>
+            <p className="mt-0.5 text-sm text-ink-600">{body.detail}</p>
           </div>
           {body.spark && (
             <Sparkline
@@ -206,7 +206,7 @@ function Legend({
   items: { label: string; color: string; value?: ReactNode }[];
 }) {
   return (
-    <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-700">
+    <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-700">
       {items.map((item) => (
         <li key={item.label} className="inline-flex items-center gap-2">
           <span
@@ -216,7 +216,7 @@ function Legend({
           />
           {item.label}
           {item.value !== undefined && (
-            <span className="font-semibold tabular-nums text-slate-900">
+            <span className="font-semibold tabular-nums text-ink-900">
               {item.value}
             </span>
           )}
@@ -237,7 +237,7 @@ export function AttendanceTrend({ state }: { state: Load<TrendDay[]> }) {
       {state.status === "error" && <Failed />}
       {state.status === "ready" &&
         (state.value.every((day) => day.present + day.absent + day.onLeave === 0) ? (
-          <p className="rounded-lg bg-slate-50 p-6 text-center text-sm text-slate-600">
+          <p className="rounded-lg bg-ink-50 p-6 text-center text-sm text-ink-600">
             No attendance has been recorded in the last 7 days.
           </p>
         ) : (
@@ -271,7 +271,7 @@ export function AttendanceTrend({ state }: { state: Load<TrendDay[]> }) {
                     tick={{ fill: CHART.axis, fontSize: 12 }}
                   />
                   <Tooltip
-                    cursor={{ fill: "#f1f5f9" }}
+                    cursor={{ fill: "#edf1f2" }}
                     contentStyle={tooltipStyle}
                   />
                   <Bar
@@ -379,10 +379,10 @@ export function TodayDonut({ state }: { state: Load<TrendDay[]> }) {
               </PieChart>
             </ResponsiveContainer>
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-3xl font-bold tabular-nums text-slate-900">
+              <span className="text-3xl font-bold tabular-nums text-ink-900">
                 {rate}%
               </span>
-              <span className="text-xs font-medium text-slate-600">
+              <span className="text-xs font-medium text-ink-600">
                 present
               </span>
             </div>
@@ -438,7 +438,7 @@ export function PayrollBreakdown({ state }: { state: Load<PayrollReport> }) {
       action={
         <Link
           to="/payroll"
-          className={`shrink-0 rounded-lg px-2 py-1 text-sm font-medium text-blue-700 hover:bg-blue-50 ${focusClass}`}
+          className={`shrink-0 rounded-lg px-2 py-1 text-sm font-medium text-brand-700 hover:bg-brand-50 ${focusClass}`}
         >
           View report
         </Link>
@@ -448,23 +448,23 @@ export function PayrollBreakdown({ state }: { state: Load<PayrollReport> }) {
       {state.status === "error" && <Failed />}
       {report &&
         (report.lines.length === 0 ? (
-          <p className="rounded-lg bg-slate-50 p-6 text-center text-sm text-slate-600">
+          <p className="rounded-lg bg-ink-50 p-6 text-center text-sm text-ink-600">
             No payroll lines for this month yet.
           </p>
         ) : (
           <div className="grid gap-6 md:grid-cols-2">
             <div>
-              <p className="text-xs font-semibold uppercase text-slate-600">
+              <p className="text-xs font-semibold uppercase text-ink-600">
                 Net payroll (AED)
               </p>
-              <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">
+              <p className="mt-1 text-3xl font-bold tabular-nums text-ink-900">
                 {money.format(report.totals.netPay)}
               </p>
               {gross > 0 && (
                 <div
                   role="img"
                   aria-label={`Composition: ${parts.map((part) => `${part.label} ${money.format(part.value)}`).join(", ")}`}
-                  className="mt-4 flex h-3 overflow-hidden rounded-full bg-slate-100"
+                  className="mt-4 flex h-3 overflow-hidden rounded-full bg-ink-100"
                 >
                   {parts.slice(0, 2).map((part) => (
                     <div
@@ -483,7 +483,7 @@ export function PayrollBreakdown({ state }: { state: Load<PayrollReport> }) {
                     key={part.label}
                     className="flex items-center justify-between gap-3"
                   >
-                    <dt className="inline-flex items-center gap-2 text-slate-700">
+                    <dt className="inline-flex items-center gap-2 text-ink-700">
                       <span
                         aria-hidden="true"
                         className="size-2.5 rounded-full"
@@ -491,7 +491,7 @@ export function PayrollBreakdown({ state }: { state: Load<PayrollReport> }) {
                       />
                       {part.label}
                     </dt>
-                    <dd className="font-semibold tabular-nums text-slate-900">
+                    <dd className="font-semibold tabular-nums text-ink-900">
                       {money.format(part.value)}
                     </dd>
                   </div>
@@ -499,11 +499,11 @@ export function PayrollBreakdown({ state }: { state: Load<PayrollReport> }) {
               </dl>
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase text-slate-600">
+              <p className="text-xs font-semibold uppercase text-ink-600">
                 Highest net pay
               </p>
               {earners.length === 0 ? (
-                <p className="mt-2 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
+                <p className="mt-2 rounded-lg bg-ink-50 p-4 text-sm text-ink-600">
                   No positive net pay yet this month.
                 </p>
               ) : (
@@ -530,10 +530,10 @@ export function PayrollBreakdown({ state }: { state: Load<PayrollReport> }) {
                         tickFormatter={(name: string) =>
                           name.length > 16 ? `${name.slice(0, 15)}…` : name
                         }
-                        tick={{ fill: "#334155", fontSize: 12 }}
+                        tick={{ fill: "#364b50", fontSize: 12 }}
                       />
                       <Tooltip
-                        cursor={{ fill: "#f1f5f9" }}
+                        cursor={{ fill: "#edf1f2" }}
                         contentStyle={tooltipStyle}
                         formatter={(value) => [
                           money.format(Number(value)),
@@ -573,13 +573,13 @@ function AttentionRow({
     <li>
       <Link
         to={to}
-        className={`flex min-h-12 items-center justify-between gap-3 rounded-xl px-3 py-2 hover:bg-slate-50 ${focusClass}`}
+        className={`flex min-h-12 items-center justify-between gap-3 rounded-xl px-3 py-2 hover:bg-ink-50 ${focusClass}`}
       >
         <span className="min-w-0">
-          <span className="block truncate text-sm font-medium text-slate-900">
+          <span className="block truncate text-sm font-medium text-ink-900">
             {title}
           </span>
-          <span className="block truncate text-xs text-slate-600">
+          <span className="block truncate text-xs text-ink-600">
             {detail}
           </span>
         </span>
@@ -640,7 +640,7 @@ export function NeedsAttention({
               title={request.workerName}
               detail={`${request.leaveType} · ${request.startDate} to ${request.endDate} (${request.days} ${request.days === 1 ? "day" : "days"})`}
               badge={
-                <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-900">
+                <span className="rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-semibold text-brand-900">
                   Decide
                 </span>
               }

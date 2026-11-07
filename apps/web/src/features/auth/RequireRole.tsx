@@ -15,8 +15,8 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
   if (!user || !roles.includes(user.role)) {
     return (
       <section>
-        <h2 className="text-2xl font-bold text-gray-800">You do not have access to this page</h2>
-        <p className="mt-1 text-sm text-gray-600">Ask a Manager or Administrator if you need to use it.</p>
+        <h2 className="text-2xl font-bold text-ink-800">You do not have access to this page</h2>
+        <p className="mt-1 text-sm text-ink-600">Ask a Manager or Administrator if you need to use it.</p>
       </section>
     );
   }

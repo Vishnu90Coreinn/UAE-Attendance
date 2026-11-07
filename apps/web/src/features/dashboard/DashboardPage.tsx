@@ -4,6 +4,7 @@ import {
   ClipboardCheck,
   ClipboardList,
 } from "lucide-react";
+import { PageHeader } from "../../ui";
 import { useAuth } from "../../contexts/AuthContext";
 import { useDashboardData, type TrendDay } from "./useDashboardData";
 import type { AttendanceSummary } from "../../api/attendance";
@@ -38,23 +39,18 @@ export function DashboardPage() {
 
   return (
     <section className="min-w-0 space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 md:text-2xl">
-            {greeting()}
-            {user ? `, ${user.username}` : ""}
-          </h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Here is how the team is doing today.
+      <PageHeader
+        title={`${greeting()}${user ? `, ${user.username}` : ""}`}
+        description="Here is how the team is doing today."
+        actions={
+          <p className="rounded-full border border-line bg-white px-3 py-1 text-sm font-medium text-ink-700">
+            {new Intl.DateTimeFormat("en-GB", {
+              timeZone: "Asia/Dubai",
+              dateStyle: "full",
+            }).format(new Date())}
           </p>
-        </div>
-        <p className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-700">
-          {new Intl.DateTimeFormat("en-GB", {
-            timeZone: "Asia/Dubai",
-            dateStyle: "full",
-          }).format(new Date())}
-        </p>
-      </div>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <KpiCard

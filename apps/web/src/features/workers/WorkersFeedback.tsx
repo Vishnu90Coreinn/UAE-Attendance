@@ -1,7 +1,7 @@
+import { buttonClass } from "../../ui";
 import { CheckCircle2, CircleAlert, Loader2, RefreshCw, UserPlus } from "lucide-react";
 
-export const primaryButtonClass =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
+export const primaryButtonClass = buttonClass("primary");
 
 /** The live region for success messages. It stays mounted (and empty) so announcements are reliable. */
 export function SuccessRegion({ message }: { message: string | null }) {
@@ -32,7 +32,7 @@ export function ActionFailure({ message }: { message: string }) {
 
 export function LoadingNotice() {
   return (
-    <p role="status" className="flex items-center gap-2 py-8 text-sm text-gray-500">
+    <p role="status" className="flex items-center gap-2 py-8 text-sm text-ink-500">
       <Loader2 aria-hidden="true" size={20} className="animate-spin" />
       Loading workers...
     </p>
@@ -50,7 +50,7 @@ export function LoadError({ message, onRetry }: { message: string | null; onRetr
       <button
         type="button"
         onClick={onRetry}
-        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 font-medium text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
+        className={buttonClass("secondary", "md", "text-danger")}
       >
         <RefreshCw aria-hidden="true" size={16} />
         Retry
@@ -62,8 +62,8 @@ export function LoadError({ message, onRetry }: { message: string | null; onRetr
 /** Shown when there are no workers; only people who can add one get the button. */
 export function EmptyState({ onAdd }: { onAdd?: () => void }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white px-4 py-10 text-center shadow-sm">
-      <p className="text-sm text-gray-600">
+    <div className="rounded-card border border-line bg-white px-4 py-10 text-center shadow-card">
+      <p className="text-sm text-ink-600">
         No workers yet.
         {onAdd && " Add the first worker to start the directory."}
       </p>

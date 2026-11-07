@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PageHeader, buttonClass } from "../../ui";
 import { Check, CheckCheck, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Save } from "lucide-react";
 import {
   approveAttendance,
@@ -56,7 +57,7 @@ function shiftDate(value: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 const dayButtonClass =
-  "inline-flex size-11 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex size-11 shrink-0 items-center justify-center rounded-lg border border-ink-300 bg-white text-ink-800 hover:bg-ink-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-40";
 function errorMessage(error: unknown): string {
   if (error instanceof ApiError)
     return error.fieldErrors
@@ -274,7 +275,7 @@ export function AttendancePage({
     }
   }
   const exportButtonClass =
-    "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60 max-sm:flex-1";
+    "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-ink-300 bg-white px-4 text-sm font-medium text-ink-800 hover:bg-ink-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-60 max-sm:flex-1";
   const showSave = !loading && !loadError && editable;
   const renderSave = (className: string) => (
     <button
@@ -296,7 +297,7 @@ export function AttendancePage({
       max={today()}
       disabled={pending}
       onChange={(e) => changeDate(e.target.value)}
-      className={`min-h-11 rounded-lg border border-gray-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${isDesktop ? "" : "min-w-0 flex-1 text-center"}`}
+      className={`min-h-11 rounded-lg border border-ink-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${isDesktop ? "" : "min-w-0 flex-1 text-center"}`}
     />
   );
   const attention = isManager
@@ -308,17 +309,12 @@ export function AttendancePage({
       {guardNavigation && (
         <AttendanceNavigationGuard dirty={dirty} pending={pending} />
       )}
-      <div>
-        <h1 className="text-xl font-bold text-gray-800 md:text-2xl">Daily Attendance</h1>
-        <p className="mt-1 hidden text-sm text-gray-600 md:block">
-          Record daily status and hours, then save the day.
-        </p>
-      </div>
+      <PageHeader title="Daily Attendance" description="Record daily status and hours, then save the day." />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className={isDesktop ? "" : "w-full"}>
           <label
             htmlFor="work-date"
-            className="mb-1 block text-sm font-medium text-gray-800"
+            className="mb-1 block text-sm font-medium text-ink-800"
           >
             Work date
           </label>
@@ -349,7 +345,7 @@ export function AttendancePage({
                 type="button"
                 disabled={pending || date === today()}
                 onClick={() => changeDate(today())}
-                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
+                className={buttonClass("secondary", "md", "shrink-0")}
               >
                 Today
               </button>
@@ -368,7 +364,7 @@ export function AttendancePage({
                   type="button"
                   onClick={() => changeDate(item.date)}
                   aria-current={item.date === date ? "date" : undefined}
-                  className="inline-flex min-h-11 items-center rounded-lg border border-amber-700 bg-white px-3 font-medium text-amber-900 hover:bg-amber-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+                  className={buttonClass("secondary", "md", "text-amber-900")}
                 >
                   {item.date} ({item.count})
                 </button>
@@ -378,7 +374,7 @@ export function AttendancePage({
         </div>
       )}
       {settings && (
-        <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        <p className="rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-900">
           Standard Shift: {settings.shiftDescription} (
           {settings.maxBasicHoursPerDay} Basic Hours Max)
           {showPay && settings.overtimeRatePerHour !== null && (
@@ -400,7 +396,7 @@ export function AttendancePage({
       )}
       <AttendanceRangeExport initialDate={today()} />
       {loading ? (
-        <p role="status" className="py-8 text-gray-600">
+        <p role="status" className="py-8 text-ink-600">
           Loading attendance...
         </p>
       ) : loadError ? (
@@ -440,10 +436,10 @@ export function AttendancePage({
               </div>
             )}
             {day.rows.length > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm">
-                <p className="font-medium text-gray-800">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-line bg-white px-4 py-3 text-sm">
+                <p className="font-medium text-ink-800">
                   {present} present · {absent} absent · {onLeave} on leave · {notRecorded} not recorded
-                  {totalPay !== null && <span className="block font-semibold tabular-nums text-gray-900 sm:inline sm:before:content-['_·_']">{totalPay.toFixed(2)} AED</span>}
+                  {totalPay !== null && <span className="block font-semibold tabular-nums text-ink-900 sm:inline sm:before:content-['_·_']">{totalPay.toFixed(2)} AED</span>}
                 </p>
                 <div className="flex flex-wrap gap-2 max-sm:w-full" role="group" aria-label="Print or export this day">
                   <button
@@ -474,7 +470,7 @@ export function AttendancePage({
                     type="button"
                     onClick={markAllPresent}
                     disabled={pending}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-green-700 bg-white px-4 font-semibold text-green-800 hover:bg-green-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:cursor-not-allowed disabled:opacity-60 max-sm:w-full"
+                    className={buttonClass("secondary", "md", "max-sm:w-full text-green-800")}
                   >
                     <CheckCheck aria-hidden="true" size={16} />
                     Mark all present
@@ -499,7 +495,7 @@ export function AttendancePage({
                 onResubmit={resubmit}
               />
             ) : (
-              <p className="rounded-lg border border-gray-200 bg-white px-4 py-10 text-center text-gray-600">
+              <p className="rounded-card border border-line bg-white px-4 py-10 text-center text-ink-600">
                 No workers for this date.
               </p>
             )}
@@ -507,7 +503,7 @@ export function AttendancePage({
         )
       )}
       {showSave && !isDesktop && (
-        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 -mx-4 flex items-center gap-3 border-t border-gray-200 bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgba(15,23,42,0.08)] backdrop-blur">
+        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 -mx-4 flex items-center gap-3 border-t border-line bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgba(15,23,42,0.08)] backdrop-blur">
           <p role="status" className="min-w-0 flex-1 text-sm font-medium text-amber-900">
             {dirty ? `${unsaved} unsaved ${unsaved === 1 ? "change" : "changes"}` : ""}
           </p>

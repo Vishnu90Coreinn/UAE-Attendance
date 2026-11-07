@@ -8,7 +8,7 @@ export function ProtectedRoute() {
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-100 text-gray-500">
+      <div className="flex min-h-screen items-center justify-center bg-ink-100 text-ink-500">
         <p role="status" className="inline-flex items-center gap-2 text-sm">
           <Loader2 aria-hidden="true" size={20} className="animate-spin" />
           Checking your session...

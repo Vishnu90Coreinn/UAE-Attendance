@@ -4,10 +4,10 @@ import { ApprovalCell } from "./ApprovalCell";
 import { previewPay, type AttendanceForm } from "./attendanceForm";
 
 const inputClass =
-  "min-h-11 w-28 rounded-lg border border-gray-300 bg-white px-3 text-base text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:bg-gray-100 disabled:text-gray-600";
+  "min-h-11 w-28 rounded-lg border border-ink-300 bg-white px-3 text-base text-ink-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:bg-ink-100 disabled:text-ink-600";
 /** On phones each worker is a labelled card; from md up it is an ordinary table row. */
 const cellClass =
-  "flex items-center justify-between gap-3 px-4 py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-gray-600 md:table-cell md:py-3 md:before:content-none";
+  "flex items-center justify-between gap-3 px-4 py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-ink-600 md:table-cell md:py-3 md:before:content-none";
 
 export function AttendanceTable({
   rows,
@@ -50,12 +50,12 @@ export function AttendanceTable({
     ...(showPay ? ["Total Pay (AED)"] : []),
   ];
   return (
-    <div className="relative min-w-0 rounded-lg md:overflow-x-auto md:border md:border-gray-200 md:bg-white md:shadow-sm">
+    <div className="relative min-w-0 rounded-lg md:overflow-x-auto md:border md:border-line md:bg-white md:shadow-sm">
       <table className="block w-full text-left text-sm md:table">
         <caption className="sr-only">
           {showPay ? "Daily attendance and pay in AED" : "Daily attendance"}
         </caption>
-        <thead className="sr-only border-b border-gray-200 bg-gray-50 text-gray-700 md:not-sr-only md:table-header-group">
+        <thead className="sr-only border-b border-line bg-ink-50 text-xs uppercase tracking-wide text-ink-600 md:not-sr-only md:table-header-group">
           <tr className="md:table-row">
             {headings.map((label) => (
               <th
@@ -68,7 +68,7 @@ export function AttendanceTable({
             ))}
           </tr>
         </thead>
-        <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-gray-200">
+        <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-line">
           {rows.map((row, index) => {
             const form = forms[index];
             // Supervisors cannot change an entry once a manager has approved it.
@@ -80,14 +80,14 @@ export function AttendanceTable({
             return (
               <tr
                 key={row.worker.id}
-                className="block rounded-lg border border-gray-200 bg-white py-1 shadow-sm md:table-row md:rounded-none md:border-0 md:py-0 md:shadow-none"
+                className="block rounded-card border border-line bg-white py-1 shadow-card md:table-row md:rounded-none md:border-0 md:py-0 md:shadow-none"
               >
                 <th
                   scope="row"
-                  className="block px-4 py-3 text-left font-medium text-gray-800 md:table-cell md:min-w-48"
+                  className="block px-4 py-3 text-left font-medium text-ink-800 md:table-cell md:min-w-48"
                 >
                   {row.worker.fullName}
-                  <span className="block text-xs font-normal text-gray-600">
+                  <span className="block text-xs font-normal text-ink-600">
                     {row.worker.workerCode} · {row.worker.designation}
                     {!row.worker.isActive && " · Inactive"}
                   </span>
@@ -125,11 +125,11 @@ export function AttendanceTable({
                     </>
                   ) : (
                     <>
-                      <span className="whitespace-nowrap rounded-full bg-gray-100 px-3 py-1 text-gray-800">
+                      <span className="whitespace-nowrap rounded-full bg-ink-100 px-3 py-1 text-ink-800">
                         {form.status ?? "Not recorded"}
                       </span>
                       {row.approvedLeave && (
-                        <span className="mt-1 block text-xs text-gray-600">Approved leave. Change it in Leave Management.</span>
+                        <span className="mt-1 block text-xs text-ink-600">Approved leave. Change it in Leave Management.</span>
                       )}
                     </>
                   )}
@@ -183,7 +183,7 @@ export function AttendanceTable({
                 {showPay && (
                   <td
                     data-label="Total pay (AED)"
-                    className={`${cellClass} whitespace-nowrap font-semibold tabular-nums text-gray-800 md:text-right`}
+                    className={`${cellClass} whitespace-nowrap font-semibold tabular-nums text-ink-800 md:text-right`}
                   >
                     {pay === null ? "—" : pay.toFixed(2)}
                   </td>

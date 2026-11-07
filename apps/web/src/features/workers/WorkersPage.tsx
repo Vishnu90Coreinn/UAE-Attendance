@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { Search, Trash2, UserPlus, UserX } from "lucide-react";
+import { ClipboardList, Search, Trash2, UserCheck, UserPlus, UsersRound, UserX } from "lucide-react";
 import { ApiError } from "../../api/client";
 import { activateWorker, deactivateWorker, deleteWorker, getWorkerProfilePdf, type Worker } from "../../api/workers";
+import { Button, Card, PageHeader, StatCard, cx, inputClass } from "../../ui";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { canViewAll, isManagement } from "../../permissions";
 import { useAuth } from "../../contexts/AuthContext";
@@ -152,45 +153,38 @@ export function WorkersPage() {
 
   return (
     <section>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">Worker Directory</h2>
-          <p className="text-sm text-gray-500">
-            {canEdit
-              ? "Manage employee profiles, designations, and base pay rates."
-              : "View worker profiles and designations."}
-          </p>
-        </div>
-        {canEdit && !showEmpty && (
-          <button type="button" onClick={() => openForm(null)} className={primaryButtonClass}>
-            <UserPlus aria-hidden="true" size={16} />
-            Add New Worker
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Worker Directory"
+        description={
+          canEdit
+            ? "Manage employee profiles, designations, and base pay rates."
+            : "View worker profiles and designations."
+        }
+        actions={
+          canEdit &&
+          !showEmpty && (
+            <Button icon={UserPlus} onClick={() => openForm(null)}>
+              Add New Worker
+            </Button>
+          )
+        }
+      />
 
       {list.status === "ready" && list.workers.length > 0 && (
         <>
-          <dl className="mb-4 grid grid-cols-3 gap-3">
-            {[
-              ["Total workers", list.workers.length],
-              ["Active", activeCount],
-              ["Onboarding open", onboardingOpen],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm">
-                <dt className="text-xs font-medium text-gray-600">{label}</dt>
-                <dd className="text-xl font-bold text-gray-800">{value}</dd>
-              </div>
-            ))}
-          </dl>
+          <div className="mb-4 grid grid-cols-3 gap-2 sm:gap-3">
+            <StatCard label="Total workers" value={list.workers.length} icon={UsersRound} />
+            <StatCard label="Active" value={activeCount} icon={UserCheck} />
+            <StatCard label="Onboarding open" value={onboardingOpen} icon={ClipboardList} />
+          </div>
 
           <div className="mb-4 flex flex-wrap items-end gap-3">
             <div className="min-w-0 flex-1 basis-64">
-              <label htmlFor="worker-search" className="mb-1 block text-sm font-medium text-gray-800">
+              <label htmlFor="worker-search" className="mb-1 block text-sm font-medium text-ink-800">
                 Search workers
               </label>
               <div className="relative">
-                <Search aria-hidden="true" size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <Search aria-hidden="true" size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-500" />
                 <input
                   id="worker-search"
                   type="search"
@@ -198,20 +192,20 @@ export function WorkersPage() {
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Name, ID, Emirates ID, phone or role"
                   autoComplete="off"
-                  className="block min-h-11 w-full rounded-lg border border-gray-300 bg-white pl-9 pr-3 text-base text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                  className={cx(inputClass, "w-full")}
                 />
               </div>
             </div>
             {departments.length > 0 && (
               <div className="max-sm:w-full">
-                <label htmlFor="worker-department" className="mb-1 block text-sm font-medium text-gray-800">
+                <label htmlFor="worker-department" className="mb-1 block text-sm font-medium text-ink-800">
                   Department
                 </label>
                 <select
                   id="worker-department"
                   value={department}
                   onChange={(event) => setDepartment(event.target.value)}
-                  className="block min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-base text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                  className={cx(inputClass, "w-full")}
                 >
                   <option value="">All departments</option>
                   {departments.map((d) => (
@@ -226,12 +220,12 @@ export function WorkersPage() {
         </>
       )}
 
-      <label className="mb-4 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-gray-800">
+      <label className="mb-4 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-ink-800">
         <input
           type="checkbox"
           checked={includeInactive}
           onChange={(event) => setIncludeInactive(event.target.checked)}
-          className="h-5 w-5 rounded border-gray-300 accent-blue-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+          className="h-5 w-5 rounded border-ink-300 accent-brand-600 focus-visible:border-brand-500 focus-visible:outline-2 focus-visible:outline-brand-500/30"
         />
         Show inactive workers
       </label>
@@ -243,7 +237,7 @@ export function WorkersPage() {
       {list.status === "error" && <LoadError message={list.error} onRetry={list.retry} />}
       {showEmpty && <EmptyState onAdd={canEdit ? () => openForm(null) : undefined} />}
       {list.status === "ready" && list.workers.length > 0 && visible.length === 0 && (
-        <p role="status" className="rounded-lg border border-gray-200 bg-white px-4 py-8 text-center text-sm text-gray-600 shadow-sm">
+        <p role="status" className="rounded-card border border-line bg-white px-4 py-8 text-center text-sm text-ink-600 shadow-card">
           No workers match{filtering ? " your search or filter" : ""}.{" "}
           <button
             type="button"
@@ -251,7 +245,7 @@ export function WorkersPage() {
               setQuery("");
               setDepartment("");
             }}
-            className="font-medium text-blue-700 underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+            className="font-medium text-brand-700 underline focus-visible:border-brand-500 focus-visible:outline-2 focus-visible:outline-brand-500/30"
           >
             Clear search
           </button>
