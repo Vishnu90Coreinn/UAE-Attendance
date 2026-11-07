@@ -79,6 +79,15 @@ public sealed class AttendanceController(AttendanceService attendance, WageRedac
     [Authorize(Policy = Policies.AnyUser)]
     public async Task<IActionResult> Summary(CancellationToken ct) => Ok(await attendance.SummaryAsync(ct));
 
+    /// <summary>Head-counts per day for the dashboard chart: one request instead of a full attendance sheet per day.</summary>
+    [HttpGet("trend")]
+    [Authorize(Policy = Policies.AnyUser)]
+    public async Task<IActionResult> Trend([FromQuery] string? to, [FromQuery] int days = 7, CancellationToken ct = default)
+    {
+        var result = await attendance.TrendAsync(to, days, ct);
+        return result.StatusCode == 200 ? Ok(result.Value) : ValidationProblem(new ValidationProblemDetails(result.Errors!));
+    }
+
     private IActionResult Map(AttendanceResult result) => result.StatusCode switch
     {
         200 => Ok(wages.Apply(result.Day!)),

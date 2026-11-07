@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { KeyRound, LogOut, PanelLeftClose, PanelLeftOpen, UsersRound } from "lucide-react";
-import { Link, Outlet, useNavigate } from "react-router-dom";
+import { KeyRound, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Outlet, useNavigate } from "react-router-dom";
 import { COMPANY_NAME } from "../branding";
 import { getPayrollSettings, type PayrollSettings } from "../api/settings";
 import { isManagement } from "../permissions";
@@ -134,12 +134,6 @@ export function Layout() {
               </span>
             </div>
             <p className="sr-only">{`Logged in as ${user.username} (${user.role})`}</p>
-            {isManagement(user.role) && (
-              <Link to="/users" className={headerButtonClass} aria-label="User Access" title="User Access">
-                <UsersRound aria-hidden="true" size={16} />
-                <span className="hidden xl:inline">User Access</span>
-              </Link>
-            )}
             <button
               type="button"
               onClick={() => setChangePasswordOpen(true)}

@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import {
-  getAttendance,
   getAttendanceSummary,
+  getAttendanceTrend,
   type AttendanceSummary,
 } from "../../api/attendance";
-import { isLeaveStatus } from "../../utils/leaveStatuses";
 import { listLeave, type LeaveRequest } from "../../api/leave";
 import { getPayroll, type PayrollReport } from "../../api/payroll";
 
@@ -67,12 +66,6 @@ export function dubaiToday(): { date: string; month: string } {
   };
 }
 
-function daysBefore(date: string, count: number): string {
-  const value = new Date(`${date}T00:00:00Z`);
-  value.setUTCDate(value.getUTCDate() - count);
-  return value.toISOString().slice(0, 10);
-}
-
 function weekday(date: string): string {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: "UTC",
@@ -91,30 +84,8 @@ export interface DashboardData {
 export function useDashboardData(): DashboardData {
   const { date, month } = dubaiToday();
   const trend = useLoad(async () => {
-    const dates = Array.from({ length: TREND_DAYS }, (_, index) =>
-      daysBefore(date, TREND_DAYS - 1 - index),
-    );
-    const days = await Promise.all(dates.map((day) => getAttendance(day)));
-    return days.map((day, index): TrendDay => {
-      const present = day.rows.filter(
-        (row) => row.record?.status === "Present",
-      ).length;
-      const absent = day.rows.filter(
-        (row) => row.record?.status === "Absent",
-      ).length;
-      const onLeave = day.rows.filter((row) =>
-        isLeaveStatus(row.record?.status),
-      ).length;
-      return {
-        date: dates[index],
-        label: weekday(dates[index]),
-        present,
-        absent,
-        onLeave,
-        notRecorded: day.rows.filter((row) => !row.record).length,
-        total: day.rows.length,
-      };
-    });
+    const days = await getAttendanceTrend(date, TREND_DAYS);
+    return days.map((day): TrendDay => ({ ...day, label: weekday(day.date) }));
   });
   const waiting = useLoad(() => getAttendanceSummary());
   const leave = useLoad(() => listLeave({ status: "Pending" }));

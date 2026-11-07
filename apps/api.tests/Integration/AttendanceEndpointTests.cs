@@ -43,6 +43,56 @@ public class AttendanceEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(System.Text.Json.JsonValueKind.Null, day.GetProperty("rows").EnumerateArray().Single(r => r.GetProperty("worker").GetProperty("id").GetInt32() == worker.Id).GetProperty("record").ValueKind);
     }
 
+    [Fact]
+    public async Task Trend_MatchesTheHeadCountOfEachDaysFullSheet()
+    {
+        var (_, manager) = await TestWorkers.SignInAsync(api, Roles.Manager);
+        var present = await TestWorkers.CreateAsync(api.ConnectionString);
+        var absent = await TestWorkers.CreateAsync(api.ConnectionString);
+        await api.SendAsync(HttpMethod.Put, $"/api/attendance/{Date}", new object[]
+        {
+            new { workerId = present.Id, status = "Present", basicHours = 8m, overtimeHours = 0m },
+            new { workerId = absent.Id, status = "Absent", basicHours = 0m, overtimeHours = 0m },
+        }, manager);
+
+        var trend = (await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/attendance/trend?to={Date}&days=3", manager))).EnumerateArray().ToList();
+
+        Assert.Equal(3, trend.Count);
+        Assert.Equal(["2026-01-13", "2026-01-14", "2026-01-15"], trend.Select(d => d.GetProperty("date").GetString()));
+        foreach (var day in trend)
+        {
+            var rows = (await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/attendance?date={day.GetProperty("date").GetString()}", manager)))
+                .GetProperty("rows").EnumerateArray().ToList();
+            string? Status(System.Text.Json.JsonElement row) => row.GetProperty("record").ValueKind == System.Text.Json.JsonValueKind.Null ? null : row.GetProperty("record").GetProperty("status").GetString();
+            Assert.Equal(rows.Count, day.GetProperty("total").GetInt32());
+            Assert.Equal(rows.Count(r => Status(r) == "Present"), day.GetProperty("present").GetInt32());
+            Assert.Equal(rows.Count(r => Status(r) == "Absent"), day.GetProperty("absent").GetInt32());
+            Assert.Equal(rows.Count(r => Status(r) is { } s && s.Contains("Leave")), day.GetProperty("onLeave").GetInt32());
+            Assert.Equal(rows.Count(r => Status(r) is null), day.GetProperty("notRecorded").GetInt32());
+        }
+        Assert.True(trend[^1].GetProperty("present").GetInt32() >= 1);
+        Assert.True(trend[^1].GetProperty("absent").GetInt32() >= 1);
+    }
+
+    [Theory]
+    [InlineData("to=2999-01-01&days=7")]
+    [InlineData("to=not-a-date&days=7")]
+    [InlineData("to=2026-01-15&days=0")]
+    [InlineData("to=2026-01-15&days=32")]
+    public async Task Trend_RejectsAFutureOrInvalidDateAndAnOutOfRangeLength(string query)
+    {
+        var (_, token) = await TestWorkers.SignInAsync(api, Roles.Manager);
+        Assert.Equal(HttpStatusCode.BadRequest, (await api.GetAsync($"/api/attendance/trend?{query}", token)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Trend_RequiresSignIn_AndIsOpenToEveryRole()
+    {
+        Assert.Equal(HttpStatusCode.Unauthorized, (await api.GetAsync($"/api/attendance/trend?to={Date}&days=7")).StatusCode);
+        var (_, supervisor) = await TestWorkers.SignInAsync(api, Roles.Supervisor);
+        Assert.Equal(HttpStatusCode.OK, (await api.GetAsync($"/api/attendance/trend?to={Date}&days=7", supervisor)).StatusCode);
+    }
+
     private async Task<HttpResponseMessage> SeedAndExportAsync(string role, string format)
     {
         var (_, manager) = await TestWorkers.SignInAsync(api, Roles.Manager);

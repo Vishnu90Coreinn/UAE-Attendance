@@ -283,6 +283,7 @@ export function AttendancePage({
       onClick={save}
       disabled={!dirty || pending}
       aria-busy={pending}
+      title={dirty ? undefined : "Change a status or hours to enable saving"}
       className={`${primaryButtonClass} ${className} disabled:cursor-not-allowed disabled:opacity-60`}
     >
       <Save aria-hidden="true" size={16} />
@@ -394,7 +395,6 @@ export function AttendancePage({
           Unsaved changes
         </p>
       )}
-      <AttendanceRangeExport initialDate={today()} />
       {loading ? (
         <p role="status" className="py-8 text-ink-600">
           Loading attendance...
@@ -502,6 +502,7 @@ export function AttendancePage({
           </>
         )
       )}
+      <AttendanceRangeExport initialDate={today()} />
       {showSave && !isDesktop && (
         <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 -mx-4 flex items-center gap-3 border-t border-line bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgba(15,23,42,0.08)] backdrop-blur">
           <p role="status" className="min-w-0 flex-1 text-sm font-medium text-amber-900">

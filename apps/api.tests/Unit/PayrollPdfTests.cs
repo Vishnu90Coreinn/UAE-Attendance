@@ -36,7 +36,7 @@ public class PayrollPdfTests
             Assert.Contains("Worker Name", page.Text);
             var baselines = page.Letters.GroupBy(l => Math.Round(l.StartBaseLine.Y, 1))
                 .Select(g => string.Concat(g.OrderBy(l => l.StartBaseLine.X).Select(l => l.Value))).ToArray();
-            Assert.Contains(baselines, textLine => textLine.Contains("Worked", StringComparison.Ordinal));
+            Assert.Contains(baselines, textLine => textLine.Contains("Present", StringComparison.Ordinal));
             Assert.Contains(baselines, textLine => textLine.Contains("Salary", StringComparison.Ordinal));
             Assert.Contains($"Page {page.Number} of {pdf.NumberOfPages}", page.Text);
             Assert.All(page.Letters, l =>

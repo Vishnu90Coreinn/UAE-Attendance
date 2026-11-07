@@ -36,7 +36,7 @@ public sealed class PayrollPdf(IConfiguration? configuration = null)
         double y = 0;
         // Columns fill the 523pt text width.
         double[] widths = [118, 100, 46, 66, 58, 66, 69];
-        string[] headers = ["Worker Name", "Designation", "Days Worked", "Basic Pay", "OT Pay", "Deductions", "Total Net Salary"];
+        string[] headers = ["Worker Name", "Designation", "Days Present", "Basic Pay", "OT Pay", "Deductions", "Total Net Salary"];
 
         void Header()
         {

@@ -194,14 +194,10 @@ describe("Layout", () => {
     ).toBeInTheDocument();
   });
 
-  it.each(["Administrator", "Manager"] as const)("shows the User Access header shortcut to %s", async (role) => {
-    await renderLayout(role);
-    expect(within(screen.getByRole("banner")).getByRole("link", { name: "User Access" })).toHaveAttribute("href", "/users");
-  });
-
-  it("hides the User Access header shortcut from a Supervisor", async () => {
-    await renderLayout("Supervisor");
+  it("reaches user management through the User Manager tab, not a duplicate header shortcut", async () => {
+    await renderLayout("Administrator");
     expect(within(screen.getByRole("banner")).queryByRole("link", { name: "User Access" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "User Manager" })).toHaveAttribute("href", "/users");
   });
 
   it("renders the routed page", async () => {

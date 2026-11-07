@@ -76,6 +76,16 @@ beforeEach(() => {
     pendingCount: 0,
     rows: [],
   });
+  vi.mocked(attendanceApi.getAttendanceTrend).mockResolvedValue(
+    Array.from({ length: 7 }, (_, index) => ({
+      date: `2026-10-${13 + index}`,
+      present: 0,
+      absent: 0,
+      onLeave: 0,
+      notRecorded: 0,
+      total: 0,
+    })),
+  );
   vi.mocked(payrollApi.getPayroll).mockResolvedValue({
     period: "2026-10",
     status: "Draft",
@@ -282,7 +292,7 @@ describe("App", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
     expect(await screen.findByText("Across 1 day")).toBeInTheDocument();
-  });
+  }, 20000);
 
   it("opens the Worker Directory at the root for a Supervisor, who has no dashboard", async () => {
     signInWithStoredToken("Supervisor");

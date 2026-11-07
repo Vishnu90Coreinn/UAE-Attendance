@@ -52,6 +52,24 @@ export interface AttendanceSummary {
   rejectedTotal: number;
   rejected: AttendanceDayCount[];
 }
+/** Head-count per day, without pay. */
+export interface AttendanceTrendDay {
+  date: string;
+  present: number;
+  absent: number;
+  onLeave: number;
+  notRecorded: number;
+  total: number;
+}
+/** The `days` days ending on `to`, oldest first, from one request. */
+export function getAttendanceTrend(
+  to: string,
+  days: number,
+): Promise<AttendanceTrendDay[]> {
+  return apiGet(
+    `/api/attendance/trend?to=${encodeURIComponent(to)}&days=${days}`,
+  );
+}
 export function getAttendance(date: string): Promise<AttendanceDay> {
   return apiGet(`/api/attendance?date=${encodeURIComponent(date)}`);
 }
