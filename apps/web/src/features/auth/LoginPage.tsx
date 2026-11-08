@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { Loader2, LogIn } from "lucide-react";
+import { CalendarCheck, Eye, EyeOff, Loader2, LogIn, ShieldCheck, Users, Wallet, type LucideIcon } from "lucide-react";
 import { COMPANY_NAME } from "../../branding";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
@@ -11,6 +11,12 @@ interface FromLocation {
   search?: string;
   hash?: string;
 }
+
+const FEATURES: { icon: LucideIcon; title: string; text: string }[] = [
+  { icon: Users, title: "Worker directory", text: "Profiles, documents and photos for every employee." },
+  { icon: CalendarCheck, title: "Attendance & leave", text: "Daily hours, overtime and leave tracked accurately." },
+  { icon: Wallet, title: "Monthly payroll", text: "Finalised reports and PDF exports, ready to print." },
+];
 
 /** Where to go after signing in: the page ProtectedRoute bounced the user from, else the home page. */
 function destinationFrom(state: unknown): string {
@@ -29,6 +35,7 @@ export function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const destination = destinationFrom(location.state);
@@ -55,37 +62,66 @@ export function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-screen bg-canvas text-ink-900 lg:grid-cols-[minmax(0,5fr)_minmax(0,4fr)]">
-      <aside className="relative hidden flex-col justify-between overflow-hidden bg-sidebar p-12 text-white lg:flex">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-24 -top-24 size-[28rem] rounded-full border border-white/10"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -bottom-40 -left-20 size-[34rem] rounded-full border border-white/10"
-        />
-        <img src="/icons/icon-192.png" alt="" width={56} height={56} className="size-14 rounded-xl bg-white p-1" />
-        <div className="relative max-w-md">
-          <p className="text-sm font-medium uppercase tracking-widest text-brand-300">HR &amp; Payroll</p>
-          <p className="mt-3 text-3xl font-semibold leading-snug tracking-tight">
-            Workers, attendance, leave and payroll in one place.
+    <div className="relative flex min-h-screen flex-col overflow-hidden bg-canvas text-ink-900">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(var(--color-brand-200)_1px,transparent_1px)] [background-size:24px_24px] opacity-50 [mask-image:radial-gradient(ellipse_80%_70%_at_50%_40%,black,transparent)]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-40 -top-40 size-[34rem] rounded-full bg-brand-100/70 blur-3xl anim-drift"
+      />
+
+      <header className="anim-rise relative border-b border-line bg-white/80 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-4 sm:px-8">
+          <img
+            src="/icons/icon-192.png"
+            alt=""
+            width={56}
+            height={56}
+            className="size-14 shrink-0 rounded-2xl border border-line bg-white p-1 shadow-card"
+          />
+          <h1 className="min-w-0 text-base font-semibold leading-snug tracking-tight text-brand-900 sm:text-xl">
+            {COMPANY_NAME}
+          </h1>
+        </div>
+      </header>
+
+      <main className="relative mx-auto grid w-full max-w-6xl flex-1 items-center gap-10 px-4 py-10 sm:px-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-16">
+        <section className="anim-rise hidden lg:block [--delay:120ms]">
+          <p className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-brand-700">
+            <ShieldCheck aria-hidden="true" size={14} />
+            HR &amp; Payroll System
           </p>
-        </div>
-        <p className="text-sm text-brand-200/70">{COMPANY_NAME}</p>
-      </aside>
+          <p className="mt-5 text-5xl font-semibold leading-[1.1] tracking-tight text-brand-900">
+            Everything your workforce needs, in one place.
+          </p>
+          <p className="mt-5 max-w-xl text-lg leading-relaxed text-ink-600">
+            Manage workers, record daily attendance and leave, and finalise monthly payroll with confidence.
+          </p>
+          <ul className="mt-10 grid max-w-xl gap-4">
+            {FEATURES.map(({ icon: Icon, title, text }) => (
+              <li
+                key={title}
+                className="flex items-start gap-4 rounded-xl border border-line bg-white p-4 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-pop"
+              >
+                <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+                  <Icon aria-hidden="true" size={22} />
+                </span>
+                <span>
+                  <span className="block text-base font-semibold text-ink-900">{title}</span>
+                  <span className="block text-sm leading-relaxed text-ink-600">{text}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
 
-      <main className="flex flex-col items-center justify-center gap-6 px-4 py-10">
-        <div className="flex flex-col items-center gap-3 lg:hidden">
-          <img src="/icons/icon-192.png" alt="" width={64} height={64} className="size-16 rounded-2xl border border-line bg-white" />
-          <h1 className="max-w-md text-center text-base font-semibold leading-tight">{COMPANY_NAME}</h1>
-        </div>
-
-        <div className="w-full max-w-sm">
+        <div className="anim-rise mx-auto w-full max-w-md rounded-2xl [--delay:240ms] border border-line bg-white p-8 shadow-pop sm:p-10">
           <h2 className="text-2xl font-semibold tracking-tight">Sign in</h2>
-          <p className="mt-1 text-sm text-ink-600">Use the username and password given to you by your administrator.</p>
+          <p className="mt-1.5 text-sm text-ink-600">Use the username and password given to you by your administrator.</p>
 
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
             <Field label="Username">
               {(p) => (
                 <input
@@ -105,15 +141,27 @@ export function LoginPage() {
             </Field>
             <Field label="Password">
               {(p) => (
-                <input
-                  {...p}
-                  name="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    {...p}
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                    required
+                    className={`${p.className} pr-12`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Hide characters" : "Show characters"}
+                    aria-pressed={showPassword}
+                    className="absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center rounded-r-lg text-ink-500 hover:text-ink-800"
+                  >
+                    {showPassword ? <EyeOff aria-hidden="true" size={18} /> : <Eye aria-hidden="true" size={18} />}
+                  </button>
+                </div>
               )}
             </Field>
 
@@ -123,7 +171,7 @@ export function LoginPage() {
               </p>
             )}
 
-            <Button type="submit" disabled={pending} aria-busy={pending} className="w-full">
+            <Button type="submit" disabled={pending} aria-busy={pending} className="w-full transition duration-150 hover:-translate-y-px active:translate-y-0 active:scale-[0.99]">
               {pending ? (
                 <>
                   <Loader2 aria-hidden="true" size={16} className="animate-spin" />
@@ -137,8 +185,17 @@ export function LoginPage() {
               )}
             </Button>
           </form>
+
+          <p className="mt-6 flex items-center gap-2 border-t border-line pt-5 text-xs text-ink-600">
+            <ShieldCheck aria-hidden="true" size={16} className="shrink-0 text-brand-500" />
+            Forgotten your password? Ask your administrator to reset it.
+          </p>
         </div>
       </main>
+
+      <footer className="relative border-t border-line bg-white/80 py-4 text-center text-xs text-ink-500">
+        &copy; {new Date().getFullYear()} {COMPANY_NAME}. All rights reserved.
+      </footer>
     </div>
   );
 }
