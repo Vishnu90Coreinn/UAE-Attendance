@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { PageHeader } from "../../ui";
 import { Info, Loader2, Save } from "lucide-react";
 import { useOutletContext } from "react-router-dom";
 import type { LayoutContext } from "../../components/LayoutContext";
@@ -29,7 +30,7 @@ function failureMessage(error: unknown): string {
 }
 
 const sectionClass = "space-y-4";
-const sectionTitleClass = "text-lg font-semibold text-gray-800";
+const sectionTitleClass = "text-lg font-semibold text-ink-800";
 
 export function SettingsPage() {
   const { user } = useAuth();
@@ -167,13 +168,10 @@ export function SettingsPage() {
 
   return (
     <section>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Settings</h2>
-        <p className="text-sm text-gray-500">Company details and payroll rates.</p>
-      </div>
+      <PageHeader title="Settings" description="Company details and payroll rates." />
 
       {load.status === "loading" && (
-        <p role="status" className="flex items-center gap-2 py-8 text-sm text-gray-500">
+        <p role="status" className="flex items-center gap-2 py-8 text-sm text-ink-500">
           <Loader2 aria-hidden="true" size={20} className="animate-spin" />
           Loading settings...
         </p>
@@ -186,7 +184,7 @@ export function SettingsPage() {
           <form
             onSubmit={handleSubmit}
             noValidate
-            className="max-w-3xl space-y-8 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6"
+            className="max-w-3xl space-y-8 rounded-card border border-line bg-white p-4 shadow-card sm:p-6"
           >
             <fieldset disabled={readOnly} className="m-0 min-w-0 space-y-8 border-0 p-0">
             <div className={sectionClass}>
@@ -198,7 +196,7 @@ export function SettingsPage() {
 
             <div className={sectionClass}>
               <h3 className={sectionTitleClass}>Payroll</h3>
-              <p className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+              <p className="flex items-start gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-900">
                 <Info aria-hidden="true" size={20} className="mt-0.5 shrink-0" />
                 Changing the overtime rate recalculates every month that is not finalised.
               </p>
@@ -249,7 +247,7 @@ export function SettingsPage() {
             )}
 
             {!readOnly && <div className="flex flex-wrap items-center justify-end gap-3">
-              {!dirty && !pending && <p className="text-sm text-gray-500">No changes to save.</p>}
+              {!dirty && !pending && <p className="text-sm text-ink-500">No changes to save.</p>}
               <button
                 type="submit"
                 disabled={pending || !dirty}

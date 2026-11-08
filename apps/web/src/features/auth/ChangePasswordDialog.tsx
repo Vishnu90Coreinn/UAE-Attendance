@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type RefObject } from "react";
+import { buttonClass, controlClass } from "../../ui";
 import { CheckCircle2, KeyRound, Loader2 } from "lucide-react";
 import { changePassword } from "../../api/auth";
 import { ApiError } from "../../api/client";
@@ -35,11 +36,9 @@ function validate(values: Record<Field, string>): Messages {
   return errors;
 }
 
-const inputClass =
-  "mt-1 block min-h-11 w-full rounded-lg border bg-white px-3 text-base text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
+const inputClass = controlClass();
 
-const secondaryButtonClass =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-base font-medium text-gray-800 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
+const secondaryButtonClass = buttonClass("secondary");
 
 interface FormProps {
   firstFieldRef: RefObject<HTMLInputElement | null>;
@@ -169,7 +168,7 @@ function ChangePasswordForm({ firstFieldRef, onClose }: FormProps) {
         onBlur: () => markTouched(field),
         "aria-invalid": shown[field] ? true : undefined,
         "aria-describedby": describedBy || undefined,
-        className: `${inputClass} ${shown[field] ? "border-red-600" : "border-gray-300"}`,
+        className: `${inputClass} ${shown[field] ? "border-red-600" : "border-ink-300"}`,
       },
     };
   }
@@ -181,7 +180,7 @@ function ChangePasswordForm({ firstFieldRef, onClose }: FormProps) {
   return (
     <form onSubmit={handleSubmit} noValidate className="mt-4 space-y-4">
       <div>
-        <label htmlFor={current.input.id} className="block text-sm font-medium text-gray-800">
+        <label htmlFor={current.input.id} className="block text-sm font-medium text-ink-800">
           Current password
         </label>
         <input {...current.input} ref={firstFieldRef} autoComplete="current-password" />
@@ -193,11 +192,11 @@ function ChangePasswordForm({ firstFieldRef, onClose }: FormProps) {
       </div>
 
       <div>
-        <label htmlFor={next.input.id} className="block text-sm font-medium text-gray-800">
+        <label htmlFor={next.input.id} className="block text-sm font-medium text-ink-800">
           New password
         </label>
         <input {...next.input} ref={nextRef} autoComplete="new-password" />
-        <p id={`${idPrefix}-next-hint`} className="mt-1 text-sm text-gray-500">
+        <p id={`${idPrefix}-next-hint`} className="mt-1 text-sm text-ink-500">
           At least {MIN_LENGTH} characters
         </p>
         {shown.next && (
@@ -208,7 +207,7 @@ function ChangePasswordForm({ firstFieldRef, onClose }: FormProps) {
       </div>
 
       <div>
-        <label htmlFor={confirm.input.id} className="block text-sm font-medium text-gray-800">
+        <label htmlFor={confirm.input.id} className="block text-sm font-medium text-ink-800">
           Confirm new password
         </label>
         <input {...confirm.input} ref={confirmRef} autoComplete="new-password" />
@@ -238,7 +237,7 @@ function ChangePasswordForm({ firstFieldRef, onClose }: FormProps) {
           type="submit"
           disabled={pending}
           aria-busy={pending}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-base font-medium text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-70"
+          className={buttonClass("primary", "md")}
         >
           {pending ? (
             <>

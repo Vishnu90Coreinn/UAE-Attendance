@@ -21,9 +21,9 @@ interface DialogProps {
 }
 
 const CENTER_CLASS =
-  "m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-lg border border-gray-200 bg-white p-6 text-gray-800 shadow-sm backdrop:bg-slate-900/60";
+  "m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-card border border-line bg-white p-6 text-ink-800 shadow-card backdrop:bg-ink-900/60";
 const SHEET_CLASS =
-  "mx-0 mb-0 mt-auto max-h-[85dvh] w-full max-w-none overflow-y-auto rounded-b-none rounded-t-2xl border border-gray-200 bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-gray-800 shadow-lg backdrop:bg-slate-900/60";
+  "mx-0 mb-0 mt-auto max-h-[85dvh] w-full max-w-none overflow-y-auto rounded-b-none rounded-t-2xl border border-line bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-ink-800 shadow-lg backdrop:bg-ink-900/60";
 
 /**
  * Modal built on the native <dialog>: showModal() gives the focus trap and an inert page behind it.
@@ -83,20 +83,20 @@ export function Dialog({ open, onClose, title, children, initialFocusRef, descri
     >
       {variant === "sheet" ? (
         <div className="flex items-center justify-between gap-3">
-          <h2 id={headingId} className="text-lg font-bold text-gray-800">
+          <h2 id={headingId} className="text-lg font-semibold text-ink-900">
             {title}
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="inline-flex size-11 items-center justify-center rounded-lg text-gray-700 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+            className="inline-flex size-11 items-center justify-center rounded-lg text-ink-700 hover:bg-ink-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
           >
             <X aria-hidden="true" size={20} />
           </button>
         </div>
       ) : (
-        <h2 id={headingId} className="text-2xl font-bold text-gray-800">
+        <h2 id={headingId} className="text-xl font-semibold tracking-tight text-ink-900">
           {title}
         </h2>
       )}

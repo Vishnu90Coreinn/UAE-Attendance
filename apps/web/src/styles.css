@@ -1,4 +1,106 @@
 @import "tailwindcss";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-sans/700.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+/*
+ * Design tokens - "Calm enterprise". See docs/design-system.md.
+ * New code uses the semantic tokens (brand-*, ink-*, surface, canvas, line, status colours).
+ * The Tailwind blue/slate/gray scales are remapped onto the same palette so screens that
+ * have not been migrated to the component kit yet already follow the new look.
+ */
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", monospace;
+
+  /* Brand: deep teal from the company logo */
+  --color-brand-50: #e6f2f2;
+  --color-brand-100: #cce5e5;
+  --color-brand-200: #99cbcc;
+  --color-brand-300: #66b0b2;
+  --color-brand-400: #2f8e91;
+  --color-brand-500: #167479;
+  --color-brand-600: #0f5f63;
+  --color-brand-700: #0b4a4d;
+  --color-brand-800: #083a3c;
+  --color-brand-900: #052a2c;
+
+  /* Neutrals with a faint teal tint */
+  --color-ink-50: #f5f7f8;
+  --color-ink-100: #edf1f2;
+  --color-ink-200: #e3e8ea;
+  --color-ink-300: #cdd6d9;
+  --color-ink-400: #94a5aa;
+  --color-ink-500: #6b7f84;
+  --color-ink-600: #51666b;
+  --color-ink-700: #364b50;
+  --color-ink-800: #1f343a;
+  --color-ink-900: #13262a;
+  --color-sidebar: #0c2a2d;
+  --color-canvas: #f5f7f8;
+  --color-line: #e3e8ea;
+
+  /* Status */
+  --color-success: #15803d;
+  --color-warning: #b45309;
+  --color-danger: #b91c1c;
+  --color-info: #0369a1;
+
+  --radius-card: 0.75rem;
+  --shadow-card: 0 1px 2px rgb(19 38 42 / 0.05);
+  --shadow-pop: 0 8px 24px rgb(19 38 42 / 0.12);
+
+  /* Legacy remap: unmigrated screens pick up the brand and neutral palette. */
+  --color-blue-50: #e6f2f2;
+  --color-blue-100: #cce5e5;
+  --color-blue-200: #99cbcc;
+  --color-blue-300: #66b0b2;
+  --color-blue-400: #2f8e91;
+  --color-blue-500: #167479;
+  --color-blue-600: #0f5f63;
+  --color-blue-700: #0b4a4d;
+  --color-blue-800: #083a3c;
+  --color-blue-900: #052a2c;
+  --color-gray-50: #f5f7f8;
+  --color-gray-100: #f5f7f8;
+  --color-gray-200: #e3e8ea;
+  --color-gray-300: #cdd6d9;
+  --color-gray-400: #94a5aa;
+  --color-gray-500: #6b7f84;
+  --color-gray-600: #51666b;
+  --color-gray-700: #364b50;
+  --color-gray-800: #1f343a;
+  --color-gray-900: #13262a;
+  --color-slate-700: #1b4448;
+  --color-slate-800: #123438;
+  --color-slate-900: #0c2a2d;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    color: var(--color-ink-900);
+    background: var(--color-canvas);
+  }
+  body {
+    font-feature-settings: "tnum" 1;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
 
 @media print {
   @page {

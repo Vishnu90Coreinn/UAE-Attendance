@@ -5,12 +5,12 @@ import { ApprovalContent } from "./ApprovalCell";
 import { changed, previewPay, stepHours, type AttendanceForm } from "./attendanceForm";
 
 const stepperButtonClass =
-  "inline-flex size-11 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex size-11 shrink-0 items-center justify-center rounded-lg border border-ink-300 bg-white text-ink-800 hover:bg-ink-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-40";
 const hoursInputClass =
-  "min-h-11 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-1 text-center text-base tabular-nums text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:bg-gray-100 disabled:text-gray-600 [&::-webkit-inner-spin-button]:appearance-none [appearance:textfield]";
+  "min-h-11 w-full min-w-0 rounded-lg border border-ink-300 bg-white px-1 text-center text-base tabular-nums text-ink-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:bg-ink-100 disabled:text-ink-600 [&::-webkit-inner-spin-button]:appearance-none [appearance:textfield]";
 const choiceClass =
-  "inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border text-base font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60";
-const labelClass = "block text-xs font-semibold uppercase text-gray-600";
+  "inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border text-base font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-60";
+const labelClass = "block text-xs font-semibold uppercase text-ink-600";
 
 /** A number field with minus and plus buttons either side, so hours can be set with a thumb. */
 function HoursField({
@@ -130,11 +130,11 @@ export function AttendanceCards({
         }
 
         return (
-          <li key={row.worker.id} aria-label={name} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <li key={row.worker.id} aria-label={name} className="rounded-xl border border-line bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="break-words font-semibold text-gray-800">{name}</p>
-                <p className="text-xs text-gray-600">
+                <p className="break-words font-semibold text-ink-800">{name}</p>
+                <p className="text-xs text-ink-600">
                   {row.worker.workerCode} · {row.worker.designation}
                   {!row.worker.isActive && " · Inactive"}
                 </p>
@@ -154,7 +154,7 @@ export function AttendanceCards({
                   className={`${choiceClass} ${
                     form.status === "Present"
                       ? "border-green-700 bg-green-700 text-white"
-                      : "border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
+                      : "border-ink-300 bg-white text-ink-800 hover:bg-ink-50"
                   }`}
                 >
                   <Check aria-hidden="true" size={18} />
@@ -168,7 +168,7 @@ export function AttendanceCards({
                   className={`${choiceClass} ${
                     form.status === "Absent"
                       ? "border-red-700 bg-red-700 text-white"
-                      : "border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
+                      : "border-ink-300 bg-white text-ink-800 hover:bg-ink-50"
                   }`}
                 >
                   <X aria-hidden="true" size={18} />
@@ -183,8 +183,8 @@ export function AttendanceCards({
                     onClick={() => choose(option)}
                     className={`${choiceClass} ${
                       form.status === option
-                        ? "border-slate-700 bg-slate-700 text-white"
-                        : "border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
+                        ? "border-ink-700 bg-ink-700 text-white"
+                        : "border-ink-300 bg-white text-ink-800 hover:bg-ink-50"
                     }`}
                   >
                     {option}
@@ -193,11 +193,11 @@ export function AttendanceCards({
               </div>
             ) : (
               <p className="mt-3">
-                <span className="inline-block whitespace-nowrap rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-800">
+                <span className="inline-block whitespace-nowrap rounded-full bg-ink-100 px-3 py-1 text-sm text-ink-800">
                   {form.status ?? "Not recorded"}
                 </span>
                 {row.approvedLeave && (
-                  <span className="mt-1 block text-xs text-gray-600">Approved leave. Change it in Leave Management.</span>
+                  <span className="mt-1 block text-xs text-ink-600">Approved leave. Change it in Leave Management.</span>
                 )}
               </p>
             )}
@@ -207,7 +207,7 @@ export function AttendanceCards({
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   <div>
                     <p className={labelClass}>Basic hours</p>
-                    <p className="mt-1 font-medium tabular-nums text-gray-800">{Number(form.basicHours).toFixed(2)}</p>
+                    <p className="mt-1 font-medium tabular-nums text-ink-800">{Number(form.basicHours).toFixed(2)}</p>
                   </div>
                   <HoursField
                     label="Overtime hours"
@@ -223,24 +223,24 @@ export function AttendanceCards({
                 <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <dt className={labelClass}>Basic hours</dt>
-                    <dd className="font-medium tabular-nums text-gray-800">{Number(form.basicHours).toFixed(2)}</dd>
+                    <dd className="font-medium tabular-nums text-ink-800">{Number(form.basicHours).toFixed(2)}</dd>
                   </div>
                   <div>
                     <dt className={labelClass}>Overtime hours</dt>
-                    <dd className="font-medium tabular-nums text-gray-800">{Number(form.overtimeHours).toFixed(2)}</dd>
+                    <dd className="font-medium tabular-nums text-ink-800">{Number(form.overtimeHours).toFixed(2)}</dd>
                   </div>
                 </dl>
               ))}
 
             {showPay && (
-              <p className="mt-3 flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
+              <p className="mt-3 flex items-center justify-between gap-3 border-t border-line pt-3">
                 <span className={labelClass}>Total pay (AED)</span>
-                <span className="text-lg font-bold tabular-nums text-gray-800">{pay === null ? "—" : pay.toFixed(2)}</span>
+                <span className="text-lg font-bold tabular-nums text-ink-800">{pay === null ? "—" : pay.toFixed(2)}</span>
               </p>
             )}
 
             {row.record && (
-              <div className="mt-3 border-t border-gray-100 pt-3 text-sm">
+              <div className="mt-3 border-t border-line pt-3 text-sm">
                 <ApprovalContent
                   row={row}
                   isManager={isManager}

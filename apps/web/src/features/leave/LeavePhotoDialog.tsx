@@ -33,7 +33,7 @@ export function LeavePhotoDialog({ row, onClose }: Props) {
   }, [row.id]);
   return (
     <Dialog open title="Leave document" onClose={onClose} size="wide">
-      <p className="mt-1 text-sm text-gray-600">
+      <p className="mt-1 text-sm text-ink-600">
         {row.workerName} · {row.leaveType} · {row.startDate} to {row.endDate}
       </p>
       <div className="mt-4">
@@ -43,17 +43,17 @@ export function LeavePhotoDialog({ row, onClose }: Props) {
           <img
             src={url}
             alt={`Photo attached to ${row.workerName}'s ${row.leaveType} request`}
-            className="mx-auto max-h-[70dvh] max-w-full rounded-lg border border-gray-200 object-contain"
+            className="mx-auto max-h-[70dvh] max-w-full rounded-lg border border-line object-contain"
           />
         ) : (
-          <p role="status" className="py-8 text-center text-gray-600">Loading photo...</p>
+          <p role="status" className="py-8 text-center text-ink-600">Loading photo...</p>
         )}
       </div>
       <div className="mt-4 flex justify-end">
         <button
           type="button"
           onClick={onClose}
-          className="min-h-11 rounded-lg border border-gray-300 px-4 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+          className="min-h-11 rounded-lg border border-ink-300 px-4 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
         >
           Close
         </button>

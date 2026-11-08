@@ -1,43 +1,19 @@
 import { useState, type ReactNode } from "react";
-import {
-  Banknote,
-  CalendarDays,
-  CircleUserRound,
-  ClipboardCheck,
-  Ellipsis,
-  KeyRound,
-  LayoutDashboard,
-  LogOut,
-  ReceiptText,
-  Settings,
-  UserCog,
-  UsersRound,
-  type LucideIcon,
-} from "lucide-react";
+import { CircleUserRound, Ellipsis, KeyRound, LogOut } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import type { CurrentUser } from "../api/auth";
 import { Dialog } from "./Dialog";
+import { NAV_ICONS as ICONS } from "./navIcons";
 import { phoneNavFor, type NavItem } from "./navItems";
-
-const ICONS: Record<string, LucideIcon> = {
-  dashboard: LayoutDashboard,
-  attendance: ClipboardCheck,
-  workers: UsersRound,
-  payroll: Banknote,
-  leave: CalendarDays,
-  deductions: ReceiptText,
-  users: UserCog,
-  settings: Settings,
-};
 
 /** One slot of the bottom bar: icon over a short label, at least 64px tall so it is easy to hit with a thumb. */
 const slotClass =
-  "relative flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 text-xs font-medium before:absolute before:top-0 before:h-0.5 before:w-8 before:rounded-full focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-300";
+  "relative flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 text-xs font-medium before:absolute before:top-0 before:h-0.5 before:w-8 before:rounded-full focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-300";
 const slotState = (active: boolean) =>
-  active ? "text-blue-400 before:bg-blue-400" : "text-slate-300 before:bg-transparent hover:text-white";
+  active ? "text-brand-300 before:bg-brand-300" : "text-ink-300 before:bg-transparent hover:text-white";
 
 const sheetRowClass =
-  "flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-base font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
+  "flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-base font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500";
 
 interface PhoneShellProps {
   companyName: string;
@@ -71,7 +47,7 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
           {badge && (
             <span
               aria-hidden="true"
-              className="absolute -right-3 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1 text-xs font-bold text-slate-900"
+              className="absolute -right-3 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1 text-xs font-bold text-ink-900"
             >
               {attendanceAttention}
             </span>
@@ -89,15 +65,15 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-gray-100 text-gray-800">
+    <div className="flex min-h-dvh flex-col bg-ink-100 text-ink-800">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-slate-900 focus:shadow"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-ink-900 focus:shadow"
       >
         Skip to main content
       </a>
 
-      <header className="sticky top-0 z-30 bg-slate-900 pt-[env(safe-area-inset-top)] text-white shadow-md">
+      <header className="sticky top-0 z-30 bg-ink-900 pt-[env(safe-area-inset-top)] text-white shadow-md">
         <div className="flex min-h-14 items-center gap-3 px-4 py-2">
           <img src="/icons/favicon-48.png" alt="" width={32} height={32} className="size-8 shrink-0 rounded-md bg-white p-0.5" />
           <h1 className="min-w-0 flex-1 truncate text-sm font-bold leading-tight" title={companyName}>{companyName}</h1>
@@ -107,7 +83,7 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
               onClick={() => setAccountOpen(true)}
               aria-label="Account menu"
               aria-haspopup="dialog"
-              className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-slate-100 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
+              className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-ink-100 hover:bg-ink-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
             >
               <CircleUserRound aria-hidden="true" size={26} />
             </button>
@@ -121,7 +97,7 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
 
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-700 bg-slate-900 pb-[env(safe-area-inset-bottom)] text-white"
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-700 bg-ink-900 pb-[env(safe-area-inset-bottom)] text-white"
       >
         <div className="flex">
           {tabs.map((item) => (
@@ -158,7 +134,7 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
                   to={item.path!}
                   onClick={() => setMoreOpen(false)}
                   className={({ isActive }) =>
-                    `${sheetRowClass} ${isActive ? "bg-blue-50 text-blue-800" : "text-gray-800 hover:bg-gray-100"}`
+                    `${sheetRowClass} ${isActive ? "bg-brand-50 text-brand-800" : "text-ink-800 hover:bg-ink-100"}`
                   }
                 >
                   <Icon aria-hidden="true" size={20} />
@@ -173,7 +149,7 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
       <Dialog open={accountOpen} onClose={() => setAccountOpen(false)} title="Account" variant="sheet">
         {user && (
           <div className="mt-2 space-y-3">
-            <p className="break-words text-sm text-gray-700">{`Logged in as ${user.username} (${user.role})`}</p>
+            <p className="break-words text-sm text-ink-700">{`Logged in as ${user.username} (${user.role})`}</p>
             <div className="space-y-1">
               <button
                 type="button"
@@ -181,7 +157,7 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
                   setAccountOpen(false);
                   onChangePassword();
                 }}
-                className={`${sheetRowClass} text-gray-800 hover:bg-gray-100`}
+                className={`${sheetRowClass} text-ink-800 hover:bg-ink-100`}
               >
                 <KeyRound aria-hidden="true" size={20} />
                 Change password

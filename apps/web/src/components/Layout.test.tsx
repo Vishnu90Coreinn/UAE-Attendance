@@ -132,13 +132,13 @@ describe("Layout", () => {
     ).toHaveAttribute("href", "/leave");
   });
 
-  it("marks the current page's tab with aria-current and the prototype's blue accent", async () => {
+  it("marks the current page's tab with aria-current and the brand highlight", async () => {
     await renderLayout("Supervisor", "sup.omar", "/workers");
 
     const link = screen.getByRole("link", { name: "Worker Directory" });
     expect(link).toHaveAttribute("aria-current", "page");
-    expect(link.className).toContain("border-blue-500");
-    expect(link.className).toContain("text-blue-400");
+    expect(link.className).toContain("bg-white/10");
+    expect(link.className).toContain("text-white");
     expect(link.className).toContain("min-h-11");
   });
 
@@ -147,8 +147,7 @@ describe("Layout", () => {
 
     const link = screen.getByRole("link", { name: "Worker Directory" });
     expect(link).not.toHaveAttribute("aria-current");
-    expect(link.className).toContain("border-transparent");
-    expect(link.className).not.toContain("border-blue-500");
+    expect(link.className).not.toContain("bg-white/10");
   });
 
   it("navigates to the worker directory when its tab is clicked", async () => {
@@ -195,14 +194,10 @@ describe("Layout", () => {
     ).toBeInTheDocument();
   });
 
-  it.each(["Administrator", "Manager"] as const)("shows the User Access header shortcut to %s", async (role) => {
-    await renderLayout(role);
-    expect(within(screen.getByRole("banner")).getByRole("link", { name: "User Access" })).toHaveAttribute("href", "/users");
-  });
-
-  it("hides the User Access header shortcut from a Supervisor", async () => {
-    await renderLayout("Supervisor");
+  it("reaches user management through the User Manager tab, not a duplicate header shortcut", async () => {
+    await renderLayout("Administrator");
     expect(within(screen.getByRole("banner")).queryByRole("link", { name: "User Access" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "User Manager" })).toHaveAttribute("href", "/users");
   });
 
   it("renders the routed page", async () => {

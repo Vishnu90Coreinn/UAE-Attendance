@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
+import { buttonClass } from "../../ui";
 import { Loader2, X } from "lucide-react";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
@@ -66,7 +67,7 @@ function RejectForm({
 
   return (
     <form onSubmit={submit} noValidate className="mt-3 space-y-4">
-      <p className="text-base text-gray-800">
+      <p className="text-base text-ink-800">
         {workerName}'s entry goes back to the supervisor. It does not count
         toward payroll until it is corrected and approved.
       </p>
@@ -87,7 +88,7 @@ function RejectForm({
           type="button"
           onClick={onCancel}
           disabled={pending}
-          className="inline-flex min-h-11 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 text-base font-medium text-gray-800 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-70"
+          className={buttonClass("secondary", "md")}
         >
           Cancel
         </button>
@@ -95,7 +96,7 @@ function RejectForm({
           type="submit"
           disabled={pending}
           aria-busy={pending}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 text-base font-medium text-white hover:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:cursor-not-allowed disabled:opacity-70"
+          className={buttonClass("danger", "md")}
         >
           {pending ? (
             <>

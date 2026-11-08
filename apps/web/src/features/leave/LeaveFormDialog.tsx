@@ -24,9 +24,9 @@ function today() {
   }).format(new Date());
 }
 const fieldClass =
-  "mt-1 min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
+  "mt-1 min-h-11 w-full rounded-lg border border-ink-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500";
 const photoButtonClass =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-ink-300 px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500";
 export function LeaveFormDialog({
   workers,
   pending,
@@ -109,7 +109,7 @@ export function LeaveFormDialog({
       onClose={pending ? () => {} : onClose}
     >
       <form noValidate onSubmit={submit} className="mt-4 space-y-4">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-ink-600">
           Days are inclusive calendar days. Once approved, leave fills Daily
           Attendance for every day of the request.
         </p>
@@ -194,9 +194,9 @@ export function LeaveFormDialog({
         <fieldset className="space-y-2" disabled={pending}>
           <legend className="text-sm font-medium">
             Leave document photo{" "}
-            <span className="font-normal text-gray-600">(optional)</span>
+            <span className="font-normal text-ink-600">(optional)</span>
           </legend>
-          <p className="text-xs text-gray-600">
+          <p className="text-xs text-ink-600">
             Photo of the signed request or doctor's note.
           </p>
           {photo ? (
@@ -204,7 +204,7 @@ export function LeaveFormDialog({
               <img
                 src={photo.previewUrl}
                 alt="Attached leave document preview"
-                className="h-28 max-w-[50%] rounded-lg border border-gray-200 bg-gray-50 object-contain"
+                className="h-28 max-w-[50%] rounded-lg border border-line bg-ink-50 object-contain"
               />
               <button type="button" onClick={removePhoto} className={photoButtonClass}>
                 <Trash2 aria-hidden="true" size={16} />
@@ -213,19 +213,19 @@ export function LeaveFormDialog({
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2">
-              <label className={`${photoButtonClass} cursor-pointer has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-blue-600`}>
+              <label className={`${photoButtonClass} cursor-pointer has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand-500`}>
                 <Camera aria-hidden="true" size={16} />
                 Take photo
                 <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={photoBusy} onChange={pickPhoto} />
               </label>
-              <label className={`${photoButtonClass} cursor-pointer has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-blue-600`}>
+              <label className={`${photoButtonClass} cursor-pointer has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand-500`}>
                 <ImagePlus aria-hidden="true" size={16} />
                 Upload
                 <input type="file" accept="image/*" className="sr-only" disabled={photoBusy} onChange={pickPhoto} />
               </label>
             </div>
           )}
-          {photoBusy && <p role="status" className="text-sm text-gray-600">Preparing photo...</p>}
+          {photoBusy && <p role="status" className="text-sm text-ink-600">Preparing photo...</p>}
           {photoError && <p role="alert" className="text-sm text-red-700">{photoError}</p>}
           {message("attachment") && <p role="alert" className="text-sm text-red-700">{message("attachment")}</p>}
         </fieldset>
@@ -235,7 +235,7 @@ export function LeaveFormDialog({
             type="button"
             disabled={pending}
             onClick={onClose}
-            className="min-h-11 rounded-lg border border-gray-300 px-4 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-60"
+            className="min-h-11 rounded-lg border border-ink-300 px-4 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-60"
           >
             Cancel
           </button>

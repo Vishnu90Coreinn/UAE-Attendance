@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { PageHeader, buttonClass, cx, inputClass } from "../../ui";
 import { Plus, Save } from "lucide-react";
 import {
   createDeductionType,
@@ -197,16 +198,14 @@ export function DeductionsPage() {
 
   return (
     <section className="min-w-0 space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800">Deductions</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Advances, loans and other deductions for the month. Each deduction needs a reason. Finalised months are locked.
-        </p>
-      </div>
+      <PageHeader
+        title="Deductions"
+        description="Advances, loans and other deductions for the month. Each deduction needs a reason. Finalised months are locked."
+      />
 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <label htmlFor="deduction-month" className="mb-1 block text-sm font-medium text-gray-800">
+          <label htmlFor="deduction-month" className="mb-1 block text-sm font-medium text-ink-800">
             Month
           </label>
           <input
@@ -216,7 +215,7 @@ export function DeductionsPage() {
             max={currentMonth()}
             disabled={dirty || saving}
             onChange={(e) => e.target.value && setMonth(e.target.value)}
-            className="min-h-11 rounded-lg border border-gray-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+            className={inputClass}
           />
           {dirty && <p className="mt-1 text-sm text-amber-900">Save or discard your changes before changing the month.</p>}
         </div>
@@ -230,7 +229,7 @@ export function DeductionsPage() {
                   setError(null);
                 }}
                 disabled={saving}
-                className="inline-flex min-h-11 items-center rounded-lg border border-gray-300 bg-white px-4 text-base font-medium text-gray-800 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-60"
+                className={buttonClass("secondary", "md")}
               >
                 Discard changes
               </button>
@@ -257,8 +256,8 @@ export function DeductionsPage() {
       <SuccessRegion message={success} />
       {error && <ActionFailure message={error} />}
 
-      <section aria-labelledby="deduction-types-heading" className="rounded-lg border border-gray-200 bg-white p-4">
-        <h2 id="deduction-types-heading" className="text-base font-semibold text-gray-800">
+      <section aria-labelledby="deduction-types-heading" className="rounded-card border border-line bg-white p-4">
+        <h2 id="deduction-types-heading" className="text-base font-semibold text-ink-800">
           Deduction types
         </h2>
         <ul className="mt-3 flex flex-wrap gap-2">
@@ -269,7 +268,7 @@ export function DeductionsPage() {
                 onClick={() => toggleType(type)}
                 disabled={readOnly}
                 aria-pressed={type.isActive}
-                className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${type.isActive ? "border-slate-700 bg-slate-100 text-slate-900" : "border-gray-300 bg-white text-gray-500 line-through"}`}
+                className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${type.isActive ? "border-ink-700 bg-ink-100 text-ink-900" : "border-ink-300 bg-white text-ink-500 line-through"}`}
               >
                 {type.name}
                 <span className="text-xs no-underline">{type.isActive ? "(in use)" : "(retired)"}</span>
@@ -279,7 +278,7 @@ export function DeductionsPage() {
         </ul>
         {!readOnly && <div className="mt-4 flex flex-wrap items-end gap-3">
           <div>
-            <label htmlFor="new-deduction-type" className="mb-1 block text-sm font-medium text-gray-800">
+            <label htmlFor="new-deduction-type" className="mb-1 block text-sm font-medium text-ink-800">
               New deduction type
             </label>
             <input
@@ -287,7 +286,7 @@ export function DeductionsPage() {
               value={newType}
               maxLength={40}
               onChange={(e) => setNewType(e.target.value)}
-              className="min-h-11 w-64 max-w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+              className={cx(inputClass, "w-64 max-w-full")}
             />
           </div>
           <button
@@ -303,14 +302,14 @@ export function DeductionsPage() {
       </section>
 
       {loading ? (
-        <p role="status" className="py-8 text-gray-600">Loading deductions...</p>
+        <p role="status" className="py-8 text-ink-600">Loading deductions...</p>
       ) : loadError ? (
         <LoadError message={loadError} onRetry={() => setAttempt((value) => value + 1)} />
       ) : data && data.workers.length > 0 ? (
-        <div className="overflow-x-auto md:rounded-lg md:border md:border-gray-200 md:bg-white md:shadow-sm">
-          <table className="block w-full text-left text-sm text-gray-800 md:table md:min-w-[640px]">
+        <div className="overflow-x-auto md:rounded-lg md:border md:border-line md:bg-white md:shadow-sm">
+          <table className="block w-full text-left text-sm text-ink-800 md:table md:min-w-[640px]">
             <caption className="sr-only">Deductions for {data.month} in AED</caption>
-            <thead className="sr-only border-b border-gray-200 bg-gray-50 text-gray-700 md:not-sr-only md:table-header-group">
+            <thead className="sr-only border-b border-line bg-ink-50 text-xs uppercase tracking-wide text-ink-600 md:not-sr-only md:table-header-group">
               <tr className="md:table-row">
                 <th scope="col" className="px-4 py-3 font-semibold">Worker</th>
                 {activeTypes.map((type) => (
@@ -320,22 +319,22 @@ export function DeductionsPage() {
                 ))}
               </tr>
             </thead>
-            <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-gray-200">
+            <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-line">
               {data.workers.map((worker) => (
                 <tr
                   key={worker.workerId}
-                  className="block rounded-lg border border-gray-200 bg-white p-3 shadow-sm md:table-row md:rounded-none md:border-0 md:p-0 md:shadow-none"
+                  className="block rounded-card border border-line bg-white p-3 shadow-card md:table-row md:rounded-none md:border-0 md:p-0 md:shadow-none"
                 >
                   <th scope="row" className="block px-0 pb-2 text-left font-medium md:table-cell md:px-4 md:py-3 md:align-top">
                     {worker.fullName}
-                    <span className="block text-xs font-normal text-gray-600">{worker.workerCode}</span>
-                    {!worker.isActive && <span className="block text-xs text-gray-600">Inactive</span>}
+                    <span className="block text-xs font-normal text-ink-600">{worker.workerCode}</span>
+                    {!worker.isActive && <span className="block text-xs text-ink-600">Inactive</span>}
                   </th>
                   {activeTypes.map((type) => {
                     const entry = draft[worker.workerId]?.[type.id] ?? { amount: "", note: "" };
                     return (
                       <td key={type.id} className="block pb-2 md:table-cell md:px-4 md:py-3 md:pb-0 md:align-top">
-                        <p className="mb-1 text-xs font-semibold uppercase text-gray-600 md:hidden">
+                        <p className="mb-1 text-xs font-semibold uppercase text-ink-600 md:hidden">
                           {type.name} (AED) and reason
                         </p>
                         <div className="grid gap-2 sm:grid-cols-[8rem_1fr]">
@@ -351,7 +350,7 @@ export function DeductionsPage() {
                             value={entry.amount}
                             disabled={locked || saving}
                             onChange={(e) => change(worker.workerId, type.id, { amount: e.target.value })}
-                            className="min-h-11 rounded-lg border border-gray-300 bg-white px-3 text-base tabular-nums disabled:bg-gray-100"
+                            className={inputClass}
                           />
                           <label className="sr-only" htmlFor={`note-${worker.workerId}-${type.id}`}>
                             Reason for {type.name} for {worker.fullName}
@@ -364,7 +363,7 @@ export function DeductionsPage() {
                             placeholder="Reason"
                             disabled={locked || saving}
                             onChange={(e) => change(worker.workerId, type.id, { note: e.target.value })}
-                            className="min-h-11 rounded-lg border border-gray-300 bg-white px-3 text-base disabled:bg-gray-100"
+                            className={inputClass}
                           />
                         </div>
                       </td>
@@ -376,7 +375,7 @@ export function DeductionsPage() {
           </table>
         </div>
       ) : (
-        <p className="rounded-lg border border-gray-200 bg-white px-4 py-10 text-center text-gray-600">
+        <p className="rounded-card border border-line bg-white px-4 py-10 text-center text-ink-600">
           No active workers for this month.
         </p>
       )}

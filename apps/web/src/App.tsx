@@ -1,26 +1,58 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useOutletContext } from "react-router-dom";
 import { Layout } from "./components/Layout";
-import { AttendancePage } from "./features/attendance/AttendancePage";
-import { PayrollPage } from "./features/payroll/PayrollPage";
 import { LoginPage } from "./features/auth/LoginPage";
 import { ProtectedRoute } from "./features/auth/ProtectedRoute";
 import { RequireRole } from "./features/auth/RequireRole";
-import { SettingsPage } from "./features/settings/SettingsPage";
-import { WorkersPage } from "./features/workers/WorkersPage";
-import { LeavePage } from "./features/leave/LeavePage";
-import { DeductionsPage } from "./features/deductions/DeductionsPage";
-import { UserPage } from "./features/users/UserPage";
 import { canViewAll, MANAGEMENT_ROLES, VIEW_ALL_ROLES } from "./permissions";
 import { useAuth } from "./contexts/AuthContext";
 import { NotFound } from "./pages/NotFound";
 
-/** The dashboard pulls in the chart library, so it loads only when a manager or administrator opens it. */
+/**
+ * Each screen loads on first visit, so signing in downloads only the shell and the screen being opened. The dashboard
+ * is the heaviest because it pulls in the chart library.
+ */
 const DashboardPage = lazy(() =>
-  import("./features/dashboard/DashboardPage").then((m) => ({
-    default: m.DashboardPage,
-  })),
+  import("./features/dashboard/DashboardPage").then((m) => ({ default: m.DashboardPage })),
 );
+const WorkersPage = lazy(() =>
+  import("./features/workers/WorkersPage").then((m) => ({ default: m.WorkersPage })),
+);
+const AttendancePage = lazy(() =>
+  import("./features/attendance/AttendancePage").then((m) => ({ default: m.AttendancePage })),
+);
+const PayrollPage = lazy(() =>
+  import("./features/payroll/PayrollPage").then((m) => ({ default: m.PayrollPage })),
+);
+const DeductionsPage = lazy(() =>
+  import("./features/deductions/DeductionsPage").then((m) => ({ default: m.DeductionsPage })),
+);
+const LeavePage = lazy(() =>
+  import("./features/leave/LeavePage").then((m) => ({ default: m.LeavePage })),
+);
+const UserPage = lazy(() =>
+  import("./features/users/UserPage").then((m) => ({ default: m.UserPage })),
+);
+const SettingsPage = lazy(() =>
+  import("./features/settings/SettingsPage").then((m) => ({ default: m.SettingsPage })),
+);
+
+/** One loading state for every lazily loaded screen, shown inside the layout so the navigation stays in place. */
+function Screens() {
+  // Layout hands its screens a context (the settings screen updates the header through it); pass it on.
+  const context = useOutletContext();
+  return (
+    <Suspense
+      fallback={
+        <p role="status" className="py-8 text-gray-600">
+          Loading...
+        </p>
+      }
+    >
+      <Outlet context={context} />
+    </Suspense>
+  );
+}
 
 /** Managers and administrators land on the dashboard; supervisors, who have none, land on the worker directory. */
 function Home() {
@@ -41,60 +73,54 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
           <Route index element={<Home />} />
-          <Route
-            path="dashboard"
-            element={
-              <RequireRole roles={VIEW_ALL_ROLES}>
-                <Suspense
-                  fallback={
-                    <p role="status" className="py-8 text-gray-600">
-                      Loading dashboard...
-                    </p>
-                  }
-                >
+          <Route element={<Screens />}>
+            <Route
+              path="dashboard"
+              element={
+                <RequireRole roles={VIEW_ALL_ROLES}>
                   <DashboardPage />
-                </Suspense>
-              </RequireRole>
-            }
-          />
-          <Route path="workers" element={<WorkersPage />} />
-          <Route
-            path="attendance"
-            element={<AttendancePage guardNavigation />}
-          />
-          <Route
-            path="payroll"
-            element={
-              <RequireRole roles={VIEW_ALL_ROLES}>
-                <PayrollPage />
-              </RequireRole>
-            }
-          />
-          <Route
-            path="deductions"
-            element={
-              <RequireRole roles={VIEW_ALL_ROLES}>
-                <DeductionsPage />
-              </RequireRole>
-            }
-          />
-          <Route path="leave" element={<LeavePage />} />
-          <Route
-            path="users"
-            element={
-              <RequireRole roles={MANAGEMENT_ROLES}>
-                <UserPage />
-              </RequireRole>
-            }
-          />
-          <Route
-            path="settings"
-            element={
-              <RequireRole roles={MANAGEMENT_ROLES}>
-                <SettingsPage />
-              </RequireRole>
-            }
-          />
+                </RequireRole>
+              }
+            />
+            <Route path="workers" element={<WorkersPage />} />
+            <Route
+              path="attendance"
+              element={<AttendancePage guardNavigation />}
+            />
+            <Route
+              path="payroll"
+              element={
+                <RequireRole roles={VIEW_ALL_ROLES}>
+                  <PayrollPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="deductions"
+              element={
+                <RequireRole roles={VIEW_ALL_ROLES}>
+                  <DeductionsPage />
+                </RequireRole>
+              }
+            />
+            <Route path="leave" element={<LeavePage />} />
+            <Route
+              path="users"
+              element={
+                <RequireRole roles={MANAGEMENT_ROLES}>
+                  <UserPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="settings"
+              element={
+                <RequireRole roles={MANAGEMENT_ROLES}>
+                  <SettingsPage />
+                </RequireRole>
+              }
+            />
+          </Route>
           <Route path="*" element={<NotFound />} />
         </Route>
       </Route>

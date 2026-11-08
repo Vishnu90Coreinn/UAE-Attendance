@@ -1,6 +1,10 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterEach } from "vitest";
+
+// Screens are lazy-loaded, and the first import of each is compiled on demand, which can take over the 1s default
+// when the whole suite runs in parallel.
+configure({ asyncUtilTimeout: 5000 });
 
 // jsdom does not implement the modal parts of <dialog>. This minimal stand-in toggles the `open`
 // attribute (which jsdom's default stylesheet uses for visibility) and fires `close`, which is

@@ -1,4 +1,5 @@
 import type { PayrollReport as Report } from "../../api/payroll";
+import { formatPeriod } from "../../utils/period";
 
 const money = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
@@ -45,7 +46,7 @@ export function PayrollReport({
           Monthly Payroll Report
         </h3>
         <div className="flex flex-wrap items-center justify-center gap-3 text-sm">
-          <p>Month: {report.period}</p>
+          <p>Month: {formatPeriod(report.period)}</p>
           <span
             className={`rounded-full px-3 py-1 font-semibold ${report.status === "Finalised" ? "bg-green-100 text-green-900" : "bg-amber-100 text-amber-900"}`}
           >
@@ -84,7 +85,7 @@ export function PayrollReport({
               {[
                 "Worker Name",
                 "Designation",
-                "Days Worked",
+                "Days Present",
                 "Basic Pay",
                 "OT Pay",
                 "Deductions",
@@ -118,7 +119,7 @@ export function PayrollReport({
                   <td data-label="Designation" className={`${cellClass} md:text-left`}>
                     {line.designation}
                   </td>
-                  <td data-label="Days worked" className={cellClass}>{line.daysWorked}</td>
+                  <td data-label="Days present"className={cellClass}>{line.daysWorked}</td>
                   <td data-label="Basic pay" className={cellClass}>{money.format(line.basicPay)}</td>
                   <td data-label="OT pay" className={cellClass}>
                     {money.format(line.overtimePay)}

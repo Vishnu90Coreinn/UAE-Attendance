@@ -12,6 +12,8 @@ namespace HrPayroll.Api.Services;
 public sealed record AttendanceResult(int StatusCode, AttendanceDayResponse? Day = null,
     Dictionary<string, string[]>? Errors = null);
 
+public sealed record AttendanceResult<T>(int StatusCode, T? Value = default, Dictionary<string, string[]>? Errors = null);
+
 public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeProvider time,
     IPayrollPeriodLock periodLock, IHttpContextAccessor httpContext)
 {
@@ -253,6 +255,35 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
         var rejected = Days(ApprovalStatuses.Rejected);
         return new(submitted.Sum(d => d.Count), submitted, rejected.Sum(d => d.Count), rejected);
     }
+
+    public const int MaxTrendDays = 31;
+
+    /// <summary>
+    /// Head-counts for the <paramref name="days"/> days ending on <paramref name="to"/>, oldest first, in one query. Each day lists the
+    /// same workers as that day's attendance sheet: every active worker plus any inactive worker who has a record that day.
+    /// </summary>
+    public async Task<AttendanceResult<List<AttendanceTrendDay>>> TrendAsync(string? to, int days, CancellationToken ct)
+    {
+        if (!TryDate(to, out var end)) return new(400, Errors: FieldError("to", "Choose a valid date in YYYY-MM-DD format that is not in the future."));
+        if (days is < 1 or > MaxTrendDays) return new(400, Errors: FieldError("days", $"Choose between 1 and {MaxTrendDays} days."));
+        var start = end.AddDays(1 - days);
+        var records = await db.Attendance.AsNoTracking().Where(a => a.WorkDate >= start && a.WorkDate <= end)
+            .Select(a => new { a.WorkDate, a.WorkerId, a.Status }).ToListAsync(ct);
+        var workers = await db.Workers.AsNoTracking().Select(w => new { w.Id, w.IsActive }).ToListAsync(ct);
+        var active = workers.Where(w => w.IsActive).Select(w => w.Id).ToHashSet();
+        var byDay = records.ToLookup(r => r.WorkDate);
+        var result = Enumerable.Range(0, days).Select(offset =>
+        {
+            var day = start.AddDays(offset);
+            var rows = byDay[day].ToList();
+            var inactiveWithRecord = rows.Count(r => !active.Contains(r.WorkerId));
+            return new AttendanceTrendDay(day, rows.Count(r => r.Status == "Present"), rows.Count(r => r.Status == "Absent"),
+                rows.Count(r => LeaveEntitlements.IsLeave(r.Status)), active.Count + inactiveWithRecord - rows.Count, active.Count + inactiveWithRecord);
+        }).ToList();
+        return new(200, result);
+    }
+
+    private static Dictionary<string, string[]> FieldError(string field, string message) => new() { [field] = [message] };
 
     private bool TryDate(string? text, out DateOnly date) =>
         DateOnly.TryParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out date)
