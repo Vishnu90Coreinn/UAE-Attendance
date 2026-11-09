@@ -80,6 +80,11 @@ builder.Services.AddScoped<PayslipService>();
 builder.Services.AddScoped<DeductionService>();
 builder.Services.AddScoped<IPayrollPeriodLock, PayrollPeriodLock>();
 
+// Phase 2 modules (QTN-HR-2026-003).
+builder.Services.AddInvoicing();
+builder.Services.AddLetters();
+builder.Services.AddSiteProgress();
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
     .Configure<IOptions<JwtOptions>>((bearer, jwtOptions) =>

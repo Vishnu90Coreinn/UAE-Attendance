@@ -20,6 +20,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<WorkerDeduction> WorkerDeductions => Set<WorkerDeduction>();
     public DbSet<PayrollDeductionLine> PayrollDeductionLines => Set<PayrollDeductionLine>();
 
+    public DbSet<DocumentSettings> DocumentSettings => Set<DocumentSettings>();
+    public DbSet<InvoiceClient> InvoiceClients => Set<InvoiceClient>();
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
+    public DbSet<InvoicePayment> InvoicePayments => Set<InvoicePayment>();
+    public DbSet<IssuedLetter> IssuedLetters => Set<IssuedLetter>();
+    public DbSet<SiteProject> SiteProjects => Set<SiteProject>();
+    public DbSet<SiteProgressReport> SiteProgressReports => Set<SiteProgressReport>();
+    public DbSet<SiteProgressFloor> SiteProgressFloors => Set<SiteProgressFloor>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 }

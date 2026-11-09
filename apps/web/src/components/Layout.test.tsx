@@ -20,6 +20,9 @@ const MODULES = [
   "Payroll Summary",
   "Deductions",
   "Leave Management",
+  "Tax Invoices",
+  "HR Letters",
+  "Site Progress",
 ];
 
 /** Renders the Layout under the real AuthProvider with a restored session for the given role. */
@@ -113,6 +116,9 @@ describe("Layout", () => {
       "Payroll Summary",
       "Deductions",
       "Leave Management",
+      "Tax Invoices",
+      "HR Letters",
+      "Site Progress",
       "User Manager",
       "Settings",
     ]);
@@ -173,6 +179,7 @@ describe("Layout", () => {
       "Worker Directory",
       "Daily Attendance",
       "Leave Management",
+      "Site Progress",
     ]);
     for (const name of ["Payroll Summary", "User Manager", "Settings"]) {
       expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();

@@ -30,6 +30,15 @@ const DeductionsPage = lazy(() =>
 const LeavePage = lazy(() =>
   import("./features/leave/LeavePage").then((m) => ({ default: m.LeavePage })),
 );
+const InvoicesPage = lazy(() =>
+  import("./features/invoices/InvoicesPage").then((m) => ({ default: m.InvoicesPage })),
+);
+const LettersPage = lazy(() =>
+  import("./features/letters/LettersPage").then((m) => ({ default: m.LettersPage })),
+);
+const SiteProgressPage = lazy(() =>
+  import("./features/progress/SiteProgressPage").then((m) => ({ default: m.SiteProgressPage })),
+);
 const UserPage = lazy(() =>
   import("./features/users/UserPage").then((m) => ({ default: m.UserPage })),
 );
@@ -104,6 +113,23 @@ export default function App() {
               }
             />
             <Route path="leave" element={<LeavePage />} />
+            <Route
+              path="invoices"
+              element={
+                <RequireRole roles={VIEW_ALL_ROLES}>
+                  <InvoicesPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="letters"
+              element={
+                <RequireRole roles={VIEW_ALL_ROLES}>
+                  <LettersPage />
+                </RequireRole>
+              }
+            />
+            <Route path="progress" element={<SiteProgressPage />} />
             <Route
               path="users"
               element={

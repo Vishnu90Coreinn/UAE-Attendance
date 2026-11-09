@@ -84,6 +84,7 @@ describe("Layout on a phone", () => {
       "/attendance",
       "/workers",
       "/leave",
+      "/progress",
     ]);
     expect(within(nav).queryByRole("button", { name: "More" })).not.toBeInTheDocument();
   });
@@ -121,6 +122,9 @@ describe("Layout on a phone", () => {
     expect(within(sheet).getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
       ["Leave Management", "/leave"],
       ["Deductions", "/deductions"],
+      ["Site Progress", "/progress"],
+      ["Tax Invoices", "/invoices"],
+      ["HR Letters", "/letters"],
       ["User Manager", "/users"],
       ["Settings", "/settings"],
     ]);

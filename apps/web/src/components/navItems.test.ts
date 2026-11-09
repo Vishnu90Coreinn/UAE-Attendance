@@ -7,6 +7,9 @@ const MODULES = [
   "Payroll Summary",
   "Deductions",
   "Leave Management",
+  "Tax Invoices",
+  "HR Letters",
+  "Site Progress",
 ];
 
 function labelsFor(role: Parameters<typeof navItemsForRole>[0]) {
@@ -33,11 +36,12 @@ describe("navItemsForRole", () => {
     expect(labelsFor("HR")).toEqual(expect.arrayContaining(["Dashboard", "Payroll Summary", "Deductions"]));
   });
 
-  it("gives a Supervisor only Worker Directory, Daily Attendance and Leave Management", () => {
+  it("gives a Supervisor only Worker Directory, Daily Attendance, Leave Management and Site Progress", () => {
     expect(labelsFor("Supervisor")).toEqual([
       "Worker Directory",
       "Daily Attendance",
       "Leave Management",
+      "Site Progress",
     ]);
   });
 
@@ -53,6 +57,9 @@ describe("navItemsForRole", () => {
       "Payroll Summary": "/payroll",
       "Deductions": "/deductions",
       "Leave Management": "/leave",
+      "Tax Invoices": "/invoices",
+      "HR Letters": "/letters",
+      "Site Progress": "/progress",
       "User Manager": "/users",
       Settings: "/settings",
     });
@@ -66,7 +73,15 @@ describe("phoneNavFor", () => {
     const { tabs, more } = phoneNavFor("Manager");
 
     expect(labels(tabs)).toEqual(["Dashboard", "Daily Attendance", "Worker Directory", "Payroll Summary"]);
-    expect(labels(more)).toEqual(["Leave Management", "Deductions", "User Manager", "Settings"]);
+    expect(labels(more)).toEqual([
+      "Leave Management",
+      "Deductions",
+      "Site Progress",
+      "Tax Invoices",
+      "HR Letters",
+      "User Manager",
+      "Settings",
+    ]);
   });
 
   it("gives an Administrator the same split as a Manager", () => {
@@ -76,7 +91,7 @@ describe("phoneNavFor", () => {
   it("shows a Supervisor their three screens with no More", () => {
     const { tabs, more } = phoneNavFor("Supervisor");
 
-    expect(labels(tabs)).toEqual(["Daily Attendance", "Worker Directory", "Leave Management"]);
+    expect(labels(tabs)).toEqual(["Daily Attendance", "Worker Directory", "Leave Management", "Site Progress"]);
     expect(more).toEqual([]);
   });
 

@@ -32,6 +32,15 @@ public class Worker
     public string? WorkLocation { get; set; }
     public string? Notes { get; set; }
 
+    // Phase 2 (HR certificates): nationality, the fixed allowances printed on salary letters, and bank details.
+    public string? Nationality { get; set; }
+    public decimal HousingAllowance { get; set; }
+    public decimal TransportAllowance { get; set; }
+    public decimal OtherAllowance { get; set; }
+    public string? BankName { get; set; }
+    public string? BankAccountNumber { get; set; }
+    public string? Iban { get; set; }
+
     // Onboarding checklist.
     public bool ContractSigned { get; set; }
     public bool VisaMedicalCleared { get; set; }
