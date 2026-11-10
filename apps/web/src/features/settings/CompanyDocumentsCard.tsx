@@ -13,13 +13,13 @@ const MAX_IMAGE_BYTES = 1024 * 1024;
 type TextKey = keyof DocumentSettingsInput;
 
 const FIELDS: { key: TextKey; label: string; max: number; group: "company" | "bank" | "defaults" }[] = [
-  { key: "companyName", label: "Company name", max: 120, group: "company" },
+  { key: "companyName", label: "Letterhead company name", max: 120, group: "company" },
   { key: "companySubtitle", label: "Subtitle", max: 120, group: "company" },
   { key: "companyNameAr", label: "Company name (Arabic)", max: 160, group: "company" },
   { key: "mobile", label: "Mobile", max: 30, group: "company" },
   { key: "address1", label: "Address line 1", max: 120, group: "company" },
   { key: "address2", label: "Address line 2", max: 120, group: "company" },
-  { key: "email", label: "Email", max: 120, group: "company" },
+  { key: "email", label: "Letterhead email", max: 120, group: "company" },
   { key: "trn", label: "Company TRN", max: 30, group: "company" },
   { key: "bankName", label: "Bank name", max: 80, group: "bank" },
   { key: "accountName", label: "Account name", max: 120, group: "bank" },
@@ -196,13 +196,12 @@ function ImageRow({ label, hint, present, onPick, onRemove }: { label: string; h
       </div>
       <div className="flex gap-2">
         <input ref={input} type="file" accept="image/png,image/jpeg" className="sr-only" aria-label={`Choose ${label.toLowerCase()} file`} onChange={onPick} tabIndex={-1} />
-        <Button variant="secondary" size="sm" icon={ImagePlus} onClick={() => input.current?.click()}>
+        <Button variant="secondary" size="sm" icon={ImagePlus} aria-label={`${present ? "Replace" : "Upload"} ${label.toLowerCase()}`} onClick={() => input.current?.click()}>
           {present ? "Replace" : "Upload"}
-          <span className="sr-only"> {label.toLowerCase()}</span>
         </Button>
         {present && (
-          <Button variant="ghost" size="sm" icon={Trash2} onClick={onRemove}>
-            Remove<span className="sr-only"> {label.toLowerCase()}</span>
+          <Button variant="ghost" size="sm" icon={Trash2} aria-label={`Remove ${label.toLowerCase()}`} onClick={onRemove}>
+            Remove
           </Button>
         )}
       </div>
