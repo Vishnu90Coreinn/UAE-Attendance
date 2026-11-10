@@ -14,10 +14,8 @@ vi.mock("../../api/siteProgress", async (importOriginal) => {
     listProjects: vi.fn(),
     createProject: vi.fn(),
     updateProject: vi.fn(),
-    listReportDates: vi.fn(),
     getReport: vi.fn(),
     saveReport: vi.fn(),
-    deleteReport: vi.fn(),
     downloadReportPdf: vi.fn(),
     downloadReportCsv: vi.fn(),
   };
@@ -40,7 +38,7 @@ function report(floors: SiteFloor[], exists = true): SiteReport {
     projectName: "Twilight",
     date: "2026-10-01",
     exists,
-    copiedFromDate: exists ? null : "2026-09-30",
+    copiedFromDate: null,
     updatedBy: exists ? "sup.omar" : null,
     updatedUtc: null,
     floors,
@@ -63,9 +61,8 @@ beforeEach(() => {
   mockViewport("desktop");
   signIn("Supervisor");
   vi.mocked(api.listProjects).mockResolvedValue([{ id: 1, name: "Twilight", isActive: true }]);
-  vi.mocked(api.listReportDates).mockResolvedValue(["2026-10-01"]);
   vi.mocked(api.getReport).mockResolvedValue(report(PROTOTYPE));
-  vi.mocked(api.saveReport).mockImplementation(async (_p, _d, floors) => report(floors));
+  vi.mocked(api.saveReport).mockImplementation(async (_p, floors) => report(floors));
 });
 afterEach(restoreViewport);
 
@@ -147,9 +144,8 @@ describe("Site Progress page", () => {
     await user.click(screen.getByRole("button", { name: "Save report" }));
 
     await waitFor(() => expect(api.saveReport).toHaveBeenCalledTimes(1));
-    const [project, date, floors] = vi.mocked(api.saveReport).mock.calls[0];
+    const [project, floors] = vi.mocked(api.saveReport).mock.calls[0];
     expect(project).toBe(1);
-    expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(floors).toHaveLength(7);
     expect(floors[6]).toMatchObject({ floor: "6th Floor (L06)", frames: 5, glass: 0, shutters: 0, alignment: "NotComplete", completion: "InProgress", wirStatus: "Pending" });
     expect(await screen.findByText("Report saved.")).toBeInTheDocument();
@@ -219,13 +215,20 @@ describe("Site Progress page", () => {
     expect(screen.getByText("5th Floor (L05)")).toBeInTheDocument();
   });
 
-  it("shows the earlier report's floors as a starting point for a new date", async () => {
-    vi.mocked(api.getReport).mockResolvedValue(report(PROTOTYPE, false));
+  it("says nothing is saved yet when the project has no report", async () => {
+    vi.mocked(api.getReport).mockResolvedValue(report([], false));
     await open();
 
-    expect(screen.getByText(/Nothing is saved for/)).toHaveTextContent("2026-09-30");
-    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    expect(screen.getByText("Nothing saved for this project yet.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Print" })).not.toBeInTheDocument();
+  });
+
+  it("shows who last updated the report and has no date controls", async () => {
+    await open();
+
+    expect(screen.getByText(/Last updated by sup.omar on/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Report date")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Saved reports")).not.toBeInTheDocument();
   });
 
   it("shows a server error without losing the draft", async () => {
@@ -240,12 +243,16 @@ describe("Site Progress page", () => {
     expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
   });
 
-  it("asks before leaving unsaved changes when the date changes", async () => {
+  it("asks before leaving unsaved changes when the project changes", async () => {
+    vi.mocked(api.listProjects).mockResolvedValue([
+      { id: 1, name: "Twilight", isActive: true },
+      { id: 2, name: "Harbour", isActive: true },
+    ]);
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     const user = await open();
     await user.click(screen.getByRole("button", { name: "Delete 5th Floor (L05)" }));
 
-    await user.selectOptions(screen.getByLabelText("Saved reports"), "2026-10-01");
+    await user.selectOptions(screen.getByLabelText("Project"), "2");
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining("unsaved changes"));
     expect(api.getReport).toHaveBeenCalledTimes(1);
@@ -263,31 +270,24 @@ describe("Site Progress page", () => {
     await user.click(screen.getByRole("button", { name: "PDF" }));
     await user.click(screen.getByRole("button", { name: "CSV" }));
 
-    await waitFor(() => expect(api.downloadReportCsv).toHaveBeenCalledWith(1, expect.any(String)));
-    expect(api.downloadReportPdf).toHaveBeenCalledWith(1, expect.any(String));
+    await waitFor(() => expect(api.downloadReportCsv).toHaveBeenCalledWith(1));
+    expect(api.downloadReportPdf).toHaveBeenCalledWith(1);
   });
 });
 
 describe("roles", () => {
-  it("lets a Supervisor edit but not create projects or delete reports", async () => {
+  it("lets a Supervisor edit but not create projects", async () => {
     await open();
 
     expect(screen.getByRole("button", { name: "Add floor" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New project" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Delete report" })).not.toBeInTheDocument();
   });
 
-  it("lets a Manager create projects and delete a saved report", async () => {
+  it("lets a Manager create projects", async () => {
     signIn("Manager");
-    const user = await open();
+    await open();
 
     expect(screen.getByRole("button", { name: "New project" })).toBeInTheDocument();
-    vi.mocked(api.deleteReport).mockResolvedValue();
-    await user.click(screen.getByRole("button", { name: "Delete report" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: "Delete report" }));
-
-    await waitFor(() => expect(api.deleteReport).toHaveBeenCalledWith(1, expect.any(String)));
   });
 
   it("gives HR a read-only view with print and export", async () => {

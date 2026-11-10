@@ -41,6 +41,12 @@ public sealed class SiteProgressController(SiteProgressService progress, SitePro
     public async Task<IActionResult> Get(int projectId, [FromQuery] string? date, CancellationToken ct) =>
         Map(this, await progress.GetAsync(projectId, date, ct));
 
+    /// <summary>Updates the live report (today's snapshot). Earlier days stay as they were saved.</summary>
+    [HttpPut("{projectId:int}")]
+    [Authorize(Policy = Policies.SupervisorOrAbove)]
+    public async Task<IActionResult> SaveLive(int projectId, [FromBody] SiteProgressSaveRequest? request, CancellationToken ct) =>
+        Map(this, await progress.SaveAsync(projectId, null, request ?? new(null), ct));
+
     [HttpPut("{projectId:int}/{date}")]
     [Authorize(Policy = Policies.SupervisorOrAbove)]
     public async Task<IActionResult> Save(int projectId, string date, [FromBody] SiteProgressSaveRequest? request, CancellationToken ct) =>

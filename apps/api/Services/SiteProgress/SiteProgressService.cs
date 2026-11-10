@@ -74,16 +74,29 @@ public sealed class SiteProgressService(AppDbContext db, IAuditLogger audit, Tim
         return new(200, dates.Select(Label).ToArray());
     }
 
+    /// <summary>
+    /// The report for a date, or, when no date is given, the live report: the most recent one saved (empty when the
+    /// project has none yet). Each day's last save is kept as that day's snapshot, so earlier dates stay readable.
+    /// </summary>
     public async Task<SiteProgressResult> GetAsync(int projectId, string? dateText, CancellationToken ct)
     {
-        if (!TryDate(dateText, out var date, out var dateErrors)) return new(400, Errors: dateErrors);
         var project = await db.SiteProjects.AsNoTracking().SingleOrDefaultAsync(p => p.Id == projectId, ct);
+        if (string.IsNullOrWhiteSpace(dateText))
+        {
+            if (project is null) return new(404);
+            var latest = await db.SiteProgressReports.AsNoTracking().Where(r => r.ProjectId == projectId)
+                .OrderByDescending(r => r.ReportDate).Select(r => (DateOnly?)r.ReportDate).FirstOrDefaultAsync(ct);
+            return new(200, await BuildAsync(project, latest ?? Today(), ct));
+        }
+        if (!TryDate(dateText, out var date, out var dateErrors)) return new(400, Errors: dateErrors);
         if (project is null) return new(404);
         return new(200, await BuildAsync(project, date, ct));
     }
 
+    /// <summary>Saves the floors for a date; with no date, for today (Dubai), which is how the live report is updated.</summary>
     public async Task<SiteProgressResult> SaveAsync(int projectId, string? dateText, SiteProgressSaveRequest request, CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(dateText)) dateText = Label(Today());
         if (!TryDate(dateText, out var date, out var errors)) return new(400, Errors: errors);
         var floors = request.Floors ?? [];
         errors = ValidateFloors(floors);
@@ -254,6 +267,8 @@ public sealed class SiteProgressService(AppDbContext db, IAuditLogger audit, Tim
         return errors;
     }
 
+    private DateOnly Today() => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time.GetUtcNow(), CompanyTimeZone).DateTime);
+
     /// <summary>Parses yyyy-MM-dd and refuses future dates (Dubai time).</summary>
     private bool TryDate(string? text, out DateOnly date, out Dictionary<string, string[]> errors)
     {
@@ -263,8 +278,7 @@ public sealed class SiteProgressService(AppDbContext db, IAuditLogger audit, Tim
             errors["date"] = ["Choose a date in YYYY-MM-DD format."];
             return false;
         }
-        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time.GetUtcNow(), CompanyTimeZone).DateTime);
-        if (date > today)
+        if (date > Today())
         {
             errors["date"] = ["The report date cannot be in the future."];
             return false;

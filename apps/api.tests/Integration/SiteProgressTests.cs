@@ -64,6 +64,60 @@ public class SiteProgressTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(33, kpis.GetProperty("handoverReadyPercent").GetInt32());
     }
 
+    // --- the live report (no date) ------------------------------------------------------------------------------
+
+    private Task<HttpResponseMessage> SaveLiveAsync(int project, object[] floors, string token) =>
+        api.SendAsync(HttpMethod.Put, $"/api/site-progress/{project}", new { floors }, token);
+
+    [Fact]
+    public async Task Live_IsEmptyUntilSaved_ThenReturnsTheLatestSnapshot_AndKeepsEarlierDays()
+    {
+        var (project, _, supervisor) = await ProjectAsync();
+
+        var empty = await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/site-progress/{project}", supervisor));
+        Assert.False(empty.GetProperty("exists").GetBoolean());
+        Assert.Equal(0, empty.GetProperty("floors").GetArrayLength());
+
+        // An earlier day's snapshot, then today's live save.
+        Assert.Equal(HttpStatusCode.OK, (await SaveAsync(project, "2026-10-01", [Floor("L1", 1, 1, "InProgress", "Pending")], supervisor)).StatusCode);
+        var live = await SaveLiveAsync(project, [Floor("L1", 5, 5, "Completed", "Approved"), Floor("L2", 2, 2, "InProgress", "Pending")], supervisor);
+        Assert.Equal(HttpStatusCode.OK, live.StatusCode);
+
+        var current = await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/site-progress/{project}", supervisor));
+        Assert.True(current.GetProperty("exists").GetBoolean());
+        Assert.Equal(2, current.GetProperty("floors").GetArrayLength());
+        Assert.Equal(5, current.GetProperty("floors")[0].GetProperty("frames").GetInt32());
+
+        // Saving again the same day replaces that day's snapshot rather than adding one.
+        await SaveLiveAsync(project, [Floor("L1", 9, 9, "Completed", "Approved")], supervisor);
+        var dates = await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/site-progress/{project}/dates", supervisor));
+        Assert.Equal(2, dates.GetArrayLength());
+
+        // The earlier day is untouched.
+        var old = await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/site-progress/{project}?date=2026-10-01", supervisor));
+        Assert.Equal(1, old.GetProperty("floors")[0].GetProperty("frames").GetInt32());
+    }
+
+    [Fact]
+    public async Task Live_CsvAndPdfUseTheLatestReport()
+    {
+        var (project, _, supervisor) = await ProjectAsync();
+        await SaveLiveAsync(project, [Floor("L1", 3, 2, "InProgress", "Pending")], supervisor);
+
+        var csv = await api.GetAsync($"/api/site-progress/{project}/csv", supervisor);
+        Assert.Equal(HttpStatusCode.OK, csv.StatusCode);
+        var pdf = await api.GetAsync($"/api/site-progress/{project}/pdf", supervisor);
+        Assert.Equal(HttpStatusCode.OK, pdf.StatusCode);
+    }
+
+    [Fact]
+    public async Task Live_SaveIsRefusedForHr()
+    {
+        var (project, _, _) = await ProjectAsync();
+        var (_, hr) = await TestWorkers.SignInAsync(api, Roles.HR);
+        Assert.Equal(HttpStatusCode.Forbidden, (await SaveLiveAsync(project, [Floor("L1", 1, 1, "InProgress", "Pending")], hr)).StatusCode);
+    }
+
     [Fact]
     public async Task Save_StoresShuttersAndAlignment_AndCountsThemInTheKpis()
     {

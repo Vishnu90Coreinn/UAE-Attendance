@@ -1,23 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileDown, FileSpreadsheet, HardHat, Pencil, Plus, Printer, Save, Trash2, Undo2 } from "lucide-react";
+import { FileDown, FileSpreadsheet, HardHat, Pencil, Plus, Printer, Save, Undo2 } from "lucide-react";
 import { ApiError } from "../../api/client";
 import {
   computeKpis,
-  deleteReport,
   downloadReportCsv,
   downloadReportPdf,
   getReport,
   listProjects,
-  listReportDates,
   saveReport,
   type SiteFloor,
   type SiteProject,
   type SiteReport,
 } from "../../api/siteProgress";
-import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
-import { Button, Card, EmptyState, Input, PageHeader, Select, StatCard, inputClass } from "../../ui";
+import { Button, Card, EmptyState, PageHeader, Select, StatCard, inputClass } from "../../ui";
 import { useIsDesktop } from "../../utils/useIsDesktop";
 import { saveBlob } from "../payroll/downloadPdf";
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
@@ -29,10 +26,6 @@ type WirFilter = "all" | "approved" | "approvedComments" | "pending" | "rejected
 type CompletionFilter = "all" | "Completed" | "InProgress" | "NotStarted";
 type AlignmentFilter = "all" | "Complete" | "UnderProcess" | "NotComplete";
 
-function today(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-}
-
 function message(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.fieldErrors) return Object.values(error.fieldErrors).flat().join(" ");
@@ -41,8 +34,12 @@ function message(error: unknown): string {
   return "Something went wrong. Please try again.";
 }
 
-function longDate(date: string): string {
-  return new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+/** When the report was last saved, in company time; falls back to the report's date. */
+function lastUpdated(report: SiteReport): string {
+  if (!report.updatedUtc) return report.date;
+  return new Date(report.updatedUtc).toLocaleString("en-GB", {
+    timeZone: "Asia/Dubai", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
 }
 
 const WARN_UNSAVED = "You have unsaved changes to this report. Leave without saving?";
@@ -56,8 +53,6 @@ export function SiteProgressPage() {
 
   const [projects, setProjects] = useState<SiteProject[] | null>(null);
   const [projectId, setProjectId] = useState<number | null>(null);
-  const [date, setDate] = useState(today);
-  const [dates, setDates] = useState<string[]>([]);
   const [report, setReport] = useState<SiteReport | null>(null);
   const [floors, setFloors] = useState<SiteFloor[]>([]);
   const [loading, setLoading] = useState(false);
@@ -71,8 +66,6 @@ export function SiteProgressPage() {
   const [alignmentFilter, setAlignmentFilter] = useState<AlignmentFilter>("all");
   const [editing, setEditing] = useState<{ index: number | null } | null>(null);
   const [projectDialog, setProjectDialog] = useState<{ project?: SiteProject } | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   const project = projects?.find((p) => p.id === projectId) ?? null;
   const dirty = useMemo(() => {
@@ -100,17 +93,16 @@ export function SiteProgressPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [loaded, saved] = await Promise.all([getReport(projectId, date), listReportDates(projectId)]);
+      const loaded = await getReport(projectId);
       setReport(loaded);
       setFloors(loaded.floors);
-      setDates(saved);
     } catch (error) {
       setReport(null);
       setLoadError(message(error));
     } finally {
       setLoading(false);
     }
-  }, [projectId, date]);
+  }, [projectId]);
 
   useEffect(() => {
     void load();
@@ -123,7 +115,7 @@ export function SiteProgressPage() {
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  /** Asks before throwing away unsaved edits when the project or date changes. */
+  /** Asks before throwing away unsaved edits when the project changes. */
   function guarded(change: () => void) {
     if (dirty && !window.confirm(WARN_UNSAVED)) return;
     setSuccess(null);
@@ -154,10 +146,9 @@ export function SiteProgressPage() {
     setFailure(null);
     setSuccess(null);
     try {
-      const saved = await saveReport(projectId, date, floors);
+      const saved = await saveReport(projectId, floors);
       setReport(saved);
       setFloors(saved.floors);
-      setDates(await listReportDates(projectId));
       setSuccess("Report saved.");
     } catch (error) {
       setFailure(message(error));
@@ -166,29 +157,13 @@ export function SiteProgressPage() {
     }
   }
 
-  async function remove() {
-    if (projectId === null) return;
-    setDeleting(true);
-    try {
-      await deleteReport(projectId, date);
-      setConfirmDelete(false);
-      setSuccess("Report deleted.");
-      await load();
-    } catch (error) {
-      setConfirmDelete(false);
-      setFailure(message(error));
-    } finally {
-      setDeleting(false);
-    }
-  }
-
   async function download(kind: "pdf" | "csv") {
     if (projectId === null || !report) return;
     setFailure(null);
     try {
-      const blob = kind === "pdf" ? await downloadReportPdf(projectId, date) : await downloadReportCsv(projectId, date);
+      const blob = kind === "pdf" ? await downloadReportPdf(projectId) : await downloadReportCsv(projectId);
       const stem = report.projectName.replace(/[^A-Za-z0-9-]+/g, "_").replace(/^_+|_+$/g, "");
-      saveBlob(blob, `SiteProgress_${stem}_${date}.${kind}`);
+      saveBlob(blob, `SiteProgress_${stem}_${report.date}.${kind}`);
     } catch (error) {
       setFailure(message(error));
     }
@@ -216,7 +191,7 @@ export function SiteProgressPage() {
       <div className="payroll-controls">
         <PageHeader
           title="Site Progress"
-          description="Aluminium frames, fixed glass and shutters on each floor, with alignment, completion and the inspection (WIR) status."
+          description="The current aluminium frames, fixed glass and shutters on each floor, with alignment, completion and the inspection (WIR) status."
           actions={
             report?.exists ? (
               <>
@@ -250,7 +225,7 @@ export function SiteProgressPage() {
       {projects && projects.length > 0 && (
         <>
           <Card className="payroll-controls mb-4 p-4">
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_14rem_minmax(0,1fr)]">
+            <div className="grid items-end gap-3 md:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
               <div className="flex items-end gap-2">
                 <div className="min-w-0 flex-1">
                   <Select
@@ -275,32 +250,19 @@ export function SiteProgressPage() {
                   </>
                 )}
               </div>
-              <Input
-                label="Report date"
-                type="date"
-                value={date}
-                max={today()}
-                onChange={(e) => e.target.value && guarded(() => setDate(e.target.value))}
-              />
-              <Select
-                label="Saved reports"
-                value={dates.includes(date) ? date : ""}
-                onChange={(e) => e.target.value && guarded(() => setDate(e.target.value))}
-              >
-                <option value="">{dates.length === 0 ? "None saved yet" : "Jump to a saved date"}</option>
-                {dates.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </Select>
+              {report && (
+                <p role="status" className="text-sm text-ink-600 md:text-right">
+                  {report.exists ? `Last updated by ${report.updatedBy} on ${lastUpdated(report)}` : "Nothing saved for this project yet."}
+                </p>
+              )}
             </div>
           </Card>
 
           <div className="hidden print:block">
-            <h1 className="text-xl font-semibold">Daily Site Progress Report</h1>
+            <h1 className="text-xl font-semibold">Site Progress Report</h1>
             <p className="text-sm">
-              {report?.projectName} - {longDate(date)}
+              {report?.projectName}
+              {report?.exists ? ` - last updated ${lastUpdated(report)}` : ""}
             </p>
           </div>
 
@@ -339,12 +301,6 @@ export function SiteProgressPage() {
                   note="Floors completed and WIR approved"
                 />
               </div>
-
-              {report.copiedFromDate && !report.exists && (
-                <p role="status" className="payroll-controls mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
-                  Nothing is saved for {date} yet. The floors from {report.copiedFromDate} are shown as a starting point; adjust them and save.
-                </p>
-              )}
 
               <div className="payroll-controls mb-4 flex flex-wrap items-end gap-3">
                 <div className="min-w-48 flex-1">
@@ -419,11 +375,6 @@ export function SiteProgressPage() {
                     {dirty ? "Unsaved changes" : report.exists ? `Saved by ${report.updatedBy}` : "Not saved yet"}
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {canManage && report.exists && (
-                      <Button variant="secondary" icon={Trash2} onClick={() => setConfirmDelete(true)}>
-                        Delete report
-                      </Button>
-                    )}
                     {dirty && (
                       <Button variant="secondary" icon={Undo2} onClick={() => setFloors(report.floors)} disabled={saving}>
                         Discard changes
@@ -460,15 +411,6 @@ export function SiteProgressPage() {
           setProjectId(saved.id);
           void loadProjects();
         }}
-      />
-      <ConfirmDialog
-        open={confirmDelete}
-        title="Delete this report?"
-        message={`The saved report for ${report?.projectName ?? "this project"} on ${date} will be removed. This cannot be undone.`}
-        confirmLabel="Delete report"
-        pending={deleting}
-        onConfirm={() => void remove()}
-        onCancel={() => setConfirmDelete(false)}
       />
     </div>
   );

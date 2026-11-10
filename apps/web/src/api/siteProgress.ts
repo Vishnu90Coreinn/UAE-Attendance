@@ -1,4 +1,4 @@
-import { apiGet, apiGetBlob, apiGetFile, apiPost, apiPut, apiDelete } from "./client";
+import { apiGet, apiGetBlob, apiGetFile, apiPost, apiPut } from "./client";
 
 export type Completion = "NotStarted" | "InProgress" | "Completed";
 export type Alignment = "NotComplete" | "UnderProcess" | "Complete";
@@ -49,7 +49,7 @@ export interface SiteReport {
   projectId: number;
   projectName: string;
   date: string;
-  /** False when nothing is saved for the date yet; `floors` is then the earlier report offered as a starting point. */
+  /** False when the project has no saved report yet; `floors` is then empty. */
   exists: boolean;
   copiedFromDate: string | null;
   updatedBy: string | null;
@@ -130,21 +130,16 @@ export function createProject(name: string): Promise<SiteProject> {
 export function updateProject(id: number, name: string, isActive: boolean): Promise<SiteProject> {
   return apiPut<SiteProject>(`/api/site-projects/${id}`, { name, isActive });
 }
-export function listReportDates(projectId: number): Promise<string[]> {
-  return apiGet(`/api/site-progress/${projectId}/dates`);
+/** The live report: the project's current floors. The server keeps each day's last save as a snapshot behind it. */
+export function getReport(projectId: number): Promise<SiteReport> {
+  return apiGet(`/api/site-progress/${projectId}`);
 }
-export function getReport(projectId: number, date: string): Promise<SiteReport> {
-  return apiGet(`/api/site-progress/${projectId}?date=${encodeURIComponent(date)}`);
+export function saveReport(projectId: number, floors: SiteFloor[]): Promise<SiteReport> {
+  return apiPut<SiteReport>(`/api/site-progress/${projectId}`, { floors });
 }
-export function saveReport(projectId: number, date: string, floors: SiteFloor[]): Promise<SiteReport> {
-  return apiPut<SiteReport>(`/api/site-progress/${projectId}/${encodeURIComponent(date)}`, { floors });
+export function downloadReportPdf(projectId: number): Promise<Blob> {
+  return apiGetBlob(`/api/site-progress/${projectId}/pdf`);
 }
-export function deleteReport(projectId: number, date: string): Promise<void> {
-  return apiDelete(`/api/site-progress/${projectId}/${encodeURIComponent(date)}`);
-}
-export function downloadReportPdf(projectId: number, date: string): Promise<Blob> {
-  return apiGetBlob(`/api/site-progress/${projectId}/pdf?date=${encodeURIComponent(date)}`);
-}
-export function downloadReportCsv(projectId: number, date: string): Promise<Blob> {
-  return apiGetFile(`/api/site-progress/${projectId}/csv?date=${encodeURIComponent(date)}`, "text/csv");
+export function downloadReportCsv(projectId: number): Promise<Blob> {
+  return apiGetFile(`/api/site-progress/${projectId}/csv`, "text/csv");
 }
