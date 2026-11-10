@@ -3,7 +3,7 @@ import { cx } from "./cx";
 
 /** Scroll container so a wide table scrolls inside its card, never the page. */
 export function TableScroll({ className, ...rest }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cx("w-full overflow-x-auto", className)} {...rest} />;
+  return <div className={cx("relative w-full overflow-x-auto", className)} {...rest} />;
 }
 
 export function Table({ className, ...rest }: HTMLAttributes<HTMLTableElement>) {
