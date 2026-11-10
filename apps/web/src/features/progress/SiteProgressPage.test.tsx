@@ -69,10 +69,13 @@ afterEach(restoreViewport);
 async function open() {
   const user = userEvent.setup();
   render(<SiteProgressPage />);
-  await screen.findByText("Total frames installed");
+  await screen.findByRole("group", { name: "Installed" });
   return user;
 }
-const stat = (label: string) => screen.getByText(label, { selector: "p" }).parentElement!.parentElement!;
+/** The value shown beside a label inside one of the summary groups (Installed, Alignment, WIR). */
+const metric = (group: string, label: string) =>
+  within(screen.getByRole("group", { name: group })).getByText(label, { selector: "dt" }).nextElementSibling;
+const handover = () => Number(screen.getByRole("progressbar", { name: "Site handover ready" }).getAttribute("aria-valuenow"));
 
 describe("KPIs", () => {
   it("computeKpis matches the server vectors", () => {
@@ -86,16 +89,18 @@ describe("KPIs", () => {
   it("shows the summary figures", async () => {
     await open();
 
-    expect(within(stat("Aluminium frames")).getByText("76")).toBeInTheDocument();
-    expect(within(stat("Fixed glass")).getByText("58")).toBeInTheDocument();
-    expect(within(stat("Completed floors")).getByText("2")).toBeInTheDocument();
-    expect(within(stat("Pending installation")).getByText("1")).toBeInTheDocument();
-    expect(within(stat("Shutters finished")).getByText("0")).toBeInTheDocument();
-    expect(within(stat("Alignment progress")).getByText("0 complete")).toBeInTheDocument();
-    expect(within(stat("Alignment progress")).getByText("0 under process, 6 not complete")).toBeInTheDocument();
-    expect(within(stat("WIR approvals")).getByText("3 approved")).toBeInTheDocument();
-    expect(within(stat("WIR approvals")).getByText("2 pending, 1 rejected")).toBeInTheDocument();
-    expect(within(stat("Site handover ready")).getByText("33%")).toBeInTheDocument();
+    expect(metric("Installed", "Frames")).toHaveTextContent("76");
+    expect(metric("Installed", "Fixed glass")).toHaveTextContent("58");
+    expect(metric("Installed", "Shutters")).toHaveTextContent("0");
+    expect(metric("Installed", "Floors done")).toHaveTextContent("2");
+    expect(metric("Installed", "Not started")).toHaveTextContent("1");
+    expect(metric("Alignment", "Complete")).toHaveTextContent("0");
+    expect(metric("Alignment", "Under process")).toHaveTextContent("0");
+    expect(metric("Alignment", "Not complete")).toHaveTextContent("6");
+    expect(metric("WIR", "Approved")).toHaveTextContent("3");
+    expect(metric("WIR", "Pending")).toHaveTextContent("2");
+    expect(metric("WIR", "Rejected")).toHaveTextContent("1");
+    expect(handover()).toBe(33);
   });
 });
 
@@ -106,9 +111,39 @@ describe("Site Progress page", () => {
     const rows = screen.getAllByRole("row");
     expect(rows).toHaveLength(7);
     expect(within(rows[1]).getByText("Ground Floor (L00)")).toBeInTheDocument();
-    expect(within(rows[3]).getByText("Inspection Submitted")).toBeInTheDocument();
-    expect(within(rows[5]).getByText("Rejected")).toBeInTheDocument();
-    expect(within(rows[4]).getByText("Approved with Comments")).toBeInTheDocument();
+    expect(within(rows[3]).getByRole("combobox", { name: "2nd Floor (L02) WIR status" })).toHaveDisplayValue("Inspection Submitted");
+    expect(within(rows[5]).getByRole("combobox", { name: "4th Floor (L04) WIR status" })).toHaveDisplayValue("Rejected");
+    expect(within(rows[4]).getByRole("combobox", { name: "3rd Floor (L03) WIR status" })).toHaveDisplayValue("Approved with Comments");
+  });
+
+  it("edits counts and statuses in the row, updates the figures at once and offers Save", async () => {
+    const user = await open();
+    expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
+
+    const frames = screen.getByRole("textbox", { name: "5th Floor (L05) frames" });
+    await user.clear(frames);
+    await user.type(frames, "7x");
+    expect(frames).toHaveValue("7");
+    await user.selectOptions(screen.getByRole("combobox", { name: "5th Floor (L05) alignment" }), "Complete");
+    await user.selectOptions(screen.getByRole("combobox", { name: "5th Floor (L05) WIR status" }), "Approved");
+
+    expect(metric("Installed", "Frames")).toHaveTextContent("83");
+    expect(metric("Alignment", "Complete")).toHaveTextContent("1");
+    expect(metric("WIR", "Approved")).toHaveTextContent("4");
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Save report" }));
+    await waitFor(() => expect(api.saveReport).toHaveBeenCalledTimes(1));
+    const [, floors] = vi.mocked(api.saveReport).mock.calls[0];
+    expect(floors[5]).toMatchObject({ floor: "5th Floor (L05)", frames: 7, alignment: "Complete", wirStatus: "Approved" });
+  });
+
+  it("treats a cleared count as 0", async () => {
+    const user = await open();
+
+    await user.clear(screen.getByRole("textbox", { name: "1st Floor (L01) frames" }));
+
+    expect(screen.getByRole("textbox", { name: "1st Floor (L01) frames" })).toHaveValue("0");
   });
 
   it("searches by floor and filters by WIR status and completion", async () => {
@@ -137,8 +172,9 @@ describe("Site Progress page", () => {
     await user.type(within(dialog).getByLabelText("Aluminium frames"), "5");
     await user.click(within(dialog).getByRole("button", { name: "Add floor" }));
 
-    expect(within(stat("Aluminium frames")).getByText("81")).toBeInTheDocument();
-    expect(within(stat("WIR approvals")).getByText("3 pending, 1 rejected")).toBeInTheDocument();
+    expect(metric("Installed", "Frames")).toHaveTextContent("81");
+    expect(metric("WIR", "Pending")).toHaveTextContent("3");
+    expect(metric("WIR", "Rejected")).toHaveTextContent("1");
     expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Save report" }));
@@ -162,9 +198,9 @@ describe("Site Progress page", () => {
     await user.selectOptions(within(dialog).getByLabelText("Alignment status"), "Complete");
     await user.click(within(dialog).getByRole("button", { name: "Add floor" }));
 
-    expect(within(stat("Shutters finished")).getByText("7")).toBeInTheDocument();
-    expect(within(stat("Alignment progress")).getByText("1 complete")).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText("Alignment"), "Complete");
+    expect(metric("Installed", "Shutters")).toHaveTextContent("7");
+    expect(metric("Alignment", "Complete")).toHaveTextContent("1");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Alignment" }), "Complete");
     expect(screen.getAllByRole("row")).toHaveLength(2);
     expect(screen.getByText("6th Floor (L06)")).toBeInTheDocument();
   });
@@ -203,14 +239,15 @@ describe("Site Progress page", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete 5th Floor (L05)" }));
     expect(screen.queryByText("5th Floor (L05)")).not.toBeInTheDocument();
-    expect(within(stat("Pending installation")).getByText("0")).toBeInTheDocument();
+    expect(metric("Installed", "Not started")).toHaveTextContent("0");
 
     await user.click(screen.getByRole("button", { name: "Edit 4th Floor (L04)" }));
     const dialog = await screen.findByRole("dialog", { name: "Edit floor" });
     await user.selectOptions(within(dialog).getByLabelText("WIR (Work Inspection Request) status"), "Approved");
     await user.click(within(dialog).getByRole("button", { name: "Update floor" }));
 
-    expect(within(stat("WIR approvals")).getByText("1 pending, 0 rejected")).toBeInTheDocument();
+    expect(metric("WIR", "Pending")).toHaveTextContent("1");
+    expect(metric("WIR", "Rejected")).toHaveTextContent("0");
     await user.click(screen.getByRole("button", { name: "Discard changes" }));
     expect(screen.getByText("5th Floor (L05)")).toBeInTheDocument();
   });
@@ -320,8 +357,8 @@ describe("on a phone", () => {
     const cards = screen.getAllByRole("listitem");
     expect(cards).toHaveLength(6);
     expect(within(cards[2]).getByText("2nd Floor (L02)")).toBeInTheDocument();
-    expect(within(cards[2]).getByText("Inspection Submitted")).toBeInTheDocument();
-    expect(within(cards[2]).getByText("In Progress")).toBeInTheDocument();
+    expect(within(cards[2]).getByRole("combobox", { name: "2nd Floor (L02) WIR status" })).toHaveDisplayValue("Inspection Submitted");
+    expect(within(cards[2]).getByRole("combobox", { name: "2nd Floor (L02) completion" })).toHaveDisplayValue("In Progress");
     expect(within(cards[2]).getByRole("button", { name: "Edit 2nd Floor (L02)" })).toBeInTheDocument();
   });
 });

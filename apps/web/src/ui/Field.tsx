@@ -59,9 +59,9 @@ export function Input({ label, error, hint, hideLabel, ...rest }: WithField<Inpu
   );
 }
 
-export function Select({ label, error, hint, children, ...rest }: WithField<SelectHTMLAttributes<HTMLSelectElement>>) {
+export function Select({ label, error, hint, hideLabel, children, ...rest }: WithField<SelectHTMLAttributes<HTMLSelectElement>>) {
   return (
-    <Field label={label} error={error} hint={hint}>
+    <Field label={label} error={error} hint={hint} hideLabel={hideLabel}>
       {(p) => (
         <select {...rest} {...p}>
           {children}
@@ -71,9 +71,9 @@ export function Select({ label, error, hint, children, ...rest }: WithField<Sele
   );
 }
 
-export function Textarea({ label, error, hint, ...rest }: WithField<TextareaHTMLAttributes<HTMLTextAreaElement>>) {
+export function Textarea({ label, error, hint, hideLabel, ...rest }: WithField<TextareaHTMLAttributes<HTMLTextAreaElement>>) {
   return (
-    <Field label={label} error={error} hint={hint}>
+    <Field label={label} error={error} hint={hint} hideLabel={hideLabel}>
       {(p) => <textarea {...rest} {...p} />}
     </Field>
   );

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileDown, FileSpreadsheet, HardHat, Pencil, Plus, Printer, Save, Undo2 } from "lucide-react";
+import { FileDown, FileSpreadsheet, HardHat, Pencil, Plus, Printer, Save, Search, SlidersHorizontal, Undo2 } from "lucide-react";
 import { ApiError } from "../../api/client";
 import {
   computeKpis,
@@ -14,13 +14,14 @@ import {
 } from "../../api/siteProgress";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
-import { Button, Card, EmptyState, PageHeader, Select, StatCard, inputClass } from "../../ui";
+import { Button, Card, EmptyState, PageHeader, Select, cx } from "../../ui";
 import { useIsDesktop } from "../../utils/useIsDesktop";
 import { saveBlob } from "../payroll/downloadPdf";
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { FloorDialog } from "./FloorDialog";
 import { FloorList, type FloorRow } from "./FloorList";
 import { ProjectDialog } from "./ProjectDialog";
+import { SummaryBar } from "./SummaryBar";
 
 type WirFilter = "all" | "approved" | "approvedComments" | "pending" | "rejected";
 type CompletionFilter = "all" | "Completed" | "InProgress" | "NotStarted";
@@ -64,6 +65,8 @@ export function SiteProgressPage() {
   const [wirFilter, setWirFilter] = useState<WirFilter>("all");
   const [completionFilter, setCompletionFilter] = useState<CompletionFilter>("all");
   const [alignmentFilter, setAlignmentFilter] = useState<AlignmentFilter>("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilters = [wirFilter, alignmentFilter, completionFilter].filter((v) => v !== "all").length;
   const [editing, setEditing] = useState<{ index: number | null } | null>(null);
   const [projectDialog, setProjectDialog] = useState<{ project?: SiteProject } | null>(null);
 
@@ -178,6 +181,94 @@ export function SiteProgressPage() {
 
   const takenNames = floors.filter((_, i) => i !== editing?.index).map((f) => f.floor);
 
+  function changeFloor(index: number, patch: Partial<SiteFloor>) {
+    setFloors((current) => current.map((f, i) => (i === index ? { ...f, ...patch } : f)));
+    setSuccess(null);
+  }
+
+  const toolbar = (
+    <div className="payroll-controls flex flex-wrap items-center gap-2 p-3 sm:p-4">
+      <div className="relative w-full sm:w-auto sm:min-w-56 sm:flex-1">
+        <label htmlFor="floor-search" className="sr-only">
+          Search floors
+        </label>
+        <Search aria-hidden="true" size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          id="floor-search"
+          type="search"
+          className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm placeholder:text-slate-400 focus:bg-white focus-visible:outline-2 focus-visible:outline-brand-500/40 md:h-10"
+          placeholder="Search floor designation"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+      <button
+        type="button"
+        className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:hidden"
+        aria-expanded={filtersOpen}
+        onClick={() => setFiltersOpen((v) => !v)}
+      >
+        <SlidersHorizontal aria-hidden="true" size={16} />
+        {activeFilters > 0 ? `Filters (${activeFilters})` : "Filters"}
+      </button>
+      <div className={cx("w-full flex-wrap items-center gap-2", filtersOpen ? "flex" : "hidden", "sm:contents")}>
+        <div className="w-full sm:w-auto">
+          <Select hideLabel label="WIR status" value={wirFilter} onChange={(e) => setWirFilter(e.target.value as WirFilter)}>
+            <option value="all">All WIR statuses</option>
+            <option value="approved">Approved only</option>
+            <option value="approvedComments">Approved with comments</option>
+            <option value="pending">Pending / unapproved</option>
+            <option value="rejected">Rejected only</option>
+          </Select>
+        </div>
+        <div className="w-full sm:w-auto">
+          <Select hideLabel label="Alignment" value={alignmentFilter} onChange={(e) => setAlignmentFilter(e.target.value as AlignmentFilter)}>
+            <option value="all">All alignment levels</option>
+            <option value="Complete">Complete</option>
+            <option value="UnderProcess">Under process</option>
+            <option value="NotComplete">Not complete</option>
+          </Select>
+        </div>
+        <div className="w-full sm:w-auto">
+          <Select hideLabel label="Completion" value={completionFilter} onChange={(e) => setCompletionFilter(e.target.value as CompletionFilter)}>
+            <option value="all">All completion levels</option>
+            <option value="Completed">Completed</option>
+            <option value="InProgress">In progress</option>
+            <option value="NotStarted">Not started</option>
+          </Select>
+        </div>
+      </div>
+      {canEdit && (
+        <Button icon={Plus} className="flex-1 sm:flex-none" onClick={() => setEditing({ index: null })}>
+          Add floor
+        </Button>
+      )}
+    </div>
+  );
+
+  const listContent =
+    rows.length === 0 ? (
+      <div className={desktop ? "" : "rounded-2xl border border-slate-200/80 bg-white shadow-sm"}>
+        <EmptyState
+          icon={HardHat}
+          title={floors.length === 0 ? "No floors in this report" : "No matching floors"}
+          description={floors.length === 0 ? (canEdit ? "Add a floor to start the report." : "Nothing has been recorded yet.") : "Change the search or the filters."}
+        />
+      </div>
+    ) : (
+      <FloorList
+        rows={rows}
+        desktop={desktop}
+        canEdit={canEdit}
+        onChange={changeFloor}
+        onEdit={(index) => setEditing({ index })}
+        onDelete={(index) => {
+          setFloors((current) => current.filter((_, i) => i !== index));
+          setSuccess(null);
+        }}
+      />
+    );
+
   if (projects === null && !loadError) {
     return (
       <p role="status" className="py-8 text-sm text-ink-600">
@@ -191,7 +282,7 @@ export function SiteProgressPage() {
       <div className="payroll-controls">
         <PageHeader
           title="Site Progress"
-          description="The current aluminium frames, fixed glass and shutters on each floor, with alignment, completion and the inspection (WIR) status."
+          description="Current installation, alignment and inspection (WIR) status for each floor."
           actions={
             report?.exists ? (
               <>
@@ -224,10 +315,9 @@ export function SiteProgressPage() {
 
       {projects && projects.length > 0 && (
         <>
-          <Card className="payroll-controls mb-4 p-4">
-            <div className="grid items-end gap-3 md:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
-              <div className="flex items-end gap-2">
-                <div className="min-w-0 flex-1">
+          <div className="payroll-controls mb-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+            <div className="flex w-full items-end gap-2 sm:w-auto">
+              <div className="min-w-0 flex-1 sm:w-72 sm:flex-none">
                   <Select
                     label="Project"
                     value={projectId ?? ""}
@@ -249,14 +339,13 @@ export function SiteProgressPage() {
                     )}
                   </>
                 )}
-              </div>
-              {report && (
-                <p role="status" className="text-sm text-ink-600 md:text-right">
-                  {report.exists ? `Last updated by ${report.updatedBy} on ${lastUpdated(report)}` : "Nothing saved for this project yet."}
-                </p>
-              )}
             </div>
-          </Card>
+            {report && (
+              <p role="status" className="pb-2.5 text-sm text-ink-600">
+                {report.exists ? `Last updated by ${report.updatedBy} on ${lastUpdated(report)}` : "Nothing saved for this project yet."}
+              </p>
+            )}
+          </div>
 
           <div className="hidden print:block">
             <h1 className="text-xl font-semibold">Site Progress Report</h1>
@@ -277,115 +366,40 @@ export function SiteProgressPage() {
 
           {report && (
             <div className="payroll-report">
-              <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-                <StatCard label="Aluminium frames" value={kpis.totalFrames} note="Total frames installed" />
-                <StatCard label="Fixed glass" value={kpis.totalGlass} note="Total fixed panels installed" />
-                <StatCard label="Shutters finished" value={kpis.totalShutters} note="Total shutters completed" />
-                <StatCard label="Completed floors" value={kpis.completedFloors} note="Marked completed" />
-                <StatCard label="Pending installation" value={kpis.noProgressFloors} note="No frames, glass or shutters" />
-              </div>
-              <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                <StatCard
-                  label="Alignment progress"
-                  value={`${kpis.alignmentComplete} complete`}
-                  note={`${kpis.alignmentUnderProcess} under process, ${kpis.alignmentNotComplete} not complete`}
-                />
-                <StatCard
-                  label="WIR approvals"
-                  value={`${kpis.approvedWir} approved`}
-                  note={`${kpis.pendingWir} pending, ${kpis.rejectedWir} rejected`}
-                />
-                <StatCard
-                  label="Site handover ready"
-                  value={`${kpis.handoverReadyPercent}%`}
-                  note="Floors completed and WIR approved"
-                />
-              </div>
+              <SummaryBar kpis={kpis} floorCount={floors.length} />
 
-              <div className="payroll-controls mb-4 flex flex-wrap items-end gap-3">
-                <div className="min-w-48 flex-1">
-                  <label htmlFor="floor-search" className="block text-sm font-medium text-ink-800">
-                    Search floors
-                  </label>
-                  <input
-                    id="floor-search"
-                    type="search"
-                    className={`${inputClass} mt-1`}
-                    placeholder="Search floor designation"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Select label="WIR status" value={wirFilter} onChange={(e) => setWirFilter(e.target.value as WirFilter)}>
-                    <option value="all">All WIR statuses</option>
-                    <option value="approved">Approved only</option>
-                    <option value="approvedComments">Approved with comments</option>
-                    <option value="pending">Pending / unapproved</option>
-                    <option value="rejected">Rejected only</option>
-                  </Select>
-                </div>
-                <div>
-                  <Select label="Alignment" value={alignmentFilter} onChange={(e) => setAlignmentFilter(e.target.value as AlignmentFilter)}>
-                    <option value="all">All alignment levels</option>
-                    <option value="Complete">Complete</option>
-                    <option value="UnderProcess">Under process</option>
-                    <option value="NotComplete">Not complete</option>
-                  </Select>
-                </div>
-                <div>
-                  <Select label="Completion" value={completionFilter} onChange={(e) => setCompletionFilter(e.target.value as CompletionFilter)}>
-                    <option value="all">All completion levels</option>
-                    <option value="Completed">Completed</option>
-                    <option value="InProgress">In progress</option>
-                    <option value="NotStarted">Not started</option>
-                  </Select>
-                </div>
-                {canEdit && (
-                  <Button icon={Plus} onClick={() => setEditing({ index: null })}>
-                    Add floor
-                  </Button>
-                )}
-              </div>
-
-              {rows.length === 0 ? (
-                <Card>
-                  <EmptyState
-                    icon={HardHat}
-                    title={floors.length === 0 ? "No floors in this report" : "No matching floors"}
-                    description={floors.length === 0 ? (canEdit ? "Add a floor to start the report." : "Nothing has been recorded for this date.") : "Change the search or the filters."}
-                  />
-                </Card>
+              {desktop ? (
+                <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+                  <div className="border-b border-slate-100">{toolbar}</div>
+                  {listContent}
+                </section>
               ) : (
-                <FloorList
-                  rows={rows}
-                  desktop={desktop}
-                  canEdit={canEdit}
-                  onEdit={(index) => setEditing({ index })}
-                  onDelete={(index) => {
-                    setFloors((current) => current.filter((_, i) => i !== index));
-                    setSuccess(null);
-                  }}
-                />
+                <>
+                  <div className="payroll-controls mb-3 rounded-2xl border border-slate-200/80 bg-white shadow-sm">{toolbar}</div>
+                  {listContent}
+                </>
               )}
 
-              {canEdit && (
-                <div className="payroll-controls mt-4 flex flex-wrap items-center justify-between gap-3">
-                  <p role="status" className="text-sm text-ink-700">
-                    {dirty ? "Unsaved changes" : report.exists ? `Saved by ${report.updatedBy}` : "Not saved yet"}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {dirty && (
+              {canEdit &&
+                (dirty ? (
+                  <div className="payroll-controls sticky bottom-20 z-20 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-900 px-4 py-3 text-white shadow-xl md:bottom-4">
+                    <p role="status" className="text-sm font-medium">
+                      Unsaved changes
+                    </p>
+                    <div className="flex flex-wrap gap-2">
                       <Button variant="secondary" icon={Undo2} onClick={() => setFloors(report.floors)} disabled={saving}>
                         Discard changes
                       </Button>
-                    )}
-                    <Button icon={Save} onClick={() => void save()} disabled={saving || floors.length === 0 || (!dirty && report.exists)}>
-                      Save report
-                    </Button>
+                      <Button icon={Save} onClick={() => void save()} disabled={saving || floors.length === 0}>
+                        Save report
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p role="status" className="payroll-controls mt-3 text-sm text-slate-500">
+                    {report.exists ? `Saved by ${report.updatedBy}` : "Not saved yet"}
+                  </p>
+                ))}
 
               <div className="mt-16 hidden grid-cols-3 gap-8 text-center text-xs print:grid">
                 {["Site Engineer / Subcontractor", "QA/QC Inspector", "Consultant Approval"].map((role) => (
