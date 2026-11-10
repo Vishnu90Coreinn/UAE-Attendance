@@ -47,6 +47,11 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
     public const int MaxEmergencyContactLength = 150;
     public const int MaxWorkLocationLength = 120;
     public const int MaxNotesLength = 1000;
+    public const int MaxNationalityLength = 60;
+    public const int MaxBankNameLength = 80;
+    public const int MaxBankAccountLength = 40;
+    public const int MaxIbanLength = 40;
+    public const decimal MaxAllowance = 99999.99m;
 
     private const string CodePrefix = "EMP-";
     private const int MinCodeDigits = 3;
@@ -159,6 +164,13 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             EmergencyContact = input.EmergencyContact,
             WorkLocation = input.WorkLocation,
             Notes = input.Notes,
+            Nationality = input.Nationality,
+            HousingAllowance = input.HousingAllowance ?? 0m,
+            TransportAllowance = input.TransportAllowance ?? 0m,
+            OtherAllowance = input.OtherAllowance ?? 0m,
+            BankName = input.BankName,
+            BankAccountNumber = input.BankAccountNumber,
+            Iban = input.Iban,
             ContractSigned = request.ContractSigned ?? false,
             VisaMedicalCleared = request.VisaMedicalCleared ?? false,
             SafetyGearIssued = request.SafetyGearIssued ?? false,
@@ -307,6 +319,44 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             worker.Notes = input.Notes;
         }
 
+        if (worker.Nationality != input.Nationality)
+        {
+            changes["nationality"] = new FieldChange(worker.Nationality, input.Nationality);
+            worker.Nationality = input.Nationality;
+        }
+
+        // An allowance missing from the request is left as it is (0 clears it).
+        void Allowance(string key, decimal current, decimal? requested, Action<decimal> set)
+        {
+            if (requested is { } value && value != current)
+            {
+                changes[key] = new FieldChange(current, value);
+                set(value);
+            }
+        }
+
+        Allowance("housingAllowance", worker.HousingAllowance, input.HousingAllowance, v => worker.HousingAllowance = v);
+        Allowance("transportAllowance", worker.TransportAllowance, input.TransportAllowance, v => worker.TransportAllowance = v);
+        Allowance("otherAllowance", worker.OtherAllowance, input.OtherAllowance, v => worker.OtherAllowance = v);
+
+        if (worker.BankName != input.BankName)
+        {
+            changes["bankName"] = new FieldChange(worker.BankName, input.BankName);
+            worker.BankName = input.BankName;
+        }
+
+        if (worker.BankAccountNumber != input.BankAccountNumber)
+        {
+            changes["bankAccountNumber"] = new FieldChange(Mask(worker.BankAccountNumber), Mask(input.BankAccountNumber));
+            worker.BankAccountNumber = input.BankAccountNumber;
+        }
+
+        if (worker.Iban != input.Iban)
+        {
+            changes["iban"] = new FieldChange(Mask(worker.Iban), Mask(input.Iban));
+            worker.Iban = input.Iban;
+        }
+
         // A checklist item missing from the request is left as it is.
         void Check(string key, bool current, bool? requested, Action<bool> set)
         {
@@ -396,7 +446,23 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
     private sealed record ValidWorker(
         string Code, string FullName, string Designation, decimal HourlyRate, decimal MonthlySalary, decimal? OvertimeRate,
         string? Department, string? EmiratesId, string? PassportNumber, string? Phone,
-        string? Email, string? EmergencyContact, string? WorkLocation, string? Notes);
+        string? Email, string? EmergencyContact, string? WorkLocation, string? Notes,
+        string? Nationality, decimal? HousingAllowance, decimal? TransportAllowance, decimal? OtherAllowance,
+        string? BankName, string? BankAccountNumber, string? Iban);
+
+    /// <summary>Audit rows show only the last four characters of an account number or IBAN.</summary>
+    private static string? Mask(string? value) =>
+        string.IsNullOrEmpty(value) ? null : value.Length <= 4 ? "****" : "****" + value[^4..];
+
+    /// <summary>Null (not sent) stays null; otherwise 0 to the maximum with at most two decimals.</summary>
+    private static decimal? OptionalAllowance(decimal? value, string key, string label, Dictionary<string, string> errors)
+    {
+        if (value is null) return null;
+        if (value < 0) errors[key] = $"{label} cannot be negative.";
+        else if (value > MaxAllowance) errors[key] = $"{label} must be {MaxAllowance.ToString("0.00", CultureInfo.InvariantCulture)} or less.";
+        else if (decimal.Round(value.Value, 2) != value.Value) errors[key] = $"{label} can have at most 2 decimal places.";
+        return value;
+    }
 
     /// <summary>Trims an optional text field; blank becomes null and too-long text records an error under <paramref name="key"/>.</summary>
     private static string? OptionalText(string? value, int maxLength, string key, string label, Dictionary<string, string> errors)
@@ -522,6 +588,13 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         var emergency = OptionalText(request.EmergencyContact, MaxEmergencyContactLength, "emergencyContact", "Emergency contact", errors);
         var location = OptionalText(request.WorkLocation, MaxWorkLocationLength, "workLocation", "Work location", errors);
         var notes = OptionalText(request.Notes, MaxNotesLength, "notes", "Notes", errors);
+        var nationality = OptionalText(request.Nationality, MaxNationalityLength, "nationality", "Nationality", errors);
+        var housing = OptionalAllowance(request.HousingAllowance, "housingAllowance", "Housing allowance", errors);
+        var transport = OptionalAllowance(request.TransportAllowance, "transportAllowance", "Transport allowance", errors);
+        var otherAllowance = OptionalAllowance(request.OtherAllowance, "otherAllowance", "Other allowance", errors);
+        var bankName = OptionalText(request.BankName, MaxBankNameLength, "bankName", "Bank name", errors);
+        var bankAccount = OptionalText(request.BankAccountNumber, MaxBankAccountLength, "bankAccountNumber", "Account number", errors);
+        var iban = OptionalText(request.Iban, MaxIbanLength, "iban", "IBAN", errors)?.Replace(" ", "").ToUpperInvariant();
         if (!PhotoUpload.TryDecode(request.PhotoBase64, out _))
         {
             errors["photo"] = "The photo must be a JPEG image of at most 3 MB.";
@@ -530,7 +603,8 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         return errors.Count == 0
             ? new ValidWorker(code, fullName, designation, rate!.Value,
                 salary ?? decimal.Round(rate.Value * PayrollCalculator.HoursPerMonth, 2, MidpointRounding.AwayFromZero), overtime,
-                department, emiratesId, passport, phone, email, emergency, location, notes)
+                department, emiratesId, passport, phone, email, emergency, location, notes,
+                nationality, housing, transport, otherAllowance, bankName, bankAccount, iban)
             : null;
     }
 
@@ -593,5 +667,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             worker.Department, worker.EmiratesId, worker.PassportNumber, worker.Phone,
             worker.Email, worker.EmergencyContact, worker.WorkLocation, worker.Notes,
             worker.ContractSigned, worker.VisaMedicalCleared, worker.SafetyGearIssued,
-            worker.SiteOrientationDone, worker.WpsRegistered, worker.BadgeIssued, hasPhoto, worker.EffectiveSalary);
+            worker.SiteOrientationDone, worker.WpsRegistered, worker.BadgeIssued, hasPhoto, worker.EffectiveSalary,
+            worker.Nationality, worker.HousingAllowance, worker.TransportAllowance, worker.OtherAllowance,
+            worker.BankName, worker.BankAccountNumber, worker.Iban);
 }

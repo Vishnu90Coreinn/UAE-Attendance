@@ -22,6 +22,11 @@ import {
   type WorkerFormValues,
 } from "./workerValidation";
 
+/** A zero or missing allowance shows as an empty box; blank is saved as 0. */
+function allowanceText(value: number | null | undefined): string {
+  return value ? formatRate(value) : "";
+}
+
 function initialValues(worker: Worker | null): WorkerFormValues {
   return worker
     ? {
@@ -31,6 +36,13 @@ function initialValues(worker: Worker | null): WorkerFormValues {
         hourlyRate: worker.hourlyRate === null ? "" : formatRate(worker.hourlyRate),
         monthlySalary: worker.monthlySalary == null ? "" : formatRate(worker.monthlySalary),
         overtimeRate: worker.overtimeRate === null ? "" : formatRate(worker.overtimeRate),
+        housingAllowance: allowanceText(worker.housingAllowance),
+        transportAllowance: allowanceText(worker.transportAllowance),
+        otherAllowance: allowanceText(worker.otherAllowance),
+        nationality: worker.nationality ?? "",
+        bankName: worker.bankName ?? "",
+        bankAccountNumber: worker.bankAccountNumber ?? "",
+        iban: worker.iban ?? "",
         joinDate: worker.joinDate ?? "",
         department: worker.department ?? "",
         emiratesId: worker.emiratesId ?? "",
@@ -48,6 +60,13 @@ function initialValues(worker: Worker | null): WorkerFormValues {
         hourlyRate: "",
         monthlySalary: "",
         overtimeRate: "",
+        housingAllowance: "",
+        transportAllowance: "",
+        otherAllowance: "",
+        nationality: "",
+        bankName: "",
+        bankAccountNumber: "",
+        iban: "",
         joinDate: "",
         department: "",
         emiratesId: "",
@@ -127,6 +146,13 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
   const departmentRef = useRef<HTMLInputElement>(null);
   const emiratesIdRef = useRef<HTMLInputElement>(null);
   const passportRef = useRef<HTMLInputElement>(null);
+  const housingRef = useRef<HTMLInputElement>(null);
+  const transportRef = useRef<HTMLInputElement>(null);
+  const otherAllowanceRef = useRef<HTMLInputElement>(null);
+  const nationalityRef = useRef<HTMLInputElement>(null);
+  const bankNameRef = useRef<HTMLInputElement>(null);
+  const bankAccountRef = useRef<HTMLInputElement>(null);
+  const ibanRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const emergencyRef = useRef<HTMLInputElement>(null);
@@ -139,6 +165,13 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
     hourlyRate: hourlyRef,
     monthlySalary: rateRef,
     overtimeRate: overtimeRef,
+    housingAllowance: housingRef,
+    transportAllowance: transportRef,
+    otherAllowance: otherAllowanceRef,
+    nationality: nationalityRef,
+    bankName: bankNameRef,
+    bankAccountNumber: bankAccountRef,
+    iban: ibanRef,
     joinDate: joinRef,
     department: departmentRef,
     emiratesId: emiratesIdRef,
@@ -329,6 +362,22 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
             }
             {...field("overtimeRate")}
           />
+        </div>
+      </fieldset>
+
+      <fieldset className="space-y-4 border-t border-line pt-4">
+        <legend className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-800">Salary letter details (optional)</legend>
+        <p className="text-sm text-ink-600">Fixed monthly allowances printed on salary certificates and bank letters. Leave blank for none.</p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <TextField label="Housing allowance (AED)" type="text" inputMode="decimal" autoComplete="off" {...field("housingAllowance")} />
+          <TextField label="Transport allowance (AED)" type="text" inputMode="decimal" autoComplete="off" {...field("transportAllowance")} />
+          <TextField label="Other allowances (AED)" type="text" inputMode="decimal" autoComplete="off" {...field("otherAllowance")} />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField label="Nationality" placeholder="e.g. Pakistani" autoComplete="off" {...field("nationality")} />
+          <TextField label="Bank name" placeholder="e.g. Emirates NBD" autoComplete="off" {...field("bankName")} />
+          <TextField label="Bank account number" autoComplete="off" spellCheck={false} {...field("bankAccountNumber")} />
+          <TextField label="IBAN" autoComplete="off" autoCapitalize="characters" spellCheck={false} {...field("iban")} />
         </div>
       </fieldset>
 

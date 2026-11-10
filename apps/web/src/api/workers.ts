@@ -32,6 +32,15 @@ export interface Worker {
   badgeIssued?: boolean;
   /** True when a photo is stored; fetch it with getWorkerPhoto. */
   hasPhoto?: boolean;
+  nationality?: string | null;
+  /** AED per month printed on salary letters; null for Supervisors, who never see wages. */
+  housingAllowance?: number | null;
+  transportAllowance?: number | null;
+  otherAllowance?: number | null;
+  /** Bank details for salary-transfer letters; null for Supervisors. */
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  iban?: string | null;
 }
 
 /** The editable fields, sent as the body of create and update. */
@@ -62,6 +71,14 @@ export interface WorkerInput {
   siteOrientationDone?: boolean;
   wpsRegistered?: boolean;
   badgeIssued?: boolean;
+  nationality?: string | null;
+  /** AED per month; an omitted allowance is left unchanged on update, 0 clears it. */
+  housingAllowance?: number;
+  transportAllowance?: number;
+  otherAllowance?: number;
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  iban?: string | null;
   /** A new JPEG portrait, base64 encoded. Omit to keep the stored photo. */
   photoBase64?: string;
   /** True clears the stored photo (ignored when photoBase64 is sent). */
