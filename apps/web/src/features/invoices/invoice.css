@@ -1,0 +1,25 @@
+/* Printing an invoice: the app shell is already hidden by the global print rules; hide this screen's own controls and
+   show the document as a plain A4 page. */
+@media print {
+  .invoice-controls {
+    display: none !important;
+  }
+  .invoice-doc {
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+    border-radius: 0 !important;
+  }
+  .invoice-doc table {
+    break-inside: auto;
+  }
+  .invoice-doc tr {
+    break-inside: avoid;
+  }
+  .invoice-totals,
+  .invoice-bank {
+    break-inside: avoid;
+  }
+}

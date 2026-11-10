@@ -8,6 +8,8 @@ import { useAuth } from "../../contexts/AuthContext";
 import { SettingsPage } from "./SettingsPage";
 
 vi.mock("../../api/settings");
+// The company documents card has its own tests; here it stays unmounted while its (never answered) request is pending.
+vi.mock("../../api/documentSettings", () => ({ getDocumentSettings: () => new Promise(() => {}) }));
 vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
 
 const current: PayrollSettings = {
