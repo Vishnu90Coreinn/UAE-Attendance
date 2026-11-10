@@ -6,6 +6,7 @@ public static class LettersModule
     public static IServiceCollection AddLetters(this IServiceCollection services)
     {
         services.AddScoped<LetterService>();
+        services.AddScoped<CertificateRequestService>();
         services.AddSingleton<LetterPdf>();
         return services;
     }

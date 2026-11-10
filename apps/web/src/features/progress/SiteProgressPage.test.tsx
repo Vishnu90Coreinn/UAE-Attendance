@@ -257,7 +257,7 @@ describe("Site Progress page", () => {
     await open();
 
     expect(screen.getByText("Nothing saved for this project yet.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Print" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "PDF" })).not.toBeInTheDocument();
   });
 
   it("shows who last updated the report and has no date controls", async () => {
@@ -334,7 +334,7 @@ describe("roles", () => {
     expect(screen.queryByRole("button", { name: "Add floor" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save report" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Edit / })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Print" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Print" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "PDF" })).toBeInTheDocument();
   });
 

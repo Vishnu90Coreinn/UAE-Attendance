@@ -11,7 +11,7 @@ const PRINT_CSS = `
   body * { visibility: hidden !important; }
   .letter-print, .letter-print * { visibility: visible !important; }
   .letter-print { position: absolute !important; left: 0; top: 0; width: 100% !important; }
-  .letter-sheet { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: 0 !important; }
+  .letter-sheet { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; padding: 0 !important; min-height: 262mm !important; break-inside: avoid; }
   .letter-scroll { overflow: visible !important; }
 }`;
 
@@ -67,11 +67,19 @@ function Runs({ runs }: { runs: LetterRun[] }) {
   );
 }
 
+/** Width of the letterhead's name line in px (an A4 sheet less its side margins), and the average capital width in em. */
+const NAME_LINE_PX = 660;
+const CAP_EM = 0.64;
+
+/** Font size that keeps the whole company name on one line across the sheet, between 9 and 15 px. */
+function nameSize(name: string): number {
+  return Math.max(9, Math.min(15, Math.floor(NAME_LINE_PX / (Math.max(name.length, 1) * CAP_EM))));
+}
+
 /** A4 certificate or letter exactly as the server built it (preview) or stored it (issued). */
 export function LetterSheet({ document: doc }: { document: LetterDocument }) {
   const c = doc.content;
   const logo = useImage("logo", doc.hasLogo);
-  const seal = useImage("seal", doc.hasSeal && c.showSeal);
   const signature = useImage("signature", doc.hasSignature && c.showSeal);
   const address = [c.address1, c.address2].filter(Boolean).join(", ");
   const contact = [c.mobile && `Mobile: ${c.mobile}`, c.email && `Email: ${c.email}`].filter(Boolean).join("  |  ");
@@ -92,22 +100,31 @@ export function LetterSheet({ document: doc }: { document: LetterDocument }) {
           </div>
 
           <div className="relative">
-            <header className="flex items-start justify-between gap-4 border-b-2 border-ink-900 pb-4">
-              <div className="min-w-0">
-                <h2 className="text-lg font-bold uppercase leading-tight text-ink-900">{c.companyName}</h2>
-                {address && <p className="mt-1 text-xs text-ink-600">{address}</p>}
-                {contact && <p className="text-xs text-ink-600">{contact}</p>}
+            <header className="border-b-2 border-ink-900 pb-3">
+              <div className="flex min-h-[18mm] items-center justify-between gap-4">
+                <div className="flex h-[18mm] items-center">
+                  {logo && <img src={logo} alt="Company logo" className="max-h-[18mm] max-w-[40mm] object-contain" />}
+                </div>
+                <div className="min-w-0 text-right">
+                  {address && <p className="text-xs text-ink-600">{address}</p>}
+                  {contact && <p className="text-xs text-ink-600">{contact}</p>}
+                </div>
               </div>
-              {logo && <img src={logo} alt="Company logo" className="max-h-14 max-w-[40mm] object-contain" />}
+              <h2
+                className="mt-2 whitespace-nowrap font-bold uppercase leading-tight text-brand-800"
+                style={{ fontSize: `${nameSize(c.companyName)}px` }}
+              >
+                {c.companyName}
+              </h2>
             </header>
 
             <div className="mt-4 flex justify-between border-b border-line pb-2 text-xs">
-              <span>
-                <strong>Ref No:</strong> {c.refNo || "Assigned when issued"}
-              </span>
-              <span>
-                <strong>Date:</strong> {formatDate(c.issueDate)}
-              </span>
+              <strong>
+                Ref No: <span>{c.refNo || "Assigned when issued"}</span>
+              </strong>
+              <strong>
+                Date: <span>{formatDate(c.issueDate)}</span>
+              </strong>
             </div>
 
             <div className="mt-6">
@@ -178,21 +195,6 @@ export function LetterSheet({ document: doc }: { document: LetterDocument }) {
                   <p className="text-xs text-ink-600">{c.signerTitle}</p>
                 </div>
               </div>
-              {c.showSeal &&
-                (seal ? (
-                  <img src={seal} alt="Company seal" className="size-28 object-contain" />
-                ) : (
-                  !doc.hasSeal && (
-                    <div
-                      aria-label="Seal placeholder"
-                      className="flex size-28 -rotate-12 flex-col items-center justify-center rounded-full border-4 border-double border-brand-700/40 p-2 text-center text-[8px] font-bold uppercase leading-tight text-brand-700/70"
-                    >
-                      <span>{c.companyName.split(" ").slice(0, 4).join(" ")}</span>
-                      <span className="my-0.5 text-[7px]">Official seal</span>
-                      <span>Dubai - U.A.E.</span>
-                    </div>
-                  )
-                ))}
             </div>
             <p className="mt-4 text-center text-[9px] uppercase tracking-widest text-ink-400">
               Official company document - {c.companyName}

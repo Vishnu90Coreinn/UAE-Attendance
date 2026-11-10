@@ -172,13 +172,14 @@ describe("Layout", () => {
     expect(tabLabels()).toEqual(["Dashboard", ...MODULES, "User Manager", "Settings"]);
   });
 
-  it("shows a Supervisor only the three site tabs", async () => {
+  it("shows a Supervisor only the site tabs and HR Letters", async () => {
     await renderLayout("Supervisor", "sup.omar");
 
     expect(tabLabels()).toEqual([
       "Worker Directory",
       "Daily Attendance",
       "Leave Management",
+      "HR Letters",
       "Site Progress",
     ]);
     for (const name of ["Payroll Summary", "User Manager", "Settings"]) {

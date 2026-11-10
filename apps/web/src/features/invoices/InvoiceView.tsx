@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
-import { Ban, Copy, Download, Loader2, Pencil, Printer, Send, Trash2, Wallet } from "lucide-react";
+import { Ban, Copy, Download, Loader2, Pencil, Send, Trash2, Wallet } from "lucide-react";
 import {
   addPayment, cancelInvoice, deleteInvoice, duplicateInvoice, getInvoicePdf, issueInvoice, removePayment, type Invoice,
 } from "../../api/invoices";
@@ -51,9 +51,6 @@ export function InvoiceView({ invoice, canWrite, onChanged, onEdit, onDeleted, o
       <div className="invoice-controls flex flex-wrap items-center gap-2">
         <InvoiceStatusBadges status={invoice.displayStatus} overdue={invoice.isOverdue} />
         <span className="flex-1" />
-        <Button variant="secondary" size="sm" icon={Printer} onClick={() => window.print()}>
-          Print
-        </Button>
         <Button
           variant="secondary" size="sm" icon={Download} disabled={busy}
           onClick={() => run(async () => downloadFile(await getInvoicePdf(invoice.id), `${invoice.number ?? `Draft-${invoice.id}`}.pdf`))}

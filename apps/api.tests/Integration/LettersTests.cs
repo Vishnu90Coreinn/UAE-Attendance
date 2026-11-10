@@ -36,11 +36,30 @@ public class LettersTests(ApiFixture api) : IClassFixture<ApiFixture>
 
     private async Task<string> TokenAsync(string role) => (await TestWorkers.SignInAsync(api, role)).Token;
 
+    /// <summary>A request that a supervisor raised, HR prepared and sent, waiting for a manager. Returns the request id.</summary>
+    private async Task<int> PendingAsync(int workerId, string type = "Salary", string? date = null, object? extra = null)
+    {
+        var supervisor = await TokenAsync(Roles.Supervisor);
+        var hr = await TokenAsync(Roles.HR);
+        var raised = await api.PostAsync("/api/certificate-requests", new { workerId, letterType = type, reason = "Needed for a visa" }, supervisor);
+        Assert.Equal(HttpStatusCode.Created, raised.StatusCode);
+        var id = (await TestWorkers.ReadJsonAsync(raised)).GetProperty("id").GetInt32();
+        Assert.Equal(HttpStatusCode.OK, (await api.SendAsync(HttpMethod.Put, $"/api/certificate-requests/{id}/details", Body(workerId, type, date, extra), hr)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await api.PostAsync($"/api/certificate-requests/{id}/submit", new { }, hr)).StatusCode);
+        return id;
+    }
+
+    /// <summary>Raises, prepares, sends and has a manager approve a certificate; returns the issued letter as the letters API shows it.</summary>
     private async Task<JsonElement> IssueAsync(string token, int workerId, string type = "Salary", string? date = null, object? extra = null)
     {
-        var response = await api.SendAsync(HttpMethod.Post, "/api/letters", Body(workerId, type, date, extra), token);
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return await TestWorkers.ReadJsonAsync(response);
+        var id = await PendingAsync(workerId, type, date, extra);
+        var manager = await TokenAsync(Roles.Manager);
+        var approved = await api.PostAsync($"/api/certificate-requests/{id}/approve", new { }, manager);
+        Assert.Equal(HttpStatusCode.OK, approved.StatusCode);
+        var letterId = (await TestWorkers.ReadJsonAsync(approved)).GetProperty("letterId").GetInt32();
+        var letter = await api.GetAsync($"/api/letters/{letterId}", token);
+        Assert.Equal(HttpStatusCode.OK, letter.StatusCode);
+        return await TestWorkers.ReadJsonAsync(letter);
     }
 
     // --- access ---------------------------------------------------------------------------------------------
@@ -68,16 +87,16 @@ public class LettersTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(expected, (await api.SendAsync(HttpMethod.Post, "/api/letters/preview", Body(workerId), token)).StatusCode);
     }
 
-    [Theory]
-    [InlineData(Roles.Administrator, HttpStatusCode.Created)]
-    [InlineData(Roles.Manager, HttpStatusCode.Created)]
-    [InlineData(Roles.HR, HttpStatusCode.Created)]
-    [InlineData(Roles.Supervisor, HttpStatusCode.Forbidden)]
-    public async Task RoleMatrix_ForIssue(string role, HttpStatusCode expected)
+    [Fact]
+    public async Task ALetterCannotBeIssuedDirectly_OnlyByApprovingARequest()
     {
         var workerId = await WorkerAsync();
-        var token = await TokenAsync(role);
-        Assert.Equal(expected, (await api.SendAsync(HttpMethod.Post, "/api/letters", Body(workerId, date: "2011-01-05"), token)).StatusCode);
+        foreach (var role in new[] { Roles.Administrator, Roles.Manager, Roles.HR, Roles.Supervisor })
+        {
+            var response = await api.SendAsync(HttpMethod.Post, "/api/letters", Body(workerId, date: "2011-01-05"), await TokenAsync(role));
+            Assert.NotEqual(HttpStatusCode.Created, response.StatusCode);
+            Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
+        }
     }
 
     [Fact]
@@ -93,7 +112,7 @@ public class LettersTests(ApiFixture api) : IClassFixture<ApiFixture>
             Assert.Equal(HttpStatusCode.Forbidden, (await api.GetAsync(path, supervisor)).StatusCode);
             Assert.Equal(HttpStatusCode.Unauthorized, (await api.GetAsync(path)).StatusCode);
         }
-        Assert.Equal(HttpStatusCode.Unauthorized, (await api.SendAsync(HttpMethod.Post, "/api/letters", Body(workerId))).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await api.SendAsync(HttpMethod.Post, "/api/certificate-requests", new { workerId, letterType = "Salary" })).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await api.GetAsync("/api/letters")).StatusCode);
     }
 
@@ -171,7 +190,7 @@ public class LettersTests(ApiFixture api) : IClassFixture<ApiFixture>
 
     // --- validation -----------------------------------------------------------------------------------------
 
-    private async Task<JsonElement> ErrorsAsync(string token, object body, string path = "/api/letters")
+    private async Task<JsonElement> ErrorsAsync(string token, object body, string path = "/api/letters/preview")
     {
         var response = await api.SendAsync(HttpMethod.Post, path, body, token);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -274,10 +293,12 @@ public class LettersTests(ApiFixture api) : IClassFixture<ApiFixture>
         var workerId = await WorkerAsync();
         var token = await TokenAsync(Roles.Manager);
 
-        var responses = await Task.WhenAll(Enumerable.Range(0, 6).Select(_ =>
-            api.SendAsync(HttpMethod.Post, "/api/letters", Body(workerId, date: "2016-05-05"), token)));
+        var pending = new List<int>();
+        for (var i = 0; i < 6; i++) pending.Add(await PendingAsync(workerId, date: "2016-05-05"));
 
-        Assert.All(responses, r => Assert.Equal(HttpStatusCode.Created, r.StatusCode));
+        var responses = await Task.WhenAll(pending.Select(id => api.PostAsync($"/api/certificate-requests/{id}/approve", new { }, token)));
+
+        Assert.All(responses, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
         var refs = new List<string>();
         foreach (var r in responses) refs.Add((await TestWorkers.ReadJsonAsync(r)).GetProperty("refNo").GetString()!);
         Assert.Equal(6, refs.Distinct().Count());
@@ -374,6 +395,47 @@ public class LettersTests(ApiFixture api) : IClassFixture<ApiFixture>
         var text = string.Join(" ", pdf.GetPage(1).GetWords().Select(w => w.Text));
         Assert.Contains("DEAKS/HR/2019/", text);
         Assert.Contains("Sajid", text);
+    }
+
+    [Fact]
+    public async Task Pdf_KeepsASpaceAroundBoldValues_AndPrintsNoStamp()
+    {
+        var workerId = await WorkerAsync();
+        var token = await TokenAsync(Roles.Manager);
+        var id = (await IssueAsync(token, workerId, "Salary", "2019-01-05")).GetProperty("id").GetInt32();
+
+        var bytes = await (await api.GetAsync($"/api/letters/{id}/pdf", token)).Content.ReadAsByteArrayAsync();
+
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(bytes);
+        var text = string.Join(" ", pdf.GetPage(1).GetWords().Select(w => w.Text));
+        // Each word is drawn on its own, so a missing space shows as the next value starting right after the previous word.
+        Assert.Matches(@"certify that Mr\. ", text);
+        Assert.Matches(@"employed with ", text);
+        Assert.DoesNotContain("OFFICIAL SEAL", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Stamp", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Pdf_PutsTheCompanyNameOnOneLine_InsideTheA4Margins()
+    {
+        var workerId = await WorkerAsync();
+        var token = await TokenAsync(Roles.Manager);
+        var id = (await IssueAsync(token, workerId, "Salary", "2019-01-05")).GetProperty("id").GetInt32();
+
+        var bytes = await (await api.GetAsync($"/api/letters/{id}/pdf", token)).Content.ReadAsByteArrayAsync();
+
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(bytes);
+        var page = pdf.GetPage(1);
+        Assert.InRange(page.Width, 594, 596);
+        Assert.InRange(page.Height, 841, 843);
+        var words = page.GetWords().ToList();
+        // The letterhead name is the first run of capitals at the top: every word sharing the first word's baseline.
+        var top = words.OrderByDescending(w => w.BoundingBox.Bottom).First(w => w.Text == "DE");
+        var nameLine = words.Where(w => Math.Abs(w.BoundingBox.Bottom - top.BoundingBox.Bottom) < 1).ToList();
+        Assert.Contains(nameLine, w => w.Text.StartsWith("AKS"));
+        Assert.Contains(nameLine, w => w.Text.StartsWith("S.O.C"));
+        Assert.All(words, w => Assert.InRange(w.BoundingBox.Left, 50, 545));
+        Assert.All(words, w => Assert.InRange(w.BoundingBox.Right, 50, 545));
     }
 
     [Fact]

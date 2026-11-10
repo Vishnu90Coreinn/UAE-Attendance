@@ -26,6 +26,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
     public DbSet<InvoicePayment> InvoicePayments => Set<InvoicePayment>();
     public DbSet<IssuedLetter> IssuedLetters => Set<IssuedLetter>();
+    public DbSet<CertificateRequest> CertificateRequests => Set<CertificateRequest>();
     public DbSet<SiteProject> SiteProjects => Set<SiteProject>();
     public DbSet<SiteProgressReport> SiteProgressReports => Set<SiteProgressReport>();
     public DbSet<SiteProgressFloor> SiteProgressFloors => Set<SiteProgressFloor>();

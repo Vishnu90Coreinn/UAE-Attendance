@@ -33,6 +33,20 @@ public sealed record LetterSummary(
     int Id, string RefNo, string LetterType, int WorkerId, string WorkerName, string WorkerCode,
     DateOnly IssueDate, string AddressedTo, string IssuedBy, DateTime IssuedUtc);
 
+/// <summary>A supervisor asking for a certificate. Members are nullable so a missing field gets a field message.</summary>
+public sealed record CertificateRequestCreate(int? WorkerId, string? LetterType, string? Reason);
+
+/// <summary>A manager's reason for sending a request back to HR.</summary>
+public sealed record CertificateRejectRequest(string? Reason);
+
+public sealed record CertificateRequestResponse(
+    int Id, int WorkerId, string WorkerName, string WorkerCode, string LetterType, string Reason, string Status,
+    string RequestedBy, DateTime RequestedUtc, string? PreparedBy, DateTime? PreparedUtc, string? ReviewedBy,
+    DateTime? ReviewedUtc, string ReviewNote, bool HasDetails, int? LetterId, string? RefNo);
+
+/// <summary>The request with the HR-entered details and the letter built from them (null until HR has saved details).</summary>
+public sealed record CertificateRequestDetail(CertificateRequestResponse Request, LetterRequest? Details, LetterDocument? Document);
+
 public sealed record LetterRecord(
     int Id, string RefNo, string LetterType, int WorkerId, DateOnly IssueDate, string IssuedBy, DateTime IssuedUtc,
     LetterDocument Document);

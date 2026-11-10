@@ -132,6 +132,83 @@ namespace HrPayroll.Api.Data.Migrations
                     b.ToTable("AuditLogs");
                 });
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.CertificateRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("DetailsJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("IssuedLetterId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("LetterType")
+                        .IsRequired()
+                        .HasMaxLength(15)
+                        .HasColumnType("nvarchar(15)");
+
+                    b.Property<string>("PreparedBy")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("PreparedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("RequestedBy")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("RequestedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReviewNote")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ReviewedBy")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("ReviewedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("WorkerId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IssuedLetterId");
+
+                    b.HasIndex("RequestedBy");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("WorkerId");
+
+                    b.ToTable("CertificateRequests", t =>
+                        {
+                            t.HasCheckConstraint("CK_CertificateRequests_Status", "[Status] IN ('Requested','PendingApproval','Returned','Approved')");
+
+                            t.HasCheckConstraint("CK_CertificateRequests_Type", "[LetterType] IN ('Salary','Service','BankTransfer','Noc')");
+                        });
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.DeductionType", b =>
                 {
                     b.Property<int>("Id")
@@ -1380,6 +1457,24 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasForeignKey("WorkerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Worker");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.CertificateRequest", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.IssuedLetter", "IssuedLetter")
+                        .WithMany()
+                        .HasForeignKey("IssuedLetterId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.Worker", "Worker")
+                        .WithMany()
+                        .HasForeignKey("WorkerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("IssuedLetter");
 
                     b.Navigation("Worker");
                 });

@@ -1,4 +1,4 @@
-import { apiGet, apiGetBlob, apiPost } from "./client";
+import { apiGet, apiGetBlob, apiGetFile, apiPost } from "./client";
 
 export type LetterType = "Salary" | "Service" | "BankTransfer" | "Noc";
 
@@ -110,10 +110,6 @@ export function previewLetter(request: LetterRequest, signal?: AbortSignal): Pro
   return apiPost<LetterDocument>("/api/letters/preview", request, signal);
 }
 
-export function issueLetter(request: LetterRequest): Promise<LetterRecord> {
-  return apiPost<LetterRecord>("/api/letters", request);
-}
-
 export function listLetters(filters: LetterFilters = {}): Promise<LetterSummary[]> {
   const query = new URLSearchParams();
   if (filters.search?.trim()) query.set("search", filters.search.trim());
@@ -133,6 +129,15 @@ export function getLetterPdf(id: number): Promise<Blob> {
 }
 
 /** The uploaded logo, seal or signature, fetched with the sign-in token so it can be shown in an img tag. */
-export function getLetterImage(kind: "logo" | "seal" | "signature"): Promise<Blob> {
-  return apiGetBlob(`/api/letters/images/${kind}`);
+export async function getLetterImage(kind: "logo" | "seal" | "signature"): Promise<Blob> {
+  // The server sends the picture in the type it was uploaded in, so ask for each in turn.
+  let failure: unknown;
+  for (const type of ["image/png", "image/jpeg"]) {
+    try {
+      return await apiGetFile(`/api/letters/images/${kind}`, type);
+    } catch (error) {
+      failure = error;
+    }
+  }
+  throw failure;
 }

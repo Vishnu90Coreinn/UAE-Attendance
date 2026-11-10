@@ -14,4 +14,7 @@ public static class Policies
 
     /// <summary>Supervisor, Manager or Administrator: entering attendance and raising leave.</summary>
     public const string SupervisorOrAbove = "SupervisorOrAbove";
+
+    /// <summary>HR or Administrator: preparing certificate details for approval.</summary>
+    public const string HrOrAdmin = "HrOrAdmin";
 }

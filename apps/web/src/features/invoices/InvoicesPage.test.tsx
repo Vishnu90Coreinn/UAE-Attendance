@@ -106,8 +106,8 @@ describe("invoice view", () => {
     const user = userEvent.setup();
     render(<InvoicesPage />);
     await user.click(await screen.findByRole("button", { name: /INV-000185/ }));
-    expect(await screen.findByRole("button", { name: "Print" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Download PDF" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Download PDF" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Print" })).not.toBeInTheDocument();
     for (const name of ["Record payment", "Cancel invoice", "Duplicate", "Edit", "Issue invoice"]) {
       expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
     }

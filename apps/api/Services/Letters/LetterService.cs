@@ -40,7 +40,11 @@ public sealed class LetterService(AppDbContext db, IAuditLogger audit, TimeProvi
         return built.Errors is not null ? new(400, Errors: built.Errors) : new(200, Document(built.Content!, built.Settings!));
     }
 
-    public async Task<LetterResult> IssueAsync(LetterRequest request, CancellationToken ct)
+    /// <summary>
+    /// Issues the letter. When <paramref name="fulfilling"/> is a certificate request id, that request is marked Approved in
+    /// the same transaction, so a letter is never numbered without its request being closed (and the other way round).
+    /// </summary>
+    public async Task<LetterResult> IssueAsync(LetterRequest request, CancellationToken ct, int? fulfilling = null)
     {
         var actor = httpContext.HttpContext?.User.Identity?.Name ?? "";
         for (var attempt = 0; attempt < 5; attempt++)
@@ -55,6 +59,15 @@ public sealed class LetterService(AppDbContext db, IAuditLogger audit, TimeProvi
                 var year = built.Content!.IssueDate.Year;
                 // One issuer per year at a time: the next number is read and used under this lock, so numbers never repeat or skip.
                 if (!await LockYearAsync(year, ct)) continue;
+                // Read the request only now that this issuer holds the lock, so two approvals cannot both see "pending".
+                CertificateRequest? certificate = null;
+                if (fulfilling is { } requestId)
+                {
+                    certificate = await db.CertificateRequests.SingleOrDefaultAsync(r => r.Id == requestId, ct);
+                    if (certificate is null) return new(404);
+                    if (certificate.Status != CertificateStatuses.PendingApproval)
+                        return new(409, Message: "This request is no longer waiting for approval.");
+                }
                 var sequence = (await db.IssuedLetters.Where(l => l.Year == year).MaxAsync(l => (int?)l.Sequence, ct) ?? 0) + 1;
                 var refNo = $"DEAKS/HR/{year}/{sequence.ToString("0000", CultureInfo.InvariantCulture)}";
                 var content = built.Content with { RefNo = refNo };
@@ -65,6 +78,16 @@ public sealed class LetterService(AppDbContext db, IAuditLogger audit, TimeProvi
                     IssuedBy = actor, IssuedUtc = time.GetUtcNow().UtcDateTime,
                 };
                 db.IssuedLetters.Add(letter);
+                if (certificate is not null)
+                {
+                    certificate.Status = CertificateStatuses.Approved;
+                    certificate.IssuedLetter = letter;
+                    certificate.ReviewedBy = actor;
+                    certificate.ReviewedUtc = time.GetUtcNow().UtcDateTime;
+                    certificate.ReviewNote = "";
+                    audit.Write("CertificateApproved", entityType: nameof(CertificateRequest), entityId: certificate.Id.ToString(CultureInfo.InvariantCulture),
+                        details: new { refNo, letterType = content.LetterType, workerId = letter.WorkerId });
+                }
                 audit.Write("LetterIssued", entityType: nameof(IssuedLetter), entityId: refNo,
                     details: new { refNo, letterType = content.LetterType, workerId = letter.WorkerId });
                 await db.SaveChangesAsync(ct);

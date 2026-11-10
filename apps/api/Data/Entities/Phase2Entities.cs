@@ -161,6 +161,47 @@ public sealed class IssuedLetter
     public DateTime IssuedUtc { get; set; }
 }
 
+public static class CertificateStatuses
+{
+    /// <summary>Raised by a supervisor; HR has not sent it for approval yet.</summary>
+    public const string Requested = "Requested";
+    public const string PendingApproval = "PendingApproval";
+    /// <summary>The manager sent it back to HR with a reason.</summary>
+    public const string Returned = "Returned";
+    public const string Approved = "Approved";
+    public static readonly string[] All = [Requested, PendingApproval, Returned, Approved];
+}
+
+/// <summary>
+/// A certificate or letter asked for by a supervisor. HR fills in and updates the details (<see cref="DetailsJson"/>) and
+/// sends it to a manager; only when the manager approves is the letter issued (<see cref="IssuedLetterId"/>) and numbered.
+/// </summary>
+public sealed class CertificateRequest
+{
+    public int Id { get; set; }
+    public int WorkerId { get; set; }
+    public Worker Worker { get; set; } = null!;
+    public string LetterType { get; set; } = "";
+
+    /// <summary>The supervisor's note: what the certificate is for.</summary>
+    public string Reason { get; set; } = "";
+    public string Status { get; set; } = CertificateStatuses.Requested;
+    public string RequestedBy { get; set; } = "";
+    public DateTime RequestedUtc { get; set; }
+
+    /// <summary>The HR-entered letter details as JSON (the same shape as a letter preview request); null until HR saves them.</summary>
+    public string? DetailsJson { get; set; }
+    public string? PreparedBy { get; set; }
+    public DateTime? PreparedUtc { get; set; }
+    public string? ReviewedBy { get; set; }
+    public DateTime? ReviewedUtc { get; set; }
+
+    /// <summary>Why the manager sent it back.</summary>
+    public string ReviewNote { get; set; } = "";
+    public int? IssuedLetterId { get; set; }
+    public IssuedLetter? IssuedLetter { get; set; }
+}
+
 public static class Completion
 {
     public const string NotStarted = "NotStarted";

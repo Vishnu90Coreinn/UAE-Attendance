@@ -41,22 +41,21 @@ public sealed class LetterPdf
 
     private static void Draw(PdfCanvas cv, LetterContent c, DocumentSettings settings)
     {
-        // Letterhead: company name and contact details on the left, optional logo on the right.
+        // Letterhead: logo on the left, address and contact on the right, and the company name on one line across the
+        // sheet (its size shrinks to fit rather than wrapping).
+        if (settings.Logo is { Length: > 0 }) DrawImage(cv, settings.Logo, settings.LogoContentType, Left, 758, 110, 52, alignLeft: true);
         var y = 800.0;
-        foreach (var line in cv.Wrap(c.CompanyName.ToUpperInvariant(), 340, 12.5, true))
-        {
-            cv.Text(line, Left, y, 12.5, true, PdfStyle.Teal);
-            y -= 15;
-        }
-        y -= 2;
         foreach (var line in new[] { JoinNonEmpty(", ", c.Address1, c.Address2), JoinNonEmpty("  |  ", string.IsNullOrWhiteSpace(c.Mobile) ? "" : "Mobile: " + c.Mobile, string.IsNullOrWhiteSpace(c.Email) ? "" : "Email: " + c.Email) })
         {
             if (line.Length == 0) continue;
-            cv.Text(cv.Fit(line, 380, 8.5), Left, y, 8.5, false, PdfStyle.Muted);
+            cv.RightText(cv.Fit(line, 330, 8.5), Right, y, 8.5, false, PdfStyle.Muted);
             y -= 11;
         }
-        if (settings.Logo is { Length: > 0 }) DrawImage(cv, settings.Logo, settings.LogoContentType, Right - 90, 760, 90, 50);
-        y = Math.Min(y, 770) - 6;
+        var name = c.CompanyName.ToUpperInvariant();
+        var nameSize = Math.Min(13.0, 12.0 * (Right - Left) / Math.Max(1, cv.Width(name, 12, true)));
+        y = 744;
+        cv.Text(name, (Left + Right - cv.Width(name, nameSize, true)) / 2, y, nameSize, true, PdfStyle.Teal);
+        y -= 10;
         cv.Rule(Left, Right, y, 1.6, PdfStyle.Ink);
 
         // Reference and date.
@@ -77,7 +76,7 @@ public sealed class LetterPdf
         }
         y -= 14;
         var titleWidth = cv.Width(c.Title, 14, true);
-        cv.Text(c.Title, (Left + Right - titleWidth) / 2, y, 14, true, PdfStyle.Teal);
+        cv.Text(c.Title, (Left + Right - titleWidth) / 2, y, 14, true, PdfStyle.Ink);
         cv.Rule((Left + Right - titleWidth) / 2, (Left + Right + titleWidth) / 2, y - 5, 1.2, PdfStyle.Amber);
         y -= 30;
 
@@ -96,22 +95,28 @@ public sealed class LetterPdf
                 ("Basic Monthly Salary", s.Basic), ("Housing Allowance", s.Housing),
                 ("Transportation Allowance", s.Transport), ("Other Fixed Allowances", s.Other),
             };
+            var tableTop = y;
+            const double divider = 150; // width of the amount column
             cv.Fill(Left, y - 20, Right - Left, 20, PdfStyle.Panel);
             cv.Text("SALARY COMPONENT", Left + 8, y - 14, 8, true);
             cv.RightText("AMOUNT (AED)", Right - 8, y - 14, 8, true);
             y -= 20;
+            cv.Rule(Left, Right, y, 0.5, PdfStyle.Hairline);
             foreach (var (label, amount) in rows)
             {
                 cv.Text(label, Left + 8, y - 15, 9.5);
                 cv.RightText(PdfText.Number(amount), Right - 8, y - 15, 9.5);
                 y -= 22;
-                cv.Rule(Left, Right, y, 0.4, PdfStyle.Hairline);
+                cv.Rule(Left, Right, y, 0.5, PdfStyle.Hairline);
             }
-            cv.Fill(Left, y - 22, Right - Left, 22, PdfStyle.Panel);
+            cv.Fill(Left, y - 22, Right - Left, 22, PdfStyle.AmberTint);
             cv.Text("TOTAL GROSS MONTHLY SALARY", Left + 8, y - 15, 9.5, true);
             cv.RightText(PdfText.Number(s.Total) + " AED", Right - 8, y - 15, 10.5, true);
-            cv.Rule(Left, Right, y - 22, 0.8, PdfStyle.Teal);
-            y -= 22 + 16;
+            y -= 22;
+            // The whole table is boxed, with a line between the two columns, as on screen.
+            cv.Outline(Left, y, Right - Left, tableTop - y, 0.6, PdfStyle.Hairline);
+            cv.VRule(Right - divider, y, tableTop, 0.5, PdfStyle.Hairline);
+            y -= 16;
         }
 
         // Purpose note.
@@ -122,47 +127,29 @@ public sealed class LetterPdf
         for (var i = 0; i < noteLines.Count; i++) cv.Text(noteLines[i], Left + 12, y - 16 - i * 12, 9, false, PdfStyle.Muted);
         y -= noteHeight + 30;
 
-        // Authorisation, signature and seal.
+        // Authorisation and signature (no stamp or seal is printed).
+        cv.Rule(Left, Right, y + 14, 0.4, PdfStyle.Hairline);
         cv.Text("For " + c.CompanyName.ToUpperInvariant(), Left, y, 9.5, true);
         y -= 8;
-        var signatureTop = y;
         if (c.ShowSeal && settings.Signature is { Length: > 0 }) DrawImage(cv, settings.Signature, settings.SignatureContentType, Left, y - 52, 130, 46);
         y -= 66;
         cv.Rule(Left, Left + 170, y, 0.6, PdfStyle.Ink);
         cv.Text(c.SignerName, Left, y - 13, 10, true);
         cv.Text(c.SignerTitle, Left, y - 25, 9, false, PdfStyle.Muted);
-        if (c.ShowSeal) DrawSeal(cv, c, settings, Right - 110, signatureTop - 100);
 
-        cv.Rule(Left, Right, 52, 0.4, PdfStyle.Hairline);
-        var footer = "Official Company Document - " + c.CompanyName;
-        cv.Text(cv.Fit(footer, Right - Left, 7.2), Left, 40, 7.2, false, PdfStyle.Muted);
-    }
-
-    private static void DrawSeal(PdfCanvas cv, LetterContent c, DocumentSettings settings, double x, double bottom)
-    {
-        if (settings.Seal is { Length: > 0 } && DrawImage(cv, settings.Seal, settings.SealContentType, x, bottom, 100, 100)) return;
-        // No artwork uploaded: a plain stamp frame so the position is clear.
-        cv.Outline(x, bottom + 10, 100, 80, 1.4, PdfStyle.Teal);
-        cv.Outline(x + 4, bottom + 14, 92, 72, 0.5, PdfStyle.Teal);
-        var lines = cv.Wrap(c.CompanyName.ToUpperInvariant(), 80, 6.2, true).Take(3).ToList();
-        var top = bottom + 74;
-        foreach (var line in lines)
-        {
-            cv.Text(line, x + 50 - cv.Width(line, 6.2, true) / 2, top, 6.2, true, PdfStyle.Teal);
-            top -= 8;
-        }
-        cv.Text("OFFICIAL SEAL", x + 50 - cv.Width("OFFICIAL SEAL", 6, true) / 2, bottom + 24, 6, true, PdfStyle.Teal);
+        var footer = cv.Fit(("Official company document - " + c.CompanyName).ToUpperInvariant(), Right - Left, 7.2);
+        cv.Text(footer, (Left + Right - cv.Width(footer, 7.2)) / 2, 40, 7.2, false, PdfStyle.Muted);
     }
 
     /// <summary>Draws a PNG or JPEG inside the box, keeping its shape. Returns false when the image cannot be read.</summary>
-    private static bool DrawImage(PdfCanvas cv, byte[] data, string? contentType, double x, double bottom, double maxWidth, double maxHeight)
+    private static bool DrawImage(PdfCanvas cv, byte[] data, string? contentType, double x, double bottom, double maxWidth, double maxHeight, bool alignLeft = false)
     {
         var size = ImageSize.Read(data);
         if (size is null) return false;
         var scale = Math.Min(maxWidth / size.Value.Width, maxHeight / size.Value.Height);
         var w = size.Value.Width * scale;
         var h = size.Value.Height * scale;
-        var left = x + (maxWidth - w) / 2;
+        var left = alignLeft ? x : x + (maxWidth - w) / 2;
         var base_ = bottom + (maxHeight - h) / 2;
         try
         {
@@ -186,11 +173,13 @@ public sealed class LetterPdf
         // Words glued to the previous run (no space between them, for example a full stop after a value) stay together.
         var glued = new HashSet<int>();
         var index = 0;
+        var previousEndedInSpace = true;
         foreach (var run in runs)
         {
             var parts = PdfText.Flatten(run.Text).Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length > 0 && index > 0 && run.Text.Length > 0 && !char.IsWhiteSpace(run.Text[0])) glued.Add(index);
+            if (parts.Length > 0 && index > 0 && !char.IsWhiteSpace(run.Text[0]) && !previousEndedInSpace) glued.Add(index);
             index += parts.Length;
+            if (run.Text.Length > 0) previousEndedInSpace = char.IsWhiteSpace(run.Text[^1]);
         }
 
         var cursor = x;

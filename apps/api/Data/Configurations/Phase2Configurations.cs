@@ -169,6 +169,33 @@ public sealed class IssuedLetterConfiguration : IEntityTypeConfiguration<IssuedL
     }
 }
 
+public sealed class CertificateRequestConfiguration : IEntityTypeConfiguration<CertificateRequest>
+{
+    public void Configure(EntityTypeBuilder<CertificateRequest> b)
+    {
+        b.ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_CertificateRequests_Type", "[LetterType] IN ('Salary','Service','BankTransfer','Noc')");
+            t.HasCheckConstraint("CK_CertificateRequests_Status", "[Status] IN ('Requested','PendingApproval','Returned','Approved')");
+        });
+        b.HasOne(r => r.Worker).WithMany().HasForeignKey(r => r.WorkerId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(r => r.IssuedLetter).WithMany().HasForeignKey(r => r.IssuedLetterId).OnDelete(DeleteBehavior.Restrict);
+        b.Property(r => r.LetterType).HasMaxLength(15).IsRequired();
+        b.Property(r => r.Reason).HasMaxLength(500).IsRequired();
+        b.Property(r => r.Status).HasMaxLength(20).IsRequired();
+        b.Property(r => r.RequestedBy).HasMaxLength(50).IsRequired();
+        b.Property(r => r.RequestedUtc).HasColumnType("datetime2");
+        b.Property(r => r.DetailsJson).HasColumnType("nvarchar(max)");
+        b.Property(r => r.PreparedBy).HasMaxLength(50);
+        b.Property(r => r.PreparedUtc).HasColumnType("datetime2");
+        b.Property(r => r.ReviewedBy).HasMaxLength(50);
+        b.Property(r => r.ReviewedUtc).HasColumnType("datetime2");
+        b.Property(r => r.ReviewNote).HasMaxLength(500).IsRequired();
+        b.HasIndex(r => r.Status);
+        b.HasIndex(r => r.RequestedBy);
+    }
+}
+
 public sealed class SiteProjectConfiguration : IEntityTypeConfiguration<SiteProject>
 {
     public void Configure(EntityTypeBuilder<SiteProject> b)

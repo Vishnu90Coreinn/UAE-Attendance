@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileDown, FileSpreadsheet, HardHat, Pencil, Plus, Printer, Save, Search, SlidersHorizontal, Undo2 } from "lucide-react";
+import { FileDown, FileSpreadsheet, HardHat, Pencil, Plus, Save, Search, SlidersHorizontal, Undo2 } from "lucide-react";
 import { ApiError } from "../../api/client";
 import {
   computeKpis,
@@ -286,9 +286,6 @@ export function SiteProgressPage() {
           actions={
             report?.exists ? (
               <>
-                <Button variant="secondary" icon={Printer} onClick={() => window.print()}>
-                  Print
-                </Button>
                 <Button variant="secondary" icon={FileDown} onClick={() => void download("pdf")}>
                   PDF
                 </Button>

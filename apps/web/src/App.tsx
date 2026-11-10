@@ -121,14 +121,7 @@ export default function App() {
                 </RequireRole>
               }
             />
-            <Route
-              path="letters"
-              element={
-                <RequireRole roles={VIEW_ALL_ROLES}>
-                  <LettersPage />
-                </RequireRole>
-              }
-            />
+            <Route path="letters" element={<LettersPage />} />
             <Route path="progress" element={<SiteProgressPage />} />
             <Route
               path="users"

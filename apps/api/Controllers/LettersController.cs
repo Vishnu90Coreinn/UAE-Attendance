@@ -6,7 +6,10 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HrPayroll.Api.Controllers;
 
-/// <summary>HR certificates and letters. Manager, Administrator and HR issue and read them; a Supervisor has no access.</summary>
+/// <summary>
+/// Issued HR certificates and letters. They are issued only by a manager approving a certificate request (see
+/// <c>CertificateRequestsController</c>); Manager, Administrator and HR read and download them; a Supervisor has no access.
+/// </summary>
 [ApiController]
 [Route("api/letters")]
 public sealed class LettersController(LetterService letters, LetterPdf pdf) : ControllerBase
@@ -28,10 +31,6 @@ public sealed class LettersController(LetterService letters, LetterPdf pdf) : Co
     [HttpPost("preview")]
     [Authorize(Policy = Policies.ManagerAdminOrHr)]
     public async Task<IActionResult> Preview(LetterRequest request, CancellationToken ct) => Map(await letters.PreviewAsync(request, ct));
-
-    [HttpPost]
-    [Authorize(Policy = Policies.ManagerAdminOrHr)]
-    public async Task<IActionResult> Issue(LetterRequest request, CancellationToken ct) => Map(await letters.IssueAsync(request, ct));
 
     [HttpGet("{id:int}")]
     [Authorize(Policy = Policies.ManagerAdminOrHr)]

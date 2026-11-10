@@ -36,11 +36,12 @@ describe("navItemsForRole", () => {
     expect(labelsFor("HR")).toEqual(expect.arrayContaining(["Dashboard", "Payroll Summary", "Deductions"]));
   });
 
-  it("gives a Supervisor only Worker Directory, Daily Attendance, Leave Management and Site Progress", () => {
+  it("gives a Supervisor Worker Directory, Daily Attendance, Leave Management, HR Letters (to request certificates) and Site Progress", () => {
     expect(labelsFor("Supervisor")).toEqual([
       "Worker Directory",
       "Daily Attendance",
       "Leave Management",
+      "HR Letters",
       "Site Progress",
     ]);
   });
@@ -88,10 +89,10 @@ describe("phoneNavFor", () => {
     expect(phoneNavFor("Administrator")).toEqual(phoneNavFor("Manager"));
   });
 
-  it("shows a Supervisor their three screens with no More", () => {
+  it("shows a Supervisor their five screens with no More", () => {
     const { tabs, more } = phoneNavFor("Supervisor");
 
-    expect(labels(tabs)).toEqual(["Daily Attendance", "Worker Directory", "Leave Management", "Site Progress"]);
+    expect(labels(tabs)).toEqual(["Daily Attendance", "Worker Directory", "Leave Management", "Site Progress", "HR Letters"]);
     expect(more).toEqual([]);
   });
 

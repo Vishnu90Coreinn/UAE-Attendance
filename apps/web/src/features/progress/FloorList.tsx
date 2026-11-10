@@ -193,8 +193,8 @@ export function FloorList({ rows, desktop, canEdit, onChange, onEdit, onDelete }
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-left text-sm">
+    <div className="payroll-table-scroll overflow-x-auto">
+      <table className="payroll-table w-full border-collapse text-left text-sm">
         <thead className="border-b border-slate-200 bg-slate-50">
           <tr>
             <th scope="col" className={th}>Floor</th>
