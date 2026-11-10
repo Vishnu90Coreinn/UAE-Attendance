@@ -13,8 +13,8 @@ namespace HrPayroll.Api.Tests.Integration;
 
 public class SiteProgressTests(ApiFixture api) : IClassFixture<ApiFixture>
 {
-    private static object Floor(string name, int frames, int glass, string completion, string wir, string remarks = "") =>
-        new { floor = name, frames, glass, completion, wirStatus = wir, remarks };
+    private static object Floor(string name, int frames, int glass, string completion, string wir, string remarks = "", int shutters = 0, string alignment = "NotComplete") =>
+        new { floor = name, frames, glass, shutters, alignment, completion, wirStatus = wir, remarks };
 
     /// <summary>The prototype's sample data: 76 frames, 58 glass, 2 completed floors, 1 untouched floor, 3 floors awaiting WIR approval.</summary>
     private static object[] PrototypeFloors() =>
@@ -58,7 +58,43 @@ public class SiteProgressTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(58, kpis.GetProperty("totalGlass").GetInt32());
         Assert.Equal(2, kpis.GetProperty("completedFloors").GetInt32());
         Assert.Equal(1, kpis.GetProperty("noProgressFloors").GetInt32());
+        Assert.Equal(2, kpis.GetProperty("pendingWir").GetInt32());
+        Assert.Equal(3, kpis.GetProperty("approvedWir").GetInt32());
+        Assert.Equal(1, kpis.GetProperty("rejectedWir").GetInt32());
+        Assert.Equal(33, kpis.GetProperty("handoverReadyPercent").GetInt32());
+    }
+
+    [Fact]
+    public async Task Save_StoresShuttersAndAlignment_AndCountsThemInTheKpis()
+    {
+        var (project, _, supervisor) = await ProjectAsync();
+        var floors = new[]
+        {
+            Floor("L1", 4, 2, "Completed", "AlignmentComplete", "", shutters: 6, alignment: "Complete"),
+            Floor("L2", 0, 0, "InProgress", "AlignmentUnderProcess", "", shutters: 3, alignment: "UnderProcess"),
+            Floor("L3", 0, 0, "NotStarted", "Pending"),
+        };
+        Assert.Equal(HttpStatusCode.OK, (await SaveAsync(project, "2026-10-20", floors, supervisor)).StatusCode);
+
+        var report = await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/site-progress/{project}?date=2026-10-20", supervisor));
+        Assert.Equal(6, report.GetProperty("floors")[0].GetProperty("shutters").GetInt32());
+        Assert.Equal("UnderProcess", report.GetProperty("floors")[1].GetProperty("alignment").GetString());
+        Assert.Equal("AlignmentUnderProcess", report.GetProperty("floors")[1].GetProperty("wirStatus").GetString());
+        var kpis = report.GetProperty("kpis");
+        Assert.Equal(9, kpis.GetProperty("totalShutters").GetInt32());
+        Assert.Equal(1, kpis.GetProperty("noProgressFloors").GetInt32());
+        Assert.Equal(1, kpis.GetProperty("alignmentComplete").GetInt32());
+        Assert.Equal(1, kpis.GetProperty("alignmentUnderProcess").GetInt32());
+        Assert.Equal(1, kpis.GetProperty("alignmentNotComplete").GetInt32());
         Assert.Equal(3, kpis.GetProperty("pendingWir").GetInt32());
+    }
+
+    [Fact]
+    public async Task Save_RejectsBadShuttersAndAlignment()
+    {
+        var (project, _, supervisor) = await ProjectAsync();
+        Assert.Equal(HttpStatusCode.BadRequest, (await SaveAsync(project, "2026-10-21", [Floor("L1", 0, 0, "InProgress", "Pending", "", shutters: -1)], supervisor)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await SaveAsync(project, "2026-10-21", [Floor("L1", 0, 0, "InProgress", "Pending", "", alignment: "Half")], supervisor)).StatusCode);
     }
 
     // --- copy from previous ----------------------------------------------------------------------------------------
@@ -198,8 +234,8 @@ public class SiteProgressTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("text/csv", response.Content.Headers.ContentType!.MediaType);
         var text = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Floor,Aluminium Frames,Fixed Glass,Completion Status,WIR Status,Site Remarks", text);
-        Assert.Contains("\"'=HYPERLINK(\"\"x\"\")\",3,2,\"In Progress\",\"Inspection Submitted\",\"say \"\"hi\"\"\"", text);
+        Assert.Contains("Floor,Aluminium Frames,Fixed Glass,Shutters,Alignment Status,Completion Status,WIR Status,Site Remarks", text);
+        Assert.Contains("\"'=HYPERLINK(\"\"x\"\")\",3,2,0,\"Alignment Not Complete\",\"In Progress\",\"Inspection Submitted\",\"say \"\"hi\"\"\"", text);
     }
 
     [Fact]
@@ -354,14 +390,18 @@ public class SiteProgressTests(ApiFixture api) : IClassFixture<ApiFixture>
     // --- the shared KPI rule -------------------------------------------------------------------------------------
 
     [Fact]
-    public void Compute_CountsPendingWirAsEverythingNotApproved()
+    public void Compute_SplitsWirIntoApprovedPendingAndRejected_AndWorksOutHandoverReady()
     {
         var kpis = SiteProgressService.Compute([
-            new("A", 0, 0, "NotStarted", "Pending", ""), new("B", 1, 0, "InProgress", "Submitted", ""),
-            new("C", 2, 2, "Completed", "Approved", ""), new("D", 3, 3, "Completed", "ApprovedWithComments", ""),
-            new("E", 4, 4, "InProgress", "Rejected", ""),
+            new("A", 0, 0, 0, "NotComplete", "NotStarted", "Pending", ""), new("B", 1, 0, 2, "UnderProcess", "InProgress", "Submitted", ""),
+            new("C", 2, 2, 0, "Complete", "Completed", "Approved", ""), new("D", 3, 3, 1, "Complete", "Completed", "ApprovedWithComments", ""),
+            new("E", 4, 4, 0, "Complete", "InProgress", "Rejected", ""),
         ]);
 
-        Assert.Equal(new SiteProgressKpis(10, 9, 2, 1, 3), kpis);
+        Assert.Equal(new SiteProgressKpis(10, 9, 3, 2, 1, 2, 2, 1, 1, 1, 3, 40), kpis);
     }
+
+    [Fact]
+    public void Compute_HandoverReadyIsZeroWithNoFloors() =>
+        Assert.Equal(0, SiteProgressService.Compute([]).HandoverReadyPercent);
 }

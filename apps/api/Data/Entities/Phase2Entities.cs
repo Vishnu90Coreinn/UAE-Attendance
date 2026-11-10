@@ -176,7 +176,20 @@ public static class WirStatuses
     public const string Approved = "Approved";
     public const string ApprovedWithComments = "ApprovedWithComments";
     public const string Rejected = "Rejected";
-    public static readonly string[] All = [Pending, Submitted, Approved, ApprovedWithComments, Rejected];
+    public const string AlignmentNotComplete = "AlignmentNotComplete";
+    public const string AlignmentUnderProcess = "AlignmentUnderProcess";
+    public const string AlignmentComplete = "AlignmentComplete";
+    public static readonly string[] All =
+        [Pending, Submitted, AlignmentNotComplete, AlignmentUnderProcess, AlignmentComplete, Approved, ApprovedWithComments, Rejected];
+}
+
+/// <summary>How far the alignment of a floor's installed work has got, tracked apart from the WIR.</summary>
+public static class AlignmentStatuses
+{
+    public const string NotComplete = "NotComplete";
+    public const string UnderProcess = "UnderProcess";
+    public const string Complete = "Complete";
+    public static readonly string[] All = [NotComplete, UnderProcess, Complete];
 }
 
 /// <summary>A construction project or site whose installation progress is tracked.</summary>
@@ -208,6 +221,8 @@ public sealed class SiteProgressFloor
     public string Floor { get; set; } = "";
     public int Frames { get; set; }
     public int Glass { get; set; }
+    public int Shutters { get; set; }
+    public string Alignment { get; set; } = AlignmentStatuses.NotComplete;
     public string Completion { get; set; } = Entities.Completion.NotStarted;
     public string WirStatus { get; set; } = WirStatuses.Pending;
     public string Remarks { get; set; } = "";

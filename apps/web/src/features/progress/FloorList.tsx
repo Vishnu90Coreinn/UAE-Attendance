@@ -1,7 +1,7 @@
 import { Pencil, Trash2 } from "lucide-react";
 import type { SiteFloor } from "../../api/siteProgress";
 import { Card, IconButton, Table, TableScroll, THead, Td, Th, TRow } from "../../ui";
-import { CompletionBadge, WirBadge } from "./FloorStatus";
+import { AlignmentBadge, CompletionBadge, WirBadge } from "./FloorStatus";
 
 export interface FloorRow {
   floor: SiteFloor;
@@ -48,8 +48,13 @@ export function FloorList({ rows, desktop, canEdit, onEdit, onDelete }: FloorLis
                   <dt className="text-xs font-semibold uppercase text-ink-600">Fixed glass</dt>
                   <dd className="text-lg font-semibold tabular-nums">{row.floor.glass}</dd>
                 </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase text-ink-600">Shutters</dt>
+                  <dd className="text-lg font-semibold tabular-nums">{row.floor.shutters}</dd>
+                </div>
               </dl>
               <div className="mt-3 flex flex-wrap gap-2">
+                <AlignmentBadge status={row.floor.alignment} />
                 <CompletionBadge status={row.floor.completion} />
                 <WirBadge status={row.floor.wirStatus} />
               </div>
@@ -70,6 +75,8 @@ export function FloorList({ rows, desktop, canEdit, onEdit, onDelete }: FloorLis
               <Th>Floor</Th>
               <Th align="right">Aluminium frames</Th>
               <Th align="right">Fixed glass</Th>
+              <Th align="right">Shutters</Th>
+              <Th>Alignment</Th>
               <Th>Completion</Th>
               <Th>WIR status</Th>
               <Th>Site remarks</Th>
@@ -86,6 +93,10 @@ export function FloorList({ rows, desktop, canEdit, onEdit, onDelete }: FloorLis
                 <Td className="font-medium text-ink-900">{row.floor.floor}</Td>
                 <Td numeric>{row.floor.frames}</Td>
                 <Td numeric>{row.floor.glass}</Td>
+                <Td numeric>{row.floor.shutters}</Td>
+                <Td>
+                  <AlignmentBadge status={row.floor.alignment} />
+                </Td>
                 <Td>
                   <CompletionBadge status={row.floor.completion} />
                 </Td>

@@ -11,7 +11,7 @@ public sealed class SiteProgressPdf(IConfiguration configuration)
 {
     private const double Left = PdfLetterhead.Left;
     private const double Right = PdfLetterhead.Right;
-    private static readonly double[] Widths = [118, 52, 52, 78, 100, 123];
+    private static readonly double[] Widths = [74, 38, 36, 44, 66, 64, 92, 109];
 
     public byte[] Generate(SiteProgressResponse report, PayrollCompany company)
     {
@@ -46,26 +46,30 @@ public sealed class SiteProgressPdf(IConfiguration configuration)
             Header(canvas, ref y);
             foreach (var f in report.Floors)
             {
-                var remarks = canvas.Wrap(f.Remarks.Length == 0 ? "-" : f.Remarks, Widths[5] - 12, 8.5);
-                var height = Math.Max(1, remarks.Count) * 11 + 10;
+                var remarks = canvas.Wrap(f.Remarks.Length == 0 ? "-" : f.Remarks, Widths[7] - 12, 8.5);
+                var wir = canvas.Wrap(SiteProgressService.WirLabel(f.WirStatus), Widths[6] - 12, 8.5);
+                var align = canvas.Wrap(SiteProgressService.AlignmentLabel(f.Alignment), Widths[4] - 12, 8.5);
+                var height = Math.Max(Math.Max(1, remarks.Count), Math.Max(wir.Count, align.Count)) * 11 + 10;
                 if (y - height < 60)
                 {
                     canvas = NewPage(false, out y);
                     Header(canvas, ref y);
                 }
-                var cells = new[]
-                {
-                    canvas.Fit(f.Floor, Widths[0] - 12, 8.5), f.Frames.ToString(CultureInfo.InvariantCulture),
-                    f.Glass.ToString(CultureInfo.InvariantCulture), SiteProgressService.CompletionLabel(f.Completion),
-                    SiteProgressService.WirLabel(f.WirStatus),
-                };
                 var x = Left;
-                for (var c = 0; c < cells.Length; c++)
+                string[] numbers = [f.Frames.ToString(CultureInfo.InvariantCulture), f.Glass.ToString(CultureInfo.InvariantCulture), f.Shutters.ToString(CultureInfo.InvariantCulture)];
+                canvas.Text(canvas.Fit(f.Floor, Widths[0] - 12, 8.5), x + 6, y - 14, 8.5, true);
+                x += Widths[0];
+                for (var n = 0; n < 3; n++)
                 {
-                    if (c is 1 or 2) canvas.RightText(cells[c], x + Widths[c] - 6, y - 14, 8.5);
-                    else canvas.Text(canvas.Fit(cells[c], Widths[c] - 12, 8.5), x + 6, y - 14, 8.5, c == 0);
-                    x += Widths[c];
+                    canvas.RightText(numbers[n], x + Widths[n + 1] - 6, y - 14, 8.5);
+                    x += Widths[n + 1];
                 }
+                for (var l = 0; l < align.Count; l++) canvas.Text(align[l], x + 6, y - 14 - l * 11, 8.5);
+                x += Widths[4];
+                canvas.Text(canvas.Fit(SiteProgressService.CompletionLabel(f.Completion), Widths[5] - 12, 8.5), x + 6, y - 14, 8.5);
+                x += Widths[5];
+                for (var l = 0; l < wir.Count; l++) canvas.Text(wir[l], x + 6, y - 14 - l * 11, 8.5);
+                x += Widths[6];
                 for (var l = 0; l < remarks.Count; l++) canvas.Text(remarks[l], x + 6, y - 14 - l * 11, 8.5, false, PdfStyle.Muted);
                 y -= height;
                 canvas.Rule(Left, Right, y, 0.4, PdfStyle.Hairline);
@@ -92,31 +96,38 @@ public sealed class SiteProgressPdf(IConfiguration configuration)
 
     private static void Kpis(PdfCanvas cv, SiteProgressKpis k, ref double y)
     {
-        var items = new[]
-        {
-            ("ALUMINIUM FRAMES", k.TotalFrames), ("FIXED GLASS", k.TotalGlass), ("COMPLETED FLOORS", k.CompletedFloors),
-            ("PENDING INSTALLATION", k.NoProgressFloors), ("PENDING WIR", k.PendingWir),
-        };
+        string N(int v) => v.ToString("N0", CultureInfo.InvariantCulture);
+        (string, string)[][] rows =
+        [
+            [("ALUMINIUM FRAMES", N(k.TotalFrames)), ("FIXED GLASS", N(k.TotalGlass)), ("SHUTTERS FINISHED", N(k.TotalShutters)),
+             ("COMPLETED FLOORS", N(k.CompletedFloors)), ("PENDING INSTALLATION", N(k.NoProgressFloors)), ("HANDOVER READY", k.HandoverReadyPercent + "%")],
+            [("ALIGN: NOT COMPLETE", N(k.AlignmentNotComplete)), ("ALIGN: UNDER PROCESS", N(k.AlignmentUnderProcess)), ("ALIGN: COMPLETE", N(k.AlignmentComplete)),
+             ("WIR APPROVED", N(k.ApprovedWir)), ("WIR PENDING", N(k.PendingWir)), ("WIR REJECTED", N(k.RejectedWir))],
+        ];
         const double gap = 6;
-        var width = (Right - Left - gap * 4) / 5;
-        for (var i = 0; i < items.Length; i++)
+        var width = (Right - Left - gap * 5) / 6;
+        foreach (var items in rows)
         {
-            var x = Left + i * (width + gap);
-            cv.Fill(x, y - 44, width, 44, PdfStyle.Panel);
-            cv.Text(items[i].Item1, x + 8, y - 14, 6.2, true, PdfStyle.Muted);
-            cv.Text(items[i].Item2.ToString("N0", CultureInfo.InvariantCulture), x + 8, y - 35, 15, true, PdfStyle.Teal);
+            for (var i = 0; i < items.Length; i++)
+            {
+                var x = Left + i * (width + gap);
+                cv.Fill(x, y - 40, width, 40, PdfStyle.Panel);
+                cv.Text(cv.Fit(items[i].Item1, width - 12, 6.0, true), x + 6, y - 13, 6.0, true, PdfStyle.Muted);
+                cv.Text(items[i].Item2, x + 6, y - 32, 14, true, PdfStyle.Teal);
+            }
+            y -= 40 + 6;
         }
-        y -= 44 + 22;
+        y -= 12;
     }
 
     private static void Header(PdfCanvas cv, ref double y)
     {
-        string[] headings = ["Floor", "Frames", "Glass", "Completion", "WIR Status", "Site Remarks"];
+        string[] headings = ["Floor", "Frames", "Glass", "Shutters", "Alignment", "Completion", "WIR Status", "Site Remarks"];
         cv.Fill(Left, y - 22, Right - Left, 22, PdfStyle.Panel);
         var x = Left;
         for (var c = 0; c < headings.Length; c++)
         {
-            if (c is 1 or 2) cv.RightText(headings[c], x + Widths[c] - 6, y - 14, 8, true);
+            if (c is 1 or 2 or 3) cv.RightText(headings[c], x + Widths[c] - 6, y - 14, 8, true);
             else cv.Text(headings[c], x + 6, y - 14, 8, true);
             x += Widths[c];
         }

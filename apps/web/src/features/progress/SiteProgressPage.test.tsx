@@ -26,12 +26,12 @@ vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
 
 /** The prototype's sample floors: 76 frames, 58 glass, 2 completed, 1 untouched, 3 awaiting WIR approval. */
 const PROTOTYPE: SiteFloor[] = [
-  { floor: "Ground Floor (L00)", frames: 24, glass: 24, completion: "Completed", wirStatus: "Approved", remarks: "Consultant approved." },
-  { floor: "1st Floor (L01)", frames: 18, glass: 18, completion: "Completed", wirStatus: "Approved", remarks: "" },
-  { floor: "2nd Floor (L02)", frames: 16, glass: 12, completion: "InProgress", wirStatus: "Submitted", remarks: "4 panels pending." },
-  { floor: "3rd Floor (L03)", frames: 10, glass: 4, completion: "InProgress", wirStatus: "ApprovedWithComments", remarks: "" },
-  { floor: "4th Floor (L04)", frames: 8, glass: 0, completion: "InProgress", wirStatus: "Rejected", remarks: "" },
-  { floor: "5th Floor (L05)", frames: 0, glass: 0, completion: "NotStarted", wirStatus: "Pending", remarks: "" },
+  { floor: "Ground Floor (L00)", frames: 24, glass: 24, shutters: 0, alignment: "NotComplete", completion: "Completed", wirStatus: "Approved", remarks: "Consultant approved." },
+  { floor: "1st Floor (L01)", frames: 18, glass: 18, shutters: 0, alignment: "NotComplete", completion: "Completed", wirStatus: "Approved", remarks: "" },
+  { floor: "2nd Floor (L02)", frames: 16, glass: 12, shutters: 0, alignment: "NotComplete", completion: "InProgress", wirStatus: "Submitted", remarks: "4 panels pending." },
+  { floor: "3rd Floor (L03)", frames: 10, glass: 4, shutters: 0, alignment: "NotComplete", completion: "InProgress", wirStatus: "ApprovedWithComments", remarks: "" },
+  { floor: "4th Floor (L04)", frames: 8, glass: 0, shutters: 0, alignment: "NotComplete", completion: "InProgress", wirStatus: "Rejected", remarks: "" },
+  { floor: "5th Floor (L05)", frames: 0, glass: 0, shutters: 0, alignment: "NotComplete", completion: "NotStarted", wirStatus: "Pending", remarks: "" },
 ];
 
 function report(floors: SiteFloor[], exists = true): SiteReport {
@@ -79,17 +79,26 @@ const stat = (label: string) => screen.getByText(label, { selector: "p" }).paren
 
 describe("KPIs", () => {
   it("computeKpis matches the server vectors", () => {
-    expect(api.computeKpis(PROTOTYPE)).toEqual({ totalFrames: 76, totalGlass: 58, completedFloors: 2, noProgressFloors: 1, pendingWir: 3 });
+    expect(api.computeKpis(PROTOTYPE)).toEqual({
+      totalFrames: 76, totalGlass: 58, totalShutters: 0, completedFloors: 2, noProgressFloors: 1,
+      pendingWir: 2, approvedWir: 3, rejectedWir: 1,
+      alignmentNotComplete: 6, alignmentUnderProcess: 0, alignmentComplete: 0, handoverReadyPercent: 33,
+    });
   });
 
-  it("shows the five summary figures", async () => {
+  it("shows the summary figures", async () => {
     await open();
 
     expect(within(stat("Aluminium frames")).getByText("76")).toBeInTheDocument();
     expect(within(stat("Fixed glass")).getByText("58")).toBeInTheDocument();
     expect(within(stat("Completed floors")).getByText("2")).toBeInTheDocument();
     expect(within(stat("Pending installation")).getByText("1")).toBeInTheDocument();
-    expect(within(stat("Pending WIR")).getByText("3")).toBeInTheDocument();
+    expect(within(stat("Shutters finished")).getByText("0")).toBeInTheDocument();
+    expect(within(stat("Alignment progress")).getByText("0 complete")).toBeInTheDocument();
+    expect(within(stat("Alignment progress")).getByText("0 under process, 6 not complete")).toBeInTheDocument();
+    expect(within(stat("WIR approvals")).getByText("3 approved")).toBeInTheDocument();
+    expect(within(stat("WIR approvals")).getByText("2 pending, 1 rejected")).toBeInTheDocument();
+    expect(within(stat("Site handover ready")).getByText("33%")).toBeInTheDocument();
   });
 });
 
@@ -132,7 +141,7 @@ describe("Site Progress page", () => {
     await user.click(within(dialog).getByRole("button", { name: "Add floor" }));
 
     expect(within(stat("Aluminium frames")).getByText("81")).toBeInTheDocument();
-    expect(within(stat("Pending WIR")).getByText("4")).toBeInTheDocument();
+    expect(within(stat("WIR approvals")).getByText("3 pending, 1 rejected")).toBeInTheDocument();
     expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Save report" }));
@@ -142,8 +151,40 @@ describe("Site Progress page", () => {
     expect(project).toBe(1);
     expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(floors).toHaveLength(7);
-    expect(floors[6]).toMatchObject({ floor: "6th Floor (L06)", frames: 5, glass: 0, completion: "InProgress", wirStatus: "Pending" });
+    expect(floors[6]).toMatchObject({ floor: "6th Floor (L06)", frames: 5, glass: 0, shutters: 0, alignment: "NotComplete", completion: "InProgress", wirStatus: "Pending" });
     expect(await screen.findByText("Report saved.")).toBeInTheDocument();
+  });
+
+  it("records shutters and alignment for a floor and filters by alignment", async () => {
+    const user = await open();
+
+    await user.click(screen.getByRole("button", { name: "Add floor" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add floor" });
+    await user.type(within(dialog).getByLabelText("Floor designation / ID"), "6th Floor (L06)");
+    await user.clear(within(dialog).getByLabelText("Shutters"));
+    await user.type(within(dialog).getByLabelText("Shutters"), "7");
+    await user.selectOptions(within(dialog).getByLabelText("Alignment status"), "Complete");
+    await user.click(within(dialog).getByRole("button", { name: "Add floor" }));
+
+    expect(within(stat("Shutters finished")).getByText("7")).toBeInTheDocument();
+    expect(within(stat("Alignment progress")).getByText("1 complete")).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Alignment"), "Complete");
+    expect(screen.getAllByRole("row")).toHaveLength(2);
+    expect(screen.getByText("6th Floor (L06)")).toBeInTheDocument();
+  });
+
+  it("refuses a bad shutters count inside the dialog", async () => {
+    const user = await open();
+
+    await user.click(screen.getByRole("button", { name: "Add floor" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add floor" });
+    await user.type(within(dialog).getByLabelText("Floor designation / ID"), "7th Floor");
+    await user.clear(within(dialog).getByLabelText("Shutters"));
+    await user.type(within(dialog).getByLabelText("Shutters"), "-1");
+    await user.click(within(dialog).getByRole("button", { name: "Add floor" }));
+
+    expect(within(dialog).getByText("Enter a whole number of 0 or more.")).toBeInTheDocument();
+    expect(api.saveReport).not.toHaveBeenCalled();
   });
 
   it("refuses a duplicate floor name and a bad count inside the dialog", async () => {
@@ -173,7 +214,7 @@ describe("Site Progress page", () => {
     await user.selectOptions(within(dialog).getByLabelText("WIR (Work Inspection Request) status"), "Approved");
     await user.click(within(dialog).getByRole("button", { name: "Update floor" }));
 
-    expect(within(stat("Pending WIR")).getByText("1")).toBeInTheDocument();
+    expect(within(stat("WIR approvals")).getByText("1 pending, 0 rejected")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Discard changes" }));
     expect(screen.getByText("5th Floor (L05)")).toBeInTheDocument();
   });

@@ -11,7 +11,7 @@ namespace HrPayroll.Api.Services;
 public sealed record SiteProgressResult(int StatusCode, object? Body = null, Dictionary<string, string[]>? Errors = null, string? Message = null);
 
 /// <summary>
-/// Daily site progress: aluminium frames and fixed glass installed per floor, with each floor's completion and Work
+/// Daily site progress: aluminium frames, fixed glass and shutters per floor, with each floor's alignment, completion and Work
 /// Inspection Request (WIR) status. A project has at most one report per date; a report is saved as a whole.
 /// </summary>
 public sealed class SiteProgressService(AppDbContext db, IAuditLogger audit, TimeProvider time, IHttpContextAccessor httpContext)
@@ -120,7 +120,7 @@ public sealed class SiteProgressService(AppDbContext db, IAuditLogger audit, Tim
                 report.Floors.Add(new SiteProgressFloor
                 {
                     SortOrder = order++, Floor = Clean(f.Floor), Frames = f.Frames!.Value, Glass = f.Glass!.Value,
-                    Completion = f.Completion!, WirStatus = f.WirStatus!, Remarks = Clean(f.Remarks),
+                    Shutters = f.Shutters!.Value, Alignment = f.Alignment!, Completion = f.Completion!, WirStatus = f.WirStatus!, Remarks = Clean(f.Remarks),
                 });
             }
             audit.Write("SiteProgressSaved", entityType: nameof(SiteProgressReport), entityId: $"{projectId}/{Label(date)}",
@@ -156,10 +156,10 @@ public sealed class SiteProgressService(AppDbContext db, IAuditLogger audit, Tim
         var report = (SiteProgressResponse)result.Body!;
         if (!report.Exists) return new(404, Message: "There is no saved report for this date.");
         var csv = new StringBuilder();
-        csv.Append("Floor,Aluminium Frames,Fixed Glass,Completion Status,WIR Status,Site Remarks\r\n");
+        csv.Append("Floor,Aluminium Frames,Fixed Glass,Shutters,Alignment Status,Completion Status,WIR Status,Site Remarks\r\n");
         foreach (var f in report.Floors)
-            csv.Append(Csv(f.Floor)).Append(',').Append(f.Frames).Append(',').Append(f.Glass).Append(',')
-                .Append(Csv(CompletionLabel(f.Completion))).Append(',').Append(Csv(WirLabel(f.WirStatus))).Append(',').Append(Csv(f.Remarks)).Append("\r\n");
+            csv.Append(Csv(f.Floor)).Append(',').Append(f.Frames).Append(',').Append(f.Glass).Append(',').Append(f.Shutters).Append(',')
+                .Append(Csv(AlignmentLabel(f.Alignment))).Append(',').Append(Csv(CompletionLabel(f.Completion))).Append(',').Append(Csv(WirLabel(f.WirStatus))).Append(',').Append(Csv(f.Remarks)).Append("\r\n");
         var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
         return new(200, new SiteProgressFile(bytes, $"SiteProgress_{FileStem(report.ProjectName)}_{report.Date}.csv", "text/csv"));
     }
@@ -195,21 +195,38 @@ public sealed class SiteProgressService(AppDbContext db, IAuditLogger audit, Tim
         return new(project.Id, project.Name, Label(date), true, null, report.UpdatedBy, DateTime.SpecifyKind(report.UpdatedUtc, DateTimeKind.Utc), floors, Compute(floors));
     }
 
-    private static SiteProgressFloorResponse ToResponse(SiteProgressFloor f) => new(f.Floor, f.Frames, f.Glass, f.Completion, f.WirStatus, f.Remarks);
+    private static SiteProgressFloorResponse ToResponse(SiteProgressFloor f) => new(f.Floor, f.Frames, f.Glass, f.Shutters, f.Alignment, f.Completion, f.WirStatus, f.Remarks);
 
-    /// <summary>Pending WIR means every floor whose inspection is not yet approved (Pending, Submitted or Rejected).</summary>
+    /// <summary>
+    /// Approved WIR is Approved or Approved with Comments; Rejected stands alone; every other status is still pending.
+    /// A floor is handover ready when it is Completed and its WIR is approved.
+    /// </summary>
     public static SiteProgressKpis Compute(IEnumerable<SiteProgressFloorResponse> floors)
     {
-        int frames = 0, glass = 0, completed = 0, none = 0, pending = 0;
+        int frames = 0, glass = 0, shutters = 0, completed = 0, none = 0, pending = 0, approved = 0, rejected = 0;
+        int alignNot = 0, alignUnder = 0, alignDone = 0, ready = 0, total = 0;
         foreach (var f in floors)
         {
+            total++;
             frames += f.Frames;
             glass += f.Glass;
+            shutters += f.Shutters;
             if (f.Completion == CompletionValues.Completed) completed++;
-            if (f.Frames == 0 && f.Glass == 0) none++;
-            if (f.WirStatus is not (WirStatuses.Approved or WirStatuses.ApprovedWithComments)) pending++;
+            if (f.Frames == 0 && f.Glass == 0 && f.Shutters == 0) none++;
+            var isApproved = f.WirStatus is WirStatuses.Approved or WirStatuses.ApprovedWithComments;
+            if (isApproved) approved++;
+            else if (f.WirStatus == WirStatuses.Rejected) rejected++;
+            else pending++;
+            if (isApproved && f.Completion == CompletionValues.Completed) ready++;
+            switch (f.Alignment)
+            {
+                case AlignmentStatuses.Complete: alignDone++; break;
+                case AlignmentStatuses.UnderProcess: alignUnder++; break;
+                default: alignNot++; break;
+            }
         }
-        return new(frames, glass, completed, none, pending);
+        var percent = total == 0 ? 0 : (int)Math.Round(ready * 100m / total, 0, MidpointRounding.AwayFromZero);
+        return new(frames, glass, shutters, completed, none, pending, approved, rejected, alignNot, alignUnder, alignDone, percent);
     }
 
     private static Dictionary<string, string[]> ValidateFloors(List<SiteProgressFloorRequest?> floors)
@@ -228,6 +245,8 @@ public sealed class SiteProgressService(AppDbContext db, IAuditLogger audit, Tim
             else if (!seen.Add(name)) errors[$"{p}.floor"] = [$"The floor \"{name}\" appears more than once."];
             if (f.Frames is null or < 0 or > MaxCount) errors[$"{p}.frames"] = ["Enter the frames installed as a whole number of 0 or more."];
             if (f.Glass is null or < 0 or > MaxCount) errors[$"{p}.glass"] = ["Enter the fixed glass installed as a whole number of 0 or more."];
+            if (f.Shutters is null or < 0 or > MaxCount) errors[$"{p}.shutters"] = ["Enter the shutters finished as a whole number of 0 or more."];
+            if (f.Alignment is null || !AlignmentStatuses.All.Contains(f.Alignment)) errors[$"{p}.alignment"] = ["Choose an alignment status."];
             if (f.Completion is null || !CompletionValues.All.Contains(f.Completion)) errors[$"{p}.completion"] = ["Choose a completion status."];
             if (f.WirStatus is null || !WirStatuses.All.Contains(f.WirStatus)) errors[$"{p}.wirStatus"] = ["Choose a WIR status."];
             if (Clean(f.Remarks).Length > MaxRemarksLength) errors[$"{p}.remarks"] = [$"Remarks must be {MaxRemarksLength} characters or fewer."];
@@ -277,7 +296,17 @@ public sealed class SiteProgressService(AppDbContext db, IAuditLogger audit, Tim
         WirStatuses.ApprovedWithComments => "Approved with Comments",
         WirStatuses.Submitted => "Inspection Submitted",
         WirStatuses.Rejected => "Rejected",
+        WirStatuses.AlignmentNotComplete => "WIR: Alignment Not Complete",
+        WirStatuses.AlignmentUnderProcess => "WIR: Alignment Under Process",
+        WirStatuses.AlignmentComplete => "WIR: Alignment Complete",
         _ => "Not Submitted",
+    };
+
+    public static string AlignmentLabel(string value) => value switch
+    {
+        AlignmentStatuses.Complete => "Alignment Complete",
+        AlignmentStatuses.UnderProcess => "Alignment Under Process",
+        _ => "Alignment Not Complete",
     };
 
     private static Dictionary<string, string[]> ValidateName(string name)

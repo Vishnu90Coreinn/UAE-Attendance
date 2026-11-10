@@ -196,15 +196,18 @@ public sealed class SiteProgressFloorConfiguration : IEntityTypeConfiguration<Si
     {
         b.ToTable(t =>
         {
-            t.HasCheckConstraint("CK_SiteProgressFloors_Counts", "[Frames] >= 0 AND [Glass] >= 0");
+            t.HasCheckConstraint("CK_SiteProgressFloors_Counts", "[Frames] >= 0 AND [Glass] >= 0 AND [Shutters] >= 0");
+            t.HasCheckConstraint("CK_SiteProgressFloors_Alignment", "[Alignment] IN ('NotComplete','UnderProcess','Complete')");
             t.HasCheckConstraint("CK_SiteProgressFloors_Completion", "[Completion] IN ('NotStarted','InProgress','Completed')");
-            t.HasCheckConstraint("CK_SiteProgressFloors_Wir", "[WirStatus] IN ('Pending','Submitted','Approved','ApprovedWithComments','Rejected')");
+            t.HasCheckConstraint("CK_SiteProgressFloors_Wir", "[WirStatus] IN ('Pending','Submitted','AlignmentNotComplete','AlignmentUnderProcess','AlignmentComplete','Approved','ApprovedWithComments','Rejected')");
         });
         b.HasOne(f => f.Report).WithMany(r => r.Floors).HasForeignKey(f => f.ReportId).OnDelete(DeleteBehavior.Cascade);
         b.Property(f => f.Floor).HasMaxLength(60).UseCollation(UserConfiguration.CaseInsensitiveCollation).IsRequired();
         b.HasIndex(f => new { f.ReportId, f.Floor }).IsUnique();
+        b.Property(f => f.Shutters).HasDefaultValue(0);
+        b.Property(f => f.Alignment).HasMaxLength(12).HasDefaultValue(AlignmentStatuses.NotComplete).IsRequired();
         b.Property(f => f.Completion).HasMaxLength(12).IsRequired();
-        b.Property(f => f.WirStatus).HasMaxLength(20).IsRequired();
+        b.Property(f => f.WirStatus).HasMaxLength(24).IsRequired();
         b.Property(f => f.Remarks).HasMaxLength(500).IsRequired();
     }
 }

@@ -975,6 +975,13 @@ namespace HrPayroll.Api.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Alignment")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(12)
+                        .HasColumnType("nvarchar(12)")
+                        .HasDefaultValue("NotComplete");
+
                     b.Property<string>("Completion")
                         .IsRequired()
                         .HasMaxLength(12)
@@ -1000,13 +1007,18 @@ namespace HrPayroll.Api.Data.Migrations
                     b.Property<int>("ReportId")
                         .HasColumnType("int");
 
+                    b.Property<int>("Shutters")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
 
                     b.Property<string>("WirStatus")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
 
                     b.HasKey("Id");
 
@@ -1015,11 +1027,13 @@ namespace HrPayroll.Api.Data.Migrations
 
                     b.ToTable("SiteProgressFloors", t =>
                         {
+                            t.HasCheckConstraint("CK_SiteProgressFloors_Alignment", "[Alignment] IN ('NotComplete','UnderProcess','Complete')");
+
                             t.HasCheckConstraint("CK_SiteProgressFloors_Completion", "[Completion] IN ('NotStarted','InProgress','Completed')");
 
-                            t.HasCheckConstraint("CK_SiteProgressFloors_Counts", "[Frames] >= 0 AND [Glass] >= 0");
+                            t.HasCheckConstraint("CK_SiteProgressFloors_Counts", "[Frames] >= 0 AND [Glass] >= 0 AND [Shutters] >= 0");
 
-                            t.HasCheckConstraint("CK_SiteProgressFloors_Wir", "[WirStatus] IN ('Pending','Submitted','Approved','ApprovedWithComments','Rejected')");
+                            t.HasCheckConstraint("CK_SiteProgressFloors_Wir", "[WirStatus] IN ('Pending','Submitted','AlignmentNotComplete','AlignmentUnderProcess','AlignmentComplete','Approved','ApprovedWithComments','Rejected')");
                         });
                 });
 

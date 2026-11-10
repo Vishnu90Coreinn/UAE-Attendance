@@ -1,6 +1,6 @@
 import { CheckCheck, CheckCircle2, CircleDashed, Clock, Loader, Send, XCircle } from "lucide-react";
 import { StatusBadge } from "../../ui";
-import { completionLabel, wirLabel, type Completion, type WirStatus } from "../../api/siteProgress";
+import { alignmentLabel, completionLabel, wirLabel, type Alignment, type Completion, type WirStatus } from "../../api/siteProgress";
 
 /** Status is always an icon and a word together, never colour alone. */
 export function WirBadge({ status }: { status: WirStatus }) {
@@ -32,6 +32,26 @@ export function WirBadge({ status }: { status: WirStatus }) {
         </StatusBadge>
       );
   }
+}
+
+export function AlignmentBadge({ status }: { status: Alignment }) {
+  if (status === "Complete")
+    return (
+      <StatusBadge tone="success" icon={CheckCircle2}>
+        {alignmentLabel(status)}
+      </StatusBadge>
+    );
+  if (status === "UnderProcess")
+    return (
+      <StatusBadge tone="info" icon={Loader}>
+        {alignmentLabel(status)}
+      </StatusBadge>
+    );
+  return (
+    <StatusBadge tone="neutral" icon={CircleDashed}>
+      {alignmentLabel(status)}
+    </StatusBadge>
+  );
 }
 
 export function CompletionBadge({ status }: { status: Completion }) {

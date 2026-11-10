@@ -3,14 +3,16 @@ import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
 import { Button, Select, Textarea } from "../../ui";
 import {
+  ALIGNMENT_OPTIONS,
   COMPLETION_OPTIONS,
   WIR_OPTIONS,
+  type Alignment,
   type Completion,
   type SiteFloor,
   type WirStatus,
 } from "../../api/siteProgress";
 
-const EMPTY: SiteFloor = { floor: "", frames: 0, glass: 0, completion: "InProgress", wirStatus: "Pending", remarks: "" };
+const EMPTY: SiteFloor = { floor: "", frames: 0, glass: 0, shutters: 0, alignment: "NotComplete", completion: "InProgress", wirStatus: "Pending", remarks: "" };
 
 interface FloorDialogProps {
   open: boolean;
@@ -42,6 +44,8 @@ function FloorForm({ floor, takenNames, onSave, onClose }: Omit<FloorDialogProps
   const [name, setName] = useState(initial.floor);
   const [frames, setFrames] = useState(String(initial.frames));
   const [glass, setGlass] = useState(String(initial.glass));
+  const [shutters, setShutters] = useState(String(initial.shutters));
+  const [alignment, setAlignment] = useState<Alignment>(initial.alignment);
   const [completion, setCompletion] = useState<Completion>(initial.completion);
   const [wir, setWir] = useState<WirStatus>(initial.wirStatus);
   const [remarks, setRemarks] = useState(initial.remarks);
@@ -56,8 +60,10 @@ function FloorForm({ floor, takenNames, onSave, onClose }: Omit<FloorDialogProps
     else if (takenNames.some((n) => n.toLowerCase() === trimmed.toLowerCase())) next.floor = "This floor is already in the report.";
     const framesValue = wholeNumber(frames);
     const glassValue = wholeNumber(glass);
+    const shuttersValue = wholeNumber(shutters);
     if (framesValue === null) next.frames = "Enter a whole number of 0 or more.";
     if (glassValue === null) next.glass = "Enter a whole number of 0 or more.";
+    if (shuttersValue === null) next.shutters = "Enter a whole number of 0 or more.";
     if (remarks.trim().length > 500) next.remarks = "Remarks must be 500 characters or fewer.";
     setErrors(next);
     if (Object.keys(next).length > 0) return;
@@ -65,6 +71,8 @@ function FloorForm({ floor, takenNames, onSave, onClose }: Omit<FloorDialogProps
       floor: trimmed,
       frames: framesValue!,
       glass: glassValue!,
+      shutters: shuttersValue!,
+      alignment,
       completion,
       wirStatus: wir,
       remarks: remarks.trim(),
@@ -83,10 +91,18 @@ function FloorForm({ floor, takenNames, onSave, onClose }: Omit<FloorDialogProps
         inputRef={nameRef}
         autoFocus
       />
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <TextField label="Aluminium frames" inputMode="numeric" value={frames} onChange={(e) => setFrames(e.target.value)} error={errors.frames} />
         <TextField label="Fixed glass" inputMode="numeric" value={glass} onChange={(e) => setGlass(e.target.value)} error={errors.glass} />
+        <TextField label="Shutters" inputMode="numeric" value={shutters} onChange={(e) => setShutters(e.target.value)} error={errors.shutters} />
       </div>
+      <Select label="Alignment status" value={alignment} onChange={(e) => setAlignment(e.target.value as Alignment)}>
+        {ALIGNMENT_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </Select>
       <Select label="Floor completion status" value={completion} onChange={(e) => setCompletion(e.target.value as Completion)}>
         {COMPLETION_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>

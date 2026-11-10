@@ -27,6 +27,7 @@ import { ProjectDialog } from "./ProjectDialog";
 
 type WirFilter = "all" | "approved" | "approvedComments" | "pending" | "rejected";
 type CompletionFilter = "all" | "Completed" | "InProgress" | "NotStarted";
+type AlignmentFilter = "all" | "Complete" | "UnderProcess" | "NotComplete";
 
 function today(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -67,6 +68,7 @@ export function SiteProgressPage() {
   const [search, setSearch] = useState("");
   const [wirFilter, setWirFilter] = useState<WirFilter>("all");
   const [completionFilter, setCompletionFilter] = useState<CompletionFilter>("all");
+  const [alignmentFilter, setAlignmentFilter] = useState<AlignmentFilter>("all");
   const [editing, setEditing] = useState<{ index: number | null } | null>(null);
   const [projectDialog, setProjectDialog] = useState<{ project?: SiteProject } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -141,9 +143,10 @@ export function SiteProgressPage() {
         if (wirFilter === "approvedComments" && floor.wirStatus !== "ApprovedWithComments") return false;
         if (wirFilter === "pending" && approved) return false;
         if (wirFilter === "rejected" && floor.wirStatus !== "Rejected") return false;
+        if (alignmentFilter !== "all" && floor.alignment !== alignmentFilter) return false;
         return completionFilter === "all" || floor.completion === completionFilter;
       });
-  }, [floors, search, wirFilter, completionFilter]);
+  }, [floors, search, wirFilter, completionFilter, alignmentFilter]);
 
   async function save() {
     if (projectId === null) return;
@@ -213,7 +216,7 @@ export function SiteProgressPage() {
       <div className="payroll-controls">
         <PageHeader
           title="Site Progress"
-          description="Aluminium frames and fixed glass installed on each floor, and the inspection (WIR) status."
+          description="Aluminium frames, fixed glass and shutters on each floor, with alignment, completion and the inspection (WIR) status."
           actions={
             report?.exists ? (
               <>
@@ -315,9 +318,26 @@ export function SiteProgressPage() {
               <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
                 <StatCard label="Aluminium frames" value={kpis.totalFrames} note="Total frames installed" />
                 <StatCard label="Fixed glass" value={kpis.totalGlass} note="Total fixed panels installed" />
+                <StatCard label="Shutters finished" value={kpis.totalShutters} note="Total shutters completed" />
                 <StatCard label="Completed floors" value={kpis.completedFloors} note="Marked completed" />
-                <StatCard label="Pending installation" value={kpis.noProgressFloors} note="0 frames and 0 glass" />
-                <StatCard label="Pending WIR" value={kpis.pendingWir} note="Awaiting approval" />
+                <StatCard label="Pending installation" value={kpis.noProgressFloors} note="No frames, glass or shutters" />
+              </div>
+              <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                <StatCard
+                  label="Alignment progress"
+                  value={`${kpis.alignmentComplete} complete`}
+                  note={`${kpis.alignmentUnderProcess} under process, ${kpis.alignmentNotComplete} not complete`}
+                />
+                <StatCard
+                  label="WIR approvals"
+                  value={`${kpis.approvedWir} approved`}
+                  note={`${kpis.pendingWir} pending, ${kpis.rejectedWir} rejected`}
+                />
+                <StatCard
+                  label="Site handover ready"
+                  value={`${kpis.handoverReadyPercent}%`}
+                  note="Floors completed and WIR approved"
+                />
               </div>
 
               {report.copiedFromDate && !report.exists && (
@@ -347,6 +367,14 @@ export function SiteProgressPage() {
                     <option value="approvedComments">Approved with comments</option>
                     <option value="pending">Pending / unapproved</option>
                     <option value="rejected">Rejected only</option>
+                  </Select>
+                </div>
+                <div>
+                  <Select label="Alignment" value={alignmentFilter} onChange={(e) => setAlignmentFilter(e.target.value as AlignmentFilter)}>
+                    <option value="all">All alignment levels</option>
+                    <option value="Complete">Complete</option>
+                    <option value="UnderProcess">Under process</option>
+                    <option value="NotComplete">Not complete</option>
                   </Select>
                 </div>
                 <div>
