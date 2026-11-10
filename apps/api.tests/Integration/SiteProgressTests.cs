@@ -76,7 +76,7 @@ public class SiteProgressTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal("2026-09-10", report.GetProperty("copiedFromDate").GetString());
         Assert.Equal(6, report.GetProperty("floors").GetArrayLength());
         var dates = await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/site-progress/{project}/dates", supervisor));
-        Assert.Equal(["2026-09-10", "2026-09-01"], dates.EnumerateArray().Select(d => d.GetString()).ToArray());
+        Assert.Equal(["2026-09-10", "2026-09-01"], dates.EnumerateArray().Select(d => d.GetString()!).ToArray());
     }
 
     [Fact]
