@@ -15,6 +15,7 @@ import {
   type LetterSummary,
   type LetterType,
 } from "../../api/letters";
+import { getDocumentSettings } from "../../api/documentSettings";
 import { listWorkers, type Worker } from "../../api/workers";
 import { Button, Card, EmptyState, Input, PageHeader, Select, Table, TableScroll, Td, Textarea, Th, THead, TRow, cx } from "../../ui";
 import { saveBlob } from "../payroll/downloadPdf";
@@ -111,6 +112,7 @@ function NewLetter({ workers, onIssued }: { workers: Worker[]; onIssued: (record
   const [purposeNote, setPurposeNote] = useState("");
   const [signerName, setSignerName] = useState("");
   const [signerTitle, setSignerTitle] = useState("");
+  const [defaultSigner, setDefaultSigner] = useState<{ name: string; title: string } | null>(null);
   const [showSeal, setShowSeal] = useState(true);
   const [bankName, setBankName] = useState("");
   const [bankAccountNumber, setBankAccountNumber] = useState("");
@@ -121,6 +123,22 @@ function NewLetter({ workers, onIssued }: { workers: Worker[]; onIssued: (record
   const [errors, setErrors] = useState<Errors>({});
   const [issuing, setIssuing] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+
+  // Show the company's saved signatory as the starting value, so the common case needs no typing.
+  useEffect(() => {
+    let cancelled = false;
+    getDocumentSettings()
+      .then((s) => {
+        if (cancelled) return;
+        setDefaultSigner({ name: s.signerName, title: s.signerTitle });
+        setSignerName((current) => current || s.signerName);
+        setSignerTitle((current) => current || s.signerTitle);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const worker = workers.find((w) => String(w.id) === workerId);
   // The bank fields are asked for only when a bank letter has nothing to use from the worker's own profile.
@@ -258,7 +276,13 @@ function NewLetter({ workers, onIssued }: { workers: Worker[]; onIssued: (record
             error={errors.purposeNote}
           />
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-            <Input label="Signatory name" value={signerName} onChange={(e) => setSignerName(e.target.value)} error={errors.signerName} hint="Blank uses the name in Settings." />
+            <Input
+              label="Signatory name"
+              value={signerName}
+              onChange={(e) => setSignerName(e.target.value)}
+              error={errors.signerName}
+              hint={defaultSigner && !defaultSigner.name ? "No default is saved yet. Add one in Settings to skip this next time." : undefined}
+            />
             <Input label="Signatory title" value={signerTitle} onChange={(e) => setSignerTitle(e.target.value)} error={errors.signerTitle} />
           </div>
           {askBank && (
@@ -296,7 +320,7 @@ function NewLetter({ workers, onIssued }: { workers: Worker[]; onIssued: (record
         ) : (
           <Card>
             <p role="status" className="p-6 text-sm text-ink-600">
-              {previewing ? "Building the preview..." : "Complete the highlighted details to see the preview."}
+              {previewing ? "Building the preview..." : `${Object.values(errors)[0] ?? "Complete the highlighted details."} The preview appears once it is filled in.`}
             </p>
           </Card>
         )}

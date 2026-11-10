@@ -181,17 +181,17 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
               {lines.map((line, i) => (
                 <TRow key={i} className="align-top">
                   <Td>
-                    <TextField label={`Description, line ${i + 1}`} value={line.description} onChange={(e) => updateLine(i, { description: e.target.value })} error={errors[`lines[${i}].description`]} maxLength={500} />
+                    <TextField hideLabel label={`Description, line ${i + 1}`} placeholder="e.g. Supply and install 12 mm tempered glass" value={line.description} onChange={(e) => updateLine(i, { description: e.target.value })} error={errors[`lines[${i}].description`]} maxLength={500} />
                   </Td>
                   <Td>
-                    <TextField label={`Quantity, line ${i + 1}`} inputMode="decimal" value={line.quantity} onChange={(e) => updateLine(i, { quantity: e.target.value })} error={errors[`lines[${i}].quantity`]} />
+                    <TextField hideLabel label={`Quantity, line ${i + 1}`} inputMode="decimal" value={line.quantity} onChange={(e) => updateLine(i, { quantity: e.target.value })} error={errors[`lines[${i}].quantity`]} />
                   </Td>
                   <Td>
-                    <TextField label={`Rate, line ${i + 1}`} inputMode="decimal" value={line.rate} onChange={(e) => updateLine(i, { rate: e.target.value })} error={errors[`lines[${i}].rate`]} />
+                    <TextField hideLabel label={`Rate, line ${i + 1}`} inputMode="decimal" value={line.rate} onChange={(e) => updateLine(i, { rate: e.target.value })} error={errors[`lines[${i}].rate`]} />
                   </Td>
-                  <Td numeric className="pt-8">{formatMoney(preview.amounts[i].vat)}</Td>
-                  <Td numeric className="pt-8 font-semibold">{formatMoney(preview.amounts[i].amount)}</Td>
-                  <Td className="pt-6">
+                  <Td numeric className="pt-5 text-ink-600">{formatMoney(preview.amounts[i].vat)}</Td>
+                  <Td numeric className="pt-5 font-semibold text-ink-900">{formatMoney(preview.amounts[i].amount)}</Td>
+                  <Td className="pt-3">
                     <IconButton icon={Trash2} label={`Remove line ${i + 1}`} tone="danger" disabled={lines.length === 1} onClick={() => setLines((c) => c.filter((_, j) => j !== i))} />
                   </Td>
                 </TRow>
@@ -199,11 +199,11 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
             </tbody>
           </Table>
         </TableScroll>
-        <dl className="mt-4 ml-auto max-w-xs space-y-1 text-sm" aria-label="Totals preview">
+        <dl className="mt-5 ml-auto w-full max-w-sm space-y-2 rounded-lg bg-ink-50 px-4 py-3 text-sm text-ink-700" aria-label="Totals preview">
           <div className="flex justify-between"><dt>Sub total</dt><dd className="tabular-nums">{formatMoney(preview.subTotal)}</dd></div>
           <div className="flex justify-between"><dt>VAT (5%)</dt><dd className="tabular-nums">{formatMoney(preview.vatTotal)}</dd></div>
-          <div className="flex justify-between border-t border-line pt-1 font-bold"><dt>Total (AED)</dt><dd className="tabular-nums">{formatMoney(preview.total)}</dd></div>
-          <p className="text-xs text-ink-500">Preview only. The server calculates the final amounts when you save.</p>
+          <div className="flex justify-between border-t border-line pt-2 text-base font-bold text-ink-900"><dt>Total (AED)</dt><dd className="tabular-nums">{formatMoney(preview.total)}</dd></div>
+          <p className="pt-1 text-xs text-ink-500">Preview only. The final amounts are calculated when you save.</p>
         </dl>
       </Card>
 

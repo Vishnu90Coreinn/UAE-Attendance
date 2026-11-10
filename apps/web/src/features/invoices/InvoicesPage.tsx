@@ -40,6 +40,8 @@ export function InvoicesPage() {
   const [error, setError] = useState<string | null>(null);
   const [clientsOpen, setClientsOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilters = Object.values(filters).filter((v) => v !== undefined && v !== "").length;
 
   const load = useCallback(async () => {
     setError(null);
@@ -131,8 +133,18 @@ export function InvoicesPage() {
       />
 
       <Card className="mb-4 p-4">
-        <form role="search" aria-label="Filter invoices" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6" onSubmit={(e) => e.preventDefault()}>
-          <div className="lg:col-span-2">
+        <button
+          type="button"
+          className="flex min-h-11 w-full items-center justify-between text-sm font-semibold text-ink-800 sm:hidden"
+          aria-expanded={filtersOpen}
+          aria-controls="invoice-filters"
+          onClick={() => setFiltersOpen((v) => !v)}
+        >
+          <span>Filters{activeFilters > 0 ? ` (${activeFilters} active)` : ""}</span>
+          <span aria-hidden="true">{filtersOpen ? "Hide" : "Show"}</span>
+        </button>
+        <form id="invoice-filters" role="search" aria-label="Filter invoices" className={`mt-3 gap-3 sm:mt-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 ${filtersOpen ? "grid" : "hidden"}`} onSubmit={(e) => e.preventDefault()}>
+          <div className="sm:col-span-2">
             <TextField label="Search" placeholder="Number, client, project or LPO" value={filters.q ?? ""} onChange={(e) => setFilters({ ...filters, q: e.target.value || undefined })} />
           </div>
           <Select label="Client" value={filters.clientId ?? ""} onChange={(e) => setFilters({ ...filters, clientId: e.target.value ? Number(e.target.value) : undefined })}>
@@ -181,7 +193,7 @@ export function InvoicesPage() {
                 {rows.map((r) => (
                   <TRow key={r.id}>
                     <Td>
-                      <button type="button" className="min-h-11 rounded font-semibold text-brand-700 underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-brand-500 md:min-h-0" onClick={() => void open(r.id)}>
+                      <button type="button" className="min-h-11 whitespace-nowrap rounded font-semibold text-brand-700 underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-brand-500 md:min-h-0" onClick={() => void open(r.id)}>
                         {r.number ?? "Draft"}
                         <span className="sr-only">{`, ${r.clientName}`}</span>
                       </button>

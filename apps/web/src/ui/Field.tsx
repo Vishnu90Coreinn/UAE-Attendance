@@ -11,26 +11,29 @@ interface FieldProps {
   label: string;
   error?: string;
   hint?: string;
+  /** For table cells whose column header already names the field: keeps the label for screen readers only. */
+  hideLabel?: boolean;
   /** Receives the ids to wire onto the control. */
   children: (props: { id: string; "aria-invalid"?: true; "aria-describedby"?: string; className: string }) => ReactNode;
 }
 
 /** Visible label, control, hint and error, wired together for screen readers. */
-export function Field({ label, error, hint, children }: FieldProps) {
+export function Field({ label, error, hint, hideLabel, children }: FieldProps) {
   const id = useId();
   const errorId = `${id}-error`;
   const hintId = `${id}-hint`;
   const describedBy = [error ? errorId : null, hint ? hintId : null].filter(Boolean).join(" ");
+  const control = controlClass(!!error);
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-medium text-ink-800">
+      <label htmlFor={id} className={hideLabel ? "sr-only" : "block text-sm font-medium text-ink-800"}>
         {label}
       </label>
       {children({
         id,
         "aria-invalid": error ? true : undefined,
         "aria-describedby": describedBy || undefined,
-        className: controlClass(!!error),
+        className: hideLabel ? control.replace("mt-1 ", "") : control,
       })}
       {error && (
         <p id={errorId} className="mt-1 text-sm text-danger">
@@ -46,11 +49,11 @@ export function Field({ label, error, hint, children }: FieldProps) {
   );
 }
 
-type WithField<T> = Omit<T, "id" | "className"> & { label: string; error?: string; hint?: string };
+type WithField<T> = Omit<T, "id" | "className"> & { label: string; error?: string; hint?: string; hideLabel?: boolean };
 
-export function Input({ label, error, hint, ...rest }: WithField<InputHTMLAttributes<HTMLInputElement>>) {
+export function Input({ label, error, hint, hideLabel, ...rest }: WithField<InputHTMLAttributes<HTMLInputElement>>) {
   return (
-    <Field label={label} error={error} hint={hint}>
+    <Field label={label} error={error} hint={hint} hideLabel={hideLabel}>
       {(p) => <input {...rest} {...p} />}
     </Field>
   );
