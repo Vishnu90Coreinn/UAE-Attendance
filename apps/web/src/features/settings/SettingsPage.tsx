@@ -8,6 +8,7 @@ import { getPayrollSettings, updatePayrollSettings } from "../../api/settings";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { TextField } from "../../components/TextField";
+import { CompanyDocumentsCard } from "./CompanyDocumentsCard";
 import { LoadError, primaryButtonClass, SuccessRegion } from "../workers/WorkersFeedback";
 import {
   FIELD_ORDER,
@@ -270,6 +271,7 @@ export function SettingsPage() {
           </form>
         </>
       )}
+      {!readOnly && <CompanyDocumentsCard />}
     </section>
   );
 }
