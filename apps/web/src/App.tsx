@@ -18,6 +18,9 @@ const DashboardPage = lazy(() =>
 const WorkersPage = lazy(() =>
   import("./features/workers/WorkersPage").then((m) => ({ default: m.WorkersPage })),
 );
+const WorkerProfilePage = lazy(() =>
+  import("./features/workers/WorkerProfilePage").then((m) => ({ default: m.WorkerProfilePage })),
+);
 const AttendancePage = lazy(() =>
   import("./features/attendance/AttendancePage").then((m) => ({ default: m.AttendancePage })),
 );
@@ -92,6 +95,7 @@ export default function App() {
               }
             />
             <Route path="workers" element={<WorkersPage />} />
+            <Route path="workers/:id" element={<WorkerProfilePage />} />
             <Route
               path="attendance"
               element={<AttendancePage guardNavigation />}

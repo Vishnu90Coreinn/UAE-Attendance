@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import type { Worker } from "../../api/workers";
 import { formatRate } from "../../utils/money";
+import { Link, useInRouterContext } from "react-router-dom";
 import { Pager, SortTh, usePaging, useSort } from "../../ui";
 import { WorkerStatusBadge } from "./WorkerStatusBadge";
 
@@ -73,6 +74,18 @@ function ActionButton({
       {/* Shown in the phone card layout; icon-only from md up; the aria-label above keeps the accessible name. */}
       <span className={iconOnlyOnPhone ? "hidden" : "md:hidden"}>{label}</span>
     </button>
+  );
+}
+
+/** The worker's name as a link to their profile; plain text where there is no router (isolated tests). */
+function WorkerName({ worker }: { worker: Worker }) {
+  const inRouter = useInRouterContext();
+  return inRouter ? (
+    <Link to={`/workers/${worker.id}`} className="rounded hover:text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
+      {worker.fullName}
+    </Link>
+  ) : (
+    <>{worker.fullName}</>
   );
 }
 
@@ -165,7 +178,7 @@ function WorkerRow({
       >
         <div className="flex items-center gap-3">
           <div>
-            <div className="font-semibold">{worker.fullName}</div>
+            <div className="font-semibold"><WorkerName worker={worker} /></div>
             {worker.emiratesId && (
               <div className="max-w-[9rem] truncate font-mono text-xs font-normal text-ink-600" title={`EID ${worker.emiratesId}`}>
                 EID {worker.emiratesId}
