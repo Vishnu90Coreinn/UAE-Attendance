@@ -128,9 +128,22 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
 
     // ----- issue / cancel / payments ---------------------------------------------------------------------
 
-    /// <summary>Assigns the next number and locks the invoice. The number counter is read under an update lock inside a serialisable transaction so two issues can never share or skip a number.</summary>
-    public async Task<DocumentResult> IssueAsync(int id, CancellationToken ct)
+    public const int MaxNumberLength = 30;
+    private static readonly System.Text.RegularExpressions.Regex NumberPattern = new(@"^[A-Za-z0-9][A-Za-z0-9 ./_-]*$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>
+    /// Locks the invoice and gives it a number: the one the manager typed, or, when none is typed, the next automatic
+    /// number. The counter is read under an update lock inside a serialisable transaction so two automatic issues can never
+    /// share or skip a number. A typed number is checked for being unused and does not move the counter.
+    /// </summary>
+    public async Task<DocumentResult> IssueAsync(int id, string? typedNumber, CancellationToken ct)
     {
+        var typed = (typedNumber ?? "").Trim();
+        if (typed.Length > MaxNumberLength)
+            return new(400, Errors: new() { ["number"] = [$"The invoice number must be {MaxNumberLength} characters or fewer."] });
+        if (typed.Length > 0 && !NumberPattern.IsMatch(typed))
+            return new(400, Errors: new() { ["number"] = ["Use letters, numbers, spaces and . / _ - only, starting with a letter or number."] });
+
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         try
         {
@@ -146,14 +159,23 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
             var settings = await db.DocumentSettings
                 .FromSqlRaw("SELECT * FROM DocumentSettings WITH (UPDLOCK, HOLDLOCK) WHERE Id = 1")
                 .SingleAsync(ct);
-            invoice.Number = "INV-" + settings.NextInvoiceNumber.ToString("000000", CultureInfo.InvariantCulture);
-            settings.NextInvoiceNumber++;
+            if (typed.Length > 0)
+            {
+                if (await db.Invoices.AnyAsync(i => i.Number == typed, ct))
+                    return new(400, Errors: new() { ["number"] = ["This invoice number is already used by another invoice."] });
+                invoice.Number = typed;
+            }
+            else
+            {
+                invoice.Number = "INV-" + settings.NextInvoiceNumber.ToString("000000", CultureInfo.InvariantCulture);
+                settings.NextInvoiceNumber++;
+            }
             invoice.Status = InvoiceStatuses.Issued;
             invoice.IssuedUtc = Now;
             invoice.IssuedBy = Actor;
             invoice.UpdatedUtc = Now;
             invoice.CompanyJson = JsonSerializer.Serialize(CompanyOf(settings), JsonOptions);
-            audit.Write("InvoiceIssued", entityType: nameof(Invoice), entityId: Id(id), details: new { number = invoice.Number, total = invoice.Total });
+            audit.Write("InvoiceIssued", entityType: nameof(Invoice), entityId: Id(id), details: new { number = invoice.Number, total = invoice.Total, typed = typed.Length > 0 });
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             return new(200, await ToResponseAsync(invoice, ct));

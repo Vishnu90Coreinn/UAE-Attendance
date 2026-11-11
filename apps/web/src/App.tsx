@@ -4,7 +4,7 @@ import { Layout } from "./components/Layout";
 import { LoginPage } from "./features/auth/LoginPage";
 import { ProtectedRoute } from "./features/auth/ProtectedRoute";
 import { RequireRole } from "./features/auth/RequireRole";
-import { canViewAll, MANAGEMENT_ROLES, VIEW_ALL_ROLES } from "./permissions";
+import { ADMIN_SCREEN_ROLES, canViewAll, VIEW_ALL_ROLES } from "./permissions";
 import { useAuth } from "./contexts/AuthContext";
 import { NotFound } from "./pages/NotFound";
 
@@ -126,7 +126,7 @@ export default function App() {
             <Route
               path="users"
               element={
-                <RequireRole roles={MANAGEMENT_ROLES}>
+                <RequireRole roles={ADMIN_SCREEN_ROLES}>
                   <UserPage />
                 </RequireRole>
               }
@@ -134,7 +134,7 @@ export default function App() {
             <Route
               path="settings"
               element={
-                <RequireRole roles={MANAGEMENT_ROLES}>
+                <RequireRole roles={ADMIN_SCREEN_ROLES}>
                   <SettingsPage />
                 </RequireRole>
               }

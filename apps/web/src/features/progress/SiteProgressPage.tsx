@@ -49,7 +49,7 @@ export function SiteProgressPage() {
   const { user } = useAuth();
   const desktop = useIsDesktop();
   /** Supervisors, Managers and the Administrator enter progress; HR reads, prints and exports. */
-  const canEdit = user?.role !== undefined && user.role !== "HR";
+  const canEdit = user?.role !== undefined && user.role !== "HR" && user.role !== "Viewer";
   const canManage = isManagement(user?.role);
 
   const [projects, setProjects] = useState<SiteProject[] | null>(null);

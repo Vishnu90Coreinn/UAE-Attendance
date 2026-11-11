@@ -14,7 +14,7 @@ import { ApiError } from "../../api/client";
 import { isLeaveStatus } from "../../utils/leaveStatuses";
 import { getPayrollSettings, type PayrollSettings } from "../../api/settings";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
-import { canViewAll, isManagement } from "../../permissions";
+import { canViewAll, isManagement, isReadOnly } from "../../permissions";
 import { useAuth } from "../../contexts/AuthContext";
 import { useIsDesktop } from "../../utils/useIsDesktop";
 import {
@@ -88,7 +88,7 @@ export function AttendancePage({
   const summary = useAttendanceSummary(!!user);
   const isManager = isManagement(user?.role);
   const showPay = canViewAll(user?.role);
-  const editable = !!user && user.role !== "HR" && !day?.isFinalised;
+  const editable = !!user && user.role !== "HR" && !isReadOnly(user.role) && !day?.isFinalised;
   const unsaved = day ? forms.filter((form, index) => changed(form, day.rows[index])).length : 0;
   const dirty = unsaved > 0;
   const present = forms.filter((form) => form.status === "Present").length;

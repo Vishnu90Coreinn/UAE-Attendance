@@ -14,6 +14,7 @@ import {
 } from "../../api/users";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { useAuth } from "../../contexts/AuthContext";
+import { isReadOnly } from "../../permissions";
 import { ActionFailure, LoadError, primaryButtonClass, SuccessRegion } from "../workers/WorkersFeedback";
 import { AddUserDialog, ResetPasswordDialog } from "./UserDialogs";
 
@@ -112,14 +113,15 @@ export function UserPage() {
   }
 
   const assignable = assignableRoles(current?.role);
+  const readOnly = isReadOnly(current?.role);
   const busy = pending || addOpen || !!resetUser || !!deleteTarget;
   return (
     <section className="min-w-0 space-y-4">
       <PageHeader
         title="User Manager"
-        description={current?.role === "Administrator" ? "Manage access roles and account status." : "Manage HR and Supervisor accounts."}
+        description={readOnly ? "Accounts and their roles, for viewing only." : current?.role === "Administrator" ? "Manage access roles and account status." : "Manage HR and Supervisor accounts."}
         actions={
-          <button type="button" disabled={busy} className={`${primaryButtonClass} disabled:opacity-60`}
+          readOnly ? undefined : <button type="button" disabled={busy} className={`${primaryButtonClass} disabled:opacity-60`}
             onClick={() => { clearFeedback(); setDialogError(null); setFieldErrors(undefined); setAddOpen(true); }}>
             <UserPlus aria-hidden="true" size={16} />Add User
           </button>
@@ -132,24 +134,24 @@ export function UserPage() {
         : rows.length === 0 ? <p className="rounded-lg border bg-white p-8 text-center text-ink-600">No users found.</p>
         : <div className="overflow-x-auto md:rounded-lg md:border md:border-line md:bg-white md:shadow-sm">
           <table className="block w-full text-left text-sm md:table md:min-w-[720px]">
-            <thead className="sr-only border-b border-line bg-ink-50 text-xs uppercase tracking-wide text-ink-600 md:not-sr-only md:table-header-group"><tr className="md:table-row">{["Username", "Role", "Status", "Actions"].map((x) => <th key={x} className="px-4 py-3 font-semibold">{x}</th>)}</tr></thead>
+            <thead className="sr-only border-b border-line bg-ink-50 text-xs uppercase tracking-wide text-ink-600 md:not-sr-only md:table-header-group"><tr className="md:table-row">{(readOnly ? ["Username", "Role", "Status"] : ["Username", "Role", "Status", "Actions"]).map((x) => <th key={x} className="px-4 py-3 font-semibold">{x}</th>)}</tr></thead>
             <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-line">{rows.map((row) => {
               const self = row.id === current?.id;
               return <tr key={row.id} className="block rounded-card border border-line bg-white p-3 shadow-card md:table-row md:rounded-none md:border-0 md:p-0 md:shadow-none">
                 <td className="block break-words pb-1 font-semibold text-ink-900 md:table-cell md:px-4 md:py-3 md:font-medium">{row.username}{self && <span className="ml-2 text-xs text-ink-500">You</span>}</td>
-                <td data-label="Role" className="flex items-center justify-between gap-3 border-t border-line py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-ink-600 md:table-cell md:border-0 md:px-4 md:py-3 md:before:content-none"><select aria-label={`Role for ${row.username}`} value={row.role} disabled={busy || self}
+                <td data-label="Role" className="flex items-center justify-between gap-3 border-t border-line py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-ink-600 md:table-cell md:border-0 md:px-4 md:py-3 md:before:content-none"><select aria-label={`Role for ${row.username}`} value={row.role} disabled={busy || self || readOnly}
                   className={inputClass}
                   onChange={(event) => void mutate(() => updateUser(row.id, { role: event.target.value as ManagedUser["role"], active: row.isActive }), "User role updated.")}>
                   {(assignable.includes(row.role) ? assignable : [row.role, ...assignable]).map((role) => <option key={role}>{role}</option>)}</select></td>
                 <td data-label="Status" className="flex items-center justify-between gap-3 border-t border-line py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-ink-600 md:table-cell md:border-0 md:px-4 md:py-3 md:before:content-none"><StatusBadge tone={row.isActive ? "success" : "neutral"}>{row.isActive ? "Active" : "Inactive"}</StatusBadge></td>
-                <td className="block border-t border-line pt-3 md:table-cell md:border-0 md:px-4 md:py-3"><div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
+                {!readOnly && <td className="block border-t border-line pt-3 md:table-cell md:border-0 md:px-4 md:py-3"><div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
                   {!self && <button type="button" disabled={busy} className={actionClass} aria-label={`${row.isActive ? "Deactivate" : "Activate"} ${row.username}`}
                     onClick={() => void mutate(() => updateUser(row.id, { role: row.role, active: !row.isActive }), row.isActive ? "User deactivated." : "User activated.")}>{row.isActive ? "Deactivate" : "Activate"}</button>}
                   <button type="button" disabled={busy} className={actionClass} aria-label={`Reset password for ${row.username}`}
                     onClick={() => { clearFeedback(); setDialogError(null); setFieldErrors(undefined); setResetUser(row); }}><KeyRound aria-hidden="true" size={15} />Reset password</button>
                   {!self && <button type="button" disabled={busy} className={`${actionClass} text-red-700 max-md:col-span-2`} aria-label={`Delete ${row.username}`}
                     onClick={() => { clearFeedback(); setDeleteTarget(row); }}><Trash2 aria-hidden="true" size={15} />Delete</button>}
-                </div></td>
+                </div></td>}
               </tr>;
             })}</tbody>
           </table>

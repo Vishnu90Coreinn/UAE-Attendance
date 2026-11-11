@@ -7,9 +7,17 @@ export function isManagement(role: Role | undefined): boolean {
 
 export const MANAGEMENT_ROLES: readonly Role[] = ["Administrator", "Manager"];
 
-/** Management plus HR: everyone who may see pay and the management screens. HR sees them read-only. */
-export function canViewAll(role: Role | undefined): boolean {
-  return isManagement(role) || role === "HR";
+/** The Viewer sees every screen, pay included, and can change nothing. The server refuses all of a Viewer's writes. */
+export function isReadOnly(role: Role | undefined): boolean {
+  return role === "Viewer";
 }
 
-export const VIEW_ALL_ROLES: readonly Role[] = ["Administrator", "Manager", "HR"];
+/** Management, HR and the Viewer: everyone who may see pay and the management screens. */
+export function canViewAll(role: Role | undefined): boolean {
+  return isManagement(role) || role === "HR" || role === "Viewer";
+}
+
+export const VIEW_ALL_ROLES: readonly Role[] = ["Administrator", "Manager", "HR", "Viewer"];
+
+/** Who opens User Manager and Settings: the two who manage them, and the Viewer to look. */
+export const ADMIN_SCREEN_ROLES: readonly Role[] = ["Administrator", "Manager", "Viewer"];

@@ -12,7 +12,7 @@ import {
 } from "../../api/deductions";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
-import { canViewAll } from "../../permissions";
+import { canViewAll, isReadOnly } from "../../permissions";
 import {
   ActionFailure,
   LoadError,
@@ -75,7 +75,7 @@ function firstProblem(data: MonthDeductions, draft: DraftRows, types: DeductionT
 export function DeductionsPage() {
   const { user } = useAuth();
   /** HR, Managers and Administrators can add and change deductions; no other role reaches this screen. */
-  const readOnly = !canViewAll(user?.role);
+  const readOnly = !canViewAll(user?.role) || isReadOnly(user?.role);
   const [month, setMonth] = useState(currentMonth);
   const [data, setData] = useState<MonthDeductions | null>(null);
   const [types, setTypes] = useState<DeductionType[]>([]);

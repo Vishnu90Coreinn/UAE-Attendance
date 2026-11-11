@@ -170,7 +170,7 @@ export function LeavePage() {
         title="Leave Management"
         description="Manage leave requests and decisions. Days include both start and end dates."
         actions={
-          user && user.role !== "HR" && (
+          user && user.role !== "HR" && user.role !== "Viewer" && (
           <button
             type="button"
             disabled={busy || !workersReady || !workers.some((w) => w.isActive)}

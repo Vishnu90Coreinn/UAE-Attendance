@@ -150,8 +150,9 @@ export function deleteInvoice(id: number): Promise<void> {
 export function duplicateInvoice(id: number): Promise<Invoice> {
   return apiPost<Invoice>(`/api/invoices/${id}/duplicate`, {});
 }
-export function issueInvoice(id: number): Promise<Invoice> {
-  return apiPost<Invoice>(`/api/invoices/${id}/issue`, {});
+/** Issues the invoice. A typed `number` is used as it is; leave it out for the next automatic number. */
+export function issueInvoice(id: number, number?: string): Promise<Invoice> {
+  return apiPost<Invoice>(`/api/invoices/${id}/issue`, number ? { number } : {});
 }
 export function cancelInvoice(id: number, reason: string): Promise<Invoice> {
   return apiPost<Invoice>(`/api/invoices/${id}/cancel`, { reason });

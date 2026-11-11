@@ -15,6 +15,9 @@ public sealed record InvoiceRequest(
 
 public sealed record CancelInvoiceRequest(string? Reason);
 
+/// <summary>Body of issue. A blank <c>Number</c> takes the next automatic number; a typed one is used as it is.</summary>
+public sealed record IssueInvoiceRequest(string? Number = null);
+
 public sealed record InvoicePaymentRequest(DateOnly? PaidDate, decimal? Amount, string? Method, string? Reference);
 
 public sealed record InvoiceLineResponse(int LineNo, string Description, decimal Quantity, decimal Rate, decimal Taxable, decimal Vat, decimal Amount);

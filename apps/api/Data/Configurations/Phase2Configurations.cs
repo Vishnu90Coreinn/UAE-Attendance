@@ -86,7 +86,7 @@ public sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
             t.HasCheckConstraint("CK_Invoices_Totals", "[SubTotal] >= 0 AND [VatTotal] >= 0 AND [Total] = [SubTotal] + [VatTotal]");
             t.HasCheckConstraint("CK_Invoices_NumberWhenIssued", "([Status] = 'Draft' AND [Number] IS NULL) OR ([Status] <> 'Draft' AND [Number] IS NOT NULL)");
         });
-        b.Property(i => i.Number).HasMaxLength(20);
+        b.Property(i => i.Number).HasMaxLength(30);
         b.HasIndex(i => i.Number).IsUnique().HasFilter("[Number] IS NOT NULL");
         b.Property(i => i.Status).HasMaxLength(10).IsRequired();
         b.HasOne(i => i.Client).WithMany().HasForeignKey(i => i.ClientId).OnDelete(DeleteBehavior.Restrict);

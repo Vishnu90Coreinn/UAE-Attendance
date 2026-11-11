@@ -462,8 +462,8 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasColumnType("nvarchar(300)");
 
                     b.Property<string>("Number")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<string>("PaymentTerms")
                         .IsRequired()
@@ -1216,7 +1216,7 @@ namespace HrPayroll.Api.Data.Migrations
 
                     b.ToTable("Users", t =>
                         {
-                            t.HasCheckConstraint("CK_Users_Role", "[Role] IN ('Administrator', 'Manager', 'Supervisor', 'HR')");
+                            t.HasCheckConstraint("CK_Users_Role", "[Role] IN ('Administrator', 'Manager', 'Supervisor', 'HR', 'Viewer')");
                         });
                 });
 

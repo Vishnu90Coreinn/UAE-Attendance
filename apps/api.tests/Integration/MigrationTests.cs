@@ -156,7 +156,7 @@ public class MigrationTests(TestDatabase database) : IClassFixture<TestDatabase>
 
             await ExecuteAsync(connectionString, InsertUser("newmanager", "Manager", 1));
             await Assert.ThrowsAsync<SqlException>(() => ExecuteAsync(connectionString, InsertUser("late1", "HR Staff", 1)));
-            await Assert.ThrowsAsync<SqlException>(() => ExecuteAsync(connectionString, InsertUser("late2", "Viewer", 1)));
+            await Assert.ThrowsAsync<SqlException>(() => ExecuteAsync(connectionString, InsertUser("late2", "Owner", 1)));
 
             await migrator.MigrateAsync(PreviousLeaveMigration);
 

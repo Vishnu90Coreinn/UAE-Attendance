@@ -14,7 +14,7 @@ namespace HrPayroll.Api.Controllers;
 public sealed class UsersController(UserService users) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<List<UserResponse>>> List(CancellationToken ct) => Ok(await users.ListAsync(IsAdministrator(), ct));
+    public async Task<ActionResult<List<UserResponse>>> List(CancellationToken ct) => Ok(await users.ListAsync(IsAdministrator() || User.IsInRole(Roles.Viewer), ct));
 
     [HttpPost]
     public async Task<ActionResult<UserResponse>> Create(CreateUserRequest request, CancellationToken ct)

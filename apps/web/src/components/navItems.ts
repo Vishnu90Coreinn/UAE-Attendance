@@ -1,5 +1,5 @@
 import type { Role } from "../api/auth";
-import { MANAGEMENT_ROLES, VIEW_ALL_ROLES } from "../permissions";
+import { ADMIN_SCREEN_ROLES, VIEW_ALL_ROLES } from "../permissions";
 
 export interface NavItem {
   key: string;
@@ -12,7 +12,7 @@ export interface NavItem {
   path?: string;
 }
 
-const ALL_ROLES: readonly Role[] = ["Administrator", "Manager", "Supervisor", "HR"];
+const ALL_ROLES: readonly Role[] = ["Administrator", "Manager", "Supervisor", "HR", "Viewer"];
 
 /** The five prototype tabs in prototype order, then Settings. Each becomes a real route in its own slice. */
 export const NAV_ITEMS: readonly NavItem[] = [
@@ -25,8 +25,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "invoices", label: "Tax Invoices", shortLabel: "Invoices", roles: VIEW_ALL_ROLES, path: "/invoices" },
   { key: "letters", label: "HR Letters", shortLabel: "Letters", roles: ALL_ROLES, path: "/letters" },
   { key: "progress", label: "Site Progress", shortLabel: "Progress", roles: ALL_ROLES, path: "/progress" },
-  { key: "users", label: "User Manager", shortLabel: "Users", roles: MANAGEMENT_ROLES, path: "/users" },
-  { key: "settings", label: "Settings", shortLabel: "Settings", roles: MANAGEMENT_ROLES, path: "/settings" },
+  { key: "users", label: "User Manager", shortLabel: "Users", roles: ADMIN_SCREEN_ROLES, path: "/users" },
+  { key: "settings", label: "Settings", shortLabel: "Settings", roles: ADMIN_SCREEN_ROLES, path: "/settings" },
 ];
 
 export function navItemsForRole(role: Role): NavItem[] {

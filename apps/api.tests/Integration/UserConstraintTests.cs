@@ -39,7 +39,7 @@ public class UserConstraintTests(TestDatabase database) : IClassFixture<TestData
 
     [Theory]
     [InlineData("HR Staff")]
-    [InlineData("Viewer")]
+    [InlineData("Owner")]
     public async Task Role_RemovedRoles_AreRejectedByTheCheckConstraint(string role)
     {
         await using var db = NewContext();
@@ -85,8 +85,8 @@ public class UserConstraintTests(TestDatabase database) : IClassFixture<TestData
     }
 
     [Fact]
-    public void Roles_All_ListsTheFourRoles()
+    public void Roles_All_ListsTheFiveRoles()
     {
-        Assert.Equal(new[] { "Administrator", "Manager", "Supervisor", "HR" }, Roles.All);
+        Assert.Equal(new[] { "Administrator", "Manager", "Supervisor", "HR", "Viewer" }, Roles.All);
     }
 }

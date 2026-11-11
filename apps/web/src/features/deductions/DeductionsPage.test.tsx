@@ -92,6 +92,15 @@ it("locks the entries for a finalised month", async () => {
   expect(screen.queryByRole("button", { name: "Save deductions" })).not.toBeInTheDocument();
 });
 
+it("shows a Viewer the deductions with nothing to change", async () => {
+  vi.mocked(useAuth).mockReturnValue({ status: "signedIn", user: { id: 3, username: "view", role: "Viewer" }, token: "t", login: vi.fn(), logout: vi.fn() });
+  render(<DeductionsPage />);
+
+  expect(await screen.findByLabelText("Advance / Loan amount for Ahmed Khan")).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Save deductions" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Add type" })).not.toBeInTheDocument();
+});
+
 it("lets HR add deductions and types", async () => {
   vi.mocked(useAuth).mockReturnValue({
     status: "signedIn",

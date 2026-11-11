@@ -185,7 +185,7 @@ it("clears recorded attendance in the same batch", async () => {
     { workerId: 1, status: null, basicHours: 0, overtimeHours: 0 },
   ]);
 });
-function signInAs(role: "Supervisor" | "Administrator") {
+function signInAs(role: "Supervisor" | "Administrator" | "Viewer") {
   vi.mocked(useAuth).mockReturnValue({
     status: "signedIn",
     user: { id: 1, username: "sup.omar", role },
@@ -210,6 +210,14 @@ const supervisorDay: AttendanceDay = {
     },
   ],
 };
+it("a Viewer sees the day's attendance and pay but cannot record or save it", async () => {
+  signInAs("Viewer");
+  await loaded();
+
+  expect(screen.queryByRole("button", { name: /Save/ })).not.toBeInTheDocument();
+  for (const box of screen.queryAllByRole("spinbutton")) expect(box).toBeDisabled();
+});
+
 it("a Manager sees the Total Pay column and the overtime rate in the shift note", async () => {
   await loaded();
   expect(

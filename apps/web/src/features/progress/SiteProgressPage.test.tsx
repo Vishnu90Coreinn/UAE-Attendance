@@ -46,7 +46,7 @@ function report(floors: SiteFloor[], exists = true): SiteReport {
   };
 }
 
-function signIn(role: "Administrator" | "Manager" | "Supervisor" | "HR") {
+function signIn(role: "Administrator" | "Manager" | "Supervisor" | "HR" | "Viewer") {
   vi.mocked(useAuth).mockReturnValue({
     status: "signedIn",
     user: { id: 1, username: "someone", role },
@@ -325,6 +325,15 @@ describe("roles", () => {
     await open();
 
     expect(screen.getByRole("button", { name: "New project" })).toBeInTheDocument();
+  });
+
+  it("gives a Viewer a read-only view with the PDF and CSV", async () => {
+    signIn("Viewer");
+    await open();
+
+    for (const name of ["Add floor", "Save report", "New project"]) expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "5th Floor (L05) WIR status" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "PDF" })).toBeInTheDocument();
   });
 
   it("gives HR a read-only view with print and export", async () => {

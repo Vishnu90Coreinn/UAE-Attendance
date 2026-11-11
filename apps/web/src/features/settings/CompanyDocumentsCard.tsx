@@ -52,7 +52,7 @@ function toBase64(file: File): Promise<string> {
 }
 
 /** Company identity, bank details and artwork used on invoices and letters. Shown to Managers and the Administrator. */
-export function CompanyDocumentsCard() {
+export function CompanyDocumentsCard({ readOnly = false }: { readOnly?: boolean }) {
   const [settings, setSettings] = useState<DocumentSettings | null>(null);
   const [values, setValues] = useState<DocumentSettingsInput | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -145,6 +145,7 @@ export function CompanyDocumentsCard() {
       <Card>
         <CardHeader title="Company documents" description="Used on tax invoices and HR letters. The next invoice number is shown for information." />
         <form onSubmit={save} noValidate className="space-y-5 p-5">
+          <fieldset disabled={readOnly} className="m-0 min-w-0 space-y-5 border-0 p-0">
           <h3 id="company-documents-title" className="sr-only">Company documents settings</h3>
           <div className="grid gap-4 sm:grid-cols-2">{group("company")}</div>
           <fieldset className="space-y-4">
@@ -166,7 +167,7 @@ export function CompanyDocumentsCard() {
             {IMAGES.map((image) => (
               <ImageRow
                 key={image.kind} label={image.label} hint={image.hint} present={settings[image.flag]}
-                onPick={(e) => void pickImage(image.kind, e)} onRemove={() => void removeImage(image.kind)}
+                onPick={(e) => void pickImage(image.kind, e)} onRemove={() => void removeImage(image.kind)} readOnly={readOnly}
               />
             ))}
           </fieldset>
@@ -175,18 +176,21 @@ export function CompanyDocumentsCard() {
           <div role="status" className="empty:hidden">
             {success && <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">{success}</p>}
           </div>
-          <div className="flex justify-end">
-            <Button type="submit" icon={pending ? Loader2 : Save} disabled={pending} aria-busy={pending}>
-              {pending ? "Saving..." : "Save company documents"}
-            </Button>
-          </div>
+          {!readOnly && (
+            <div className="flex justify-end">
+              <Button type="submit" icon={pending ? Loader2 : Save} disabled={pending} aria-busy={pending}>
+                {pending ? "Saving..." : "Save company documents"}
+              </Button>
+            </div>
+          )}
+          </fieldset>
         </form>
       </Card>
     </section>
   );
 }
 
-function ImageRow({ label, hint, present, onPick, onRemove }: { label: string; hint: string; present: boolean; onPick: (e: ChangeEvent<HTMLInputElement>) => void; onRemove: () => void }) {
+function ImageRow({ label, hint, present, onPick, onRemove, readOnly }: { label: string; hint: string; present: boolean; onPick: (e: ChangeEvent<HTMLInputElement>) => void; onRemove: () => void; readOnly?: boolean }) {
   const input = useRef<HTMLInputElement>(null);
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line px-3 py-2">
@@ -194,7 +198,7 @@ function ImageRow({ label, hint, present, onPick, onRemove }: { label: string; h
         <p className="text-sm font-medium text-ink-900">{label}</p>
         <p className="text-sm text-ink-600">{present ? "Uploaded." : "Not uploaded."} {hint}</p>
       </div>
-      <div className="flex gap-2">
+      {!readOnly && <div className="flex gap-2">
         <input ref={input} type="file" accept="image/png,image/jpeg" className="sr-only" aria-label={`Choose ${label.toLowerCase()} file`} onChange={onPick} tabIndex={-1} />
         <Button variant="secondary" size="sm" icon={ImagePlus} aria-label={`${present ? "Replace" : "Upload"} ${label.toLowerCase()}`} onClick={() => input.current?.click()}>
           {present ? "Replace" : "Upload"}
@@ -204,7 +208,7 @@ function ImageRow({ label, hint, present, onPick, onRemove }: { label: string; h
             Remove
           </Button>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

@@ -167,7 +167,7 @@ export function LettersPage() {
     canRaise: role === "Supervisor" || role === "Manager" || role === "Administrator",
     canPrepare: role === "HR" || role === "Administrator",
     canApprove: role === "Manager" || role === "Administrator",
-    canOpen: role === "HR" || role === "Manager" || role === "Administrator",
+    canOpen: role === "HR" || role === "Manager" || role === "Administrator" || role === "Viewer",
   };
   const [tab, setTab] = useState<Tab>("requests");
   const [opened, setOpened] = useState<LetterRecord | null>(null);

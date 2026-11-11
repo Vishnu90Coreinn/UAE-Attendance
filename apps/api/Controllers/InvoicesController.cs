@@ -68,7 +68,7 @@ public sealed class InvoicesController(InvoiceService invoices, InvoicePdf pdf) 
 
     [HttpPost("{id:int}/issue")]
     [Authorize(Policy = Policies.ManagerOrAdmin)]
-    public async Task<IActionResult> Issue(int id, CancellationToken ct) => Map(await invoices.IssueAsync(id, ct));
+    public async Task<IActionResult> Issue(int id, [FromBody] IssueInvoiceRequest? request, CancellationToken ct) => Map(await invoices.IssueAsync(id, request?.Number, ct));
 
     [HttpPost("{id:int}/cancel")]
     [Authorize(Policy = Policies.ManagerOrAdmin)]

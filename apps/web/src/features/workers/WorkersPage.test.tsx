@@ -221,6 +221,15 @@ describe("WorkersPage - roles", () => {
     expect(within(row).getByRole("button", { name: "Delete Ahmed Khan" })).toBeInTheDocument();
   });
 
+  it("shows a Viewer the workers with pay but no Add and no row actions", async () => {
+    await renderLoaded("Viewer");
+
+    expect(screen.queryByRole("button", { name: "Add New Worker" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Edit Ahmed Khan|Deactivate Ahmed Khan|Activate Ahmed Khan|Delete Ahmed Khan/ })).not.toBeInTheDocument();
+    // Printing the employee record is a download, so a Viewer keeps it.
+    expect(screen.getByRole("button", { name: "Print Ahmed Khan" })).toBeInTheDocument();
+  });
+
   it("gives every row action button an accessible name that includes the worker's name, even though the labels are icon-only below xl", async () => {
     await renderLoaded("Manager", [ahmed, sara]);
 

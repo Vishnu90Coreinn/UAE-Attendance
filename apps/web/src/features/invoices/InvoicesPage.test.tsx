@@ -32,7 +32,7 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
   };
 }
 
-function signIn(role: "Manager" | "HR") {
+function signIn(role: "Manager" | "HR" | "Viewer") {
   vi.mocked(useAuth).mockReturnValue({ status: "signedIn", user: { id: 1, username: "u", role }, token: "t", login: vi.fn(), logout: vi.fn() });
 }
 
@@ -113,6 +113,20 @@ describe("invoice view", () => {
     }
   });
 
+  it("shows a Viewer the invoices with no create, edit, issue, payment or client buttons", async () => {
+    signIn("Viewer");
+    vi.mocked(invoicesApi.getInvoice).mockResolvedValue(invoice({ number: null, status: "Draft", displayStatus: "Draft" }));
+    const user = userEvent.setup();
+    render(<InvoicesPage />);
+
+    expect(screen.queryByRole("button", { name: "New invoice" })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: /INV-000185/ }));
+    expect(await screen.findByRole("button", { name: "Download PDF" })).toBeInTheDocument();
+    for (const name of ["Record payment", "Cancel invoice", "Duplicate", "Edit", "Issue invoice", "Delete draft"]) {
+      expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+    }
+  });
+
   it("asks before issuing a draft and then shows the new number", async () => {
     vi.mocked(invoicesApi.getInvoice).mockResolvedValue(invoice({ number: null, status: "Draft", displayStatus: "Draft" }));
     vi.mocked(invoicesApi.issueInvoice).mockResolvedValue(invoice({ number: "INV-000185" }));
@@ -122,9 +136,45 @@ describe("invoice view", () => {
     await user.click(await screen.findByRole("button", { name: "Issue invoice" }));
     const dialog = await screen.findByRole("dialog", { name: "Issue this invoice?" });
     expect(invoicesApi.issueInvoice).not.toHaveBeenCalled();
+    expect(await within(dialog).findByLabelText("Invoice number")).toHaveValue("INV-000185");
     await user.click(within(dialog).getByRole("button", { name: "Issue invoice" }));
-    await waitFor(() => expect(invoicesApi.issueInvoice).toHaveBeenCalledWith(7));
+    await waitFor(() => expect(invoicesApi.issueInvoice).toHaveBeenCalledWith(7, undefined));
     expect(await screen.findByText("Invoice issued.")).toBeInTheDocument();
+  });
+
+  it("lets the manager type their own invoice number when issuing", async () => {
+    vi.mocked(invoicesApi.getInvoice).mockResolvedValue(invoice({ number: null, status: "Draft", displayStatus: "Draft" }));
+    vi.mocked(invoicesApi.issueInvoice).mockResolvedValue(invoice({ number: "MAN/045" }));
+    const user = userEvent.setup();
+    render(<InvoicesPage />);
+    await user.click(await screen.findByRole("button", { name: /INV-000185/ }));
+    await user.click(await screen.findByRole("button", { name: "Issue invoice" }));
+    const dialog = await screen.findByRole("dialog", { name: "Issue this invoice?" });
+    const field = await within(dialog).findByLabelText("Invoice number");
+    await waitFor(() => expect(field).toHaveValue("INV-000185"));
+
+    await user.clear(field);
+    await user.type(field, "MAN/045");
+    await user.click(within(dialog).getByRole("button", { name: "Issue invoice" }));
+
+    await waitFor(() => expect(invoicesApi.issueInvoice).toHaveBeenCalledWith(7, "MAN/045"));
+  });
+
+  it("shows the server's message when the typed number is already used and keeps the dialog open", async () => {
+    vi.mocked(invoicesApi.getInvoice).mockResolvedValue(invoice({ number: null, status: "Draft", displayStatus: "Draft" }));
+    vi.mocked(invoicesApi.issueInvoice).mockRejectedValue(
+      new ApiError(400, "x", undefined, undefined, { number: ["This invoice number is already used by another invoice."] }),
+    );
+    const user = userEvent.setup();
+    render(<InvoicesPage />);
+    await user.click(await screen.findByRole("button", { name: /INV-000185/ }));
+    await user.click(await screen.findByRole("button", { name: "Issue invoice" }));
+    const dialog = await screen.findByRole("dialog", { name: "Issue this invoice?" });
+
+    await user.click(within(dialog).getByRole("button", { name: "Issue invoice" }));
+
+    expect(await within(dialog).findByText("This invoice number is already used by another invoice.")).toBeInTheDocument();
+    expect(screen.queryByText("Invoice issued.")).not.toBeInTheDocument();
   });
 
   it("refuses a payment above the balance without calling the server", async () => {

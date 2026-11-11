@@ -186,6 +186,13 @@ it("approves and rejects requests, refreshing their server state", async () => {
   expect(api.rejectLeave).toHaveBeenCalledWith(1);
   expect(await screen.findByText("Leave rejected.")).toBeInTheDocument();
 });
+it("shows a Viewer the leave requests with no way to raise, approve, reject or delete", async () => {
+  auth.role = "Viewer";
+  await setup();
+
+  expect(screen.queryByRole("button", { name: "New Leave Request" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Approve leave|Reject leave|Delete leave/ })).not.toBeInTheDocument();
+});
 it.each(["Manager", "Administrator"])(
   "%s can delete pending leave only after confirmation",
   async (role) => {

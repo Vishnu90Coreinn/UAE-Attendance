@@ -49,15 +49,15 @@ it("shows the prototype columns and protects the signed-in account", async () =>
   expect(within(ownRow).queryByRole("button", { name: "Delete admin" })).not.toBeInTheDocument();
 });
 
-it("offers an Administrator all four roles when adding a user and changing a role", async () => {
+it("offers an Administrator all five roles when adding a user and changing a role", async () => {
   const user = await setup();
   expect(within(screen.getByLabelText("Role for site.user")).getAllByRole("option").map((o) => o.textContent)).toEqual([
-    "Administrator", "Manager", "HR", "Supervisor",
+    "Administrator", "Manager", "HR", "Supervisor", "Viewer",
   ]);
   await user.click(screen.getByRole("button", { name: "Add User" }));
   const dialog = screen.getByRole("dialog", { name: "Add User" });
   expect(within(within(dialog).getByLabelText("Role")).getAllByRole("option").map((o) => o.textContent)).toEqual([
-    "Administrator", "Manager", "HR", "Supervisor",
+    "Administrator", "Manager", "HR", "Supervisor", "Viewer",
   ]);
   expect(within(dialog).getByLabelText("Role")).toHaveValue("Supervisor");
 });
@@ -161,4 +161,14 @@ it("finishes mutations when React Strict Mode replays effects", async () => {
   await user.click(within(dialog).getByRole("button", { name: "Create user" }));
   expect(await screen.findByText("User created.")).toBeVisible();
   expect(screen.queryByRole("dialog", { name: "Add User" })).not.toBeInTheDocument();
+});
+
+it("shows a Viewer the accounts with no way to add, change, reset or delete", async () => {
+  auth.user = { id: 9, username: "view.only", role: "Viewer" };
+  await setup();
+
+  expect(screen.getByText("site.user")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Add User" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Reset password|Deactivate|Activate|Delete/ })).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Role for site.user")).toBeDisabled();
 });

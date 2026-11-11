@@ -4,7 +4,7 @@ import { ApiError } from "../../api/client";
 import { activateWorker, deactivateWorker, deleteWorker, getWorkerProfilePdf, type Worker } from "../../api/workers";
 import { Button, Card, PageHeader, StatCard, cx, inputClass } from "../../ui";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
-import { canViewAll, isManagement } from "../../permissions";
+import { canViewAll, isManagement, isReadOnly } from "../../permissions";
 import { useAuth } from "../../contexts/AuthContext";
 import { saveBlob } from "../payroll/downloadPdf";
 import { useWorkerList } from "./useWorkerList";
@@ -45,7 +45,7 @@ export function WorkersPage() {
   const { user } = useAuth();
   const canManage = isManagement(user?.role);
   // HR adds and edits workers but cannot deactivate or delete them.
-  const canEdit = canViewAll(user?.role);
+  const canEdit = canViewAll(user?.role) && !isReadOnly(user?.role);
 
   const [includeInactive, setIncludeInactive] = useState(false);
   const list = useWorkerList(includeInactive);

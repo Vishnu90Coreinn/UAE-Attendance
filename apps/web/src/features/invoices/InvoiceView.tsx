@@ -1,8 +1,9 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Ban, Copy, Download, Loader2, Pencil, Send, Trash2, Wallet } from "lucide-react";
 import {
   addPayment, cancelInvoice, deleteInvoice, duplicateInvoice, getInvoicePdf, issueInvoice, removePayment, type Invoice,
 } from "../../api/invoices";
+import { getDocumentSettings } from "../../api/documentSettings";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
@@ -125,11 +126,9 @@ export function InvoiceView({ invoice, canWrite, onChanged, onEdit, onDeleted, o
         </Card>
       )}
 
-      <ConfirmDialog
-        open={dialog === "issue"} title="Issue this invoice?" confirmLabel="Issue invoice" confirmIcon={Send} pending={busy}
-        message="It receives the next invoice number and can no longer be edited. You can still record payments or cancel it."
-        onCancel={() => setDialog(null)}
-        onConfirm={() => run(async () => { onChanged(await issueInvoice(invoice.id)); setNotice("Invoice issued."); })}
+      <IssueDialog
+        open={dialog === "issue"} invoiceId={invoice.id} onClose={() => setDialog(null)}
+        onDone={(updated) => { onChanged(updated); setDialog(null); setNotice("Invoice issued."); }}
       />
       <ConfirmDialog
         open={dialog === "delete"} title="Delete this draft?" confirmLabel="Delete draft" pending={busy}
@@ -143,6 +142,66 @@ export function InvoiceView({ invoice, canWrite, onChanged, onEdit, onDeleted, o
         onDone={(updated) => { onChanged(updated); setDialog(null); setNotice("Payment recorded."); }}
       />
     </div>
+  );
+}
+
+/** Issuing: the manager can keep the suggested next number or type their own. The number must be unused. */
+function IssueDialog({ open, invoiceId, onClose, onDone }: { open: boolean; invoiceId: number; onClose: () => void; onDone: (i: Invoice) => void }) {
+  const [suggested, setSuggested] = useState<string | null>(null);
+  const [number, setNumber] = useState("");
+  const [error, setError] = useState<string | undefined>();
+  const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setError(undefined);
+    setPending(false);
+    getDocumentSettings()
+      .then((s) => {
+        if (cancelled) return;
+        const next = `INV-${String(s.nextInvoiceNumber).padStart(6, "0")}`;
+        setSuggested(next);
+        setNumber(next);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSuggested(null);
+        setNumber("");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const typed = number.trim();
+    setPending(true);
+    setError(undefined);
+    try {
+      // Leaving the suggestion as it is keeps the automatic numbering in step.
+      onDone(await issueInvoice(invoiceId, typed === "" || typed === suggested ? undefined : typed));
+    } catch (e) {
+      setError(fieldErrors(e).number ?? errorMessage(e));
+      setPending(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onClose={pending ? () => {} : onClose} title="Issue this invoice?">
+      <form onSubmit={submit} noValidate className="mt-3 space-y-4">
+        <p className="text-sm text-ink-700">The invoice can no longer be edited once it is issued. You can still record payments or cancel it.</p>
+        <TextField
+          label="Invoice number" value={number} onChange={(e) => setNumber(e.target.value)} error={error} maxLength={30}
+          hint={suggested ? "Keep the suggested number or type your own. It must not be used by another invoice." : "Type the invoice number, or leave it blank for the next automatic one."}
+        />
+        <div className="flex flex-wrap justify-end gap-3">
+          <Button variant="secondary" onClick={onClose} disabled={pending}>Cancel</Button>
+          <Button type="submit" icon={pending ? Loader2 : Send} disabled={pending} aria-busy={pending}>Issue invoice</Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
 

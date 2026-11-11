@@ -75,7 +75,7 @@ function detailOf(request: CertificateRequest, document: LetterDocument | null =
   return { request, details: null, document };
 }
 
-function signIn(role: "Administrator" | "Manager" | "Supervisor" | "HR") {
+function signIn(role: "Administrator" | "Manager" | "Supervisor" | "HR" | "Viewer") {
   vi.mocked(useAuth).mockReturnValue({ status: "signedIn", user: { id: 1, username: "someone", role }, token: "t", login: vi.fn(), logout: vi.fn() });
 }
 
@@ -132,6 +132,26 @@ describe("a supervisor raising a request", () => {
 
     expect(await screen.findByText("Sajid Mahmood")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New request" })).not.toBeInTheDocument();
+  });
+});
+
+describe("a viewer", () => {
+  it("sees the requests and approved letters but cannot raise, prepare, approve or send back", async () => {
+    signIn("Viewer");
+    vi.mocked(requestsApi.listRequests).mockResolvedValue([pending]);
+    vi.mocked(requestsApi.getRequest).mockResolvedValue(detailOf(pending, documentFor("")));
+    const user = userEvent.setup();
+    render(<LettersPage />);
+
+    expect(await screen.findByText("Sajid Mahmood")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New request" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Approved letters" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Open request for Sajid Mahmood" }));
+    expect(await screen.findByRole("article", { name: "SALARY CERTIFICATE preview" })).toBeInTheDocument();
+    for (const name of ["Approve", "Send back", "Save details", "Send for approval"]) {
+      expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+    }
   });
 });
 

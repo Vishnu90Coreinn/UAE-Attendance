@@ -30,6 +30,10 @@ describe("navItemsForRole", () => {
     expect(labelsFor("Manager")).toEqual(["Dashboard", ...MODULES, "User Manager", "Settings"]);
   });
 
+  it("gives a Viewer every screen, so they can look at everything", () => {
+    expect(labelsFor("Viewer")).toEqual(["Dashboard", ...MODULES, "User Manager", "Settings"]);
+  });
+
   it("gives HR every screen except User Manager and Settings", () => {
     expect(labelsFor("HR")).not.toContain("User Manager");
     expect(labelsFor("HR")).not.toContain("Settings");

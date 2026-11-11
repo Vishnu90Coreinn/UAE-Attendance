@@ -149,6 +149,71 @@ public class InvoiceEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
     // ----- issue ------------------------------------------------------------------------------------------
 
     [Fact]
+    public async Task Issue_UsesTheNumberTheManagerTypes_WithoutMovingTheCounter()
+    {
+        await ResetNumberAsync(500);
+        var token = await ManagerToken();
+        var typed = "MAN/" + Guid.NewGuid().ToString("N")[..8];
+        var id = (await CreateAsync(token)).GetProperty("id").GetInt32();
+
+        var issued = await TestWorkers.ReadJsonAsync(await api.PostAsync($"/api/invoices/{id}/issue", new { number = $"  {typed}  " }, token));
+
+        Assert.Equal(typed, issued.GetProperty("number").GetString());
+        Assert.Equal(500, await ScalarAsync("SELECT NextInvoiceNumber FROM DocumentSettings"));
+        // The next invoice with no typed number still gets the next automatic one.
+        var next = (await CreateAsync(token)).GetProperty("id").GetInt32();
+        var auto = await TestWorkers.ReadJsonAsync(await api.PostAsync($"/api/invoices/{next}/issue", new { number = "  " }, token));
+        Assert.Equal("INV-000500", auto.GetProperty("number").GetString());
+    }
+
+    [Fact]
+    public async Task Issue_RefusesATypedNumberThatIsAlreadyUsed_AndLeavesTheInvoiceADraft()
+    {
+        var token = await ManagerToken();
+        var number = "DUP-" + Guid.NewGuid().ToString("N")[..8];
+        var first = (await CreateAsync(token)).GetProperty("id").GetInt32();
+        var second = (await CreateAsync(token)).GetProperty("id").GetInt32();
+        Assert.Equal(HttpStatusCode.OK, (await api.PostAsync($"/api/invoices/{first}/issue", new { number }, token)).StatusCode);
+
+        var again = await api.PostAsync($"/api/invoices/{second}/issue", new { number = number.ToLowerInvariant() }, token);
+
+        Assert.Equal(HttpStatusCode.BadRequest, again.StatusCode);
+        Assert.True((await TestWorkers.ReadJsonAsync(again)).GetProperty("errors").TryGetProperty("number", out _));
+        var draft = await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/invoices/{second}", token));
+        Assert.Equal("Draft", draft.GetProperty("status").GetString());
+    }
+
+    [Theory]
+    [InlineData("has;semicolon")]
+    [InlineData("-leading-dash")]
+    [InlineData("الفاتورة")]
+    [InlineData("0123456789012345678901234567891")]
+    public async Task Issue_RefusesATypedNumberThatIsMalformedOrTooLong(string number)
+    {
+        var token = await ManagerToken();
+        var id = (await CreateAsync(token)).GetProperty("id").GetInt32();
+
+        var response = await api.PostAsync($"/api/invoices/{id}/issue", new { number }, token);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.True((await TestWorkers.ReadJsonAsync(response)).GetProperty("errors").TryGetProperty("number", out _));
+    }
+
+    [Fact]
+    public async Task ATypedNumberAppearsOnTheInvoicePdf()
+    {
+        var token = await ManagerToken();
+        var number = "PDF/" + Guid.NewGuid().ToString("N")[..6];
+        var id = (await CreateAsync(token)).GetProperty("id").GetInt32();
+        await api.PostAsync($"/api/invoices/{id}/issue", new { number }, token);
+
+        var bytes = await (await api.GetAsync($"/api/invoices/{id}/pdf", token)).Content.ReadAsByteArrayAsync();
+
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(bytes);
+        Assert.Contains(number, string.Join(" ", pdf.GetPage(1).GetWords().Select(w => w.Text)));
+    }
+
+    [Fact]
     public async Task Issue_AssignsSequentialNumbersAndLocksTheInvoice()
     {
         await ResetNumberAsync();
