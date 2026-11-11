@@ -1,4 +1,6 @@
-import { NavLink } from "react-router-dom";
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { NavLink, useLocation } from "react-router-dom";
 import { cx } from "../ui";
 import { NAV_GROUPS, NAV_ICONS } from "./navIcons";
 import type { NavItem } from "./navItems";
@@ -14,7 +16,32 @@ interface SidebarProps {
  * Grouped left navigation. Collapsed it shows icons only; the labels stay in the DOM (visually hidden)
  * so screen readers and tooltips keep the full names.
  */
+const CLOSED_KEY = "hrpayroll.navGroupsClosed";
+
+function loadClosed(): string[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CLOSED_KEY) ?? "[]");
+    return Array.isArray(saved) ? saved.filter((v): v is string => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 export function Sidebar({ items, collapsed, attendanceAttention }: SidebarProps) {
+  const [closed, setClosed] = useState<string[]>(loadClosed);
+  const { pathname } = useLocation();
+  function toggleGroup(label: string) {
+    setClosed((current) => {
+      const next = current.includes(label) ? current.filter((l) => l !== label) : [...current, label];
+      try {
+        localStorage.setItem(CLOSED_KEY, JSON.stringify(next));
+      } catch {
+        // Not persisting is harmless.
+      }
+      return next;
+    });
+  }
+
   const groups = NAV_GROUPS.map((group) => ({
     label: group.label,
     items: group.keys.map((key) => items.find((item) => item.key === key)).filter((item): item is NavItem => !!item),
@@ -28,17 +55,34 @@ export function Sidebar({ items, collapsed, attendanceAttention }: SidebarProps)
         collapsed ? "w-[4.5rem] px-2" : "w-64 px-3",
       )}
     >
-      {groups.map((group) => (
-        <div key={group.label} className="mb-5 last:mb-0">
-          <p
-            className={cx(
-              "mb-1.5 px-3 text-[0.6875rem] font-semibold uppercase tracking-wider text-brand-300/70",
-              collapsed && "sr-only",
-            )}
-          >
-            {group.label}
-          </p>
-          <ul className="space-y-0.5">
+      {groups.map((group) => {
+        const collapsible = !collapsed && group.items.length > 1;
+        const hasActive = group.items.some((item) => item.path && pathname.startsWith(item.path));
+        // The group holding the current screen never hides it.
+        const hidden = collapsible && closed.includes(group.label) && !hasActive;
+        return (
+        <div key={group.label} className="mb-4 last:mb-0">
+          {collapsible ? (
+            <button
+              type="button"
+              onClick={() => toggleGroup(group.label)}
+              aria-expanded={!hidden}
+              className="mb-1 flex w-full items-center justify-between rounded-md px-3 py-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-brand-300/70 hover:text-brand-100"
+            >
+              {group.label}
+              <ChevronDown aria-hidden="true" size={13} className={cx("transition-transform", hidden && "-rotate-90")} />
+            </button>
+          ) : (
+            <p
+              className={cx(
+                "mb-1.5 px-3 text-[0.6875rem] font-semibold uppercase tracking-wider text-brand-300/70",
+                collapsed && "sr-only",
+              )}
+            >
+              {group.label}
+            </p>
+          )}
+          <ul className={cx("space-y-0.5", hidden && "hidden")}>
             {group.items.map((item) => {
               const Icon = NAV_ICONS[item.key];
               const badge = item.key === "attendance" && attendanceAttention > 0;
@@ -90,7 +134,8 @@ export function Sidebar({ items, collapsed, attendanceAttention }: SidebarProps)
             })}
           </ul>
         </div>
-      ))}
+        );
+      })}
     </nav>
   );
 }

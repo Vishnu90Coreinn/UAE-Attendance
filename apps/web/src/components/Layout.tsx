@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { KeyRound, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Bell, KeyRound, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Link, Outlet, useNavigate } from "react-router-dom";
 import { COMPANY_NAME } from "../branding";
 import { getPayrollSettings, type PayrollSettings } from "../api/settings";
 import { isManagement } from "../permissions";
@@ -8,7 +8,9 @@ import { useAuth } from "../contexts/AuthContext";
 import { ChangePasswordDialog } from "../features/auth/ChangePasswordDialog";
 import { useAttendanceSummary } from "../features/attendance/useAttendanceSummary";
 import { useIsDesktop } from "../utils/useIsDesktop";
+import { Breadcrumbs } from "./Breadcrumbs";
 import { navItemsForRole } from "./navItems";
+import { QuickSearch } from "./QuickSearch";
 import { PhoneShell } from "./PhoneShell";
 import { Sidebar } from "./Sidebar";
 
@@ -111,7 +113,7 @@ export function Layout() {
           {sidebarCollapsed ? <PanelLeftOpen aria-hidden="true" size={20} /> : <PanelLeftClose aria-hidden="true" size={20} />}
         </button>
         <img src="/icons/favicon-48.png" alt="" width={36} height={36} className="size-9 shrink-0 rounded-lg border border-line" />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 shrink-0 lg:w-72 xl:w-80">
           <h1 className="truncate text-sm font-semibold leading-tight text-ink-900 lg:text-base">
             {companySettings?.companyName ?? COMPANY_NAME}
           </h1>
@@ -119,8 +121,24 @@ export function Layout() {
             {companySettings?.tagline ?? "Official HR & Payroll System"}
           </p>
         </div>
+        <div className="flex min-w-0 flex-1 justify-center px-2">
+          <QuickSearch items={tabs} />
+        </div>
         {user && (
           <div className="flex shrink-0 items-center gap-1.5">
+            <Link
+              to="/attendance"
+              aria-label={attendanceAttention > 0 ? `Attendance alerts: ${attendanceAttention} need attention` : "Attendance alerts: none"}
+              title="Attendance alerts"
+              className={`${headerButtonClass} relative`}
+            >
+              <Bell aria-hidden="true" size={18} />
+              {attendanceAttention > 0 && (
+                <span aria-hidden="true" className="absolute right-0.5 top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[0.625rem] font-bold text-ink-900">
+                  {attendanceAttention}
+                </span>
+              )}
+            </Link>
             <div className="mr-2 hidden items-center gap-2.5 lg:flex">
               <span
                 aria-hidden="true"
@@ -162,6 +180,7 @@ export function Layout() {
         <Sidebar items={tabs} collapsed={sidebarCollapsed} attendanceAttention={attendanceAttention} />
         <div className="min-w-0 flex-1 overflow-y-auto">
           <main id="main" tabIndex={-1} className="mx-auto w-full max-w-[90rem] px-6 py-8 outline-none lg:px-8">
+            <Breadcrumbs items={tabs} />
             {page}
           </main>
         </div>
