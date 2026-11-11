@@ -40,7 +40,7 @@ const subtitleCellClass =
   "max-md:order-[-1] max-md:justify-start max-md:py-0 max-md:pb-2 max-md:text-xs max-md:before:hidden";
 
 const actionClass =
-  "inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 md:min-h-9 md:min-w-9";
+  "inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent px-3 text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 max-md:border-ink-300 md:min-h-9 md:min-w-9 md:px-2";
 
 function ActionButton({
   icon: Icon,
@@ -72,6 +72,17 @@ function ActionButton({
       {/* Shown in the phone card layout; icon-only from md up; the aria-label above keeps the accessible name. */}
       <span className={iconOnlyOnPhone ? "hidden" : "md:hidden"}>{label}</span>
     </button>
+  );
+}
+
+const AVATAR_TINTS = ["bg-brand-100 text-brand-800", "bg-sky-100 text-sky-800", "bg-amber-100 text-amber-900", "bg-violet-100 text-violet-800", "bg-rose-100 text-rose-800"];
+
+function Avatar({ name, seed }: { name: string; seed: number }) {
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]!.toUpperCase()).join("");
+  return (
+    <span aria-hidden="true" className={`inline-flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold max-md:hidden ${AVATAR_TINTS[seed % AVATAR_TINTS.length]}`}>
+      {initials}
+    </span>
   );
 }
 
@@ -151,7 +162,7 @@ function WorkerRow({
     .filter(Boolean)
     .join(" · ");
   return (
-    <tr className="block rounded-card border border-line bg-white py-1 shadow-card hover:bg-ink-50/70 max-md:flex max-md:flex-col md:table-row md:rounded-none md:border-0 md:py-0 md:shadow-none">
+    <tr className="block rounded-card border border-line bg-white py-1 shadow-card hover:bg-brand-50/40 max-md:flex max-md:flex-col md:table-row md:rounded-none md:border-0 md:py-0 md:shadow-none">
       <td
         data-label="ID"
         className={`${cellClass} ${subtitleCellClass} font-mono font-medium text-ink-600 md:whitespace-nowrap`}
@@ -162,13 +173,16 @@ function WorkerRow({
         data-label="Name"
         className={`${cellClass} ${titleCellClass} text-ink-800`}
       >
-        <div>
-          <div className="font-semibold">{worker.fullName}</div>
-          {worker.emiratesId && (
-            <div className="font-mono text-xs font-normal text-ink-600">
-              EID {worker.emiratesId}
-            </div>
-          )}
+        <div className="flex items-center gap-3">
+          <Avatar name={worker.fullName} seed={worker.id} />
+          <div>
+            <div className="font-semibold">{worker.fullName}</div>
+            {worker.emiratesId && (
+              <div className="font-mono text-xs font-normal text-ink-600">
+                EID {worker.emiratesId}
+              </div>
+            )}
+          </div>
         </div>
       </td>
       <td
@@ -247,7 +261,7 @@ function WorkerRow({
                 worker={worker}
                 disabled={busy}
                 onClick={actions.onEdit}
-                tone="border-ink-300 bg-white text-ink-800 hover:bg-ink-50"
+                tone="text-ink-600 hover:bg-ink-100 hover:text-ink-900"
               />
             )}
             {worker.isActive && actions?.onDeactivate && (
@@ -257,7 +271,7 @@ function WorkerRow({
                 worker={worker}
                 disabled={busy}
                 onClick={actions.onDeactivate}
-                tone="border-ink-300 bg-white text-amber-800 hover:bg-amber-50"
+                tone="text-ink-600 hover:bg-amber-50 hover:text-amber-800"
               />
             )}
             {!worker.isActive && actions?.onActivate && (
@@ -267,7 +281,7 @@ function WorkerRow({
                 worker={worker}
                 disabled={busy}
                 onClick={actions.onActivate}
-                tone="border-ink-300 bg-white text-green-800 hover:bg-green-50"
+                tone="text-ink-600 hover:bg-green-50 hover:text-green-800"
               />
             )}
             {onPrint && (
@@ -278,7 +292,7 @@ function WorkerRow({
                 disabled={busy}
                 iconOnlyOnPhone={!!actions}
                 onClick={onPrint}
-                tone="border-ink-300 bg-white text-ink-800 hover:bg-ink-50"
+                tone="text-ink-600 hover:bg-ink-100 hover:text-ink-900"
               />
             )}
             {actions?.onDelete && (
@@ -289,7 +303,7 @@ function WorkerRow({
                 disabled={busy}
                 iconOnlyOnPhone
                 onClick={actions.onDelete}
-                tone="border-ink-300 bg-white text-danger hover:bg-red-50"
+                tone="text-ink-600 hover:bg-red-50 hover:text-danger"
               />
             )}
           </div>
@@ -312,7 +326,7 @@ export function WorkersTable({
       <div className="md:overflow-x-auto">
         <table className="block w-full border-collapse text-left text-sm md:table">
           <thead className="sr-only md:not-sr-only md:table-header-group">
-            <tr className="border-b border-line bg-ink-50 text-xs font-semibold uppercase tracking-wide text-ink-600">
+            <tr className="border-b border-line bg-ink-50/80 text-[0.6875rem] font-semibold uppercase tracking-wider text-ink-500">
               <th scope="col" className="px-4 py-3">
                 ID
               </th>
