@@ -183,10 +183,10 @@ export function WorkersPage() {
 
       {list.status === "ready" && list.workers.length > 0 && (
         <>
-          <div className="mb-4 grid grid-cols-3 gap-2 sm:gap-3">
-            <StatCard label="Total workers" value={list.workers.length} icon={UsersRound} />
-            <StatCard label="Active" value={activeCount} icon={UserCheck} />
-            <StatCard label="Onboarding open" value={onboardingOpen} icon={ClipboardList} />
+          <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
+            <StatCard compact label="Total workers" value={list.workers.length} icon={UsersRound} />
+            <StatCard compact label="Active" value={activeCount} icon={UserCheck} />
+            <StatCard compact label="Onboarding open" value={onboardingOpen} icon={ClipboardList} />
           </div>
 
         </>

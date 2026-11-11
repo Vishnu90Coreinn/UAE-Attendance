@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import type { Worker } from "../../api/workers";
 import { formatRate } from "../../utils/money";
+import { Pager, SortTh, usePaging, useSort } from "../../ui";
 import { WorkerStatusBadge } from "./WorkerStatusBadge";
 
 interface RowActions {
@@ -32,7 +33,7 @@ interface WorkersTableProps {
 
 /** On phones each worker is a labelled card; from md up it is an ordinary table row. */
 const cellClass =
-  "flex items-center justify-between gap-3 px-4 py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-ink-600 md:table-cell md:p-3 md:before:content-none xl:p-4";
+  "flex items-center justify-between gap-3 px-4 py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-ink-600 md:table-cell md:px-2.5 md:py-2.5 md:before:content-none";
 /** On phones the name leads the card as its title with the worker ID beneath it; the other fields follow as label/value rows. */
 const titleCellClass =
   "max-md:order-[-2] max-md:justify-start max-md:pb-0 max-md:pt-3 max-md:text-base max-md:before:hidden";
@@ -75,17 +76,6 @@ function ActionButton({
   );
 }
 
-const AVATAR_TINTS = ["bg-brand-100 text-brand-800", "bg-sky-100 text-sky-800", "bg-amber-100 text-amber-900", "bg-violet-100 text-violet-800", "bg-rose-100 text-rose-800"];
-
-function Avatar({ name, seed }: { name: string; seed: number }) {
-  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]!.toUpperCase()).join("");
-  return (
-    <span aria-hidden="true" className={`inline-flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold max-md:hidden ${AVATAR_TINTS[seed % AVATAR_TINTS.length]}`}>
-      {initials}
-    </span>
-  );
-}
-
 function overtimeText(worker: Worker): string {
   if (worker.overtimeRate !== null) return formatRate(worker.overtimeRate);
   return worker.effectiveOvertimeRate === null
@@ -122,7 +112,7 @@ function OnboardingCell({ worker }: { worker: Worker }) {
     >
       <div
         aria-hidden="true"
-        className="h-1.5 w-14 overflow-hidden rounded-full bg-ink-200"
+        className="h-1.5 w-8 overflow-hidden rounded-full bg-ink-200"
       >
         <div
           className={`h-full ${complete ? "bg-success" : "bg-brand-600"}`}
@@ -174,11 +164,10 @@ function WorkerRow({
         className={`${cellClass} ${titleCellClass} text-ink-800`}
       >
         <div className="flex items-center gap-3">
-          <Avatar name={worker.fullName} seed={worker.id} />
           <div>
             <div className="font-semibold">{worker.fullName}</div>
             {worker.emiratesId && (
-              <div className="font-mono text-xs font-normal text-ink-600">
+              <div className="max-w-[9rem] truncate font-mono text-xs font-normal text-ink-600" title={`EID ${worker.emiratesId}`}>
                 EID {worker.emiratesId}
               </div>
             )}
@@ -189,9 +178,9 @@ function WorkerRow({
         data-label="Role"
         className={`${cellClass} text-ink-600 max-md:text-right`}
       >
-        <div>
+        <div className="md:whitespace-nowrap">
           <div className="font-medium text-ink-800">{worker.designation}</div>
-          {place && <div className="text-xs">{place}</div>}
+          {place && <div className="max-w-[7rem] truncate text-xs" title={place}>{place}</div>}
         </div>
       </td>
       <td
@@ -210,7 +199,7 @@ function WorkerRow({
             )}
             {worker.email && (
               <div
-                className="max-w-[13rem] truncate text-xs"
+                className="max-w-[8rem] truncate text-xs"
                 title={worker.email}
               >
                 {worker.email}
@@ -226,7 +215,7 @@ function WorkerRow({
           data-label="Pay (AED)"
           className={`${cellClass} text-ink-800`}
         >
-          <div className="max-md:text-right">
+          <div className="max-md:text-right md:whitespace-nowrap">
             <div>
               Salary{" "}
               <span className="font-medium">
@@ -249,10 +238,10 @@ function WorkerRow({
         <WorkerStatusBadge isActive={worker.isActive} />
       </td>
       {(actions || onPrint) && (
-        <td className="px-4 py-2 md:table-cell md:px-4 py-3">
+        <td className="px-4 py-2 md:sticky md:right-0 md:table-cell md:bg-white md:px-2 md:py-3 md:shadow-[-8px_0_8px_-8px_rgb(19_38_42/0.12)]">
           {/* Phone: Edit and Deactivate share a row with an icon-only Delete at the end, keeping the card short. */}
           <div
-            className={`grid gap-2 md:flex md:flex-nowrap md:justify-end ${grid}`}
+            className={`grid gap-2 md:flex md:flex-nowrap md:justify-end md:gap-0 ${grid}`}
           >
             {actions && (
               <ActionButton
@@ -320,6 +309,16 @@ export function WorkersTable({
   onPrint,
   busyId,
 }: WorkersTableProps) {
+  const { sorted, sort, toggle } = useSort(workers, {
+    id: (w) => w.workerCode,
+    name: (w) => w.fullName,
+    role: (w) => w.designation,
+    pay: (w) => w.monthlySalary,
+    onboarding: (w) => onboardingProgress(w).done,
+    status: (w) => (w.isActive ? 0 : 1),
+  });
+  const paging = usePaging(sorted);
+  const th = "px-3 py-3";
   return (
     <div className="md:overflow-hidden md:rounded-card md:border md:border-line md:bg-white md:shadow-card">
       {/* Below md rows are cards; from md the table scrolls inside this container so the page itself never scrolls sideways. */}
@@ -327,38 +326,26 @@ export function WorkersTable({
         <table className="block w-full border-collapse text-left text-sm md:table">
           <thead className="sr-only md:not-sr-only md:table-header-group">
             <tr className="border-b border-line bg-ink-50/80 text-[0.6875rem] font-semibold uppercase tracking-wider text-ink-500">
-              <th scope="col" className="px-4 py-3">
-                ID
-              </th>
-              <th scope="col" className="px-4 py-3">
-                Worker
-              </th>
-              <th scope="col" className="px-4 py-3">
-                Role
-              </th>
-              <th scope="col" className="px-4 py-3">
+              <SortTh label="ID" sortKey="id" sort={sort} onToggle={toggle} className={th} />
+              <SortTh label="Worker" sortKey="name" sort={sort} onToggle={toggle} className={th} />
+              <SortTh label="Role" sortKey="role" sort={sort} onToggle={toggle} className={th} />
+              <th scope="col" className="px-3 py-3">
                 Contact
               </th>
               {showRates && (
-                <th scope="col" className="p-3 xl:whitespace-nowrap xl:p-4">
-                  Pay (AED)
-                </th>
+                <SortTh label="Pay (AED)" sortKey="pay" sort={sort} onToggle={toggle} className={`${th} xl:whitespace-nowrap`} />
               )}
-              <th scope="col" className="px-4 py-3">
-                Onboarding
-              </th>
-              <th scope="col" className="px-4 py-3">
-                Status
-              </th>
+              <SortTh label="Onboarding" sortKey="onboarding" sort={sort} onToggle={toggle} className={th} />
+              <SortTh label="Status" sortKey="status" sort={sort} onToggle={toggle} className={th} />
               {(actions || onPrint) && (
-                <th scope="col" className="p-3 text-right xl:p-4">
+                <th scope="col" className="p-3 text-right md:sticky md:right-0 md:bg-ink-50">
                   Actions
                 </th>
               )}
             </tr>
           </thead>
           <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-line">
-            {workers.map((worker) => (
+            {paging.pageRows.map((worker) => (
               <WorkerRow
                 key={worker.id}
                 worker={worker}
@@ -371,6 +358,7 @@ export function WorkersTable({
           </tbody>
         </table>
       </div>
+      <Pager {...paging} onPage={paging.setPage} className="border-t border-line px-4 pb-3" />
     </div>
   );
 }

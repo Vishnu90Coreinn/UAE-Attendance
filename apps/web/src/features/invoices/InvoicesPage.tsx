@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Download, FilePlus2, FileText, Loader2, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Banknote, Download, FilePlus2, FileText, Hourglass, Loader2, Users } from "lucide-react";
 import {
   getInvoice, getInvoicesCsv, listInvoiceClients, listInvoices,
   type Invoice, type InvoiceClient, type InvoiceFilters, type InvoiceStatusFilter, type InvoiceSummary,
 } from "../../api/invoices";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
-import { Button, Card, EmptyState, PageHeader, Select, Table, TableScroll, THead, Th, TRow, Td } from "../../ui";
+import { Button, Card, Pager, SortTh, usePaging, useSort, EmptyState, PageHeader, Select, StatCard, Table, TableScroll, THead, TRow, Td } from "../../ui";
 import { TextField } from "../../components/TextField";
 import { LoadError } from "../workers/WorkersFeedback";
 import { ClientsDialog } from "./ClientsDialog";
@@ -81,6 +81,27 @@ export function InvoicesPage() {
     }
   }
 
+  // Figures describe the invoices in view, so they follow the filters.
+  const live = (rows ?? []).filter((r) => r.displayStatus !== "Draft" && r.displayStatus !== "Cancelled");
+  const invoiced = live.reduce((sum, r) => sum + r.total, 0);
+  const collected = live.reduce((sum, r) => sum + r.amountPaid, 0);
+  const outstanding = live.reduce((sum, r) => sum + r.balanceDue, 0);
+  const overdueRows = live.filter((r) => r.isOverdue);
+  const overdueAmount = overdueRows.reduce((sum, r) => sum + r.balanceDue, 0);
+
+  const { sorted, sort, toggle } = useSort(rows ?? [], {
+    number: (r) => r.number,
+    client: (r) => r.clientName,
+    project: (r) => r.project,
+    date: (r) => r.invoiceDate,
+    due: (r) => r.dueDate,
+    total: (r) => r.total,
+    balance: (r) => r.balanceDue,
+    status: (r) => r.displayStatus,
+  });
+  const paging = usePaging(sorted);
+  const thClass = "border-b border-line px-4 py-3 font-semibold";
+
   if (mode.kind === "new" || mode.kind === "edit") {
     return (
       <section>
@@ -132,7 +153,16 @@ export function InvoicesPage() {
         }
       />
 
-      <Card className="mb-4 p-4">
+      {rows && rows.length > 0 && (
+        <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard compact label="Invoiced (AED)" value={formatMoney(invoiced)} icon={FileText} note={`${live.length} issued invoice${live.length === 1 ? "" : "s"}`} />
+          <StatCard compact label="Collected (AED)" value={formatMoney(collected)} icon={Banknote} tone="success" />
+          <StatCard compact label="Outstanding (AED)" value={formatMoney(outstanding)} icon={Hourglass} tone="warning" />
+          <StatCard compact label="Past due (AED)" value={formatMoney(overdueAmount)} icon={AlertTriangle} tone="danger" note={`${overdueRows.length} invoice${overdueRows.length === 1 ? "" : "s"}`} />
+        </div>
+      )}
+
+      <Card className="mb-3 p-3 md:px-4">
         <button
           type="button"
           className="flex min-h-11 w-full items-center justify-between text-sm font-semibold text-ink-800 sm:hidden"
@@ -143,7 +173,7 @@ export function InvoicesPage() {
           <span>Filters{activeFilters > 0 ? ` (${activeFilters} active)` : ""}</span>
           <span aria-hidden="true">{filtersOpen ? "Hide" : "Show"}</span>
         </button>
-        <form id="invoice-filters" role="search" aria-label="Filter invoices" className={`mt-3 gap-3 sm:mt-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 ${filtersOpen ? "grid" : "hidden"}`} onSubmit={(e) => e.preventDefault()}>
+        <form id="invoice-filters" role="search" aria-label="Filter invoices" className={`mt-3 gap-3 sm:mt-0 sm:grid sm:grid-cols-2 sm:gap-y-2 lg:grid-cols-4 xl:grid-cols-7 md:[&_label]:text-xs md:[&_label]:text-ink-600 md:[&_input]:min-h-9 md:[&_select]:min-h-9 md:[&_input]:py-0 ${filtersOpen ? "grid" : "hidden"}`} onSubmit={(e) => e.preventDefault()}>
           <div className="sm:col-span-2">
             <TextField label="Search" placeholder="Number, client, project or LPO" value={filters.q ?? ""} onChange={(e) => setFilters({ ...filters, q: e.target.value || undefined })} />
           </div>
@@ -175,22 +205,22 @@ export function InvoicesPage() {
       {rows && rows.length > 0 && (
         <Card>
           <TableScroll>
-            <Table>
+            <Table className="md:[&_td]:py-2 md:[&_th]:py-2.5">
               <caption className="sr-only">Invoices</caption>
               <THead>
                 <TRow className="hover:bg-transparent">
-                  <Th>Invoice</Th>
-                  <Th>Client</Th>
-                  <Th>Project</Th>
-                  <Th>Date</Th>
-                  <Th>Due</Th>
-                  <Th align="right">Total (AED)</Th>
-                  <Th align="right">Balance (AED)</Th>
-                  <Th>Status</Th>
+                  <SortTh label="Invoice" sortKey="number" sort={sort} onToggle={toggle} className={thClass} />
+                  <SortTh label="Client" sortKey="client" sort={sort} onToggle={toggle} className={thClass} />
+                  <SortTh label="Project" sortKey="project" sort={sort} onToggle={toggle} className={thClass} />
+                  <SortTh label="Date" sortKey="date" sort={sort} onToggle={toggle} className={thClass} />
+                  <SortTh label="Due" sortKey="due" sort={sort} onToggle={toggle} className={thClass} />
+                  <SortTh label="Total (AED)" sortKey="total" sort={sort} onToggle={toggle} className={`${thClass} text-right`} align="right" />
+                  <SortTh label="Balance (AED)" sortKey="balance" sort={sort} onToggle={toggle} className={`${thClass} text-right`} align="right" />
+                  <SortTh label="Status" sortKey="status" sort={sort} onToggle={toggle} className={thClass} />
                 </TRow>
               </THead>
               <tbody>
-                {rows.map((r) => (
+                {paging.pageRows.map((r) => (
                   <TRow key={r.id}>
                     <Td>
                       <button type="button" className="min-h-11 whitespace-nowrap rounded font-semibold text-brand-700 underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-brand-500 md:min-h-0" onClick={() => void open(r.id)}>
@@ -198,10 +228,10 @@ export function InvoicesPage() {
                         <span className="sr-only">{`, ${r.clientName}`}</span>
                       </button>
                     </Td>
-                    <Td className="max-w-[16rem] break-words">{r.clientName}</Td>
+                    <Td className="max-w-[16rem] break-words font-medium">{r.clientName}</Td>
                     <Td className="max-w-[12rem] break-words">{r.project || "-"}</Td>
                     <Td>{formatDate(r.invoiceDate)}</Td>
-                    <Td>{formatDate(r.dueDate)}</Td>
+                    <Td className={r.isOverdue ? "font-medium text-danger" : undefined}>{formatDate(r.dueDate)}</Td>
                     <Td numeric>{formatMoney(r.total)}</Td>
                     <Td numeric>{r.status === "Issued" ? formatMoney(r.balanceDue) : "-"}</Td>
                     <Td><InvoiceStatusBadges status={r.displayStatus} overdue={r.isOverdue} /></Td>
@@ -210,6 +240,7 @@ export function InvoicesPage() {
               </tbody>
             </Table>
           </TableScroll>
+          <Pager {...paging} onPage={paging.setPage} className="border-t border-line px-4 pb-3" />
         </Card>
       )}
 

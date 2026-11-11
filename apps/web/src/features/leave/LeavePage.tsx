@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { PageHeader } from "../../ui";
-import { CalendarPlus } from "lucide-react";
+import { PageHeader, StatCard } from "../../ui";
+import { CalendarCheck, CalendarPlus, CalendarX, Hourglass } from "lucide-react";
 import {
   approveLeave,
   createLeave,
@@ -189,6 +189,13 @@ export function LeavePage() {
           )
         }
       />
+      {rows.length > 0 && (
+        <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
+          <StatCard compact label="Pending requests" value={rows.filter((r) => r.status === "Pending").length} icon={Hourglass} tone="warning" />
+          <StatCard compact label="Approved days" value={rows.filter((r) => r.status === "Approved").reduce((sum, r) => sum + r.days, 0)} icon={CalendarCheck} tone="success" />
+          <StatCard compact label="Rejected requests" value={rows.filter((r) => r.status === "Rejected").length} icon={CalendarX} tone="danger" />
+        </div>
+      )}
       <LeaveReport
         workers={workers}
         disabled={busy || !workersReady}

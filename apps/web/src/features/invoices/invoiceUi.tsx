@@ -41,8 +41,8 @@ const STATUS_TONE: Record<InvoiceDisplayStatus, StatusTone> = {
 export function InvoiceStatusBadges({ status, overdue }: { status: InvoiceDisplayStatus; overdue: boolean }) {
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
-      <StatusBadge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</StatusBadge>
-      {overdue && <StatusBadge tone="danger">Overdue</StatusBadge>}
+      <StatusBadge tone={STATUS_TONE[status]} variant="soft">{STATUS_LABEL[status]}</StatusBadge>
+      {overdue && <StatusBadge tone="danger" variant="soft">Overdue</StatusBadge>}
     </span>
   );
 }

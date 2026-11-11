@@ -1,5 +1,5 @@
 import { Check, Paperclip, Trash2, X } from "lucide-react";
-import { StatusBadge } from "../../ui";
+import { Pager, SortTh, StatusBadge, usePaging, useSort } from "../../ui";
 import type { Role } from "../../api/auth";
 import type { LeaveRequest } from "../../api/leave";
 import { isManagement } from "../../permissions";
@@ -40,11 +40,21 @@ export function LeaveTable({
       !!username &&
       row.createdBy === username);
   const showActions = manage || rows.some(canDelete);
+  const { sorted, sort, toggle } = useSort(rows, {
+    worker: (r) => r.workerName,
+    type: (r) => r.leaveType,
+    start: (r) => r.startDate,
+    end: (r) => r.endDate,
+    days: (r) => r.days,
+    status: (r) => r.status,
+  });
+  const paging = usePaging(sorted);
+  const sortable: Record<string, string> = { Worker: "worker", "Leave Type": "type", "Start Date": "start", "End Date": "end", Days: "days", Status: "status" };
   return (
     <div className="max-w-full rounded-lg border-line md:overflow-x-auto md:border md:bg-white md:shadow-sm">
       <table className="block w-full text-left text-sm md:table">
         <caption className="sr-only">Leave requests</caption>
-        <thead className="sr-only border-b border-line bg-ink-50 md:not-sr-only md:table-header-group">
+        <thead className="sr-only border-b border-line bg-ink-50/80 text-[0.6875rem] uppercase tracking-wider text-ink-500 md:not-sr-only md:table-header-group">
           <tr className="md:table-row">
             {[
               "Worker",
@@ -55,15 +65,19 @@ export function LeaveTable({
               "Status",
               "Photo",
               ...(showActions ? ["Actions"] : []),
-            ].map((label) => (
-              <th key={label} scope="col" className="px-4 py-3 font-semibold">
-                {label}
-              </th>
-            ))}
+            ].map((label) =>
+              sortable[label] ? (
+                <SortTh key={label} label={label} sortKey={sortable[label]} sort={sort} onToggle={toggle} className="px-4 py-3 font-semibold" />
+              ) : (
+                <th key={label} scope="col" className="px-4 py-3 font-semibold">
+                  {label}
+                </th>
+              ),
+            )}
           </tr>
         </thead>
         <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-line">
-          {rows.map((row) => (
+          {paging.pageRows.map((row) => (
             <tr
               key={row.id}
               className="block rounded-card border border-line bg-white py-1 shadow-card md:table-row md:rounded-none md:border-0 md:py-0 md:shadow-none"
@@ -103,7 +117,7 @@ export function LeaveTable({
                 {row.days}
               </td>
               <td data-label="Status" className={cellClass}>
-                <StatusBadge tone={statusTone[row.status]}>{row.status}</StatusBadge>
+                <StatusBadge tone={statusTone[row.status]} variant="soft">{row.status}</StatusBadge>
               </td>
               <td data-label="Photo" className={cellClass}>
                 {row.hasAttachment ? (
@@ -168,6 +182,7 @@ export function LeaveTable({
           ))}
         </tbody>
       </table>
+      <Pager {...paging} onPage={paging.setPage} className="border-t border-line px-4 pb-3" />
     </div>
   );
 }
