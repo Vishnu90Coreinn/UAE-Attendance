@@ -120,8 +120,8 @@ export function Layout() {
           {sidebarCollapsed ? <PanelLeftOpen aria-hidden="true" size={20} /> : <PanelLeftClose aria-hidden="true" size={20} />}
         </button>
         <img src="/icons/favicon-48.png" alt="" width={36} height={36} className="size-9 shrink-0 rounded-lg border border-line" />
-        <div className="min-w-0 shrink-0 lg:w-72 xl:w-80">
-          <h1 className="truncate text-sm font-semibold leading-tight text-ink-900 lg:text-base">
+        <div className="min-w-0 max-w-[30rem] shrink">
+          <h1 className="line-clamp-2 text-sm font-semibold leading-tight text-ink-900 lg:text-base">
             {companySettings?.companyName ?? COMPANY_NAME}
           </h1>
           <p className="hidden truncate text-xs text-ink-500 sm:block">
