@@ -5,7 +5,7 @@ namespace HrPayroll.Api.Services;
 
 /// <summary>
 /// The single place that removes pay information from API responses. Site supervisors never see hourly or overtime
-/// rates, daily pay or the company overtime rate; managers, administrators and HR see everything. Fails closed: any caller
+/// rates, daily pay or the company overtime rate; managers, administrators, HR and the read-only Viewer see everything. Fails closed: any caller
 /// who is none of those gets the redacted view.
 /// </summary>
 public sealed class WageRedactor(IHttpContextAccessor httpContext)
@@ -15,12 +15,14 @@ public sealed class WageRedactor(IHttpContextAccessor httpContext)
         get
         {
             var user = httpContext.HttpContext?.User;
-            return user is null || !(user.IsInRole(Roles.Manager) || user.IsInRole(Roles.Administrator) || user.IsInRole(Roles.HR));
+            return user is null || !(user.IsInRole(Roles.Manager) || user.IsInRole(Roles.Administrator) || user.IsInRole(Roles.HR) || user.IsInRole(Roles.Viewer));
         }
     }
 
     public WorkerResponse Apply(WorkerResponse worker) =>
-        HidesWages ? worker with { HourlyRate = null, MonthlySalary = null, OvertimeRate = null, EffectiveOvertimeRate = null } : worker;
+        HidesWages ? worker with { HourlyRate = null, MonthlySalary = null, OvertimeRate = null, EffectiveOvertimeRate = null,
+            HousingAllowance = null, TransportAllowance = null, OtherAllowance = null,
+            BankName = null, BankAccountNumber = null, Iban = null } : worker;
 
     public List<WorkerResponse> Apply(List<WorkerResponse> workers) =>
         HidesWages ? workers.Select(Apply).ToList() : workers;

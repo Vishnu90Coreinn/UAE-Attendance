@@ -146,7 +146,6 @@ public sealed class PayslipPdf(IConfiguration configuration)
         SignatureLine(310, Right, "Authorized Signature");
         y -= 50;
         SignatureLine(Left, 266, "Date");
-        SignatureLine(310, Right, "Company Stamp");
 
         cv.Rule(Left, Right, 58, 0.5, PdfStyle.Hairline);
         cv.Text("Confidential: this payslip is issued to the named employee only.", Left, 44, 7, false, PdfStyle.Muted);

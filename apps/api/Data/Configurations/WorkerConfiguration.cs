@@ -11,6 +11,7 @@ public class WorkerConfiguration : IEntityTypeConfiguration<Worker>
         builder.ToTable(t =>
         {
             t.HasCheckConstraint("CK_Workers_HourlyRate", "[HourlyRate] > 0");
+            t.HasCheckConstraint("CK_Workers_Allowances", "[HousingAllowance] >= 0 AND [TransportAllowance] >= 0 AND [OtherAllowance] >= 0");
             t.HasCheckConstraint("CK_Workers_OvertimeRate", "[OvertimeRate] IS NULL OR [OvertimeRate] >= 0");
         });
 
@@ -32,6 +33,13 @@ public class WorkerConfiguration : IEntityTypeConfiguration<Worker>
         builder.Property(w => w.EmergencyContact).HasMaxLength(150);
         builder.Property(w => w.WorkLocation).HasMaxLength(120);
         builder.Property(w => w.Notes).HasMaxLength(1000);
+        builder.Property(w => w.Nationality).HasMaxLength(60);
+        builder.Property(w => w.HousingAllowance).HasPrecision(9, 2).HasDefaultValue(0m);
+        builder.Property(w => w.TransportAllowance).HasPrecision(9, 2).HasDefaultValue(0m);
+        builder.Property(w => w.OtherAllowance).HasPrecision(9, 2).HasDefaultValue(0m);
+        builder.Property(w => w.BankName).HasMaxLength(80);
+        builder.Property(w => w.BankAccountNumber).HasMaxLength(40);
+        builder.Property(w => w.Iban).HasMaxLength(40);
         builder.Property(w => w.ContractSigned).HasDefaultValue(false);
         builder.Property(w => w.VisaMedicalCleared).HasDefaultValue(false);
         builder.Property(w => w.SafetyGearIssued).HasDefaultValue(false);

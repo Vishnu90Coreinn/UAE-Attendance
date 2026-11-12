@@ -14,5 +14,11 @@ public static class Roles
     /// <summary>Head-office HR: sees everything a manager sees, including pay, but cannot change or approve anything.</summary>
     public const string HR = "HR";
 
-    public static readonly string[] All = [Administrator, Manager, Supervisor, HR];
+    /// <summary>
+    /// Read-only access to every page, pay included. A Viewer can look at and download anything but can never create,
+    /// change, approve or delete: <see cref="ViewerReadOnly"/> refuses every write, and the policies only let a Viewer read.
+    /// </summary>
+    public const string Viewer = "Viewer";
+
+    public static readonly string[] All = [Administrator, Manager, Supervisor, HR, Viewer];
 }

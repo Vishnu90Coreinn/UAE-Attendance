@@ -8,3 +8,6 @@ export { Skeleton } from "./Skeleton";
 export { StatCard } from "./StatCard";
 export { StatusBadge, type StatusTone } from "./StatusBadge";
 export { Table, TableScroll, THead, Th, TRow, Td } from "./Table";
+export { Pager, SortTh, usePaging, useSort, type SortState } from "./DataTable";
+export { LoadingState } from "./LoadingState";
+export { RowMenu, type RowMenuItem } from "./RowMenu";

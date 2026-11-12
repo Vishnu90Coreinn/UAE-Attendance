@@ -29,7 +29,7 @@ export function AddUserDialog({ open, roles, pending, error, fieldErrors, onClos
   const first = useRef<HTMLInputElement>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<Role>(roles[roles.length - 1] ?? "Supervisor");
+  const [role, setRole] = useState<Role>(roles.includes("Supervisor") ? "Supervisor" : (roles[roles.length - 1] ?? "Supervisor"));
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
   function submit(event: FormEvent) {
     event.preventDefault();

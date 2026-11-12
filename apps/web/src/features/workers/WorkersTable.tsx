@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import type { Worker } from "../../api/workers";
 import { formatRate } from "../../utils/money";
+import { Link, useInRouterContext } from "react-router-dom";
+import { Pager, RowMenu, SortTh, usePaging, useSort, type RowMenuItem } from "../../ui";
 import { WorkerStatusBadge } from "./WorkerStatusBadge";
 
 interface RowActions {
@@ -32,7 +34,7 @@ interface WorkersTableProps {
 
 /** On phones each worker is a labelled card; from md up it is an ordinary table row. */
 const cellClass =
-  "flex items-center justify-between gap-3 px-4 py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-ink-600 md:table-cell md:p-3 md:before:content-none xl:p-4";
+  "flex items-center justify-between gap-3 px-4 py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-ink-600 md:table-cell md:px-2.5 md:py-2.5 md:before:content-none";
 /** On phones the name leads the card as its title with the worker ID beneath it; the other fields follow as label/value rows. */
 const titleCellClass =
   "max-md:order-[-2] max-md:justify-start max-md:pb-0 max-md:pt-3 max-md:text-base max-md:before:hidden";
@@ -40,7 +42,7 @@ const subtitleCellClass =
   "max-md:order-[-1] max-md:justify-start max-md:py-0 max-md:pb-2 max-md:text-xs max-md:before:hidden";
 
 const actionClass =
-  "inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 md:min-h-9 md:min-w-9";
+  "inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent px-3 text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 max-md:border-ink-300 md:min-h-9 md:min-w-9 md:px-2";
 
 function ActionButton({
   icon: Icon,
@@ -72,6 +74,18 @@ function ActionButton({
       {/* Shown in the phone card layout; icon-only from md up; the aria-label above keeps the accessible name. */}
       <span className={iconOnlyOnPhone ? "hidden" : "md:hidden"}>{label}</span>
     </button>
+  );
+}
+
+/** The worker's name as a link to their profile; plain text where there is no router (isolated tests). */
+function WorkerName({ worker }: { worker: Worker }) {
+  const inRouter = useInRouterContext();
+  return inRouter ? (
+    <Link to={`/workers/${worker.id}`} className="rounded hover:text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
+      {worker.fullName}
+    </Link>
+  ) : (
+    <>{worker.fullName}</>
   );
 }
 
@@ -111,7 +125,7 @@ function OnboardingCell({ worker }: { worker: Worker }) {
     >
       <div
         aria-hidden="true"
-        className="h-1.5 w-14 overflow-hidden rounded-full bg-ink-200"
+        className="h-1.5 w-8 overflow-hidden rounded-full bg-ink-200"
       >
         <div
           className={`h-full ${complete ? "bg-success" : "bg-brand-600"}`}
@@ -141,17 +155,21 @@ function WorkerRow({
   busy: boolean;
   showRates: boolean;
 }) {
-  // Phone layout: wide buttons share the row; the icon-only ones (Print beside other actions, Delete) stay narrow.
-  const grid = actions?.onDelete
-    ? "grid-cols-[1fr_1fr_auto_auto]"
-    : actions
-      ? "grid-cols-[1fr_auto]"
-      : "grid-cols-1";
+  const menuItems: RowMenuItem[] = [
+    ...(onPrint ? [{ label: "Download record", icon: Printer, disabled: busy, onSelect: () => onPrint(worker) }] : []),
+    ...(worker.isActive && actions?.onDeactivate
+      ? [{ label: "Deactivate", icon: UserX, disabled: busy, onSelect: () => actions.onDeactivate!(worker) }]
+      : []),
+    ...(!worker.isActive && actions?.onActivate
+      ? [{ label: "Activate", icon: UserCheck, disabled: busy, onSelect: () => actions.onActivate!(worker) }]
+      : []),
+    ...(actions?.onDelete ? [{ label: "Delete", icon: Trash2, danger: true, disabled: busy, onSelect: () => actions.onDelete!(worker) }] : []),
+  ];
   const place = [worker.department, worker.workLocation]
     .filter(Boolean)
     .join(" · ");
   return (
-    <tr className="block rounded-card border border-line bg-white py-1 shadow-card hover:bg-ink-50/70 max-md:flex max-md:flex-col md:table-row md:rounded-none md:border-0 md:py-0 md:shadow-none">
+    <tr className="block rounded-card border border-line bg-white py-1 shadow-card hover:bg-brand-50/40 max-md:flex max-md:flex-col md:table-row md:rounded-none md:border-0 md:py-0 md:shadow-none">
       <td
         data-label="ID"
         className={`${cellClass} ${subtitleCellClass} font-mono font-medium text-ink-600 md:whitespace-nowrap`}
@@ -162,22 +180,24 @@ function WorkerRow({
         data-label="Name"
         className={`${cellClass} ${titleCellClass} text-ink-800`}
       >
-        <div>
-          <div className="font-semibold">{worker.fullName}</div>
-          {worker.emiratesId && (
-            <div className="font-mono text-xs font-normal text-ink-600">
-              EID {worker.emiratesId}
-            </div>
-          )}
+        <div className="flex items-center gap-3">
+          <div>
+            <div className="font-semibold"><WorkerName worker={worker} /></div>
+            {worker.emiratesId && (
+              <div className="max-w-[9rem] truncate font-mono text-xs font-normal text-ink-600" title={`EID ${worker.emiratesId}`}>
+                EID {worker.emiratesId}
+              </div>
+            )}
+          </div>
         </div>
       </td>
       <td
         data-label="Role"
         className={`${cellClass} text-ink-600 max-md:text-right`}
       >
-        <div>
+        <div className="md:whitespace-nowrap">
           <div className="font-medium text-ink-800">{worker.designation}</div>
-          {place && <div className="text-xs">{place}</div>}
+          {place && <div className="max-w-[7rem] truncate text-xs" title={place}>{place}</div>}
         </div>
       </td>
       <td
@@ -196,7 +216,7 @@ function WorkerRow({
             )}
             {worker.email && (
               <div
-                className="max-w-[13rem] truncate text-xs"
+                className="max-w-[8rem] truncate text-xs"
                 title={worker.email}
               >
                 {worker.email}
@@ -212,7 +232,7 @@ function WorkerRow({
           data-label="Pay (AED)"
           className={`${cellClass} text-ink-800`}
         >
-          <div className="max-md:text-right">
+          <div className="max-md:text-right md:whitespace-nowrap">
             <div>
               Salary{" "}
               <span className="font-medium">
@@ -235,11 +255,9 @@ function WorkerRow({
         <WorkerStatusBadge isActive={worker.isActive} />
       </td>
       {(actions || onPrint) && (
-        <td className="px-4 py-2 md:table-cell md:px-4 py-3">
-          {/* Phone: Edit and Deactivate share a row with an icon-only Delete at the end, keeping the card short. */}
-          <div
-            className={`grid gap-2 md:flex md:flex-nowrap md:justify-end ${grid}`}
-          >
+        <td className="px-4 py-2 md:sticky md:right-0 md:table-cell md:bg-white md:px-2 md:py-3 md:shadow-[-8px_0_8px_-8px_rgb(19_38_42/0.12)]">
+          {/* Edit is the everyday action and stays in view; the rest sit behind the menu so Delete is never one slip away. */}
+          <div className="flex items-center justify-end gap-1">
             {actions && (
               <ActionButton
                 icon={Pencil}
@@ -247,51 +265,10 @@ function WorkerRow({
                 worker={worker}
                 disabled={busy}
                 onClick={actions.onEdit}
-                tone="border-ink-300 bg-white text-ink-800 hover:bg-ink-50"
+                tone="text-ink-600 hover:bg-ink-100 hover:text-ink-900"
               />
             )}
-            {worker.isActive && actions?.onDeactivate && (
-              <ActionButton
-                icon={UserX}
-                label="Deactivate"
-                worker={worker}
-                disabled={busy}
-                onClick={actions.onDeactivate}
-                tone="border-ink-300 bg-white text-amber-800 hover:bg-amber-50"
-              />
-            )}
-            {!worker.isActive && actions?.onActivate && (
-              <ActionButton
-                icon={UserCheck}
-                label="Activate"
-                worker={worker}
-                disabled={busy}
-                onClick={actions.onActivate}
-                tone="border-ink-300 bg-white text-green-800 hover:bg-green-50"
-              />
-            )}
-            {onPrint && (
-              <ActionButton
-                icon={Printer}
-                label="Print"
-                worker={worker}
-                disabled={busy}
-                iconOnlyOnPhone={!!actions}
-                onClick={onPrint}
-                tone="border-ink-300 bg-white text-ink-800 hover:bg-ink-50"
-              />
-            )}
-            {actions?.onDelete && (
-              <ActionButton
-                icon={Trash2}
-                label="Delete"
-                worker={worker}
-                disabled={busy}
-                iconOnlyOnPhone
-                onClick={actions.onDelete}
-                tone="border-ink-300 bg-white text-danger hover:bg-red-50"
-              />
-            )}
+            {menuItems.length > 0 && <RowMenu label={`More actions for ${worker.fullName}`} items={menuItems} />}
           </div>
         </td>
       )}
@@ -306,45 +283,43 @@ export function WorkersTable({
   onPrint,
   busyId,
 }: WorkersTableProps) {
+  const { sorted, sort, toggle } = useSort(workers, {
+    id: (w) => w.workerCode,
+    name: (w) => w.fullName,
+    role: (w) => w.designation,
+    pay: (w) => w.monthlySalary,
+    onboarding: (w) => onboardingProgress(w).done,
+    status: (w) => (w.isActive ? 0 : 1),
+  });
+  const paging = usePaging(sorted);
+  const th = "px-3 py-3";
   return (
     <div className="md:overflow-hidden md:rounded-card md:border md:border-line md:bg-white md:shadow-card">
       {/* Below md rows are cards; from md the table scrolls inside this container so the page itself never scrolls sideways. */}
       <div className="md:overflow-x-auto">
         <table className="block w-full border-collapse text-left text-sm md:table">
           <thead className="sr-only md:not-sr-only md:table-header-group">
-            <tr className="border-b border-line bg-ink-50 text-xs font-semibold uppercase tracking-wide text-ink-600">
-              <th scope="col" className="px-4 py-3">
-                ID
-              </th>
-              <th scope="col" className="px-4 py-3">
-                Worker
-              </th>
-              <th scope="col" className="px-4 py-3">
-                Role
-              </th>
-              <th scope="col" className="px-4 py-3">
+            <tr className="border-b border-line bg-ink-50/80 text-[0.6875rem] font-semibold uppercase tracking-wider text-ink-500">
+              <SortTh label="ID" sortKey="id" sort={sort} onToggle={toggle} className={th} />
+              <SortTh label="Worker" sortKey="name" sort={sort} onToggle={toggle} className={th} />
+              <SortTh label="Role" sortKey="role" sort={sort} onToggle={toggle} className={th} />
+              <th scope="col" className="px-3 py-3">
                 Contact
               </th>
               {showRates && (
-                <th scope="col" className="p-3 xl:whitespace-nowrap xl:p-4">
-                  Pay (AED)
-                </th>
+                <SortTh label="Pay (AED)" sortKey="pay" sort={sort} onToggle={toggle} className={`${th} xl:whitespace-nowrap`} />
               )}
-              <th scope="col" className="px-4 py-3">
-                Onboarding
-              </th>
-              <th scope="col" className="px-4 py-3">
-                Status
-              </th>
+              <SortTh label="Onboarding" sortKey="onboarding" sort={sort} onToggle={toggle} className={th} />
+              <SortTh label="Status" sortKey="status" sort={sort} onToggle={toggle} className={th} />
               {(actions || onPrint) && (
-                <th scope="col" className="p-3 text-right xl:p-4">
+                <th scope="col" className="p-3 text-right md:sticky md:right-0 md:bg-ink-50">
                   Actions
                 </th>
               )}
             </tr>
           </thead>
           <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-line">
-            {workers.map((worker) => (
+            {paging.pageRows.map((worker) => (
               <WorkerRow
                 key={worker.id}
                 worker={worker}
@@ -357,6 +332,7 @@ export function WorkersTable({
           </tbody>
         </table>
       </div>
+      <Pager {...paging} onPage={paging.setPage} className="border-t border-line px-4 pb-3" />
     </div>
   );
 }

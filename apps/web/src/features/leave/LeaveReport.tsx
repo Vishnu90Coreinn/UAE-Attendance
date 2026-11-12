@@ -7,6 +7,8 @@ import { saveBlob } from "../payroll/downloadPdf";
 
 interface Props {
   workers: Worker[];
+  /** The worker chosen in the page's filter bar ("" for everyone); the report follows it. */
+  workerId: string;
   disabled: boolean;
   onDone: (message: string) => void;
   onError: (message: string) => void;
@@ -17,27 +19,18 @@ function currentMonth() {
     .format(new Date())
     .slice(0, 7);
 }
-/** Open by default on a wide screen; collapsed on a phone so the leave list stays the first thing seen. */
-function startsOpen() {
-  try {
-    return window.matchMedia("(min-width: 768px)").matches;
-  } catch {
-    return true;
-  }
-}
 const fieldClass =
   "mt-1 min-h-11 w-full rounded-lg border border-ink-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-60";
 const buttonClass =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-ink-300 bg-white px-4 text-sm font-medium text-ink-800 hover:bg-ink-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-60 max-sm:flex-1";
 
 /** Downloads the leave requests of one month, for everyone or a single worker. */
-export function LeaveReport({ workers, disabled, onDone, onError }: Props) {
+export function LeaveReport({ workers, workerId, disabled, onDone, onError }: Props) {
   const [month, setMonth] = useState(currentMonth);
-  const [workerId, setWorkerId] = useState("");
   const [exporting, setExporting] = useState<"pdf" | "excel" | null>(null);
-  const [open, setOpen] = useState(startsOpen);
+  // Closed until asked for, so the leave list is the first thing seen.
+  const [open, setOpen] = useState(false);
   const monthId = useId();
-  const workerKey = useId();
 
   async function download(format: "pdf" | "excel") {
     if (exporting || !month) return;
@@ -69,12 +62,12 @@ export function LeaveReport({ workers, disabled, onDone, onError }: Props) {
         >
           <span>
             Monthly leave report
-            <span className="block text-sm font-normal text-ink-600">Download every leave request that falls in a month.</span>
+            <span className="block text-sm font-normal text-ink-600">Download the leave requests of a month; follows the worker chosen above.</span>
           </span>
           <ChevronDown aria-hidden="true" size={18} className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
       </h3>
-      <div id={`${monthId}-body`} hidden={!open} className="grid gap-3 px-4 pb-4 sm:grid-cols-[12rem_minmax(0,18rem)_auto] sm:items-end">
+      <div id={`${monthId}-body`} hidden={!open} className="grid gap-3 px-4 pb-4 sm:grid-cols-[12rem_auto] sm:items-end">
         <div>
           <label htmlFor={monthId} className="text-sm font-medium">
             Month
@@ -87,25 +80,6 @@ export function LeaveReport({ workers, disabled, onDone, onError }: Props) {
             onChange={(e) => setMonth(e.target.value)}
             className={fieldClass}
           />
-        </div>
-        <div>
-          <label htmlFor={workerKey} className="text-sm font-medium">
-            Worker
-          </label>
-          <select
-            id={workerKey}
-            value={workerId}
-            disabled={disabled || exporting !== null}
-            onChange={(e) => setWorkerId(e.target.value)}
-            className={fieldClass}
-          >
-            <option value="">All workers</option>
-            {workers.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.fullName} ({w.workerCode})
-              </option>
-            ))}
-          </select>
         </div>
         <div className="flex gap-2">
           <button

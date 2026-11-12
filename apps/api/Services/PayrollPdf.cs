@@ -179,7 +179,7 @@ public sealed class PayrollPdf(IConfiguration? configuration = null)
         cv.Text("Prepared By: " + report.Company.PreparedByLabel, Left, signatureLine - 12, 8.5, true);
         cv.Text("Approved By: " + report.Company.ApprovedByLabel, 310, signatureLine - 12, 8.5, true);
         cv.Text("Signature & Date", Left, signatureLine - 23, 7.6, false, PdfStyle.Muted);
-        cv.Text("Signature & Stamp", 310, signatureLine - 23, 7.6, false, PdfStyle.Muted);
+        cv.Text("Signature & Date", 310, signatureLine - 23, 7.6, false, PdfStyle.Muted);
 
         // Footer on every page: confidentiality and company on the left, status and page numbers on the right.
         for (var i = 0; i < pages.Count; i++)
@@ -207,6 +207,7 @@ internal static class PdfStyle
     public static readonly Rgb Muted = new(98, 106, 112);
     public static readonly Rgb White = new(255, 255, 255);
     public static readonly Rgb Amber = new(180, 110, 20);
+    public static readonly Rgb AmberTint = new(255, 251, 235);
 
     /// <summary>PdfPig takes the three colour bytes; this lets callers pass a brand colour directly.</summary>
     public static void SetTextAndFillColor(this PdfPageBuilder page, Rgb color) => page.SetTextAndFillColor(color.R, color.G, color.B);

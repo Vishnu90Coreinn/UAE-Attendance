@@ -95,7 +95,7 @@ public class UserManagementTests(ApiFixture api) : IClassFixture<ApiFixture>
     [InlineData("short", Roles.Supervisor, "password")]
     [InlineData("valid-password-42", "Owner", "role")]
     [InlineData("valid-password-42", "HR Staff", "role")]
-    [InlineData("valid-password-42", "Viewer", "role")]
+    [InlineData("valid-password-42", "Auditor", "role")]
     public async Task Create_RejectsInvalidFields(string password, string role, string field)
     {
         var (_, token) = await AdminAsync();
@@ -307,7 +307,7 @@ public class UserManagementTests(ApiFixture api) : IClassFixture<ApiFixture>
 
         var create = await api.SendAsync(HttpMethod.Post, "/api/users",
             new { username = TestUsers.UniqueName(), password = TestUsers.DefaultPassword, role = "HR Staff" }, token);
-        var update = await api.SendAsync(HttpMethod.Put, $"/api/users/{supervisor.Id}", new { role = "Viewer", active = true }, token);
+        var update = await api.SendAsync(HttpMethod.Put, $"/api/users/{supervisor.Id}", new { role = "Auditor", active = true }, token);
 
         Assert.Equal(HttpStatusCode.BadRequest, create.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, update.StatusCode);

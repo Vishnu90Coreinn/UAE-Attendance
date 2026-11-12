@@ -213,7 +213,7 @@ public class WorkerConstraintTests(TestDatabase database) : IClassFixture<TestDa
             .ToDictionary(r => (string)r["COLUMN_NAME"]!);
 
         Assert.Equal(
-            new[] { "BadgeIssued", "ContractSigned", "CreatedUtc", "Department", "Designation", "Email", "EmergencyContact", "EmiratesId", "FullName", "HourlyRate", "Id", "IsActive", "JoinDate", "MonthlySalary", "Notes", "OvertimeRate", "PassportNumber", "Phone", "SafetyGearIssued", "SiteOrientationDone", "UpdatedUtc", "VisaMedicalCleared", "WorkerCode", "WorkLocation", "WpsRegistered" },
+            new[] { "BadgeIssued", "BankAccountNumber", "BankName", "ContractSigned", "CreatedUtc", "Department", "Designation", "Email", "EmergencyContact", "EmiratesId", "FullName", "HourlyRate", "HousingAllowance", "Iban", "Id", "IsActive", "JoinDate", "MonthlySalary", "Nationality", "Notes", "OtherAllowance", "OvertimeRate", "PassportNumber", "Phone", "SafetyGearIssued", "SiteOrientationDone", "TransportAllowance", "UpdatedUtc", "VisaMedicalCleared", "WorkerCode", "WorkLocation", "WpsRegistered" },
             columns.Keys.Order().ToArray());
 
         Assert.Equal("nvarchar", columns["WorkerCode"]["DATA_TYPE"]);
@@ -235,7 +235,7 @@ public class WorkerConstraintTests(TestDatabase database) : IClassFixture<TestDa
         Assert.Equal("YES", columns["JoinDate"]["IS_NULLABLE"]);
         Assert.Equal("datetime2", columns["CreatedUtc"]["DATA_TYPE"]);
         Assert.Equal("datetime2", columns["UpdatedUtc"]["DATA_TYPE"]);
-        Assert.All(columns.Where(c => c.Key is not ("OvertimeRate" or "JoinDate" or "Department" or "EmiratesId" or "PassportNumber" or "Phone" or "Email" or "EmergencyContact" or "WorkLocation" or "Notes")).Select(c => c.Value), column => Assert.Equal("NO", column["IS_NULLABLE"]));
+        Assert.All(columns.Where(c => c.Key is not ("OvertimeRate" or "JoinDate" or "Department" or "EmiratesId" or "PassportNumber" or "Phone" or "Email" or "EmergencyContact" or "WorkLocation" or "Notes" or "Nationality" or "BankName" or "BankAccountNumber" or "Iban")).Select(c => c.Value), column => Assert.Equal("NO", column["IS_NULLABLE"]));
     }
 
     [Fact]
@@ -244,7 +244,7 @@ public class WorkerConstraintTests(TestDatabase database) : IClassFixture<TestDa
         var checks = (await QueryAsync(
             "SELECT cc.name, cc.definition FROM sys.check_constraints cc WHERE cc.parent_object_id = OBJECT_ID('Workers')"))
             .ToDictionary(c => (string)c["name"]!, c => (string)c["definition"]!);
-        Assert.Equal(["CK_Workers_HourlyRate", "CK_Workers_OvertimeRate"], checks.Keys.Order().ToArray());
+        Assert.Equal(["CK_Workers_Allowances", "CK_Workers_HourlyRate", "CK_Workers_OvertimeRate"], checks.Keys.Order().ToArray());
         Assert.Contains("HourlyRate", checks["CK_Workers_HourlyRate"]);
         Assert.Contains("OvertimeRate", checks["CK_Workers_OvertimeRate"]);
 

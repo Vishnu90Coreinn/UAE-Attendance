@@ -1,3 +1,4 @@
+import { formatDisplayDate } from "../../utils/date";
 import { useEffect, useState } from "react";
 import { getLeaveBalances, type LeaveTypeBalance, type WorkerLeaveBalance } from "../../api/leave";
 
@@ -72,7 +73,7 @@ export function LeaveBalances({ refreshKey }: { refreshKey?: number }) {
                   {row.workerName}
                   <span className="block text-xs font-normal text-ink-600">{row.workerCode}</span>
                 </th>
-                <td className="whitespace-nowrap px-3 py-3 tabular-nums">{row.joinDate ?? "-"}</td>
+                <td className="whitespace-nowrap px-3 py-3 tabular-nums">{row.joinDate ? formatDisplayDate(row.joinDate) : "-"}</td>
                 {TYPES.map((type) => (
                   <td key={type} className="whitespace-nowrap px-3 py-3">
                     <Balance balance={row.balances.find((b) => b.leaveType === type)} />

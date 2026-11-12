@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { clearNewParam, hasNewParam } from "../../utils/startParam";
 import { ClipboardList, Search, Trash2, UserCheck, UserPlus, UsersRound, UserX } from "lucide-react";
 import { ApiError } from "../../api/client";
 import { activateWorker, deactivateWorker, deleteWorker, getWorkerProfilePdf, type Worker } from "../../api/workers";
 import { Button, Card, PageHeader, StatCard, cx, inputClass } from "../../ui";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
-import { canViewAll, isManagement } from "../../permissions";
+import { canViewAll, isManagement, isReadOnly } from "../../permissions";
 import { useAuth } from "../../contexts/AuthContext";
 import { saveBlob } from "../payroll/downloadPdf";
 import { useWorkerList } from "./useWorkerList";
@@ -45,14 +46,15 @@ export function WorkersPage() {
   const { user } = useAuth();
   const canManage = isManagement(user?.role);
   // HR adds and edits workers but cannot deactivate or delete them.
-  const canEdit = canViewAll(user?.role);
+  const canEdit = canViewAll(user?.role) && !isReadOnly(user?.role);
 
   const [includeInactive, setIncludeInactive] = useState(false);
   const list = useWorkerList(includeInactive);
 
   const [query, setQuery] = useState("");
   const [department, setDepartment] = useState("");
-  const [formOpen, setFormOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(() => canEdit && hasNewParam());
+  useEffect(clearNewParam, []);
   const [editing, setEditing] = useState<Worker | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [confirmPending, setConfirmPending] = useState(false);
@@ -149,6 +151,17 @@ export function WorkersPage() {
   }).length;
 
   const copy = CONFIRM_COPY[confirmation?.kind ?? "delete"];
+  const inactiveToggle = (
+  <label className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-ink-700">
+    <input
+      type="checkbox"
+      checked={includeInactive}
+      onChange={(event) => setIncludeInactive(event.target.checked)}
+      className="h-5 w-5 rounded border-ink-300 accent-brand-600 focus-visible:border-brand-500 focus-visible:outline-2 focus-visible:outline-brand-500/30"
+    />
+    Show inactive workers
+  </label>
+  );
   const showEmpty = list.status === "ready" && list.workers.length === 0;
 
   return (
@@ -172,63 +185,59 @@ export function WorkersPage() {
 
       {list.status === "ready" && list.workers.length > 0 && (
         <>
-          <div className="mb-4 grid grid-cols-3 gap-2 sm:gap-3">
-            <StatCard label="Total workers" value={list.workers.length} icon={UsersRound} />
-            <StatCard label="Active" value={activeCount} icon={UserCheck} />
-            <StatCard label="Onboarding open" value={onboardingOpen} icon={ClipboardList} />
+          <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
+            <StatCard compact label="Total workers" value={list.workers.length} icon={UsersRound} />
+            <StatCard compact label="Active" value={activeCount} icon={UserCheck} />
+            <StatCard compact label="Onboarding open" value={onboardingOpen} icon={ClipboardList} />
           </div>
 
-          <div className="mb-4 flex flex-wrap items-end gap-3">
-            <div className="min-w-0 flex-1 basis-64">
-              <label htmlFor="worker-search" className="mb-1 block text-sm font-medium text-ink-800">
-                Search workers
-              </label>
-              <div className="relative">
-                <Search aria-hidden="true" size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-500" />
-                <input
-                  id="worker-search"
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Name, ID, Emirates ID, phone or role"
-                  autoComplete="off"
-                  className={cx(inputClass, "w-full")}
-                />
-              </div>
-            </div>
-            {departments.length > 0 && (
-              <div className="max-sm:w-full">
-                <label htmlFor="worker-department" className="mb-1 block text-sm font-medium text-ink-800">
-                  Department
-                </label>
-                <select
-                  id="worker-department"
-                  value={department}
-                  onChange={(event) => setDepartment(event.target.value)}
-                  className={cx(inputClass, "w-full")}
-                >
-                  <option value="">All departments</option>
-                  {departments.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
         </>
       )}
 
-      <label className="mb-4 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-ink-800">
-        <input
-          type="checkbox"
-          checked={includeInactive}
-          onChange={(event) => setIncludeInactive(event.target.checked)}
-          className="h-5 w-5 rounded border-ink-300 accent-brand-600 focus-visible:border-brand-500 focus-visible:outline-2 focus-visible:outline-brand-500/30"
-        />
-        Show inactive workers
-      </label>
+      {list.status === "ready" && list.workers.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-card border border-line bg-white p-3 shadow-card">
+          <div className="min-w-0 flex-1 basis-64">
+            <label htmlFor="worker-search" className="sr-only">
+              Search workers
+            </label>
+            <div className="relative">
+              <Search aria-hidden="true" size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-500" />
+              <input
+                id="worker-search"
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search by name, ID, Emirates ID, phone or role"
+                autoComplete="off"
+                className={cx(inputClass, "w-full !border-transparent !bg-ink-100 pl-9")}
+              />
+            </div>
+          </div>
+          {departments.length > 0 && (
+            <div className="max-sm:w-full sm:min-w-52">
+              <label htmlFor="worker-department" className="sr-only">
+                Department
+              </label>
+              <select
+                id="worker-department"
+                value={department}
+                onChange={(event) => setDepartment(event.target.value)}
+                className={cx(inputClass, "w-full")}
+              >
+                <option value="">All departments</option>
+                {departments.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {inactiveToggle}
+        </div>
+      )}
+
+      {!(list.status === "ready" && list.workers.length > 0) && <div className="mb-4">{inactiveToggle}</div>}
 
       <SuccessRegion message={success} />
       {failure && <ActionFailure message={failure} />}

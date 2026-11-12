@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -248,9 +248,8 @@ describe("App", () => {
     });
     renderAt("/attendance");
     const user = userEvent.setup();
-    fireEvent.change(await screen.findByLabelText("Status for Ahmed Khan"), {
-      target: { value: "Absent" },
-    });
+    const statusGroup = await screen.findByRole("radiogroup", { name: "Status for Ahmed Khan" });
+    await user.click(within(statusGroup).getByRole("radio", { name: "Absent" }));
     await user.click(screen.getByRole("link", { name: "Worker Directory" }));
     expect(await screen.findByRole("dialog")).toHaveTextContent(
       "Discard unsaved changes?",

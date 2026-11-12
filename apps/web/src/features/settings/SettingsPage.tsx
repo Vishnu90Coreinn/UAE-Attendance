@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { PageHeader } from "../../ui";
-import { Info, Loader2, Save } from "lucide-react";
+import { LoadingState, PageHeader } from "../../ui";
+import { Loader2, Save, TriangleAlert } from "lucide-react";
 import { useOutletContext } from "react-router-dom";
 import type { LayoutContext } from "../../components/LayoutContext";
 import { ApiError } from "../../api/client";
@@ -8,6 +8,7 @@ import { getPayrollSettings, updatePayrollSettings } from "../../api/settings";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { TextField } from "../../components/TextField";
+import { CompanyDocumentsCard } from "./CompanyDocumentsCard";
 import { LoadError, primaryButtonClass, SuccessRegion } from "../workers/WorkersFeedback";
 import {
   FIELD_ORDER,
@@ -169,12 +170,25 @@ export function SettingsPage() {
   return (
     <section>
       <PageHeader title="Settings" description="Company details and payroll rates." />
+      <nav aria-label="Settings sections" className="mb-4 flex flex-wrap gap-2 text-sm">
+        {[
+          ["company", "Company"],
+          ["payroll", "Payroll"],
+          ["signatures", "Signatures"],
+          ["documents", "Documents"],
+        ].map(([id, label]) => (
+          <a
+            key={id}
+            href={`#${id}`}
+            className="rounded-full border border-line bg-white px-3 py-1.5 font-medium text-ink-700 hover:border-brand-300 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+          >
+            {label}
+          </a>
+        ))}
+      </nav>
 
       {load.status === "loading" && (
-        <p role="status" className="flex items-center gap-2 py-8 text-sm text-ink-500">
-          <Loader2 aria-hidden="true" size={20} className="animate-spin" />
-          Loading settings...
-        </p>
+        <LoadingState label="Loading settings..." rows={4} />
       )}
       {load.status === "error" && <LoadError message={load.message} onRetry={retry} />}
 
@@ -187,17 +201,17 @@ export function SettingsPage() {
             className="max-w-3xl space-y-8 rounded-card border border-line bg-white p-4 shadow-card sm:p-6"
           >
             <fieldset disabled={readOnly} className="m-0 min-w-0 space-y-8 border-0 p-0">
-            <div className={sectionClass}>
+            <div id="company" className={`${sectionClass} scroll-mt-4`}>
               <h3 className={sectionTitleClass}>Company</h3>
               <TextField label="Company name" autoComplete="off" {...field("companyName")} />
               <TextField label="Tagline" autoComplete="off" {...field("tagline")} />
               <TextField label="Contact email" type="email" autoComplete="off" {...field("contactEmail")} />
             </div>
 
-            <div className={sectionClass}>
+            <div id="payroll" className={`${sectionClass} scroll-mt-4`}>
               <h3 className={sectionTitleClass}>Payroll</h3>
-              <p className="flex items-start gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-900">
-                <Info aria-hidden="true" size={20} className="mt-0.5 shrink-0" />
+              <p className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                <TriangleAlert aria-hidden="true" size={20} className="mt-0.5 shrink-0" />
                 Changing the overtime rate recalculates every month that is not finalised.
               </p>
               <TextField
@@ -217,7 +231,7 @@ export function SettingsPage() {
               <TextField label="Shift description" autoComplete="off" {...field("shiftDescription")} />
             </div>
 
-            <div className={sectionClass}>
+            <div id="signatures" className={`${sectionClass} scroll-mt-4`}>
               <h3 className={sectionTitleClass}>Payroll report signatures</h3>
               <TextField
                 label="Prepared by"
@@ -246,8 +260,9 @@ export function SettingsPage() {
               </div>
             )}
 
-            {!readOnly && <div className="flex flex-wrap items-center justify-end gap-3">
-              {!dirty && !pending && <p className="text-sm text-ink-500">No changes to save.</p>}
+            {!readOnly && <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-wrap items-center justify-end gap-3 rounded-b-card border-t border-line bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:-mb-6 sm:px-6">
+              {dirty && !pending && <p className="mr-auto rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900">Unsaved changes</p>}
+              {!dirty && !pending && <p className="text-sm text-ink-600">No changes to save.</p>}
               <button
                 type="submit"
                 disabled={pending || !dirty}
@@ -270,6 +285,9 @@ export function SettingsPage() {
           </form>
         </>
       )}
+      <div id="documents" className="scroll-mt-4">
+        <CompanyDocumentsCard readOnly={readOnly} />
+      </div>
     </section>
   );
 }

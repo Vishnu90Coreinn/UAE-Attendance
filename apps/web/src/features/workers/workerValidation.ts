@@ -7,10 +7,17 @@ export type WorkerField =
   | "hourlyRate"
   | "monthlySalary"
   | "overtimeRate"
+  | "housingAllowance"
+  | "transportAllowance"
+  | "otherAllowance"
   | "joinDate"
   | "department"
   | "emiratesId"
   | "passportNumber"
+  | "nationality"
+  | "bankName"
+  | "bankAccountNumber"
+  | "iban"
   | "phone"
   | "email"
   | "emergencyContact"
@@ -25,10 +32,17 @@ export const FIELD_ORDER: readonly WorkerField[] = [
   "hourlyRate",
   "monthlySalary",
   "overtimeRate",
+  "housingAllowance",
+  "transportAllowance",
+  "otherAllowance",
   "joinDate",
   "department",
   "emiratesId",
   "passportNumber",
+  "nationality",
+  "bankName",
+  "bankAccountNumber",
+  "iban",
   "phone",
   "email",
   "emergencyContact",
@@ -75,6 +89,10 @@ const OPTIONAL_TEXT: readonly { field: WorkerField; max: number; label: string }
   { field: "department", max: 80, label: "Department" },
   { field: "emiratesId", max: 25, label: "Emirates ID" },
   { field: "passportNumber", max: 20, label: "Passport number" },
+  { field: "nationality", max: 60, label: "Nationality" },
+  { field: "bankName", max: 80, label: "Bank name" },
+  { field: "bankAccountNumber", max: 40, label: "Account number" },
+  { field: "iban", max: 40, label: "IBAN" },
   { field: "phone", max: 25, label: "Phone" },
   { field: "email", max: 120, label: "Email" },
   { field: "emergencyContact", max: 150, label: "Emergency contact" },
@@ -152,6 +170,27 @@ function validateOvertimeRate(text: string): string | undefined {
   return undefined;
 }
 
+/** An allowance is optional: blank means 0. */
+function validateAllowance(text: string, label: string): string | undefined {
+  if (text === "") {
+    return undefined;
+  }
+  if (!NUMBER_PATTERN.test(text)) {
+    return `Enter the ${label} as a number, for example 400.`;
+  }
+  const amount = Number(text);
+  if (amount < 0) {
+    return `${label[0].toUpperCase()}${label.slice(1)} cannot be negative.`;
+  }
+  if ((text.split(".")[1]?.length ?? 0) > 2) {
+    return `${label[0].toUpperCase()}${label.slice(1)} can have at most 2 decimal places.`;
+  }
+  if (amount > MAX_SALARY) {
+    return `${label[0].toUpperCase()}${label.slice(1)} must be at most ${MAX_SALARY}.`;
+  }
+  return undefined;
+}
+
 /** Client-side mirror of the server's worker rules (W1); the server stays the authority. */
 export function validateWorker(values: WorkerFormValues): FieldMessages {
   const errors: FieldMessages = {};
@@ -194,6 +233,17 @@ export function validateWorker(values: WorkerFormValues): FieldMessages {
     errors.overtimeRate = overtimeError;
   }
 
+  for (const [field, label] of [
+    ["housingAllowance", "housing allowance"],
+    ["transportAllowance", "transport allowance"],
+    ["otherAllowance", "other allowance"],
+  ] as const) {
+    const allowanceError = validateAllowance(values[field].trim(), label);
+    if (allowanceError) {
+      errors[field] = allowanceError;
+    }
+  }
+
   for (const { field, max, label } of OPTIONAL_TEXT) {
     if (values[field].trim().length > max) {
       errors[field] = `${label} must be at most ${max} characters.`;
@@ -211,6 +261,11 @@ function optional(text: string): string | null {
   return trimmed === "" ? null : trimmed;
 }
 
+function amountOrZero(text: string): number {
+  const trimmed = text.trim();
+  return trimmed === "" ? 0 : Number(trimmed);
+}
+
 /** Only call this for values that passed validateWorker. A blank overtime rate becomes null (company rate). */
 export function toWorkerInput(values: WorkerFormValues, checklist?: ChecklistValues): WorkerInput {
   const overtime = values.overtimeRate.trim();
@@ -221,6 +276,13 @@ export function toWorkerInput(values: WorkerFormValues, checklist?: ChecklistVal
     monthlySalary: Number(values.monthlySalary.trim()),
     hourlyRate: Number(values.hourlyRate.trim()),
     overtimeRate: overtime === "" ? null : Number(overtime),
+    housingAllowance: amountOrZero(values.housingAllowance),
+    transportAllowance: amountOrZero(values.transportAllowance),
+    otherAllowance: amountOrZero(values.otherAllowance),
+    nationality: optional(values.nationality),
+    bankName: optional(values.bankName),
+    bankAccountNumber: optional(values.bankAccountNumber),
+    iban: optional(values.iban),
     joinDate: values.joinDate.trim() === "" ? null : values.joinDate.trim(),
     department: optional(values.department),
     emiratesId: optional(values.emiratesId),

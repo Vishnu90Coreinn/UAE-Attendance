@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { PageHeader } from "../../ui";
-import { CalendarPlus } from "lucide-react";
+import { clearNewParam, hasNewParam } from "../../utils/startParam";
+import { LoadingState, PageHeader, StatCard } from "../../ui";
+import { CalendarCheck, CalendarPlus, CalendarX, Hourglass } from "lucide-react";
 import {
   approveLeave,
   createLeave,
@@ -14,6 +15,7 @@ import {
 import { listWorkers, type Worker } from "../../api/workers";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
+import { formatDisplayDate } from "../../utils/date";
 import { LeaveBalances } from "./LeaveBalances";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import {
@@ -48,7 +50,8 @@ export function LeavePage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(() => hasNewParam() && user?.role !== "HR" && user?.role !== "Viewer");
+  useEffect(clearNewParam, []);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<
     Record<string, string[]> | undefined
@@ -170,7 +173,7 @@ export function LeavePage() {
         title="Leave Management"
         description="Manage leave requests and decisions. Days include both start and end dates."
         actions={
-          user && user.role !== "HR" && (
+          user && user.role !== "HR" && user.role !== "Viewer" && (
           <button
             type="button"
             disabled={busy || !workersReady || !workers.some((w) => w.isActive)}
@@ -189,18 +192,13 @@ export function LeavePage() {
           )
         }
       />
-      <LeaveReport
-        workers={workers}
-        disabled={busy || !workersReady}
-        onDone={(message) => {
-          setError(null);
-          setSuccess(message);
-        }}
-        onError={(message) => {
-          setSuccess(null);
-          setError(message);
-        }}
-      />
+      {rows.length > 0 && (
+        <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
+          <StatCard compact label="Pending requests" value={rows.filter((r) => r.status === "Pending").length} icon={Hourglass} tone="warning" />
+          <StatCard compact label="Approved days" value={rows.filter((r) => r.status === "Approved").reduce((sum, r) => sum + r.days, 0)} icon={CalendarCheck} tone="success" />
+          <StatCard compact label="Rejected requests" value={rows.filter((r) => r.status === "Rejected").length} icon={CalendarX} tone="danger" />
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:gap-4">
         <label className="flex min-w-0 max-w-full flex-col text-sm font-medium">
           Filter by status
@@ -233,6 +231,19 @@ export function LeavePage() {
           </select>
         </label>
       </div>
+      <LeaveReport
+        workers={workers}
+        workerId={workerId}
+        disabled={busy || !workersReady}
+        onDone={(message) => {
+          setError(null);
+          setSuccess(message);
+        }}
+        onError={(message) => {
+          setSuccess(null);
+          setError(message);
+        }}
+      />
       {workersError && (
         <LoadError
           message={`Worker options could not be loaded. ${workersError}`}
@@ -247,9 +258,7 @@ export function LeavePage() {
       <SuccessRegion message={success} />
       {error && <ActionFailure message={error} />}
       {loading ? (
-        <p role="status" className="py-8 text-ink-600">
-          Loading leave requests...
-        </p>
+        <LoadingState label="Loading leave requests..." />
       ) : loadError ? (
         <LoadError
           message={loadError}
@@ -293,7 +302,7 @@ export function LeavePage() {
         title="Delete leave request"
         message={
           confirmation
-            ? `Delete ${confirmation.leaveType} for ${confirmation.workerName} (${confirmation.startDate} to ${confirmation.endDate}) permanently? This cannot be undone.`
+            ? `Delete ${confirmation.leaveType} for ${confirmation.workerName} (${formatDisplayDate(confirmation.startDate)} to ${formatDisplayDate(confirmation.endDate)}) permanently? This cannot be undone.`
             : ""
         }
         confirmLabel="Delete"

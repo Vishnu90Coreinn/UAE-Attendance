@@ -2,6 +2,9 @@ import {
   Banknote,
   CalendarDays,
   ClipboardCheck,
+  FileSignature,
+  FileText,
+  HardHat,
   LayoutDashboard,
   ReceiptText,
   Settings,
@@ -18,6 +21,9 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   payroll: Banknote,
   leave: CalendarDays,
   deductions: ReceiptText,
+  invoices: FileText,
+  letters: FileSignature,
+  progress: HardHat,
   users: UserCog,
   settings: Settings,
 };
@@ -27,5 +33,7 @@ export const NAV_GROUPS: ReadonlyArray<{ label: string; keys: readonly string[] 
   { label: "Overview", keys: ["dashboard"] },
   { label: "Workforce", keys: ["workers", "attendance"] },
   { label: "Pay & leave", keys: ["payroll", "deductions", "leave"] },
+  { label: "Documents", keys: ["invoices", "letters"] },
+  { label: "Site", keys: ["progress"] },
   { label: "Administration", keys: ["users", "settings"] },
 ];

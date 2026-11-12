@@ -22,7 +22,7 @@ public class PayrollPdfTests
         // The heading wraps inside its narrow column, so compare without spacing.
         Assert.Contains("TotalNetSalary", text.Replace(" ", "").Replace("\n", ""));
         Assert.Contains("Signature & Date", text);
-        Assert.Contains("Signature & Stamp", text);
+        Assert.DoesNotContain("Stamp", text);
         Assert.Contains("United Arab Emirates", text);
         Assert.Contains("Month: 2026-01", text);
         Assert.Contains("TOTAL PAYROLL", text);

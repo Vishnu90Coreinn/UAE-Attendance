@@ -1,4 +1,4 @@
-import { buttonClass } from "../../ui";
+import { LoadingState, buttonClass } from "../../ui";
 import { CheckCircle2, CircleAlert, Loader2, RefreshCw, UserPlus } from "lucide-react";
 
 export const primaryButtonClass = buttonClass("primary");
@@ -32,10 +32,7 @@ export function ActionFailure({ message }: { message: string }) {
 
 export function LoadingNotice() {
   return (
-    <p role="status" className="flex items-center gap-2 py-8 text-sm text-ink-500">
-      <Loader2 aria-hidden="true" size={20} className="animate-spin" />
-      Loading workers...
-    </p>
+    <LoadingState label="Loading workers..." withCards />
   );
 }
 

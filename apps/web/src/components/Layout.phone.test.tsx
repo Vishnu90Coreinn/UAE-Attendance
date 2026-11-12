@@ -76,7 +76,7 @@ describe("Layout on a phone", () => {
     expect(within(nav).getByRole("button", { name: "More" })).toBeInTheDocument();
   });
 
-  it("gives a Supervisor their three screens and no More", async () => {
+  it("gives a Supervisor their five screens and no More", async () => {
     await renderPhone("Supervisor", "sup.omar");
     const nav = screen.getByRole("navigation", { name: "Main" });
 
@@ -84,6 +84,8 @@ describe("Layout on a phone", () => {
       "/attendance",
       "/workers",
       "/leave",
+      "/progress",
+      "/letters",
     ]);
     expect(within(nav).queryByRole("button", { name: "More" })).not.toBeInTheDocument();
   });
@@ -121,6 +123,9 @@ describe("Layout on a phone", () => {
     expect(within(sheet).getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
       ["Leave Management", "/leave"],
       ["Deductions", "/deductions"],
+      ["Site Progress", "/progress"],
+      ["Tax Invoices", "/invoices"],
+      ["HR Letters", "/letters"],
       ["User Manager", "/users"],
       ["Settings", "/settings"],
     ]);

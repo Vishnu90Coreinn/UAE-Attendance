@@ -80,6 +80,11 @@ builder.Services.AddScoped<PayslipService>();
 builder.Services.AddScoped<DeductionService>();
 builder.Services.AddScoped<IPayrollPeriodLock, PayrollPeriodLock>();
 
+// Phase 2 modules (QTN-HR-2026-003).
+builder.Services.AddInvoicing();
+builder.Services.AddLetters();
+builder.Services.AddSiteProgress();
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
     .Configure<IOptions<JwtOptions>>((bearer, jwtOptions) =>
@@ -135,10 +140,11 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, UnmatchedRouteFriendlyAuthorizationResultHandler>();
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy(Policies.AnyUser, policy => policy.RequireAuthenticatedUser())
-    .AddPolicy(Policies.ManagerOrAdmin, policy => policy.RequireAuthenticatedUser().RequireRole(Roles.Administrator, Roles.Manager))
-    .AddPolicy(Policies.ManagerAdminOrHr, policy => policy.RequireAuthenticatedUser().RequireRole(Roles.Administrator, Roles.Manager, Roles.HR))
-    .AddPolicy(Policies.SupervisorOrAbove, policy => policy.RequireAuthenticatedUser().RequireRole(Roles.Administrator, Roles.Manager, Roles.Supervisor))
-    .AddPolicy(Policies.AdminOnly, policy => policy.RequireAuthenticatedUser().RequireRole(Roles.Administrator))
+    .AddPolicy(Policies.ManagerOrAdmin, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager))
+    .AddPolicy(Policies.ManagerAdminOrHr, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager, Roles.HR))
+    .AddPolicy(Policies.SupervisorOrAbove, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager, Roles.Supervisor))
+    .AddPolicy(Policies.HrOrAdmin, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.HR))
+    .AddPolicy(Policies.AdminOnly, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator))
     // Secure by default: any endpoint without its own authorization metadata needs a signed-in user.
     .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
@@ -267,6 +273,7 @@ app.UseSerilogRequestLogging();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseRateLimiter();
 app.UseAuthentication();
+app.UseMiddleware<ViewerReadOnlyMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

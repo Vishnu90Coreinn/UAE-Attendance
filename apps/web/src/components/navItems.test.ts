@@ -7,6 +7,9 @@ const MODULES = [
   "Payroll Summary",
   "Deductions",
   "Leave Management",
+  "Tax Invoices",
+  "HR Letters",
+  "Site Progress",
 ];
 
 function labelsFor(role: Parameters<typeof navItemsForRole>[0]) {
@@ -27,17 +30,23 @@ describe("navItemsForRole", () => {
     expect(labelsFor("Manager")).toEqual(["Dashboard", ...MODULES, "User Manager", "Settings"]);
   });
 
+  it("gives a Viewer every screen, so they can look at everything", () => {
+    expect(labelsFor("Viewer")).toEqual(["Dashboard", ...MODULES, "User Manager", "Settings"]);
+  });
+
   it("gives HR every screen except User Manager and Settings", () => {
     expect(labelsFor("HR")).not.toContain("User Manager");
     expect(labelsFor("HR")).not.toContain("Settings");
     expect(labelsFor("HR")).toEqual(expect.arrayContaining(["Dashboard", "Payroll Summary", "Deductions"]));
   });
 
-  it("gives a Supervisor only Worker Directory, Daily Attendance and Leave Management", () => {
+  it("gives a Supervisor Worker Directory, Daily Attendance, Leave Management, HR Letters (to request certificates) and Site Progress", () => {
     expect(labelsFor("Supervisor")).toEqual([
       "Worker Directory",
       "Daily Attendance",
       "Leave Management",
+      "HR Letters",
+      "Site Progress",
     ]);
   });
 
@@ -53,6 +62,9 @@ describe("navItemsForRole", () => {
       "Payroll Summary": "/payroll",
       "Deductions": "/deductions",
       "Leave Management": "/leave",
+      "Tax Invoices": "/invoices",
+      "HR Letters": "/letters",
+      "Site Progress": "/progress",
       "User Manager": "/users",
       Settings: "/settings",
     });
@@ -66,17 +78,25 @@ describe("phoneNavFor", () => {
     const { tabs, more } = phoneNavFor("Manager");
 
     expect(labels(tabs)).toEqual(["Dashboard", "Daily Attendance", "Worker Directory", "Payroll Summary"]);
-    expect(labels(more)).toEqual(["Leave Management", "Deductions", "User Manager", "Settings"]);
+    expect(labels(more)).toEqual([
+      "Leave Management",
+      "Deductions",
+      "Site Progress",
+      "Tax Invoices",
+      "HR Letters",
+      "User Manager",
+      "Settings",
+    ]);
   });
 
   it("gives an Administrator the same split as a Manager", () => {
     expect(phoneNavFor("Administrator")).toEqual(phoneNavFor("Manager"));
   });
 
-  it("shows a Supervisor their three screens with no More", () => {
+  it("shows a Supervisor their five screens with no More", () => {
     const { tabs, more } = phoneNavFor("Supervisor");
 
-    expect(labels(tabs)).toEqual(["Daily Attendance", "Worker Directory", "Leave Management"]);
+    expect(labels(tabs)).toEqual(["Daily Attendance", "Worker Directory", "Leave Management", "Site Progress", "HR Letters"]);
     expect(more).toEqual([]);
   });
 

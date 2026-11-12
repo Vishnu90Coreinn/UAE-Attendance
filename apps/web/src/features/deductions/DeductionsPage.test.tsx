@@ -92,6 +92,15 @@ it("locks the entries for a finalised month", async () => {
   expect(screen.queryByRole("button", { name: "Save deductions" })).not.toBeInTheDocument();
 });
 
+it("shows a Viewer the deductions with nothing to change", async () => {
+  vi.mocked(useAuth).mockReturnValue({ status: "signedIn", user: { id: 3, username: "view", role: "Viewer" }, token: "t", login: vi.fn(), logout: vi.fn() });
+  render(<DeductionsPage />);
+
+  expect(await screen.findByLabelText("Advance / Loan amount for Ahmed Khan")).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Save deductions" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Add type" })).not.toBeInTheDocument();
+});
+
 it("lets HR add deductions and types", async () => {
   vi.mocked(useAuth).mockReturnValue({
     status: "signedIn",
@@ -103,4 +112,45 @@ it("lets HR add deductions and types", async () => {
   render(<DeductionsPage />);
   expect(await screen.findByLabelText("Advance / Loan amount for Ahmed Khan")).toBeEnabled();
   expect(screen.getByRole("button", { name: "Add type" })).toBeInTheDocument();
+});
+
+it("shows a running total per worker and for the month, and asks for the reason inline", async () => {
+  vi.mocked(deductionsApi.getDeductions).mockResolvedValue(
+    monthData({
+      workers: [
+        { workerId: 1, workerCode: "EMP-001", fullName: "Ahmed Khan", isActive: true, entries: [] },
+        { workerId: 2, workerCode: "EMP-002", fullName: "Sara Ali", isActive: true, entries: [] },
+      ],
+    }),
+  );
+  const user = userEvent.setup();
+  render(<DeductionsPage />);
+  await user.type(await screen.findByLabelText("Advance / Loan amount for Ahmed Khan"), "50");
+  await user.type(screen.getByLabelText("Other Deductions amount for Ahmed Khan"), "25.5");
+
+  expect(screen.getByText("Month total: 75.50 AED")).toBeInTheDocument();
+  expect(screen.getAllByText("A reason is required for this amount.")).toHaveLength(2);
+  expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+});
+
+it("narrows the list to workers with deductions, or by name", async () => {
+  vi.mocked(deductionsApi.getDeductions).mockResolvedValue(
+    monthData({
+      workers: [
+        { workerId: 1, workerCode: "EMP-001", fullName: "Ahmed Khan", isActive: true, entries: [] },
+        { workerId: 2, workerCode: "EMP-002", fullName: "Sara Ali", isActive: true, entries: [] },
+      ],
+    }),
+  );
+  const user = userEvent.setup();
+  render(<DeductionsPage />);
+  await user.type(await screen.findByLabelText("Advance / Loan amount for Ahmed Khan"), "50");
+  await user.click(screen.getByLabelText("Only workers with deductions"));
+  expect(screen.getByText("Ahmed Khan")).toBeInTheDocument();
+  expect(screen.queryByText("Sara Ali")).not.toBeInTheDocument();
+
+  await user.click(screen.getByLabelText("Only workers with deductions"));
+  await user.type(screen.getByLabelText("Search workers"), "sara");
+  expect(screen.queryByText("Ahmed Khan")).not.toBeInTheDocument();
+  expect(screen.getByText("Sara Ali")).toBeInTheDocument();
 });

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { PageHeader, buttonClass, cx, inputClass } from "../../ui";
+import { LoadingState, PageHeader, buttonClass, cx, inputClass } from "../../ui";
 import { Plus, Save } from "lucide-react";
 import {
   createDeductionType,
@@ -12,7 +12,7 @@ import {
 } from "../../api/deductions";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
-import { canViewAll } from "../../permissions";
+import { canViewAll, isReadOnly } from "../../permissions";
 import {
   ActionFailure,
   LoadError,
@@ -75,7 +75,7 @@ function firstProblem(data: MonthDeductions, draft: DraftRows, types: DeductionT
 export function DeductionsPage() {
   const { user } = useAuth();
   /** HR, Managers and Administrators can add and change deductions; no other role reaches this screen. */
-  const readOnly = !canViewAll(user?.role);
+  const readOnly = !canViewAll(user?.role) || isReadOnly(user?.role);
   const [month, setMonth] = useState(currentMonth);
   const [data, setData] = useState<MonthDeductions | null>(null);
   const [types, setTypes] = useState<DeductionType[]>([]);
@@ -87,12 +87,26 @@ export function DeductionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [newType, setNewType] = useState("");
+  const [search, setSearch] = useState("");
+  const [onlyWithDeductions, setOnlyWithDeductions] = useState(false);
 
   const activeTypes = useMemo(() => types.filter((t) => t.isActive), [types]);
   const dirty = useMemo(() => {
     if (!data) return false;
     return JSON.stringify(draft) !== JSON.stringify(draftFrom(data));
   }, [draft, data]);
+  const amountOf = (workerId: number, typeId: number) => {
+    const n = Number(draft[workerId]?.[typeId]?.amount ?? "");
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  const workerTotal = (workerId: number) => activeTypes.reduce((sum, t) => sum + amountOf(workerId, t.id), 0);
+  const monthTotal = (data?.workers ?? []).reduce((sum, w) => sum + workerTotal(w.workerId), 0);
+  const money = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const visibleWorkers = (data?.workers ?? []).filter((w) => {
+    if (onlyWithDeductions && workerTotal(w.workerId) === 0) return false;
+    const text = search.trim().toLowerCase();
+    return !text || w.fullName.toLowerCase().includes(text) || w.workerCode.toLowerCase().includes(text);
+  });
   const finalised = !!data?.isFinalised;
   const locked = finalised || readOnly;
 
@@ -221,6 +235,7 @@ export function DeductionsPage() {
         </div>
         {!loading && !loadError && data && !locked && (
           <div className="flex flex-wrap gap-3">
+            {dirty && <p className="self-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900">Unsaved changes</p>}
             {dirty && (
               <button
                 type="button"
@@ -239,6 +254,7 @@ export function DeductionsPage() {
               onClick={save}
               disabled={!dirty || saving}
               aria-busy={saving}
+              title={dirty ? undefined : "Enter or change an amount or reason to enable saving"}
               className={`${primaryButtonClass} disabled:cursor-not-allowed disabled:opacity-60`}
             >
               <Save aria-hidden="true" size={16} />
@@ -302,10 +318,35 @@ export function DeductionsPage() {
       </section>
 
       {loading ? (
-        <p role="status" className="py-8 text-ink-600">Loading deductions...</p>
+        <LoadingState label="Loading deductions..." />
       ) : loadError ? (
         <LoadError message={loadError} onRetry={() => setAttempt((value) => value + 1)} />
       ) : data && data.workers.length > 0 ? (
+        <>
+        <div className="flex flex-wrap items-center gap-3 rounded-card border border-line bg-white px-4 py-3 shadow-card">
+          <div className="min-w-0 flex-1 basis-56">
+            <label htmlFor="deduction-search" className="sr-only">Search workers</label>
+            <input
+              id="deduction-search"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search workers by name or ID"
+              autoComplete="off"
+              className={cx(inputClass, "w-full")}
+            />
+          </div>
+          <label className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-ink-800">
+            <input
+              type="checkbox"
+              checked={onlyWithDeductions}
+              onChange={(e) => setOnlyWithDeductions(e.target.checked)}
+              className="h-5 w-5 rounded border-ink-300 accent-brand-600"
+            />
+            Only workers with deductions
+          </label>
+          <p className="ml-auto text-sm font-semibold tabular-nums text-ink-900">Month total: {money(monthTotal)} AED</p>
+        </div>
         <div className="overflow-x-auto md:rounded-lg md:border md:border-line md:bg-white md:shadow-sm">
           <table className="block w-full text-left text-sm text-ink-800 md:table md:min-w-[640px]">
             <caption className="sr-only">Deductions for {data.month} in AED</caption>
@@ -317,10 +358,11 @@ export function DeductionsPage() {
                     {type.name} (AED) and reason
                   </th>
                 ))}
+                <th scope="col" className="px-4 py-3 text-right font-semibold">Total (AED)</th>
               </tr>
             </thead>
             <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-line">
-              {data.workers.map((worker) => (
+              {visibleWorkers.map((worker) => (
                 <tr
                   key={worker.workerId}
                   className="block rounded-card border border-line bg-white p-3 shadow-card md:table-row md:rounded-none md:border-0 md:p-0 md:shadow-none"
@@ -363,17 +405,29 @@ export function DeductionsPage() {
                             placeholder="Reason"
                             disabled={locked || saving}
                             onChange={(e) => change(worker.workerId, type.id, { note: e.target.value })}
-                            className={inputClass}
+                            aria-invalid={Number(entry.amount) > 0 && entry.note.trim() === "" ? true : undefined}
+                            className={cx(inputClass, Number(entry.amount) > 0 && entry.note.trim() === "" && "!border-danger")}
                           />
                         </div>
+                        {Number(entry.amount) > 0 && entry.note.trim() === "" && (
+                          <p className="mt-1 text-xs text-danger">A reason is required for this amount.</p>
+                        )}
                       </td>
                     );
                   })}
+                  <td className="block pb-1 text-right font-semibold tabular-nums text-ink-900 md:table-cell md:px-4 md:py-3 md:align-top">
+                    <span className="mr-2 text-xs font-semibold uppercase text-ink-600 md:hidden">Total (AED)</span>
+                    {money(workerTotal(worker.workerId))}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {visibleWorkers.length === 0 && (
+            <p className="px-4 py-8 text-center text-sm text-ink-600">No workers match this search.</p>
+          )}
         </div>
+        </>
       ) : (
         <p className="rounded-card border border-line bg-white px-4 py-10 text-center text-ink-600">
           No active workers for this month.

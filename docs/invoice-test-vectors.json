@@ -1,0 +1,27 @@
+{
+  "description": "Shared by the xUnit InvoiceCalculatorTests/AmountInWordsTests and the web invoiceMath tests so the browser preview and the server cannot drift. Rounding is half away from zero to 2 dp per line; the invoice totals are sums of the rounded lines.",
+  "lines": [
+    { "name": "prototype line", "quantity": 572.51, "rate": 105.0, "taxable": 60113.55, "vat": 3005.68, "amount": 63119.23 },
+    { "name": "vat rounds half up", "quantity": 1, "rate": 0.1, "taxable": 0.1, "vat": 0.01, "amount": 0.11 },
+    { "name": "vat 0.015 rounds up", "quantity": 3, "rate": 0.1, "taxable": 0.3, "vat": 0.02, "amount": 0.32 },
+    { "name": "taxable half rounds away from zero", "quantity": 2.5, "rate": 10.01, "taxable": 25.03, "vat": 1.25, "amount": 26.28 },
+    { "name": "zero rate", "quantity": 5, "rate": 0, "taxable": 0, "vat": 0, "amount": 0 }
+  ],
+  "invoices": [
+    { "name": "prototype invoice", "lines": [[572.51, 105.0]], "subTotal": 60113.55, "vatTotal": 3005.68, "total": 63119.23 },
+    { "name": "sum of rounded line vat, not 5% of the sub total", "lines": [[10.5, 1.1], [0.5, 3]], "subTotal": 13.05, "vatTotal": 0.66, "total": 13.71 },
+    { "name": "no lines", "lines": [], "subTotal": 0, "vatTotal": 0, "total": 0 }
+  ],
+  "words": [
+    { "amount": 63119.23, "words": "UAE Dirham Sixty-Three Thousand One Hundred Nineteen and Twenty-Three Fils" },
+    { "amount": 0, "words": "UAE Dirham Zero" },
+    { "amount": 1, "words": "UAE Dirham One" },
+    { "amount": 15, "words": "UAE Dirham Fifteen" },
+    { "amount": 100, "words": "UAE Dirham One Hundred" },
+    { "amount": 0.5, "words": "UAE Dirham Zero and Fifty Fils" },
+    { "amount": 21.01, "words": "UAE Dirham Twenty-One and One Fils" },
+    { "amount": 1000000, "words": "UAE Dirham One Million" },
+    { "amount": 1234567.89, "words": "UAE Dirham One Million Two Hundred Thirty-Four Thousand Five Hundred Sixty-Seven and Eighty-Nine Fils" },
+    { "amount": 2000000000, "words": "UAE Dirham Two Billion" }
+  ]
+}
