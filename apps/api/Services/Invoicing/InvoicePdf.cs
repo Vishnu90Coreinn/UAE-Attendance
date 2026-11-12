@@ -66,9 +66,13 @@ public sealed class InvoicePdf
                 cv.Rule(Left, Right, y, 0.4, PdfStyle.Hairline);
             }
 
-            const double blockHeight = 250;
-            if (y - blockHeight < Bottom) { cv = NewPage(); y = 800; }
-            Totals(cv, invoice, y - 18, seal);
+            // The totals follow the last row. The tax summary, bank details and signature go on their own page when they do not
+            // fit below, so a long item list does not leave the amounts stranded on a page of their own.
+            var totalsTop = y - 18;
+            if (y - TotalsHeight < Bottom) { cv = NewPage(); totalsTop = 800; }
+            var summaryTop = Totals(cv, invoice, totalsTop);
+            if (summaryTop - SummaryHeight < Bottom) { cv = NewPage(); summaryTop = 800; }
+            Summary(cv, invoice, summaryTop, seal);
             return document.Build();
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("The font does not contain a character:", StringComparison.Ordinal))
@@ -177,9 +181,15 @@ public sealed class InvoicePdf
         }
     }
 
-    private static void Totals(PdfCanvas cv, InvoiceResponse invoice, double top, byte[]? seal)
+    /// <summary>Height needed for the words and the amount rows (including the paid and balance rows of an issued invoice).</summary>
+    private const double TotalsHeight = 170;
+
+    /// <summary>Height needed for the tax summary, bank details and signature block.</summary>
+    private const double SummaryHeight = 240;
+
+    /// <summary>Draws the amount in words and the totals. Returns the y position the tax summary starts from.</summary>
+    private static double Totals(PdfCanvas cv, InvoiceResponse invoice, double top)
     {
-        var c = invoice.Company;
         var y = top;
         cv.Text("Total in words", Left, y, 7.6, true, PdfStyle.Muted);
         var wy = y - 12;
@@ -202,7 +212,14 @@ public sealed class InvoicePdf
             Row("Balance due", "AED " + Num(invoice.BalanceDue), true, true);
         }
 
-        y = Math.Min(y, wy) - 14;
+        return Math.Min(y, wy) - 14;
+    }
+
+    /// <summary>The tax summary, notes, bank details and the signature block (with the stamp, when one is uploaded).</summary>
+    private static void Summary(PdfCanvas cv, InvoiceResponse invoice, double top, byte[]? seal)
+    {
+        var c = invoice.Company;
+        var y = top;
         cv.Text("Tax summary", Left, y, 8.5, true, PdfStyle.Teal);
         y -= 8;
         cv.Fill(Left, y - 18, Right - Left, 18, PdfStyle.Panel);
