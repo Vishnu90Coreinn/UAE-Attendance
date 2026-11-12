@@ -17,7 +17,11 @@ public sealed class InvoicePdf
     private static readonly double[] ColumnRight = [78, 340, 400, 460, 520, 559]; // right edges of #, description (left aligned), area, rate, vat, amount
     private const double Bottom = 60;
 
-    public byte[] Generate(InvoiceResponse invoice, byte[]? logo)
+    /// <summary>
+    /// The uploaded company stamp (seal) is printed beside the authorised signature when one is set. Letters and payslips
+    /// do not print it.
+    /// </summary>
+    public byte[] Generate(InvoiceResponse invoice, byte[]? logo, byte[]? seal = null)
     {
         var c = invoice.Company;
         foreach (var text in new[]
@@ -64,7 +68,7 @@ public sealed class InvoicePdf
 
             const double blockHeight = 250;
             if (y - blockHeight < Bottom) { cv = NewPage(); y = 800; }
-            Totals(cv, invoice, y - 18);
+            Totals(cv, invoice, y - 18, seal);
             return document.Build();
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("The font does not contain a character:", StringComparison.Ordinal))
@@ -150,7 +154,30 @@ public sealed class InvoicePdf
         return y - 22;
     }
 
-    private static void Totals(PdfCanvas cv, InvoiceResponse invoice, double top)
+    private const double StampBox = 92;
+
+    /// <summary>Draws the stamp centred over the signature line, keeping its shape. Silently skipped when the image cannot be read.</summary>
+    private static void DrawStamp(PdfCanvas cv, byte[] seal, double signatureY)
+    {
+        var size = LetterPdf.ImageSize.Read(seal);
+        if (size is null) return;
+        var scale = Math.Min(StampBox / size.Value.Width, StampBox / size.Value.Height);
+        var w = size.Value.Width * scale;
+        var h = size.Value.Height * scale;
+        var left = (400 + Right) / 2 - w / 2;
+        var bottom = signatureY + 4;
+        try
+        {
+            if (size.Value.Jpeg) cv.Jpeg(seal, left, bottom, w, h);
+            else cv.Image(seal, left, bottom, left + w, bottom + h);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NotSupportedException)
+        {
+            // An image the PDF writer cannot embed is left off rather than failing the whole invoice.
+        }
+    }
+
+    private static void Totals(PdfCanvas cv, InvoiceResponse invoice, double top, byte[]? seal)
     {
         var c = invoice.Company;
         var y = top;
@@ -188,6 +215,7 @@ public sealed class InvoicePdf
         cv.RightText(Num(invoice.VatTotal), Right - 8, y - 13, 8.5);
         y -= 20;
         cv.Rule(Left, Right, y, 0.4, PdfStyle.Hairline);
+        var taxBottom = y;
 
         y -= 18;
         if (invoice.Notes.Length > 0)
@@ -208,6 +236,9 @@ public sealed class InvoicePdf
             y -= 12;
         }
         var sy = Math.Max(y - 16, 110);
+        // With a stamp, the signature line moves down so the stamp sits above it without touching the tax summary.
+        if (seal is { Length: > 0 }) sy = Math.Max(Math.Min(sy, taxBottom - StampBox - 14), 110);
+        if (seal is { Length: > 0 }) DrawStamp(cv, seal, sy);
         cv.Rule(400, Right, sy, 0.6, PdfStyle.Ink);
         cv.Text("Authorized signature", 400, sy - 11, 7.6, false, PdfStyle.Muted);
         cv.Text(cv.Fit(c.CompanyName, 159, 7, false), 400, sy - 21, 7, false, PdfStyle.Muted);

@@ -36,13 +36,13 @@ public sealed class InvoicesController(InvoiceService invoices, InvoicePdf pdf) 
     [Authorize(Policy = Policies.ManagerAdminOrHr)]
     public async Task<IActionResult> Pdf(int id, CancellationToken ct)
     {
-        var (invoice, logo) = await invoices.ForPdfAsync(id, ct);
+        var (invoice, logo, seal) = await invoices.ForPdfAsync(id, ct);
         if (invoice is null) return Map(new DocumentResult(404));
         try
         {
             Response.Headers.CacheControl = "no-store";
             var name = (invoice.Number ?? $"Draft-{invoice.Id}") + ".pdf";
-            return File(pdf.Generate(invoice, logo), "application/pdf", name);
+            return File(pdf.Generate(invoice, logo, seal), "application/pdf", name);
         }
         catch (PdfTextNotSupportedException)
         {

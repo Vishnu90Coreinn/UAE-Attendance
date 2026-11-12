@@ -204,7 +204,8 @@ public sealed class LetterPdf
     private static string JoinNonEmpty(string separator, params string[] parts) => string.Join(separator, parts.Where(p => !string.IsNullOrWhiteSpace(p)));
 
     /// <summary>Reads the pixel size of a PNG or JPEG without decoding it.</summary>
-    private static class ImageSize
+    /// <summary>Also used by the tax invoice, which prints the same uploaded images.</summary>
+    internal static class ImageSize
     {
         public static (double Width, double Height, bool Jpeg)? Read(byte[] d)
         {

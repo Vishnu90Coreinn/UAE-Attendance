@@ -56,6 +56,7 @@ export interface InvoiceCompany {
   accountNumber: string;
   iban: string;
   hasLogo: boolean;
+  hasSeal?: boolean;
 }
 
 export interface Invoice extends Omit<InvoiceInput, "lines"> {

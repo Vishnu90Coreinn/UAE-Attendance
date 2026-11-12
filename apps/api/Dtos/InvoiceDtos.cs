@@ -27,7 +27,7 @@ public sealed record InvoicePaymentResponse(int Id, DateOnly PaidDate, decimal A
 /// <summary>The company block printed on an invoice: live settings for a draft, the copy taken at issue for an issued invoice.</summary>
 public sealed record InvoiceCompany(
     string CompanyName, string CompanySubtitle, string CompanyNameAr, string Mobile, string Address1, string Address2,
-    string Email, string Trn, string BankName, string AccountName, string AccountNumber, string Iban, bool HasLogo);
+    string Email, string Trn, string BankName, string AccountName, string AccountNumber, string Iban, bool HasLogo, bool HasSeal = false);
 
 public sealed record InvoiceResponse(
     int Id, string? Number, string Status, string DisplayStatus, bool IsOverdue,

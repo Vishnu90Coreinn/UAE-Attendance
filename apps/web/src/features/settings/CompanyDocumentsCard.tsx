@@ -32,7 +32,7 @@ const FIELDS: { key: TextKey; label: string; max: number; group: "company" | "ba
 
 const IMAGES: { kind: DocumentImageKind; label: string; flag: "hasLogo" | "hasSeal" | "hasSignature"; hint: string }[] = [
   { kind: "logo", label: "Company logo", flag: "hasLogo", hint: "Shown on invoices." },
-  { kind: "seal", label: "Company seal", flag: "hasSeal", hint: "Shown on letters and certificates." },
+  { kind: "seal", label: "Company seal", flag: "hasSeal", hint: "Shown on letters, certificates and tax invoices." },
   { kind: "signature", label: "Signature", flag: "hasSignature", hint: "Shown on letters and certificates." },
 ];
 

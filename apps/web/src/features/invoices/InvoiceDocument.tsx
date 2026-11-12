@@ -1,6 +1,6 @@
 import type { Invoice, InvoiceCompany, InvoiceLine } from "../../api/invoices";
 import { formatMoney } from "./invoiceMath";
-import { formatDate, useLogoUrl } from "./invoiceUi";
+import { formatDate, useDocumentImage, useLogoUrl } from "./invoiceUi";
 
 interface Props {
   invoice: Pick<
@@ -14,6 +14,7 @@ interface Props {
 export function InvoiceDocument({ invoice }: Props) {
   const c = invoice.company;
   const logo = useLogoUrl(c.hasLogo);
+  const stamp = useDocumentImage("seal", !!c.hasSeal);
   const issued = invoice.status === "Issued";
   return (
     <article
@@ -174,7 +175,8 @@ export function InvoiceDocument({ invoice }: Props) {
           <dd className="break-words font-semibold">{c.iban || "-"}</dd>
         </dl>
         <div className="flex items-end justify-end">
-          <div className="w-48 border-t border-ink-400 pt-1 text-center">
+          <div className="relative w-48 border-t border-ink-400 pt-1 text-center">
+            {stamp && <img src={stamp} alt="Company stamp" className="pointer-events-none absolute bottom-full left-1/2 mb-1 h-24 w-24 -translate-x-1/2 object-contain" />}
             <p className="text-xs font-bold text-ink-900">Authorized signature</p>
             <p className="text-[10px] text-ink-500">{c.companyName}</p>
           </div>

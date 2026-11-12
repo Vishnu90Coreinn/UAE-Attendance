@@ -632,4 +632,26 @@ public class InvoiceEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         await api.SendAsync(HttpMethod.Delete, "/api/documents/images/logo", token: token);
     }
+
+    [Fact]
+    public async Task Pdf_PrintsTheUploadedStamp_AndReportsItOnTheCompany()
+    {
+        var token = await ManagerToken();
+        var png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+        var uploaded = await api.PostAsync("/api/documents/images/seal", new { imageBase64 = Convert.ToBase64String(png) }, token);
+        Assert.Equal(HttpStatusCode.OK, uploaded.StatusCode);
+
+        var id = (await CreateAsync(token)).GetProperty("id").GetInt32();
+        var detail = await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/invoices/{id}", token));
+        Assert.True(detail.GetProperty("company").GetProperty("hasSeal").GetBoolean());
+
+        var pdf = await api.GetAsync($"/api/invoices/{id}/pdf", token);
+        Assert.Equal(HttpStatusCode.OK, pdf.StatusCode);
+        // An embedded picture adds an image XObject to the document.
+        Assert.Contains("/Image", System.Text.Encoding.Latin1.GetString(await pdf.Content.ReadAsByteArrayAsync()));
+
+        await api.SendAsync(HttpMethod.Delete, "/api/documents/images/seal", token: token);
+        var without = await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/invoices/{id}", token));
+        Assert.False(without.GetProperty("company").GetProperty("hasSeal").GetBoolean());
+    }
 }

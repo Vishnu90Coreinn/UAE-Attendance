@@ -255,12 +255,14 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
     }
 
     /// <summary>The invoice and the logo bytes for the PDF.</summary>
-    public async Task<(InvoiceResponse? Invoice, byte[]? Logo)> ForPdfAsync(int id, CancellationToken ct)
+    public async Task<(InvoiceResponse? Invoice, byte[]? Logo, byte[]? Seal)> ForPdfAsync(int id, CancellationToken ct)
     {
         var invoice = await LoadAsync(id, tracked: false, ct);
-        if (invoice is null) return (null, null);
-        var logo = await db.DocumentSettings.AsNoTracking().Where(s => s.Id == DocumentSettings.SingletonId).Select(s => s.Logo).SingleAsync(ct);
-        return (await ToResponseAsync(invoice, ct), logo);
+        if (invoice is null) return (null, null, null);
+        // The logo and stamp are read from the current settings, the same as the on-screen view, so an upload applies to every invoice.
+        var images = await db.DocumentSettings.AsNoTracking().Where(s => s.Id == DocumentSettings.SingletonId)
+            .Select(s => new { s.Logo, s.Seal }).SingleAsync(ct);
+        return (await ToResponseAsync(invoice, ct), images.Logo, images.Seal);
     }
 
     // ----- building and mapping ---------------------------------------------------------------------------
@@ -406,7 +408,9 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
         if (i.CompanyJson is not null) company = JsonSerializer.Deserialize<InvoiceCompany>(i.CompanyJson, JsonOptions)!;
         else company = CompanyOf(await db.DocumentSettings.AsNoTracking().SingleAsync(s => s.Id == DocumentSettings.SingletonId, ct));
         var paid = i.Payments.Sum(p => p.Amount);
-        var live = company with { HasLogo = await db.DocumentSettings.AsNoTracking().AnyAsync(s => s.Id == DocumentSettings.SingletonId && s.Logo != null, ct) };
+        var images = await db.DocumentSettings.AsNoTracking().Where(s => s.Id == DocumentSettings.SingletonId)
+            .Select(s => new { HasLogo = s.Logo != null, HasSeal = s.Seal != null }).SingleAsync(ct);
+        var live = company with { HasLogo = images.HasLogo, HasSeal = images.HasSeal };
         return new InvoiceResponse(
             i.Id, i.Number, i.Status, DisplayStatus(i.Status, i.Total, paid), IsOverdue(i.Status, i.Total, paid, i.DueDate),
             i.ClientId, i.ClientName, i.ClientTrn, i.ClientAddress, i.InvoiceDate, i.DueDate, i.PaymentTerms, i.LpoRef, i.Project, i.Scope, i.Notes,
@@ -418,7 +422,7 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
 
     private static InvoiceCompany CompanyOf(DocumentSettings s) => new(
         s.CompanyName, s.CompanySubtitle, s.CompanyNameAr, s.Mobile, s.Address1, s.Address2, s.Email, s.Trn, s.BankName,
-        s.AccountName, s.AccountNumber, s.Iban, s.Logo is not null);
+        s.AccountName, s.AccountNumber, s.Iban, s.Logo is not null, s.Seal is not null);
 
     private static string Cell(string value)
     {

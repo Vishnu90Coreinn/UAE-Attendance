@@ -56,11 +56,11 @@ export function InvoiceStatusBadges({ status, overdue, dueDate }: { status: Invo
   return <StatusBadge tone="danger" variant="soft">{text}</StatusBadge>;
 }
 
-/** The company logo, fetched with the sign-in token (an <img> tag cannot send it). Null until loaded or when none is set. */
-export function useLogoUrl(hasLogo: boolean): string | null {
+/** A company picture (logo or stamp), fetched with the sign-in token (an <img> tag cannot send it). Null until loaded or when none is set. */
+export function useDocumentImage(kind: "logo" | "seal", present: boolean): string | null {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
-    if (!hasLogo) {
+    if (!present) {
       setUrl(null);
       return;
     }
@@ -69,7 +69,7 @@ export function useLogoUrl(hasLogo: boolean): string | null {
     (async () => {
       for (const type of ["image/png", "image/jpeg"]) {
         try {
-          const blob = await apiGetFile("/api/documents/images/logo", type);
+          const blob = await apiGetFile(`/api/documents/images/${kind}`, type);
           if (cancelled) return;
           objectUrl = URL.createObjectURL(blob);
           setUrl(objectUrl);
@@ -83,6 +83,10 @@ export function useLogoUrl(hasLogo: boolean): string | null {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [hasLogo]);
+  }, [kind, present]);
   return url;
+}
+
+export function useLogoUrl(hasLogo: boolean): string | null {
+  return useDocumentImage("logo", hasLogo);
 }

@@ -26,7 +26,7 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
     lines: [{ lineNo: 1, description: "Aluminium works", quantity: 1, rate: 100, taxable: 100, vat: 5, amount: 105 }],
     payments: [], subTotal: 100, vatTotal: 5, total: 105, amountPaid: 0, balanceDue: 105,
     totalInWords: "UAE Dirham One Hundred Five",
-    company: { companyName: "DE AKS BE", companySubtitle: "", companyNameAr: "", mobile: "", address1: "", address2: "", email: "", trn: "", bankName: "ADCB", accountName: "", accountNumber: "", iban: "", hasLogo: false },
+    company: { companyName: "DE AKS BE", companySubtitle: "", companyNameAr: "", mobile: "", address1: "", address2: "", email: "", trn: "", bankName: "ADCB", accountName: "", accountNumber: "", iban: "", hasLogo: false, hasSeal: false },
     createdBy: "mgr", issuedUtc: null, issuedBy: null, cancelledUtc: null, cancelReason: null,
     ...overrides,
   };
