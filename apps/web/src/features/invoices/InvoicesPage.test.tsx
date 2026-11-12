@@ -214,7 +214,7 @@ describe("new invoice form", () => {
     expect(invoicesApi.createInvoice).not.toHaveBeenCalled();
 
     await user.type(screen.getByLabelText("Description, line 1"), "Works");
-    const qty = screen.getByLabelText("Quantity, line 1");
+    const qty = screen.getByLabelText("Area, line 1");
     const rate = screen.getByLabelText("Rate, line 1");
     await user.clear(qty);
     await user.type(qty, "572.51");

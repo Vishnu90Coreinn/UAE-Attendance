@@ -104,6 +104,55 @@ describe("KPIs", () => {
   });
 });
 
+describe("Locking floors", () => {
+  const withLock = (floors: SiteFloor[], name: string) => floors.map((f) => (f.floor === name ? { ...f, isLocked: true } : f));
+
+  it("lets a Manager lock a floor, saving the lock with the report", async () => {
+    signIn("Manager");
+    const user = await open();
+
+    await user.click(screen.getByRole("button", { name: "Lock 2nd Floor (L02)" }));
+    // Locked: no longer editable in place, and the lock can be undone.
+    expect(screen.queryByRole("button", { name: "Edit 2nd Floor (L02)" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "2nd Floor (L02) WIR status" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unlock 2nd Floor (L02)" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Save report" }));
+    const saved = vi.mocked(api.saveReport).mock.calls[0][1];
+    expect(saved.find((f) => f.floor === "2nd Floor (L02)")?.isLocked).toBe(true);
+    expect(saved.find((f) => f.floor === "1st Floor (L01)")?.isLocked).toBeFalsy();
+  });
+
+  it("lets a Manager unlock a locked floor and edit it again", async () => {
+    signIn("Manager");
+    vi.mocked(api.getReport).mockResolvedValue(report(withLock(PROTOTYPE, "2nd Floor (L02)")));
+    const user = await open();
+
+    await user.click(screen.getByRole("button", { name: "Unlock 2nd Floor (L02)" }));
+    expect(screen.getByRole("button", { name: "Edit 2nd Floor (L02)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Lock 2nd Floor (L02)" })).toBeInTheDocument();
+  });
+
+  it("shows a Supervisor a locked floor read-only, with no way to edit, delete or unlock it", async () => {
+    vi.mocked(api.getReport).mockResolvedValue(report(withLock(PROTOTYPE, "2nd Floor (L02)")));
+    await open();
+
+    expect(screen.getByText("(locked)")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit 2nd Floor (L02)" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete 2nd Floor (L02)" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Unlock/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "2nd Floor (L02) WIR status" })).not.toBeInTheDocument();
+    // The other floors stay editable.
+    expect(screen.getByRole("combobox", { name: "1st Floor (L01) WIR status" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit 1st Floor (L01)" })).toBeInTheDocument();
+  });
+
+  it("gives a Supervisor no lock buttons", async () => {
+    await open();
+    expect(screen.queryByRole("button", { name: /^Lock / })).not.toBeInTheDocument();
+  });
+});
+
 describe("Site Progress page", () => {
   it("lists the floors with status words, not colour alone", async () => {
     await open();

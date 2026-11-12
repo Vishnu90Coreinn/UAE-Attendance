@@ -315,7 +315,7 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
                 else if (description.Length > 500) errors[$"lines[{i}].description"] = ["Description must be 500 characters or fewer."];
                 var ok = true;
                 if (line?.Quantity is null || line.Quantity < 0 || line.Quantity > MaxAmount || decimal.Round(line.Quantity.Value, 2) != line.Quantity.Value)
-                { errors[$"lines[{i}].quantity"] = ["Enter a quantity of 0 or more with at most 2 decimal places."]; ok = false; }
+                { errors[$"lines[{i}].quantity"] = ["Enter an area of 0 or more with at most 2 decimal places."]; ok = false; }
                 if (line?.Rate is null || line.Rate < 0 || line.Rate > MaxAmount || decimal.Round(line.Rate.Value, 2) != line.Rate.Value)
                 { errors[$"lines[{i}].rate"] = ["Enter a rate of 0 or more with at most 2 decimal places."]; ok = false; }
                 if (!ok) continue;

@@ -1,4 +1,4 @@
-import { Pencil, Trash2 } from "lucide-react";
+import { Lock, LockOpen, Pencil, Trash2 } from "lucide-react";
 import {
   ALIGNMENT_OPTIONS,
   COMPLETION_OPTIONS,
@@ -21,6 +21,8 @@ interface FloorListProps {
   rows: FloorRow[];
   desktop: boolean;
   canEdit: boolean;
+  /** Managers and the Administrator may lock and unlock floors. */
+  canLock: boolean;
   /** Changes one or more fields of a floor in the draft; nothing is stored until the report is saved. */
   onChange: (index: number, patch: Partial<SiteFloor>) => void;
   /** Opens the dialog for the floor name and remarks. */
@@ -105,12 +107,31 @@ function CountInput({ label, value, onChange }: { label: string; value: number; 
   );
 }
 
-function Actions({ row, onEdit, onDelete }: { row: FloorRow } & Pick<FloorListProps, "onEdit" | "onDelete">) {
+function Actions({ row, canLock, onChange, onEdit, onDelete }: { row: FloorRow; canLock: boolean } & Pick<FloorListProps, "onChange" | "onEdit" | "onDelete">) {
+  const locked = !!row.floor.isLocked;
   return (
     <div className="flex items-center justify-end gap-1">
-      <IconButton icon={Pencil} label={`Edit ${row.floor.floor}`} onClick={() => onEdit(row.index)} />
-      <IconButton icon={Trash2} tone="danger" label={`Delete ${row.floor.floor}`} onClick={() => onDelete(row.index)} />
+      {!locked && <IconButton icon={Pencil} label={`Edit ${row.floor.floor}`} onClick={() => onEdit(row.index)} />}
+      {!locked && <IconButton icon={Trash2} tone="danger" label={`Delete ${row.floor.floor}`} onClick={() => onDelete(row.index)} />}
+      {canLock && (
+        <IconButton
+          icon={locked ? LockOpen : Lock}
+          label={`${locked ? "Unlock" : "Lock"} ${row.floor.floor}`}
+          onClick={() => onChange(row.index, { isLocked: !locked })}
+        />
+      )}
     </div>
+  );
+}
+
+/** Shown beside a locked floor's name so everyone can see why it cannot be changed. */
+function LockMark({ locked }: { locked: boolean | undefined }) {
+  if (!locked) return null;
+  return (
+    <span className="ml-1.5 inline-flex align-middle text-slate-500" title="Locked by a manager">
+      <Lock aria-hidden="true" size={14} />
+      <span className="sr-only"> (locked)</span>
+    </span>
   );
 }
 
@@ -120,19 +141,20 @@ const th = "px-3 py-3.5 text-xs font-bold uppercase tracking-wide text-slate-500
  * The floors. Editors change counts and statuses directly in the row; the pencil is for the name and remarks. Others
  * see read-only badges. A table on desktop and tablet, one card per floor on a phone.
  */
-export function FloorList({ rows, desktop, canEdit, onChange, onEdit, onDelete }: FloorListProps) {
+export function FloorList({ rows, desktop, canEdit, canLock, onChange, onEdit, onDelete }: FloorListProps) {
   if (!desktop) {
     return (
       <ul className="space-y-3">
         {rows.map((row) => {
           const f = row.floor;
+          const editable = canEdit && !f.isLocked;
           return (
             <li key={f.floor} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-2">
-                <h3 className="min-w-0 break-words text-base font-bold text-slate-900">{f.floor}</h3>
-                {canEdit && <Actions row={row} onEdit={onEdit} onDelete={onDelete} />}
+                <h3 className="min-w-0 break-words text-base font-bold text-slate-900">{f.floor}<LockMark locked={f.isLocked} /></h3>
+                {canEdit && <Actions row={row} canLock={canLock} onChange={onChange} onEdit={onEdit} onDelete={onDelete} />}
               </div>
-              {canEdit ? (
+              {editable ? (
                 <div className="mt-3 space-y-3">
                   <div className="grid grid-cols-3 gap-2">
                     {(
@@ -215,10 +237,11 @@ export function FloorList({ rows, desktop, canEdit, onChange, onEdit, onDelete }
         <tbody className="divide-y divide-slate-100">
           {rows.map((row) => {
             const f = row.floor;
+            const editable = canEdit && !f.isLocked;
             return (
               <tr key={f.floor} className="transition-colors hover:bg-slate-50/70">
-                <th scope="row" className="px-3 py-3 text-left text-sm font-bold text-slate-900">{f.floor}</th>
-                {canEdit ? (
+                <th scope="row" className="px-3 py-3 text-left text-sm font-bold text-slate-900">{f.floor}<LockMark locked={f.isLocked} /></th>
+                {editable ? (
                   <>
                     <td className="px-3 py-3 text-center"><CountInput label={`${f.floor} frames`} value={f.frames} onChange={(v) => onChange(row.index, { frames: v })} /></td>
                     <td className="px-3 py-3 text-center"><CountInput label={`${f.floor} fixed glass`} value={f.glass} onChange={(v) => onChange(row.index, { glass: v })} /></td>
@@ -240,7 +263,7 @@ export function FloorList({ rows, desktop, canEdit, onChange, onEdit, onDelete }
                 <td className="max-w-64 break-words px-3 py-3 text-slate-600">{f.remarks || "-"}</td>
                 {canEdit && (
                   <td className="px-3 py-3 print:hidden">
-                    <Actions row={row} onEdit={onEdit} onDelete={onDelete} />
+                    <Actions row={row} canLock={canLock} onChange={onChange} onEdit={onEdit} onDelete={onDelete} />
                   </td>
                 )}
               </tr>

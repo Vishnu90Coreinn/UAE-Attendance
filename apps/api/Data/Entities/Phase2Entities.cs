@@ -267,4 +267,6 @@ public sealed class SiteProgressFloor
     public string Completion { get; set; } = Entities.Completion.NotStarted;
     public string WirStatus { get; set; } = WirStatuses.Pending;
     public string Remarks { get; set; } = "";
+    /// <summary>A Manager or the Administrator locks a floor to freeze it: supervisors cannot change or remove it until it is unlocked.</summary>
+    public bool IsLocked { get; set; }
 }

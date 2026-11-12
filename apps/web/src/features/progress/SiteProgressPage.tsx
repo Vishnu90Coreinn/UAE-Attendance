@@ -260,6 +260,7 @@ export function SiteProgressPage() {
         rows={rows}
         desktop={desktop}
         canEdit={canEdit}
+        canLock={canManage}
         onChange={changeFloor}
         onEdit={(index) => setEditing({ index })}
         onDelete={(index) => {

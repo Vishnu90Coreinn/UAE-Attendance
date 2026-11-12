@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using HrPayroll.Api.Auth;
 using HrPayroll.Api.Data;
 using HrPayroll.Api.Data.Entities;
 using HrPayroll.Api.Dtos;
@@ -104,13 +105,39 @@ public sealed class SiteProgressService(AppDbContext db, IAuditLogger audit, Tim
         var project = await db.SiteProjects.SingleOrDefaultAsync(p => p.Id == projectId, ct);
         if (project is null) return new(404);
         var now = time.GetUtcNow().UtcDateTime;
-        var actor = httpContext.HttpContext?.User.Identity?.Name ?? "";
+        var actorUser = httpContext.HttpContext?.User;
+        var actor = actorUser?.Identity?.Name ?? "";
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         try
         {
             var report = await db.SiteProgressReports.Include(r => r.Floors)
                 .SingleOrDefaultAsync(r => r.ProjectId == projectId && r.ReportDate == date, ct);
+            // Floors as they stand before this save (for a new day, the report they are carried over from): the rows that are locked.
+            var before = (report?.Floors ?? (await db.SiteProgressReports.AsNoTracking().Include(r => r.Floors)
+                    .Where(r => r.ProjectId == projectId && r.ReportDate < date).OrderByDescending(r => r.ReportDate).FirstOrDefaultAsync(ct))?.Floors ?? [])
+                .Select(f => new SiteProgressFloor
+                {
+                    Floor = f.Floor, Frames = f.Frames, Glass = f.Glass, Shutters = f.Shutters, Alignment = f.Alignment,
+                    Completion = f.Completion, WirStatus = f.WirStatus, Remarks = f.Remarks, IsLocked = f.IsLocked,
+                }).ToList();
+            var canLock = actorUser?.IsInRole(Roles.Manager) == true || actorUser?.IsInRole(Roles.Administrator) == true;
+            if (!canLock)
+            {
+                foreach (var locked in before.Where(f => f.IsLocked))
+                {
+                    var sent = floors.Cast<SiteProgressFloorRequest>().FirstOrDefault(f => string.Equals(Clean(f.Floor), locked.Floor, StringComparison.OrdinalIgnoreCase));
+                    if (sent is null || Clean(sent.Floor) != locked.Floor || sent.Frames != locked.Frames || sent.Glass != locked.Glass || sent.Shutters != locked.Shutters
+                        || sent.Alignment != locked.Alignment || sent.Completion != locked.Completion || sent.WirStatus != locked.WirStatus || Clean(sent.Remarks) != locked.Remarks)
+                        return new(409, Message: $"The floor \"{locked.Floor}\" is locked. Ask a manager to unlock it before changing it.");
+                }
+            }
+            bool LockFor(SiteProgressFloorRequest f)
+            {
+                var was = before.FirstOrDefault(x => string.Equals(x.Floor, Clean(f.Floor), StringComparison.OrdinalIgnoreCase))?.IsLocked ?? false;
+                return canLock ? f.IsLocked ?? was : was;
+            }
+
             if (report is null)
             {
                 if (!project.IsActive) return new(409, Message: "This project is inactive. Reactivate it to add reports.");
@@ -133,11 +160,11 @@ public sealed class SiteProgressService(AppDbContext db, IAuditLogger audit, Tim
                 report.Floors.Add(new SiteProgressFloor
                 {
                     SortOrder = order++, Floor = Clean(f.Floor), Frames = f.Frames!.Value, Glass = f.Glass!.Value,
-                    Shutters = f.Shutters!.Value, Alignment = f.Alignment!, Completion = f.Completion!, WirStatus = f.WirStatus!, Remarks = Clean(f.Remarks),
+                    Shutters = f.Shutters!.Value, Alignment = f.Alignment!, Completion = f.Completion!, WirStatus = f.WirStatus!, Remarks = Clean(f.Remarks), IsLocked = LockFor(f),
                 });
             }
             audit.Write("SiteProgressSaved", entityType: nameof(SiteProgressReport), entityId: $"{projectId}/{Label(date)}",
-                details: new { project = project.Name, date = Label(date), floors = floors.Count });
+                details: new { project = project.Name, date = Label(date), floors = floors.Count, locked = floors.Cast<SiteProgressFloorRequest>().Count(LockFor) });
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
         }
@@ -208,7 +235,7 @@ public sealed class SiteProgressService(AppDbContext db, IAuditLogger audit, Tim
         return new(project.Id, project.Name, Label(date), true, null, report.UpdatedBy, DateTime.SpecifyKind(report.UpdatedUtc, DateTimeKind.Utc), floors, Compute(floors));
     }
 
-    private static SiteProgressFloorResponse ToResponse(SiteProgressFloor f) => new(f.Floor, f.Frames, f.Glass, f.Shutters, f.Alignment, f.Completion, f.WirStatus, f.Remarks);
+    private static SiteProgressFloorResponse ToResponse(SiteProgressFloor f) => new(f.Floor, f.Frames, f.Glass, f.Shutters, f.Alignment, f.Completion, f.WirStatus, f.Remarks, f.IsLocked);
 
     /// <summary>
     /// Approved WIR is Approved or Approved with Comments; Rejected stands alone; every other status is still pending.

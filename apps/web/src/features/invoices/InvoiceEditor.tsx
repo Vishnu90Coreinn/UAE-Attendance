@@ -170,7 +170,7 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
             <THead>
               <TRow className="hover:bg-transparent">
                 <Th className="w-[38%]">Description</Th>
-                <Th align="right" className="w-24">Qty</Th>
+                <Th align="right" className="w-24">Area</Th>
                 <Th align="right" className="w-28">Rate (AED)</Th>
                 <Th align="right">VAT 5%</Th>
                 <Th align="right">Amount</Th>
@@ -184,7 +184,7 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
                     <TextField hideLabel label={`Description, line ${i + 1}`} placeholder="e.g. Supply and install 12 mm tempered glass" value={line.description} onChange={(e) => updateLine(i, { description: e.target.value })} error={errors[`lines[${i}].description`]} maxLength={500} />
                   </Td>
                   <Td>
-                    <TextField hideLabel label={`Quantity, line ${i + 1}`} inputMode="decimal" value={line.quantity} onChange={(e) => updateLine(i, { quantity: e.target.value })} error={errors[`lines[${i}].quantity`]} />
+                    <TextField hideLabel label={`Area, line ${i + 1}`} inputMode="decimal" value={line.quantity} onChange={(e) => updateLine(i, { quantity: e.target.value })} error={errors[`lines[${i}].quantity`]} />
                   </Td>
                   <Td>
                     <TextField hideLabel label={`Rate, line ${i + 1}`} inputMode="decimal" value={line.rate} onChange={(e) => updateLine(i, { rate: e.target.value })} error={errors[`lines[${i}].rate`]} />

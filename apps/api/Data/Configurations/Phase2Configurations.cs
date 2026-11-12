@@ -236,5 +236,6 @@ public sealed class SiteProgressFloorConfiguration : IEntityTypeConfiguration<Si
         b.Property(f => f.Completion).HasMaxLength(12).IsRequired();
         b.Property(f => f.WirStatus).HasMaxLength(24).IsRequired();
         b.Property(f => f.Remarks).HasMaxLength(500).IsRequired();
+        b.Property(f => f.IsLocked).HasDefaultValue(false);
     }
 }

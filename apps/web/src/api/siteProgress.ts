@@ -27,6 +27,8 @@ export interface SiteFloor {
   completion: Completion;
   wirStatus: WirStatus;
   remarks: string;
+  /** A manager locked this floor: it cannot be changed or removed until it is unlocked. */
+  isLocked?: boolean;
 }
 
 export interface SiteKpis {

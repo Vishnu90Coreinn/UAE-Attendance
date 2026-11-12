@@ -6,11 +6,11 @@ public sealed record SiteProjectResponse(int Id, string Name, bool IsActive);
 public sealed record SiteProjectRequest(string? Name, bool? IsActive = null);
 
 /// <summary>One floor of a report. Counts are nullable so a missing value is reported as a field error.</summary>
-public sealed record SiteProgressFloorRequest(string? Floor, int? Frames, int? Glass, int? Shutters, string? Alignment, string? Completion, string? WirStatus, string? Remarks);
+public sealed record SiteProgressFloorRequest(string? Floor, int? Frames, int? Glass, int? Shutters, string? Alignment, string? Completion, string? WirStatus, string? Remarks, bool? IsLocked = null);
 
 public sealed record SiteProgressSaveRequest(List<SiteProgressFloorRequest?>? Floors);
 
-public sealed record SiteProgressFloorResponse(string Floor, int Frames, int Glass, int Shutters, string Alignment, string Completion, string WirStatus, string Remarks);
+public sealed record SiteProgressFloorResponse(string Floor, int Frames, int Glass, int Shutters, string Alignment, string Completion, string WirStatus, string Remarks, bool IsLocked = false);
 
 /// <summary>
 /// The summary figures, always computed on the server. <c>HandoverReadyPercent</c> is the share of floors that are

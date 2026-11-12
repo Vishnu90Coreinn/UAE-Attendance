@@ -78,7 +78,7 @@ export function InvoiceDocument({ invoice }: Props) {
             <tr>
               <th scope="col" className="px-2 py-2 text-center">#</th>
               <th scope="col" className="px-3 py-2">Item &amp; description</th>
-              <th scope="col" className="px-3 py-2 text-right">Qty</th>
+              <th scope="col" className="px-3 py-2 text-right">Area</th>
               <th scope="col" className="px-3 py-2 text-right">Rate (AED)</th>
               <th scope="col" className="px-3 py-2 text-right">Taxable</th>
               <th scope="col" className="px-3 py-2 text-right">VAT 5%</th>

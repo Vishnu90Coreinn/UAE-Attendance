@@ -14,7 +14,7 @@ public sealed class InvoicePdf
 {
     private const double Left = 36;
     private const double Right = 559;
-    private static readonly double[] ColumnRight = [78, 340, 400, 460, 520, 559]; // right edges of #, description (left aligned), qty, rate, vat, amount
+    private static readonly double[] ColumnRight = [78, 340, 400, 460, 520, 559]; // right edges of #, description (left aligned), area, rate, vat, amount
     private const double Bottom = 60;
 
     public byte[] Generate(InvoiceResponse invoice, byte[]? logo)
@@ -143,7 +143,7 @@ public sealed class InvoicePdf
         cv.Fill(Left, y - 22, Right - Left, 22, PdfStyle.Teal);
         cv.Text("#", Left + 8, y - 15, 8, true, PdfStyle.White);
         cv.Text("Item & description", ColumnRight[0] + 6, y - 15, 8, true, PdfStyle.White);
-        cv.RightText("Qty", ColumnRight[2] - 6, y - 15, 8, true, PdfStyle.White);
+        cv.RightText("Area", ColumnRight[2] - 6, y - 15, 8, true, PdfStyle.White);
         cv.RightText("Rate (AED)", ColumnRight[3] - 6, y - 15, 8, true, PdfStyle.White);
         cv.RightText("VAT 5%", ColumnRight[4] - 6, y - 15, 8, true, PdfStyle.White);
         cv.RightText("Amount", ColumnRight[5] - 6, y - 15, 8, true, PdfStyle.White);

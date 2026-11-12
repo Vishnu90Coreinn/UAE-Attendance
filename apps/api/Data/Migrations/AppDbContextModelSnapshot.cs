@@ -1076,6 +1076,11 @@ namespace HrPayroll.Api.Data.Migrations
                     b.Property<int>("Glass")
                         .HasColumnType("int");
 
+                    b.Property<bool>("IsLocked")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("Remarks")
                         .IsRequired()
                         .HasMaxLength(500)

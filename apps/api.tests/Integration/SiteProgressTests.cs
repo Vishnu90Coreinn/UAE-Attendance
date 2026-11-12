@@ -441,6 +441,80 @@ public class SiteProgressTests(ApiFixture api) : IClassFixture<ApiFixture>
         await Assert.ThrowsAsync<SqlException>(() => command.ExecuteNonQueryAsync());
     }
 
+    // --- locking a floor ----------------------------------------------------------------------------------------
+
+    private static object LockedFloor(string name, int frames, bool locked) =>
+        new { floor = name, frames, glass = 0, shutters = 0, alignment = "NotComplete", completion = "InProgress", wirStatus = "Pending", remarks = "", isLocked = locked };
+
+    [Fact]
+    public async Task Manager_LocksAFloor_AndItIsReturnedLocked()
+    {
+        var (project, manager, _) = await ProjectAsync();
+        var saved = await SaveLiveAsync(project, [LockedFloor("L01", 5, true), LockedFloor("L02", 3, false)], manager);
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        var floors = (await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/site-progress/{project}", manager))).GetProperty("floors");
+        Assert.True(floors[0].GetProperty("isLocked").GetBoolean());
+        Assert.False(floors[1].GetProperty("isLocked").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Supervisor_CannotChangeRenameOrRemoveALockedFloor_ButCanEditTheOthers()
+    {
+        var (project, manager, supervisor) = await ProjectAsync();
+        await SaveLiveAsync(project, [LockedFloor("L01", 5, true), LockedFloor("L02", 3, false)], manager);
+
+        Assert.Equal(HttpStatusCode.Conflict, (await SaveLiveAsync(project, [LockedFloor("L01", 9, true), LockedFloor("L02", 3, false)], supervisor)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await SaveLiveAsync(project, [LockedFloor("L01 renamed", 5, true), LockedFloor("L02", 3, false)], supervisor)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await SaveLiveAsync(project, [LockedFloor("L02", 3, false)], supervisor)).StatusCode);
+
+        var ok = await SaveLiveAsync(project, [LockedFloor("L01", 5, true), LockedFloor("L02", 8, false), LockedFloor("L03", 1, false)], supervisor);
+        Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
+        var floors = (await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/site-progress/{project}", supervisor))).GetProperty("floors");
+        Assert.Equal(3, floors.GetArrayLength());
+        Assert.Equal(8, floors[1].GetProperty("frames").GetInt32());
+    }
+
+    [Fact]
+    public async Task Supervisor_CannotLockOrUnlock_TheFlagIsIgnored()
+    {
+        var (project, manager, supervisor) = await ProjectAsync();
+        await SaveLiveAsync(project, [LockedFloor("L01", 5, true), LockedFloor("L02", 3, false)], manager);
+        // The supervisor tries to unlock L01 and lock L02.
+        await SaveLiveAsync(project, [LockedFloor("L01", 5, false), LockedFloor("L02", 3, true)], supervisor);
+        var floors = (await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/site-progress/{project}", supervisor))).GetProperty("floors");
+        Assert.True(floors[0].GetProperty("isLocked").GetBoolean());
+        Assert.False(floors[1].GetProperty("isLocked").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Manager_CanUnlock_ThenTheSupervisorCanEdit()
+    {
+        var (project, manager, supervisor) = await ProjectAsync();
+        await SaveLiveAsync(project, [LockedFloor("L01", 5, true)], manager);
+        await SaveLiveAsync(project, [LockedFloor("L01", 5, false)], manager);
+        Assert.Equal(HttpStatusCode.OK, (await SaveLiveAsync(project, [LockedFloor("L01", 9, false)], supervisor)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Manager_CanStillEditALockedFloor_AndAnOmittedFlagKeepsTheLock()
+    {
+        var (project, manager, _) = await ProjectAsync();
+        await SaveLiveAsync(project, [LockedFloor("L01", 5, true)], manager);
+        await SaveLiveAsync(project, [Floor("L01", 7, 0, "InProgress", "Pending")], manager);
+        var floor = (await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/site-progress/{project}", manager))).GetProperty("floors")[0];
+        Assert.Equal(7, floor.GetProperty("frames").GetInt32());
+        Assert.True(floor.GetProperty("isLocked").GetBoolean());
+    }
+
+    [Fact]
+    public async Task LockedFloors_CarryOverToANewDay_AndStillBindTheSupervisor()
+    {
+        var (project, manager, supervisor) = await ProjectAsync();
+        await SaveAsync(project, "2026-10-01", [LockedFloor("L01", 5, true)], manager);
+        Assert.Equal(HttpStatusCode.Conflict, (await SaveAsync(project, "2026-10-02", [LockedFloor("L01", 6, true)], supervisor)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await SaveAsync(project, "2026-10-02", [LockedFloor("L01", 5, true), LockedFloor("L02", 1, false)], supervisor)).StatusCode);
+    }
+
     // --- the shared KPI rule -------------------------------------------------------------------------------------
 
     [Fact]
