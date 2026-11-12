@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PageHeader, buttonClass } from "../../ui";
+import { LoadingState, PageHeader, buttonClass } from "../../ui";
 import { Check, CheckCheck, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Save } from "lucide-react";
 import {
   approveAttendance,
@@ -396,9 +396,7 @@ export function AttendancePage({
         </p>
       )}
       {loading ? (
-        <p role="status" className="py-8 text-ink-600">
-          Loading attendance...
-        </p>
+        <LoadingState label="Loading attendance..." rows={8} />
       ) : loadError ? (
         <LoadError
           message={loadError}

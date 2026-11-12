@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { PageHeader, StatusBadge, inputClass } from "../../ui";
+import { LoadingState, PageHeader, RowMenu, StatusBadge, inputClass, type RowMenuItem } from "../../ui";
 import { KeyRound, Trash2, UserPlus } from "lucide-react";
 import { ApiError } from "../../api/client";
 import {
@@ -33,6 +33,7 @@ export function UserPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [resetUser, setResetUser] = useState<ManagedUser | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null);
+  const [roleChange, setRoleChange] = useState<{ row: ManagedUser; role: ManagedUser["role"] } | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]> | undefined>();
   const mounted = useRef(true);
@@ -112,9 +113,13 @@ export function UserPage() {
     } finally { if (mounted.current) setPending(false); }
   }
 
+  const menuFor = (row: ManagedUser, self: boolean): RowMenuItem[] => [
+    { label: "Reset password", icon: KeyRound, disabled: busy, onSelect: () => { clearFeedback(); setDialogError(null); setFieldErrors(undefined); setResetUser(row); } },
+    ...(self ? [] : [{ label: "Delete", icon: Trash2, danger: true, disabled: busy, onSelect: () => { clearFeedback(); setDeleteTarget(row); } }]),
+  ];
   const assignable = assignableRoles(current?.role);
   const readOnly = isReadOnly(current?.role);
-  const busy = pending || addOpen || !!resetUser || !!deleteTarget;
+  const busy = pending || addOpen || !!resetUser || !!deleteTarget || !!roleChange;
   return (
     <section className="min-w-0 space-y-4">
       <PageHeader
@@ -129,7 +134,7 @@ export function UserPage() {
       />
       <SuccessRegion message={success} />
       {error && <ActionFailure message={error} />}
-      {loading ? <p role="status" className="py-8 text-ink-600">Loading users...</p>
+      {loading ? <LoadingState label="Loading users..." />
         : loadError ? <LoadError message={loadError} onRetry={() => setAttempt((value) => value + 1)} />
         : rows.length === 0 ? <p className="rounded-lg border bg-white p-8 text-center text-ink-600">No users found.</p>
         : <div className="overflow-x-auto md:rounded-lg md:border md:border-line md:bg-white md:shadow-sm">
@@ -141,16 +146,13 @@ export function UserPage() {
                 <td className="block break-words pb-1 font-semibold text-ink-900 md:table-cell md:px-4 md:py-3 md:font-medium">{row.username}{self && <span className="ml-2 text-xs text-ink-500">You</span>}</td>
                 <td data-label="Role" className="flex items-center justify-between gap-3 border-t border-line py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-ink-600 md:table-cell md:border-0 md:px-4 md:py-3 md:before:content-none"><select aria-label={`Role for ${row.username}`} value={row.role} disabled={busy || self || readOnly}
                   className={inputClass}
-                  onChange={(event) => void mutate(() => updateUser(row.id, { role: event.target.value as ManagedUser["role"], active: row.isActive }), "User role updated.")}>
+                  onChange={(event) => { clearFeedback(); setRoleChange({ row, role: event.target.value as ManagedUser["role"] }); }}>
                   {(assignable.includes(row.role) ? assignable : [row.role, ...assignable]).map((role) => <option key={role}>{role}</option>)}</select></td>
                 <td data-label="Status" className="flex items-center justify-between gap-3 border-t border-line py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-ink-600 md:table-cell md:border-0 md:px-4 md:py-3 md:before:content-none"><StatusBadge tone={row.isActive ? "success" : "neutral"}>{row.isActive ? "Active" : "Inactive"}</StatusBadge></td>
-                {!readOnly && <td className="block border-t border-line pt-3 md:table-cell md:border-0 md:px-4 md:py-3"><div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
-                  {!self && <button type="button" disabled={busy} className={actionClass} aria-label={`${row.isActive ? "Deactivate" : "Activate"} ${row.username}`}
+                {!readOnly && <td className="block border-t border-line pt-3 md:table-cell md:border-0 md:px-4 md:py-3"><div className="flex items-center gap-2 md:justify-end">
+                  {!self && <button type="button" disabled={busy} className={`${actionClass} max-md:flex-1`} aria-label={`${row.isActive ? "Deactivate" : "Activate"} ${row.username}`}
                     onClick={() => void mutate(() => updateUser(row.id, { role: row.role, active: !row.isActive }), row.isActive ? "User deactivated." : "User activated.")}>{row.isActive ? "Deactivate" : "Activate"}</button>}
-                  <button type="button" disabled={busy} className={actionClass} aria-label={`Reset password for ${row.username}`}
-                    onClick={() => { clearFeedback(); setDialogError(null); setFieldErrors(undefined); setResetUser(row); }}><KeyRound aria-hidden="true" size={15} />Reset password</button>
-                  {!self && <button type="button" disabled={busy} className={`${actionClass} text-red-700 max-md:col-span-2`} aria-label={`Delete ${row.username}`}
-                    onClick={() => { clearFeedback(); setDeleteTarget(row); }}><Trash2 aria-hidden="true" size={15} />Delete</button>}
+                  <RowMenu label={`More actions for ${row.username}`} items={menuFor(row, self)} className="max-md:ml-auto" />
                 </div></td>}
               </tr>;
             })}</tbody>
@@ -158,6 +160,11 @@ export function UserPage() {
         </div>}
       {addOpen && <AddUserDialog open roles={assignable} pending={pending} error={dialogError} fieldErrors={fieldErrors} onSubmit={(input) => void add(input)} onClose={() => setAddOpen(false)} />}
       {!!resetUser && <ResetPasswordDialog user={resetUser} pending={pending} error={dialogError} fieldErrors={fieldErrors} onSubmit={(password) => void reset(password)} onClose={() => setResetUser(null)} />}
+      <ConfirmDialog open={!!roleChange} title="Change role"
+        message={roleChange ? `Change ${roleChange.row.username} from ${roleChange.row.role} to ${roleChange.role}? Their access changes the next time they sign in.` : ""}
+        confirmLabel="Change role" confirmIcon={undefined} pending={pending}
+        onConfirm={() => { const change = roleChange; setRoleChange(null); if (change) void mutate(() => updateUser(change.row.id, { role: change.role, active: change.row.isActive }), "User role updated."); }}
+        onCancel={() => setRoleChange(null)} />
       <ConfirmDialog open={!!deleteTarget} title="Delete user" message={deleteTarget ? `Delete ${deleteTarget.username} permanently? This cannot be undone.` : ""}
         confirmLabel="Delete" pending={pending} onConfirm={() => void remove()} onCancel={() => setDeleteTarget(null)} />
     </section>

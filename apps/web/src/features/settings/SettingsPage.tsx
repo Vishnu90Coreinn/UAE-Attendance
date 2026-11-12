@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { PageHeader } from "../../ui";
+import { LoadingState, PageHeader } from "../../ui";
 import { Info, Loader2, Save } from "lucide-react";
 import { useOutletContext } from "react-router-dom";
 import type { LayoutContext } from "../../components/LayoutContext";
@@ -172,10 +172,7 @@ export function SettingsPage() {
       <PageHeader title="Settings" description="Company details and payroll rates." />
 
       {load.status === "loading" && (
-        <p role="status" className="flex items-center gap-2 py-8 text-sm text-ink-500">
-          <Loader2 aria-hidden="true" size={20} className="animate-spin" />
-          Loading settings...
-        </p>
+        <LoadingState label="Loading settings..." rows={4} />
       )}
       {load.status === "error" && <LoadError message={load.message} onRetry={retry} />}
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { PageHeader, StatCard } from "../../ui";
+import { LoadingState, PageHeader, StatCard } from "../../ui";
 import { CalendarCheck, CalendarPlus, CalendarX, Hourglass } from "lucide-react";
 import {
   approveLeave,
@@ -14,6 +14,7 @@ import {
 import { listWorkers, type Worker } from "../../api/workers";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
+import { formatDisplayDate } from "../../utils/date";
 import { LeaveBalances } from "./LeaveBalances";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import {
@@ -254,9 +255,7 @@ export function LeavePage() {
       <SuccessRegion message={success} />
       {error && <ActionFailure message={error} />}
       {loading ? (
-        <p role="status" className="py-8 text-ink-600">
-          Loading leave requests...
-        </p>
+        <LoadingState label="Loading leave requests..." />
       ) : loadError ? (
         <LoadError
           message={loadError}
@@ -300,7 +299,7 @@ export function LeavePage() {
         title="Delete leave request"
         message={
           confirmation
-            ? `Delete ${confirmation.leaveType} for ${confirmation.workerName} (${confirmation.startDate} to ${confirmation.endDate}) permanently? This cannot be undone.`
+            ? `Delete ${confirmation.leaveType} for ${confirmation.workerName} (${formatDisplayDate(confirmation.startDate)} to ${formatDisplayDate(confirmation.endDate)}) permanently? This cannot be undone.`
             : ""
         }
         confirmLabel="Delete"

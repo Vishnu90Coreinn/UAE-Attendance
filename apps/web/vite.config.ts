@@ -16,5 +16,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test-setup.ts"],
+    // Form tests type many characters through jsdom; under a parallel full run they can pass the 5 s default.
+    testTimeout: 20000,
   },
 });

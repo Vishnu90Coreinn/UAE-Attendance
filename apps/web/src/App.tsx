@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Outlet, Route, Routes, useOutletContext } from "react-router-dom";
+import { LoadingState } from "./ui";
 import { Layout } from "./components/Layout";
 import { LoginPage } from "./features/auth/LoginPage";
 import { ProtectedRoute } from "./features/auth/ProtectedRoute";
@@ -55,11 +56,7 @@ function Screens() {
   const context = useOutletContext();
   return (
     <Suspense
-      fallback={
-        <p role="status" className="py-8 text-gray-600">
-          Loading...
-        </p>
-      }
+      fallback={<LoadingState label="Loading..." />}
     >
       <Outlet context={context} />
     </Suspense>

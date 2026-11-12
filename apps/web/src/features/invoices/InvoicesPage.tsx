@@ -6,7 +6,7 @@ import {
 } from "../../api/invoices";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
-import { Button, Card, Pager, SortTh, usePaging, useSort, EmptyState, PageHeader, Select, StatCard, Table, TableScroll, THead, TRow, Td } from "../../ui";
+import { LoadingState, Button, Card, Pager, SortTh, usePaging, useSort, EmptyState, PageHeader, Select, StatCard, Table, TableScroll, THead, TRow, Td } from "../../ui";
 import { TextField } from "../../components/TextField";
 import { LoadError } from "../workers/WorkersFeedback";
 import { ClientsDialog } from "./ClientsDialog";
@@ -192,10 +192,7 @@ export function InvoicesPage() {
 
       {error && <LoadError message={error} onRetry={() => void load()} />}
       {!error && rows === null && (
-        <p role="status" className="flex items-center gap-2 py-8 text-sm text-ink-500">
-          <Loader2 aria-hidden="true" size={20} className="animate-spin" />
-          Loading invoices...
-        </p>
+        <LoadingState label="Loading invoices..." />
       )}
       {rows && rows.length === 0 && (
         <Card>

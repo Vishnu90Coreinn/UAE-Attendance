@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { PageHeader, buttonClass, cx, inputClass } from "../../ui";
+import { LoadingState, PageHeader, buttonClass, cx, inputClass } from "../../ui";
 import { Plus, Save } from "lucide-react";
 import {
   createDeductionType,
@@ -302,7 +302,7 @@ export function DeductionsPage() {
       </section>
 
       {loading ? (
-        <p role="status" className="py-8 text-ink-600">Loading deductions...</p>
+        <LoadingState label="Loading deductions..." />
       ) : loadError ? (
         <LoadError message={loadError} onRetry={() => setAttempt((value) => value + 1)} />
       ) : data && data.workers.length > 0 ? (

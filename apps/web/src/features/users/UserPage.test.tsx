@@ -46,7 +46,9 @@ it("shows the prototype columns and protects the signed-in account", async () =>
   const ownRow = screen.getByText("admin").closest("tr")!;
   expect(within(ownRow).getByLabelText("Role for admin")).toBeDisabled();
   expect(within(ownRow).queryByRole("button", { name: "Deactivate admin" })).not.toBeInTheDocument();
-  expect(within(ownRow).queryByRole("button", { name: "Delete admin" })).not.toBeInTheDocument();
+  await userEvent.click(within(ownRow).getByRole("button", { name: "More actions for admin" }));
+  expect(screen.getByRole("menuitem", { name: "Reset password" })).toBeInTheDocument();
+  expect(screen.queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
 });
 
 it("offers an Administrator all five roles when adding a user and changing a role", async () => {
@@ -107,6 +109,10 @@ it("changes role and status using the latest returned user", async () => {
     .mockResolvedValueOnce({ ...rows[1], role: "Manager", isActive: false });
   const user = await setup();
   await user.selectOptions(screen.getByLabelText("Role for site.user"), "Manager");
+  // A role change is confirmed first, and the select shows the saved role until then.
+  expect(usersApi.updateUser).not.toHaveBeenCalled();
+  expect(screen.getByLabelText("Role for site.user")).toHaveValue(rows[1].role);
+  await user.click(within(screen.getByRole("dialog", { name: "Change role" })).getByRole("button", { name: "Change role" }));
   expect(usersApi.updateUser).toHaveBeenCalledWith(2, { role: "Manager", active: true });
   await screen.findByText("User role updated.");
   await user.click(screen.getByRole("button", { name: "Deactivate site.user" }));
@@ -118,14 +124,16 @@ it("resets a password and deletes only after confirmation", async () => {
   vi.mocked(usersApi.resetUserPassword).mockResolvedValue();
   vi.mocked(usersApi.deleteUser).mockResolvedValue();
   const user = await setup();
-  await user.click(screen.getByRole("button", { name: "Reset password for site.user" }));
+  await user.click(screen.getByRole("button", { name: "More actions for site.user" }));
+  await user.click(screen.getByRole("menuitem", { name: "Reset password" }));
   const reset = screen.getByRole("dialog", { name: "Reset password" });
   await user.type(within(reset).getByLabelText("New password"), "Replacement-password-42");
   await user.click(within(reset).getByRole("button", { name: "Reset password" }));
   expect(usersApi.resetUserPassword).toHaveBeenCalledWith(2, "Replacement-password-42");
   await screen.findByText("Password reset.");
 
-  await user.click(screen.getByRole("button", { name: "Delete site.user" }));
+  await user.click(screen.getByRole("button", { name: "More actions for site.user" }));
+  await user.click(screen.getByRole("menuitem", { name: "Delete" }));
   expect(usersApi.deleteUser).not.toHaveBeenCalled();
   await user.click(within(screen.getByRole("dialog", { name: "Delete user" })).getByRole("button", { name: "Delete" }));
   expect(usersApi.deleteUser).toHaveBeenCalledWith(2);
@@ -143,6 +151,7 @@ it("retries loading and reloads authoritative state after a conflict", async () 
   await screen.findByRole("table");
   vi.mocked(usersApi.updateUser).mockRejectedValue(new ApiError(409, "At least one active Administrator account is required."));
   await user.selectOptions(screen.getByLabelText("Role for site.user"), "Manager");
+  await user.click(within(screen.getByRole("dialog", { name: "Change role" })).getByRole("button", { name: "Change role" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("At least one active Administrator");
   expect(usersApi.listUsers).toHaveBeenCalledTimes(3);
 });
@@ -169,6 +178,6 @@ it("shows a Viewer the accounts with no way to add, change, reset or delete", as
 
   expect(screen.getByText("site.user")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Add User" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: /Reset password|Deactivate|Activate|Delete/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /More actions|Reset password|Deactivate|Activate|Delete/ })).not.toBeInTheDocument();
   expect(screen.getByLabelText("Role for site.user")).toBeDisabled();
 });

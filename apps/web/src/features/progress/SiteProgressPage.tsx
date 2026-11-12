@@ -14,7 +14,7 @@ import {
 } from "../../api/siteProgress";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
-import { Button, Card, EmptyState, PageHeader, Select, cx } from "../../ui";
+import { LoadingState, Button, Card, EmptyState, PageHeader, Select, cx } from "../../ui";
 import { useIsDesktop } from "../../utils/useIsDesktop";
 import { saveBlob } from "../payroll/downloadPdf";
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
@@ -196,7 +196,7 @@ export function SiteProgressPage() {
         <input
           id="floor-search"
           type="search"
-          className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm placeholder:text-slate-400 focus:bg-white focus-visible:outline-2 focus-visible:outline-brand-500/40 md:h-10"
+          className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm placeholder:text-slate-500 focus:bg-white focus-visible:outline-2 focus-visible:outline-brand-500/40 md:h-10"
           placeholder="Search floor designation"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -272,9 +272,7 @@ export function SiteProgressPage() {
 
   if (projects === null && !loadError) {
     return (
-      <p role="status" className="py-8 text-sm text-ink-600">
-        Loading...
-      </p>
+      <LoadingState label="Loading..." withCards />
     );
   }
 
@@ -357,9 +355,7 @@ export function SiteProgressPage() {
           {failure && <ActionFailure message={failure} />}
 
           {loading && !report && (
-            <p role="status" className="py-8 text-sm text-ink-600">
-              Loading report...
-            </p>
+            <LoadingState label="Loading report..." rows={5} />
           )}
 
           {report && (

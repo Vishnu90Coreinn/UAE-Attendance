@@ -14,7 +14,7 @@ import {
 import { letterTypeLabel, LETTER_TYPES, type LetterType } from "../../api/letters";
 import { listWorkers, type Worker } from "../../api/workers";
 import { Dialog } from "../../components/Dialog";
-import { Button, Card, EmptyState, Select, StatusBadge, Table, TableScroll, Td, Textarea, Th, THead, TRow } from "../../ui";
+import { LoadingState, Button, Card, EmptyState, Select, StatusBadge, Table, TableScroll, Td, Textarea, Th, THead, TRow } from "../../ui";
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { fieldErrorsOf, messageOf, usePdfDownload } from "./letterUi";
 import { LetterSheet } from "./LetterSheet";
@@ -360,10 +360,7 @@ export function RequestsPanel({ roles, defaultStatus }: { roles: RequestRoles; d
             <LoadError message={error} onRetry={() => setAttempt((n) => n + 1)} />
           </div>
         ) : rows === null ? (
-          <p role="status" className="flex items-center gap-2 p-6 text-sm text-ink-600">
-            <Loader2 aria-hidden="true" size={18} className="animate-spin" />
-            Loading requests...
-          </p>
+          <LoadingState label="Loading requests..." rows={4} />
         ) : rows.length === 0 ? (
           <EmptyState
             icon={FileText}

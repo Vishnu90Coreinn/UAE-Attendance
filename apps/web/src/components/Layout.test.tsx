@@ -194,12 +194,16 @@ describe("Layout", () => {
     expect(
       within(header).getByText("Logged in as sup.omar (Supervisor)"),
     ).toBeInTheDocument();
-    expect(
-      within(header).getByRole("button", { name: "Change password" }),
-    ).toBeInTheDocument();
-    expect(
-      within(header).getByRole("button", { name: "Sign out" }),
-    ).toBeInTheDocument();
+    const user = userEvent.setup();
+    expect(within(header).queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument();
+    await user.click(within(header).getByRole("button", { name: "Account menu for sup.omar" }));
+    expect(within(header).getByRole("menuitem", { name: "Change password" })).toBeInTheDocument();
+    expect(within(header).getByRole("menuitem", { name: "Sign out" })).toBeInTheDocument();
+  });
+
+  it("names the screen in the browser tab", async () => {
+    await renderLayout();
+    await waitFor(() => expect(document.title).toMatch(/· DE AKS BE$/));
   });
 
   it("reaches user management through the User Manager tab, not a duplicate header shortcut", async () => {
@@ -227,7 +231,8 @@ describe("Layout", () => {
     await renderLayout();
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("button", { name: "Sign out" }));
+    await user.click(screen.getByRole("button", { name: /^Account menu for/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Sign out" }));
 
     expect(await screen.findByText("login screen")).toBeInTheDocument();
     expect(screen.queryByText("page content")).not.toBeInTheDocument();
@@ -239,7 +244,8 @@ describe("Layout", () => {
     const user = userEvent.setup();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Change password" }));
+    await user.click(screen.getByRole("button", { name: /^Account menu for/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Change password" }));
 
     const dialog = await screen.findByRole("dialog", {
       name: "Change password",
@@ -247,12 +253,13 @@ describe("Layout", () => {
     expect(within(dialog).getByLabelText("Current password")).toHaveFocus();
   });
 
-  it("returns focus to the Change password button when the dialog is cancelled", async () => {
+  it("returns focus to the account menu button when the change-password dialog is cancelled", async () => {
     await renderLayout();
     const user = userEvent.setup();
-    const opener = screen.getByRole("button", { name: "Change password" });
+    const opener = screen.getByRole("button", { name: /^Account menu for/ });
 
     await user.click(opener);
+    await user.click(screen.getByRole("menuitem", { name: "Change password" }));
     await user.click(await screen.findByRole("button", { name: "Cancel" }));
 
     await waitFor(() =>

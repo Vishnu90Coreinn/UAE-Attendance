@@ -56,6 +56,12 @@ function renderPage(role: Role = "Manager") {
   return { user: userEvent.setup(), ...render(<WorkersPage />) };
 }
 
+/** Opens a worker's "..." menu and picks an item. */
+async function chooseAction(user: ReturnType<typeof userEvent.setup>, worker: string, item: string) {
+  await user.click(screen.getByRole("button", { name: `More actions for ${worker}` }));
+  await user.click(screen.getByRole("menuitem", { name: item }));
+}
+
 async function renderLoaded(role: Role = "Manager", workers: Worker[] = [ahmed]) {
   vi.mocked(workersApi.listWorkers).mockResolvedValue(workers);
   const view = renderPage(role);
@@ -198,8 +204,9 @@ describe("WorkersPage - content", () => {
     const row = await screen.findByRole("row", { name: /EMP-002/ });
     expect(workersApi.listWorkers).toHaveBeenLastCalledWith(true);
     expect(within(row).getByText("Inactive")).toBeInTheDocument();
-    expect(within(row).getByRole("button", { name: "Activate Sara Ali" })).toBeInTheDocument();
-    expect(within(row).queryByRole("button", { name: /^Deactivate/ })).not.toBeInTheDocument();
+    await user.click(within(row).getByRole("button", { name: "More actions for Sara Ali" }));
+    expect(screen.getByRole("menuitem", { name: "Activate" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Deactivate" })).not.toBeInTheDocument();
   });
 
   it("always has a status region for success messages", async () => {
@@ -217,8 +224,9 @@ describe("WorkersPage - roles", () => {
     expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
     const row = screen.getByRole("row", { name: /EMP-001/ });
     expect(within(row).getByRole("button", { name: "Edit Ahmed Khan" })).toBeInTheDocument();
-    expect(within(row).getByRole("button", { name: "Deactivate Ahmed Khan" })).toBeInTheDocument();
-    expect(within(row).getByRole("button", { name: "Delete Ahmed Khan" })).toBeInTheDocument();
+    await userEvent.click(within(row).getByRole("button", { name: "More actions for Ahmed Khan" }));
+    expect(screen.getByRole("menuitem", { name: "Deactivate" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
   });
 
   it("shows a Viewer the workers with pay but no Add and no row actions", async () => {
@@ -227,23 +235,20 @@ describe("WorkersPage - roles", () => {
     expect(screen.queryByRole("button", { name: "Add New Worker" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Edit Ahmed Khan|Deactivate Ahmed Khan|Activate Ahmed Khan|Delete Ahmed Khan/ })).not.toBeInTheDocument();
     // Printing the employee record is a download, so a Viewer keeps it.
-    expect(screen.getByRole("button", { name: "Print Ahmed Khan" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "More actions for Ahmed Khan" }));
+    expect(screen.getByRole("menuitem", { name: "Download record" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /Deactivate|Delete/ })).not.toBeInTheDocument();
   });
 
-  it("gives every row action button an accessible name that includes the worker's name, even though the labels are icon-only below xl", async () => {
+  it("names the row's buttons after the worker, and keeps Delete behind the menu", async () => {
     await renderLoaded("Manager", [ahmed, sara]);
 
-    const expectations = [
-      { code: "EMP-001", name: "Ahmed Khan", labels: ["Edit", "Deactivate", "Print", "Delete"] },
-      { code: "EMP-002", name: "Sara Ali", labels: ["Edit", "Activate", "Print", "Delete"] },
-    ];
-    for (const { code, name, labels } of expectations) {
+    for (const { code, name } of [{ code: "EMP-001", name: "Ahmed Khan" }, { code: "EMP-002", name: "Sara Ali" }]) {
       const row = screen.getByRole("row", { name: new RegExp(code) });
       const buttons = within(row).getAllByRole("button");
-      expect(buttons).toHaveLength(labels.length);
-      labels.forEach((label, index) => {
-        expect(buttons[index]).toHaveAccessibleName(`${label} ${name}`);
-      });
+      expect(buttons).toHaveLength(2);
+      expect(buttons[0]).toHaveAccessibleName(`Edit ${name}`);
+      expect(buttons[1]).toHaveAccessibleName(`More actions for ${name}`);
     }
   });
 
@@ -254,7 +259,7 @@ describe("WorkersPage - roles", () => {
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
     const { user } = await renderLoaded("Manager", [ahmed]);
 
-    await user.click(screen.getByRole("button", { name: "Print Ahmed Khan" }));
+    await chooseAction(user, "Ahmed Khan", "Download record");
 
     await waitFor(() => expect(workersApi.getWorkerProfilePdf).toHaveBeenCalledWith(1));
     expect(await screen.findByText("Record for Ahmed Khan downloaded.")).toBeInTheDocument();
@@ -369,7 +374,7 @@ describe("WorkersPage - deactivate and activate", () => {
     vi.mocked(workersApi.deactivateWorker).mockResolvedValue({ ...ahmed, isActive: false });
     const { user } = await renderLoaded("Manager");
 
-    await user.click(screen.getByRole("button", { name: "Deactivate Ahmed Khan" }));
+    await chooseAction(user, "Ahmed Khan", "Deactivate");
     const dialog = await screen.findByRole("dialog", { name: "Deactivate worker" });
     expect(dialog).toHaveTextContent("Ahmed Khan");
     expect(workersApi.deactivateWorker).not.toHaveBeenCalled();
@@ -383,7 +388,7 @@ describe("WorkersPage - deactivate and activate", () => {
   it("does nothing when the deactivate confirmation is cancelled", async () => {
     const { user } = await renderLoaded("Manager");
 
-    await user.click(screen.getByRole("button", { name: "Deactivate Ahmed Khan" }));
+    await chooseAction(user, "Ahmed Khan", "Deactivate");
     await user.click(await screen.findByRole("button", { name: "Cancel" }));
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -396,7 +401,7 @@ describe("WorkersPage - deactivate and activate", () => {
     const { user } = renderPage("Administrator");
     await screen.findByRole("table");
 
-    await user.click(screen.getByRole("button", { name: "Activate Sara Ali" }));
+    await chooseAction(user, "Sara Ali", "Activate");
 
     expect(await screen.findByText("Worker activated.")).toBeInTheDocument();
     expect(workersApi.activateWorker).toHaveBeenCalledWith(2);
@@ -407,7 +412,7 @@ describe("WorkersPage - deactivate and activate", () => {
     vi.mocked(workersApi.deactivateWorker).mockRejectedValue(new ApiError(404, "Worker not found."));
     const { user } = await renderLoaded("Manager");
 
-    await user.click(screen.getByRole("button", { name: "Deactivate Ahmed Khan" }));
+    await chooseAction(user, "Ahmed Khan", "Deactivate");
     await user.click(await screen.findByRole("button", { name: "Deactivate" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Worker not found.");
@@ -420,7 +425,7 @@ describe("WorkersPage - deactivate and activate", () => {
     const { user } = renderPage("Administrator");
     await screen.findByRole("table");
 
-    await user.click(screen.getByRole("button", { name: "Activate Sara Ali" }));
+    await chooseAction(user, "Sara Ali", "Activate");
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to reach the server.");
   });
@@ -432,7 +437,7 @@ describe("WorkersPage - delete", () => {
     const { user } = await renderLoaded("Administrator");
     vi.mocked(workersApi.listWorkers).mockResolvedValue([]);
 
-    await user.click(screen.getByRole("button", { name: "Delete Ahmed Khan" }));
+    await chooseAction(user, "Ahmed Khan", "Delete");
     const dialog = await screen.findByRole("dialog", { name: "Delete worker" });
     expect(dialog).toHaveTextContent("Ahmed Khan");
     expect(workersApi.deleteWorker).not.toHaveBeenCalled();
@@ -453,7 +458,7 @@ describe("WorkersPage - delete", () => {
     );
     const { user } = await renderLoaded("Administrator");
 
-    await user.click(screen.getByRole("button", { name: "Delete Ahmed Khan" }));
+    await chooseAction(user, "Ahmed Khan", "Delete");
     await user.click(await screen.findByRole("button", { name: "Delete" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -472,7 +477,7 @@ describe("WorkersPage - delete", () => {
     );
     const { user } = await renderLoaded("Administrator");
 
-    await user.click(screen.getByRole("button", { name: "Delete Ahmed Khan" }));
+    await chooseAction(user, "Ahmed Khan", "Delete");
     await user.click(await screen.findByRole("button", { name: "Delete" }));
 
     expect(screen.getByRole("button", { name: "Working..." })).toBeDisabled();
@@ -485,11 +490,11 @@ describe("WorkersPage - delete", () => {
   it("clears an earlier failure message when the next action starts", async () => {
     vi.mocked(workersApi.deleteWorker).mockRejectedValueOnce(new ApiError(409, "Has records.")).mockResolvedValue(undefined);
     const { user } = await renderLoaded("Administrator");
-    await user.click(screen.getByRole("button", { name: "Delete Ahmed Khan" }));
+    await chooseAction(user, "Ahmed Khan", "Delete");
     await user.click(await screen.findByRole("button", { name: "Delete" }));
     await screen.findByRole("alert");
 
-    await user.click(screen.getByRole("button", { name: "Delete Ahmed Khan" }));
+    await chooseAction(user, "Ahmed Khan", "Delete");
     await user.click(await screen.findByRole("button", { name: "Delete" }));
 
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
@@ -524,7 +529,8 @@ describe("WorkersPage - HR", () => {
 
     expect(screen.getByRole("button", { name: "Add New Worker" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit Ahmed Khan" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Print Ahmed Khan" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Deactivate|Delete/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "More actions for Ahmed Khan" }));
+    expect(screen.getByRole("menuitem", { name: "Download record" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /Deactivate|Delete/ })).not.toBeInTheDocument();
   });
 });

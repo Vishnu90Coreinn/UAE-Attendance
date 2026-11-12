@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Download, FileText, Loader2 } from "lucide-react";
 import { letterTypeLabel, LETTER_TYPES, getLetter, listLetters, type LetterRecord, type LetterSummary, type LetterType } from "../../api/letters";
 import { useAuth } from "../../contexts/AuthContext";
-import { Button, Card, EmptyState, Input, PageHeader, Select, Table, TableScroll, Td, Th, THead, TRow, cx } from "../../ui";
+import { LoadingState, Button, Card, EmptyState, Input, PageHeader, Select, Table, TableScroll, Td, Th, THead, TRow, cx } from "../../ui";
 import { ActionFailure, LoadError } from "../workers/WorkersFeedback";
 import { messageOf, usePdfDownload } from "./letterUi";
 import { LetterSheet } from "./LetterSheet";
@@ -98,10 +98,7 @@ function IssuedLog({ onOpen }: { onOpen: (id: number) => void }) {
           <LoadError message={error} onRetry={() => setAttempt((n) => n + 1)} />
         </div>
       ) : rows === null ? (
-        <p role="status" className="flex items-center gap-2 p-6 text-sm text-ink-600">
-          <Loader2 aria-hidden="true" size={18} className="animate-spin" />
-          Loading letters...
-        </p>
+        <LoadingState label="Loading letters..." rows={4} />
       ) : rows.length === 0 ? (
         <EmptyState icon={FileText} title="No letters found" description="Issued certificates and letters appear here." />
       ) : (

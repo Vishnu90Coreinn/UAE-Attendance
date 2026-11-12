@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { Bell, KeyRound, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { Link, Outlet, useNavigate } from "react-router-dom";
-import { COMPANY_NAME } from "../branding";
+import { Bell, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { COMPANY_NAME, SHORT_NAME } from "../branding";
 import { getPayrollSettings, type PayrollSettings } from "../api/settings";
 import { isManagement } from "../permissions";
 import { useAuth } from "../contexts/AuthContext";
 import { ChangePasswordDialog } from "../features/auth/ChangePasswordDialog";
 import { useAttendanceSummary } from "../features/attendance/useAttendanceSummary";
 import { useIsDesktop } from "../utils/useIsDesktop";
+import { AccountMenu } from "./AccountMenu";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { navItemsForRole } from "./navItems";
 import { QuickSearch } from "./QuickSearch";
@@ -50,6 +51,12 @@ export function Layout() {
   }, []);
 
   const tabs = user ? navItemsForRole(user.role) : [];
+  const { pathname } = useLocation();
+  // Each screen names the browser tab, so tabs and history are told apart.
+  useEffect(() => {
+    const here = tabs.find((item) => item.path && (pathname === item.path || pathname.startsWith(`${item.path}/`)));
+    document.title = here ? `${here.label} · ${SHORT_NAME}` : `${SHORT_NAME} HR & Payroll`;
+  }, [pathname, tabs]);
   const attendanceSummary = useAttendanceSummary(!!user);
   // Managers see what is waiting for them; supervisors see what was sent back to them.
   const attendanceAttention = isManagement(user?.role)
@@ -139,39 +146,8 @@ export function Layout() {
                 </span>
               )}
             </Link>
-            <div className="mr-2 hidden items-center gap-2.5 lg:flex">
-              <span
-                aria-hidden="true"
-                className="inline-flex size-9 items-center justify-center rounded-full bg-brand-600 text-sm font-semibold uppercase text-white"
-              >
-                {user.username.slice(0, 1)}
-              </span>
-              <span aria-hidden="true" className="leading-tight">
-                <span className="block text-sm font-medium text-ink-900">{user.username}</span>
-                <span className="block text-xs text-ink-500">{user.role}</span>
-              </span>
-            </div>
             <p className="sr-only">{`Logged in as ${user.username} (${user.role})`}</p>
-            <button
-              type="button"
-              onClick={() => setChangePasswordOpen(true)}
-              className={headerButtonClass}
-              aria-label="Change password"
-              title="Change password"
-            >
-              <KeyRound aria-hidden="true" size={16} />
-              <span className="hidden xl:inline">Change password</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className={headerButtonClass}
-              aria-label="Sign out"
-              title="Sign out"
-            >
-              <LogOut aria-hidden="true" size={16} />
-              <span className="hidden xl:inline">Sign out</span>
-            </button>
+            <AccountMenu user={user} onChangePassword={() => setChangePasswordOpen(true)} onSignOut={handleSignOut} />
           </div>
         )}
       </header>

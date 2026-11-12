@@ -93,7 +93,7 @@ export function SummaryBar({ kpis, floorCount }: SummaryBarProps) {
           <Kpi label="Fixed glass" value={kpis.totalGlass} icon={PanelTop} chip="bg-sky-50 text-sky-600" number="text-slate-900" />
           <Kpi label="Shutters" value={kpis.totalShutters} icon={Layers} chip="bg-violet-50 text-violet-600" number="text-slate-900" />
           <Kpi label="Floors done" value={kpis.completedFloors} icon={CheckCircle2} chip="bg-emerald-50 text-emerald-600" number="text-emerald-600" />
-          <Kpi label="Not started" value={kpis.noProgressFloors} icon={AlertTriangle} chip="bg-rose-50 text-rose-600" number="text-rose-600" />
+          <Kpi label="Not started" value={kpis.noProgressFloors} icon={AlertTriangle} chip={kpis.noProgressFloors === 0 ? "bg-slate-100 text-slate-500" : "bg-rose-50 text-rose-600"} number={kpis.noProgressFloors === 0 ? "text-slate-500" : "text-rose-600"} />
         </div>
       </div>
 

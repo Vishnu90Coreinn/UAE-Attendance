@@ -8,7 +8,8 @@ import { listLeave, type LeaveRequest } from "../../api/leave";
 import { getWorkerPhoto, getWorkerProfilePdf, listWorkers, type Worker } from "../../api/workers";
 import { useAuth } from "../../contexts/AuthContext";
 import { canViewAll, isReadOnly } from "../../permissions";
-import { Button, Card, StatusBadge, cx } from "../../ui";
+import { LoadingState, Button, Card, StatusBadge, cx } from "../../ui";
+import { formatDisplayDate } from "../../utils/date";
 import { formatRate } from "../../utils/money";
 import { saveBlob } from "../payroll/downloadPdf";
 import { LoadError } from "./WorkersFeedback";
@@ -22,9 +23,7 @@ const NOT_RECORDED = "Not recorded";
 
 function Loading({ what }: { what: string }) {
   return (
-    <p role="status" className="py-8 text-sm text-ink-500">
-      Loading {what}...
-    </p>
+    <LoadingState label={`Loading ${what}...`} rows={4} />
   );
 }
 
@@ -32,7 +31,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="min-w-0">
       <dt className="text-xs font-medium uppercase tracking-wide text-ink-500">{label}</dt>
-      <dd className="mt-0.5 break-words text-sm text-ink-900">{children || <span className="text-ink-400">{NOT_RECORDED}</span>}</dd>
+      <dd className="mt-0.5 break-words text-sm text-ink-900">{children || <span className="text-ink-500">{NOT_RECORDED}</span>}</dd>
     </div>
   );
 }
@@ -135,8 +134,8 @@ function LeaveTab({ workerId }: { workerId: number }) {
             {rows.map((r) => (
               <tr key={r.id}>
                 <td className="px-4 py-2.5">{r.leaveType}</td>
-                <td className="px-4 py-2.5 tabular-nums">{r.startDate}</td>
-                <td className="px-4 py-2.5 tabular-nums">{r.endDate}</td>
+                <td className="px-4 py-2.5 tabular-nums">{formatDisplayDate(r.startDate)}</td>
+                <td className="px-4 py-2.5 tabular-nums">{formatDisplayDate(r.endDate)}</td>
                 <td className="px-4 py-2.5 tabular-nums">{r.days}</td>
                 <td className="px-4 py-2.5"><StatusBadge tone={leaveTone[r.status]} variant="soft">{r.status}</StatusBadge></td>
               </tr>
@@ -286,7 +285,7 @@ export function WorkerProfilePage() {
               <Fact label="Nationality">{worker.nationality}</Fact>
               <Fact label="Emirates ID">{worker.emiratesId && <span className="font-mono">{worker.emiratesId}</span>}</Fact>
               <Fact label="Passport number">{worker.passportNumber && <span className="font-mono">{worker.passportNumber}</span>}</Fact>
-              <Fact label="Joined">{worker.joinDate && `${worker.joinDate}${served ? ` (${served})` : ""}`}</Fact>
+              <Fact label="Joined">{worker.joinDate && `${formatDisplayDate(worker.joinDate)}${served ? ` (${served})` : ""}`}</Fact>
             </Section>
             <Section title="Contact">
               <Fact label="Phone">

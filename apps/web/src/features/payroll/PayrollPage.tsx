@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { PageHeader, cx, inputClass } from "../../ui";
+import { LoadingState, PageHeader, cx, inputClass } from "../../ui";
 import {
   Download,
   LockKeyhole,
@@ -264,9 +264,7 @@ export function PayrollPage() {
         )}
       </div>
       {loading ? (
-        <p role="status" className="payroll-controls py-8 text-ink-600">
-          Loading payroll...
-        </p>
+        <div className="payroll-controls"><LoadingState label="Loading payroll..." rows={8} /></div>
       ) : loadError ? (
         <div className="payroll-controls">
           <LoadError

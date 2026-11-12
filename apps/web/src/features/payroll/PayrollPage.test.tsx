@@ -243,7 +243,7 @@ it("confirms displayed totals and revision before finalising, then shows frozen 
   expect(dialog).toHaveTextContent("2,200.00");
   expect(dialog).toHaveTextContent("22.20");
   expect(dialog).toHaveTextContent("2,222.20");
-  expect(dialog).toHaveTextContent(/attendance.*lock/i);
+  expect(dialog).toHaveTextContent(/locks attendance and deductions/i);
   expect(api.finalisePayroll).not.toHaveBeenCalled();
   await user.click(
     within(dialog).getByRole("button", { name: "Finalise month" }),

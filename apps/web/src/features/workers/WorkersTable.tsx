@@ -9,7 +9,7 @@ import {
 import type { Worker } from "../../api/workers";
 import { formatRate } from "../../utils/money";
 import { Link, useInRouterContext } from "react-router-dom";
-import { Pager, SortTh, usePaging, useSort } from "../../ui";
+import { Pager, RowMenu, SortTh, usePaging, useSort, type RowMenuItem } from "../../ui";
 import { WorkerStatusBadge } from "./WorkerStatusBadge";
 
 interface RowActions {
@@ -155,12 +155,16 @@ function WorkerRow({
   busy: boolean;
   showRates: boolean;
 }) {
-  // Phone layout: wide buttons share the row; the icon-only ones (Print beside other actions, Delete) stay narrow.
-  const grid = actions?.onDelete
-    ? "grid-cols-[1fr_1fr_auto_auto]"
-    : actions
-      ? "grid-cols-[1fr_auto]"
-      : "grid-cols-1";
+  const menuItems: RowMenuItem[] = [
+    ...(onPrint ? [{ label: "Download record", icon: Printer, disabled: busy, onSelect: () => onPrint(worker) }] : []),
+    ...(worker.isActive && actions?.onDeactivate
+      ? [{ label: "Deactivate", icon: UserX, disabled: busy, onSelect: () => actions.onDeactivate!(worker) }]
+      : []),
+    ...(!worker.isActive && actions?.onActivate
+      ? [{ label: "Activate", icon: UserCheck, disabled: busy, onSelect: () => actions.onActivate!(worker) }]
+      : []),
+    ...(actions?.onDelete ? [{ label: "Delete", icon: Trash2, danger: true, disabled: busy, onSelect: () => actions.onDelete!(worker) }] : []),
+  ];
   const place = [worker.department, worker.workLocation]
     .filter(Boolean)
     .join(" · ");
@@ -252,10 +256,8 @@ function WorkerRow({
       </td>
       {(actions || onPrint) && (
         <td className="px-4 py-2 md:sticky md:right-0 md:table-cell md:bg-white md:px-2 md:py-3 md:shadow-[-8px_0_8px_-8px_rgb(19_38_42/0.12)]">
-          {/* Phone: Edit and Deactivate share a row with an icon-only Delete at the end, keeping the card short. */}
-          <div
-            className={`grid gap-2 md:flex md:flex-nowrap md:justify-end md:gap-0 ${grid}`}
-          >
+          {/* Edit is the everyday action and stays in view; the rest sit behind the menu so Delete is never one slip away. */}
+          <div className="flex items-center justify-end gap-1">
             {actions && (
               <ActionButton
                 icon={Pencil}
@@ -266,48 +268,7 @@ function WorkerRow({
                 tone="text-ink-600 hover:bg-ink-100 hover:text-ink-900"
               />
             )}
-            {worker.isActive && actions?.onDeactivate && (
-              <ActionButton
-                icon={UserX}
-                label="Deactivate"
-                worker={worker}
-                disabled={busy}
-                onClick={actions.onDeactivate}
-                tone="text-ink-600 hover:bg-amber-50 hover:text-amber-800"
-              />
-            )}
-            {!worker.isActive && actions?.onActivate && (
-              <ActionButton
-                icon={UserCheck}
-                label="Activate"
-                worker={worker}
-                disabled={busy}
-                onClick={actions.onActivate}
-                tone="text-ink-600 hover:bg-green-50 hover:text-green-800"
-              />
-            )}
-            {onPrint && (
-              <ActionButton
-                icon={Printer}
-                label="Print"
-                worker={worker}
-                disabled={busy}
-                iconOnlyOnPhone={!!actions}
-                onClick={onPrint}
-                tone="text-ink-600 hover:bg-ink-100 hover:text-ink-900"
-              />
-            )}
-            {actions?.onDelete && (
-              <ActionButton
-                icon={Trash2}
-                label="Delete"
-                worker={worker}
-                disabled={busy}
-                iconOnlyOnPhone
-                onClick={actions.onDelete}
-                tone="text-ink-600 hover:bg-red-50 hover:text-danger"
-              />
-            )}
+            {menuItems.length > 0 && <RowMenu label={`More actions for ${worker.fullName}`} items={menuItems} />}
           </div>
         </td>
       )}

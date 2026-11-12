@@ -64,6 +64,12 @@ beforeEach(() => {
     },
   ]);
 });
+/** Opens the "..." menu on the leave row and picks an item. */
+async function chooseFromMenu(user: ReturnType<typeof userEvent.setup>, item: string) {
+  await user.click(screen.getByRole("button", { name: /^More actions for/ }));
+  await user.click(screen.getByRole("menuitem", { name: item }));
+}
+
 async function setup() {
   const user = userEvent.setup();
   render(<LeavePage />);
@@ -191,7 +197,7 @@ it("shows a Viewer the leave requests with no way to raise, approve, reject or d
   await setup();
 
   expect(screen.queryByRole("button", { name: "New Leave Request" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: /Approve leave|Reject leave|Delete leave/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Approve leave|Reject leave|More actions/ })).not.toBeInTheDocument();
 });
 it.each(["Manager", "Administrator"])(
   "%s can delete pending leave only after confirmation",
@@ -199,7 +205,7 @@ it.each(["Manager", "Administrator"])(
     auth.role = role;
     vi.mocked(api.deleteLeave).mockResolvedValue();
     const user = await setup();
-    await user.click(screen.getByRole("button", { name: /Delete leave/ }));
+    await chooseFromMenu(user, "Delete");
     expect(api.deleteLeave).not.toHaveBeenCalled();
     await user.click(
       within(screen.getByRole("dialog")).getByRole("button", {
@@ -220,11 +226,10 @@ it.each(["Manager", "Administrator"])(
     vi.mocked(api.listLeave).mockResolvedValue([
       { ...row, status: "Approved", createdBy: "someone.else" },
     ]);
-    await setup();
-    expect(
-      screen.getByRole("button", { name: /Delete leave/ }),
-    ).toBeEnabled();
-    expect(screen.getByRole("button", { name: /Reject leave/ })).toBeEnabled();
+    const user = await setup();
+    await user.click(screen.getByRole("button", { name: /^More actions for/ }));
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toBeEnabled();
+    expect(screen.getByRole("menuitem", { name: "Reject" })).toBeEnabled();
   },
 );
 it("a Supervisor can request leave but never sees Approve or Reject", async () => {
@@ -246,7 +251,7 @@ it("a Supervisor can delete their own pending request, after confirmation", asyn
   vi.mocked(api.deleteLeave).mockResolvedValue();
   const user = await setup();
   expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: /Delete leave/ }));
+  await chooseFromMenu(user, "Delete");
   expect(api.deleteLeave).not.toHaveBeenCalled();
   await user.click(
     within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }),
@@ -262,7 +267,7 @@ it.each([
   vi.mocked(api.listLeave).mockResolvedValue([{ ...row, ...patch }]);
   await setup();
   expect(
-    screen.queryByRole("button", { name: /Delete leave|Approve|Reject/ }),
+    screen.queryByRole("button", { name: /More actions|Approve|Reject/ }),
   ).not.toBeInTheDocument();
   expect(screen.queryByRole("columnheader", { name: "Actions" })).not.toBeInTheDocument();
 });
@@ -325,7 +330,9 @@ it("reports a conflicting decision and reloads the authoritative list", async ()
 });
 it("offers only the opposite decision once a request is decided", async () => {
   vi.mocked(api.listLeave).mockResolvedValue([{ ...row, status: "Approved" }]);
-  await setup();
+  const user = await setup();
   expect(screen.queryByRole("button", { name: /^Approve leave/ })).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: /^Reject leave/ })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^Reject leave/ })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /^More actions for/ }));
+  expect(screen.getByRole("menuitem", { name: "Reject" })).toBeInTheDocument();
 });

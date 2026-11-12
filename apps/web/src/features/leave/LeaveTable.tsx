@@ -1,7 +1,8 @@
 import { Check, Paperclip, Trash2, X } from "lucide-react";
-import { Pager, SortTh, StatusBadge, usePaging, useSort } from "../../ui";
+import { Pager, RowMenu, SortTh, StatusBadge, usePaging, useSort, type RowMenuItem } from "../../ui";
 import type { Role } from "../../api/auth";
 import type { LeaveRequest } from "../../api/leave";
+import { formatDisplayDate } from "../../utils/date";
 import { isManagement } from "../../permissions";
 
 interface Props {
@@ -40,6 +41,12 @@ export function LeaveTable({
       !!username &&
       row.createdBy === username);
   const showActions = manage || rows.some(canDelete);
+  const menuFor = (row: LeaveRequest): RowMenuItem[] => [
+    ...(manage && row.status === "Approved"
+      ? [{ label: "Reject", icon: X, disabled: busy, onSelect: () => onReject(row) }]
+      : []),
+    ...(canDelete(row) ? [{ label: "Delete", icon: Trash2, danger: true, disabled: busy, onSelect: () => onDelete(row) }] : []),
+  ];
   const { sorted, sort, toggle } = useSort(rows, {
     worker: (r) => r.workerName,
     type: (r) => r.leaveType,
@@ -105,13 +112,13 @@ export function LeaveTable({
                 data-label="Start"
                 className={`${cellClass} tabular-nums md:whitespace-nowrap`}
               >
-                {row.startDate}
+                {formatDisplayDate(row.startDate)}
               </td>
               <td
                 data-label="End"
                 className={`${cellClass} tabular-nums md:whitespace-nowrap`}
               >
-                {row.endDate}
+                {formatDisplayDate(row.endDate)}
               </td>
               <td data-label="Days" className={`${cellClass} tabular-nums`}>
                 {row.days}
@@ -137,8 +144,8 @@ export function LeaveTable({
               </td>
               {showActions && (
                 <td className="px-4 py-2 md:table-cell">
-                  {/* Phone: decision buttons share a row with an icon-only Delete; a decided request offers only the opposite decision. */}
-                  <div className="flex gap-2 md:flex-wrap">
+                  {/* A request waiting for a decision shows its decision buttons; a decided one keeps everything behind "...". */}
+                  <div className="flex items-center gap-2 md:flex-wrap md:justify-end">
                     {manage && row.status !== "Approved" && (
                       <button
                         type="button"
@@ -151,7 +158,7 @@ export function LeaveTable({
                         Approve
                       </button>
                     )}
-                    {manage && row.status !== "Rejected" && (
+                    {manage && row.status === "Pending" && (
                       <button
                         type="button"
                         disabled={busy}
@@ -163,17 +170,12 @@ export function LeaveTable({
                         Reject
                       </button>
                     )}
-                    {canDelete(row) && (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => onDelete(row)}
-                        className={`${actionClass} text-red-700 max-md:w-11 max-md:flex-none max-md:px-0`}
-                        aria-label={`Delete leave for ${row.workerName} starting ${row.startDate}`}
-                      >
-                        <Trash2 aria-hidden="true" size={16} />
-                        <span className="max-md:hidden">Delete</span>
-                      </button>
+                    {menuFor(row).length > 0 && (
+                      <RowMenu
+                        label={`More actions for ${row.workerName} starting ${row.startDate}`}
+                        items={menuFor(row)}
+                        className="max-md:ml-auto"
+                      />
                     )}
                   </div>
                 </td>
