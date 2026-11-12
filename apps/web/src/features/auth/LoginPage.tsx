@@ -1,7 +1,7 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { CalendarCheck, Eye, EyeOff, Loader2, LogIn, ShieldCheck, Users, Wallet, type LucideIcon } from "lucide-react";
-import { COMPANY_NAME } from "../../branding";
+import { COMPANY_NAME, SHORT_NAME } from "../../branding";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
 import { Button, Field } from "../../ui";
@@ -28,6 +28,9 @@ function destinationFrom(state: unknown): string {
 }
 
 export function LoginPage() {
+  useEffect(() => {
+    document.title = `Sign in · ${SHORT_NAME}`;
+  }, []);
   const { status, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();

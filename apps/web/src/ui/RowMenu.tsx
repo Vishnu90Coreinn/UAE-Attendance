@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { MoreHorizontal, type LucideIcon } from "lucide-react";
 import { cx } from "./cx";
 
@@ -28,20 +29,45 @@ export function RowMenu({ label, items, className }: RowMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
+  // The menu is drawn on the page, not inside the table, so a scrolling table cannot clip it.
+  const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    function place() {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const menuHeight = menuRef.current?.offsetHeight ?? 0;
+      const below = rect.bottom + 4;
+      const top = below + menuHeight > window.innerHeight && rect.top - 4 - menuHeight > 0 ? rect.top - 4 - menuHeight : below;
+      setPosition({ top, right: Math.max(8, window.innerWidth - rect.right) });
+    }
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     function onPointer(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (!rootRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
     }
     document.addEventListener("mousedown", onPointer);
     return () => document.removeEventListener("mousedown", onPointer);
   }, [open]);
 
   useEffect(() => {
-    if (open) rootRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();
-  }, [open]);
+    if (open && position) menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();
+    // Focus once, when the menu first has a position.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, position === null]);
 
   function onKeyDown(event: React.KeyboardEvent) {
     if (event.key === "Escape") {
@@ -52,12 +78,13 @@ export function RowMenu({ label, items, className }: RowMenuProps) {
     }
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     event.preventDefault();
-    const enabled = [...(rootRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])];
+    const enabled = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])];
     const at = enabled.indexOf(document.activeElement as HTMLButtonElement);
     const next = event.key === "ArrowDown" ? (at + 1) % enabled.length : (at - 1 + enabled.length) % enabled.length;
     enabled[next]?.focus();
   }
 
+  // Key events from the menu (drawn in a portal) still bubble to this wrapper through React, so it alone handles them.
   return (
     <div ref={rootRef} className={cx("relative inline-block", className)} onKeyDown={onKeyDown}>
       <button
@@ -73,12 +100,15 @@ export function RowMenu({ label, items, className }: RowMenuProps) {
       >
         <MoreHorizontal aria-hidden="true" size={18} />
       </button>
-      {open && (
+      {open &&
+        createPortal(
         <div
+          ref={menuRef}
           id={menuId}
           role="menu"
           aria-label={label}
-          className="absolute right-0 top-full z-30 mt-1 min-w-48 overflow-hidden rounded-card border border-line bg-white py-1 shadow-pop"
+          style={{ position: "fixed", top: position?.top ?? 0, right: position?.right ?? 0, visibility: position ? "visible" : "hidden" }}
+          className="z-50 min-w-48 overflow-hidden rounded-card border border-line bg-white py-1 shadow-pop"
         >
           {items.map(({ label: itemLabel, icon: Icon, onSelect, danger, disabled, disabledReason }) => (
             <button
@@ -101,8 +131,9 @@ export function RowMenu({ label, items, className }: RowMenuProps) {
               {itemLabel}
             </button>
           ))}
-        </div>
-      )}
+        </div>,
+        document.body,
+        )}
     </div>
   );
 }
