@@ -82,6 +82,11 @@ namespace HrPayroll.Api.Data.Migrations
                     b.HasIndex("WorkerId", "WorkDate")
                         .IsUnique();
 
+                    b.HasIndex(new[] { "WorkDate" }, "IX_Attendance_WorkDate_NotApproved")
+                        .HasFilter("[ApprovalStatus] <> 'Approved'");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex(new[] { "WorkDate" }, "IX_Attendance_WorkDate_NotApproved"), new[] { "ApprovalStatus" });
+
                     b.ToTable("Attendance", null, t =>
                         {
                             t.HasCheckConstraint("CK_Attendance_Approval", "[ApprovalStatus] COLLATE Latin1_General_100_BIN2 IN ('Submitted', 'Approved', 'Rejected')");

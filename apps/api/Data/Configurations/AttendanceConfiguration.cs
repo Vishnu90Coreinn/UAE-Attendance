@@ -17,6 +17,11 @@ public sealed class AttendanceConfiguration : IEntityTypeConfiguration<Attendanc
         });
         builder.HasIndex(a => new { a.WorkerId, a.WorkDate }).IsUnique();
         builder.HasIndex(a => a.WorkDate);
+        // Entries still waiting on a manager (or sent back): the alerts, dashboard and approval banners count these on every page
+        // load. Nearly every row is Approved, so this index stays tiny however long the history grows.
+        builder.HasIndex(a => a.WorkDate, "IX_Attendance_WorkDate_NotApproved")
+            .IncludeProperties(a => a.ApprovalStatus)
+            .HasFilter("[ApprovalStatus] <> 'Approved'");
         builder.HasOne(a => a.Worker).WithMany().HasForeignKey(a => a.WorkerId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(a => a.WorkDate).HasColumnType("date");
         builder.Property(a => a.Status).HasMaxLength(20).IsRequired();
