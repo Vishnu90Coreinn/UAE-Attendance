@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { LoadingState, PageHeader, buttonClass } from "../../ui";
-import { Check, CheckCheck, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Save } from "lucide-react";
+import { LoadingState, PageHeader, RowMenu, buttonClass } from "../../ui";
+import { Check, CheckCheck, ChevronLeft, ChevronRight, Copy, Download, FileSpreadsheet, FileText, Save } from "lucide-react";
 import {
   approveAttendance,
   getAttendance,
@@ -179,6 +179,42 @@ export function AttendancePage({
     if (dirty) setNextDate(value);
     else setDate(value);
   }
+  /** Fills workers with no status from the previous day's saved entries; anything already chosen is left alone. */
+  async function copyFromYesterday() {
+    if (!day || !settings || pending) return;
+    setPending(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const previous = await getAttendance(shiftDate(date, -1));
+      const byWorker = new Map(previous.rows.map((r) => [r.worker.id, r.record]));
+      let copied = 0;
+      // Worked out from the forms on screen now, so the count is known before the message is written.
+      const next = forms.map((form, index) => {
+        const record = byWorker.get(form.workerId);
+        const open = isManager || day.rows[index].record?.approvalStatus !== "Approved";
+        if (form.status !== null || !record?.status || !open || day.rows[index].approvedLeave) return form;
+        copied += 1;
+        const counted = record.status === "Present" || isLeaveStatus(record.status);
+        return {
+          ...form,
+          status: record.status,
+          basicHours: counted ? String(record.status === "Present" ? record.basicHours : settings.maxBasicHoursPerDay) : "0",
+          overtimeHours: record.status === "Present" ? String(record.overtimeHours) : "0",
+        };
+      });
+      setForms(next);
+      setSuccess(
+        copied > 0
+          ? `Copied ${copied} ${copied === 1 ? "entry" : "entries"} from yesterday. Review them, then save.`
+          : "Yesterday has nothing to copy for the workers still unrecorded.",
+      );
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setPending(false);
+    }
+  }
   async function save() {
     if (!day || !settings || pending || !editable) return;
     const errors = forms.flatMap((form, index) => {
@@ -319,41 +355,36 @@ export function AttendancePage({
           >
             Work date
           </label>
-          {isDesktop ? (
-            dateInput
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                aria-label="Previous day"
-                disabled={pending}
-                onClick={() => changeDate(shiftDate(date, -1))}
-                className={dayButtonClass}
-              >
-                <ChevronLeft aria-hidden="true" size={20} />
-              </button>
-              {dateInput}
-              <button
-                type="button"
-                aria-label="Next day"
-                disabled={pending || date >= today()}
-                onClick={() => changeDate(shiftDate(date, 1))}
-                className={dayButtonClass}
-              >
-                <ChevronRight aria-hidden="true" size={20} />
-              </button>
-              <button
-                type="button"
-                disabled={pending || date === today()}
-                onClick={() => changeDate(today())}
-                className={buttonClass("secondary", "md", "shrink-0")}
-              >
-                Today
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label="Previous day"
+              disabled={pending}
+              onClick={() => changeDate(shiftDate(date, -1))}
+              className={dayButtonClass}
+            >
+              <ChevronLeft aria-hidden="true" size={20} />
+            </button>
+            {dateInput}
+            <button
+              type="button"
+              aria-label="Next day"
+              disabled={pending || date >= today()}
+              onClick={() => changeDate(shiftDate(date, 1))}
+              className={dayButtonClass}
+            >
+              <ChevronRight aria-hidden="true" size={20} />
+            </button>
+            <button
+              type="button"
+              disabled={pending || date === today()}
+              onClick={() => changeDate(today())}
+              className={buttonClass("secondary", "md", "shrink-0")}
+            >
+              Today
+            </button>
+          </div>
         </div>
-        {showSave && isDesktop && renderSave("")}
       </div>
       {attention.days.length > 0 && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
@@ -390,11 +421,6 @@ export function AttendancePage({
       )}
       <SuccessRegion message={success} />
       {error && <ActionFailure message={error} />}
-      {dirty && isDesktop && (
-        <p role="status" className="text-sm font-medium text-amber-900">
-          Unsaved changes
-        </p>
-      )}
       {loading ? (
         <LoadingState label="Loading attendance..." rows={8} />
       ) : loadError ? (
@@ -435,45 +461,47 @@ export function AttendancePage({
             )}
             {day.rows.length > 0 && (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-line bg-white px-4 py-3 text-sm">
-                <p className="font-medium text-ink-800">
-                  {present} present · {absent} absent · {onLeave} on leave · {notRecorded} not recorded
-                  {totalPay !== null && <span className="block font-semibold tabular-nums text-ink-900 sm:inline sm:before:content-['_·_']">{totalPay.toFixed(2)} AED</span>}
-                </p>
-                <div className="flex flex-wrap gap-2 max-sm:w-full" role="group" aria-label="Print or export this day">
-                  <button
-                    type="button"
-                    onClick={() => exportDay("pdf")}
-                    disabled={dirty || exporting !== null}
-                    aria-busy={exporting === "pdf"}
-                    title={dirty ? "Save your changes first; the export contains saved attendance." : undefined}
-                    className={exportButtonClass}
-                  >
-                    <FileText aria-hidden="true" size={16} />
-                    {exporting === "pdf" ? "Preparing..." : "Print PDF"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => exportDay("excel")}
-                    disabled={dirty || exporting !== null}
-                    aria-busy={exporting === "excel"}
-                    title={dirty ? "Save your changes first; the export contains saved attendance." : undefined}
-                    className={exportButtonClass}
-                  >
-                    <FileSpreadsheet aria-hidden="true" size={16} />
-                    {exporting === "excel" ? "Preparing..." : "Excel"}
-                  </button>
-                </div>
-                {canMarkAll && (
-                  <button
-                    type="button"
-                    onClick={markAllPresent}
-                    disabled={pending}
-                    className={buttonClass("secondary", "md", "max-sm:w-full text-green-800")}
-                  >
-                    <CheckCheck aria-hidden="true" size={16} />
-                    Mark all present
-                  </button>
+                {!isDesktop && (
+                  <p className="font-medium text-ink-800">
+                    {present} present · {absent} absent · {onLeave} on leave · {notRecorded} not recorded
+                    {totalPay !== null && <span className="block font-semibold tabular-nums text-ink-900 sm:inline sm:before:content-['_·_']">{totalPay.toFixed(2)} AED</span>}
+                  </p>
                 )}
+                {isDesktop && <p className="text-ink-600">Press P, A or L on a worker; the arrow keys move between workers.</p>}
+                <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
+                  {canMarkAll && (
+                    <button
+                      type="button"
+                      onClick={markAllPresent}
+                      disabled={pending}
+                      className={buttonClass("secondary", "md", "max-sm:flex-1 text-green-800")}
+                    >
+                      <CheckCheck aria-hidden="true" size={16} />
+                      Mark all present
+                    </button>
+                  )}
+                  {editable && (
+                    <button
+                      type="button"
+                      onClick={() => void copyFromYesterday()}
+                      disabled={pending}
+                      className={buttonClass("secondary", "md", "max-sm:flex-1")}
+                    >
+                      <Copy aria-hidden="true" size={16} />
+                      Copy from yesterday
+                    </button>
+                  )}
+                  <RowMenu
+                    label="Export this day"
+                    triggerText={exporting ? "Preparing..." : "Export"}
+                    triggerIcon={Download}
+                    disabled={exporting !== null}
+                    items={[
+                      { label: "Print PDF", icon: FileText, disabled: dirty, disabledReason: "Save your changes first; the export contains saved attendance.", onSelect: () => void exportDay("pdf") },
+                      { label: "Excel", icon: FileSpreadsheet, disabled: dirty, disabledReason: "Save your changes first; the export contains saved attendance.", onSelect: () => void exportDay("excel") },
+                    ]}
+                  />
+                </div>
               </div>
             )}
             {day.rows.length ? (
@@ -501,12 +529,30 @@ export function AttendancePage({
         )
       )}
       <AttendanceRangeExport initialDate={today()} />
-      {showSave && !isDesktop && (
-        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 -mx-4 flex items-center gap-3 border-t border-line bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgba(15,23,42,0.08)] backdrop-blur">
-          <p role="status" className="min-w-0 flex-1 text-sm font-medium text-amber-900">
-            {dirty ? `${unsaved} unsaved ${unsaved === 1 ? "change" : "changes"}` : ""}
-          </p>
-          {renderSave("min-h-12 px-6 text-base")}
+      {showSave && (
+        <div
+          className={
+            isDesktop
+              ? "sticky bottom-0 z-20 -mx-6 -mb-8 flex flex-wrap items-center justify-between gap-4 border-t border-line bg-white/95 px-6 py-3 shadow-[0_-4px_12px_rgba(15,23,42,0.06)] backdrop-blur lg:-mx-8 lg:px-8"
+              : "sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 -mx-4 flex items-center gap-3 border-t border-line bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgba(15,23,42,0.08)] backdrop-blur"
+          }
+        >
+          {isDesktop ? (
+            <p className="min-w-0 text-sm font-medium text-ink-800">
+              {present} present · {absent} absent · {onLeave} on leave · {notRecorded} not recorded
+              {totalPay !== null && <span className="font-semibold tabular-nums text-ink-900"> · {totalPay.toFixed(2)} AED</span>}
+              {dirty && (
+                <span role="status" className="ml-3 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900">
+                  Unsaved changes
+                </span>
+              )}
+            </p>
+          ) : (
+            <p role="status" className="min-w-0 flex-1 text-sm font-medium text-amber-900">
+              {dirty ? `${unsaved} unsaved ${unsaved === 1 ? "change" : "changes"}` : ""}
+            </p>
+          )}
+          {renderSave(isDesktop ? "" : "min-h-12 px-6 text-base")}
         </div>
       )}
       <RejectDialog

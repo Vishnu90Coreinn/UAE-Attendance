@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { clearNewParam, hasNewParam } from "../../utils/startParam";
 import { ClipboardList, Search, Trash2, UserCheck, UserPlus, UsersRound, UserX } from "lucide-react";
 import { ApiError } from "../../api/client";
 import { activateWorker, deactivateWorker, deleteWorker, getWorkerProfilePdf, type Worker } from "../../api/workers";
@@ -52,7 +53,8 @@ export function WorkersPage() {
 
   const [query, setQuery] = useState("");
   const [department, setDepartment] = useState("");
-  const [formOpen, setFormOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(() => canEdit && hasNewParam());
+  useEffect(clearNewParam, []);
   const [editing, setEditing] = useState<Worker | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [confirmPending, setConfirmPending] = useState(false);

@@ -1,19 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, ArrowLeft, Banknote, Download, FilePlus2, FileText, Hourglass, Loader2, Users } from "lucide-react";
+import { clearNewParam, hasNewParam } from "../../utils/startParam";
+import { AlertTriangle, ArrowLeft, Banknote, Download, Eye, FilePlus2, FileText, Hourglass, Loader2, Users } from "lucide-react";
 import {
-  getInvoice, getInvoicesCsv, listInvoiceClients, listInvoices,
+  getInvoice, getInvoicePdf, getInvoicesCsv, listInvoiceClients, listInvoices,
   type Invoice, type InvoiceClient, type InvoiceFilters, type InvoiceStatusFilter, type InvoiceSummary,
 } from "../../api/invoices";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
-import { LoadingState, Button, Card, Pager, SortTh, usePaging, useSort, EmptyState, PageHeader, Select, StatCard, Table, TableScroll, THead, TRow, Td } from "../../ui";
+import { LoadingState, RowMenu, Button, Card, Pager, SortTh, usePaging, useSort, EmptyState, PageHeader, Select, StatCard, Table, TableScroll, THead, TRow, Td } from "../../ui";
 import { TextField } from "../../components/TextField";
 import { LoadError } from "../workers/WorkersFeedback";
 import { ClientsDialog } from "./ClientsDialog";
 import { downloadFile } from "./download";
 import { InvoiceEditor } from "./InvoiceEditor";
 import { formatMoney } from "./invoiceMath";
-import { errorMessage, formatDate, InvoiceStatusBadges } from "./invoiceUi";
+import { errorMessage, formatDate, InvoiceStatusBadges, todayInDubai } from "./invoiceUi";
 import { InvoiceView } from "./InvoiceView";
 import "./invoice.css";
 
@@ -29,11 +30,23 @@ const STATUS_OPTIONS: { value: InvoiceStatusFilter | ""; label: string }[] = [
   { value: "Cancelled", label: "Cancelled" },
 ];
 
+const rangeButton =
+  "min-h-9 rounded-lg border border-ink-300 bg-white px-3 font-medium text-ink-700 hover:bg-ink-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500";
+
+/** First and last day of this month (offset 0) or an earlier one, in company time, as YYYY-MM-DD. */
+function monthRange(offset: number): { from: string; to: string } {
+  const [year, month] = todayInDubai().split("-").map(Number);
+  const first = new Date(Date.UTC(year, month - 1 + offset, 1));
+  const last = new Date(Date.UTC(year, month + offset, 0));
+  return { from: first.toISOString().slice(0, 10), to: last.toISOString().slice(0, 10) };
+}
+
 /** Tax invoices: Managers and the Administrator create and issue them; HR can read, print and download. */
 export function InvoicesPage() {
   const { user } = useAuth();
   const canWrite = isManagement(user?.role);
-  const [mode, setMode] = useState<Mode>({ kind: "list" });
+  const [mode, setMode] = useState<Mode>(() => (canWrite && hasNewParam() ? { kind: "new" } : { kind: "list" }));
+  useEffect(clearNewParam, []);
   const [filters, setFilters] = useState<InvoiceFilters>({});
   const [rows, setRows] = useState<InvoiceSummary[] | null>(null);
   const [clients, setClients] = useState<InvoiceClient[]>([]);
@@ -70,6 +83,14 @@ export function InvoicesPage() {
     }
   }
 
+  async function downloadPdf(row: InvoiceSummary) {
+    try {
+      downloadFile(await getInvoicePdf(row.id), `${row.number ?? `Draft-${row.id}`}.pdf`);
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  }
+
   async function exportCsv() {
     setExporting(true);
     try {
@@ -89,7 +110,9 @@ export function InvoicesPage() {
   const overdueRows = live.filter((r) => r.isOverdue);
   const overdueAmount = overdueRows.reduce((sum, r) => sum + r.balanceDue, 0);
 
-  const { sorted, sort, toggle } = useSort(rows ?? [], {
+  // Past-due invoices first; sorting a column still overrides this.
+  const overdueFirst = [...(rows ?? [])].sort((a, b) => Number(b.isOverdue) - Number(a.isOverdue));
+  const { sorted, sort, toggle } = useSort(overdueFirst, {
     number: (r) => r.number,
     client: (r) => r.clientName,
     project: (r) => r.project,
@@ -155,10 +178,10 @@ export function InvoicesPage() {
 
       {rows && rows.length > 0 && (
         <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard compact label="Invoiced (AED)" value={formatMoney(invoiced)} icon={FileText} note={`${live.length} issued invoice${live.length === 1 ? "" : "s"}`} />
-          <StatCard compact label="Collected (AED)" value={formatMoney(collected)} icon={Banknote} tone="success" />
-          <StatCard compact label="Outstanding (AED)" value={formatMoney(outstanding)} icon={Hourglass} tone="warning" />
-          <StatCard compact label="Past due (AED)" value={formatMoney(overdueAmount)} icon={AlertTriangle} tone="danger" note={`${overdueRows.length} invoice${overdueRows.length === 1 ? "" : "s"}`} />
+          <StatCard compact label="Invoiced (AED)" value={formatMoney(invoiced)} icon={FileText} note={`${live.length} issued invoice${live.length === 1 ? "" : "s"}`} onClick={() => setFilters({ ...filters, status: undefined })} />
+          <StatCard compact label="Collected (AED)" value={formatMoney(collected)} icon={Banknote} tone="success" note={invoiced > 0 ? `${Math.round((collected / invoiced) * 100)}% of invoiced` : undefined} onClick={() => setFilters({ ...filters, status: "Paid" })} />
+          <StatCard compact label="Outstanding (AED)" value={formatMoney(outstanding)} icon={Hourglass} tone="warning" onClick={() => setFilters({ ...filters, status: "Issued" })} />
+          <StatCard compact label="Past due (AED)" value={formatMoney(overdueAmount)} icon={AlertTriangle} tone="danger" note={`${overdueRows.length} invoice${overdueRows.length === 1 ? "" : "s"}`} onClick={() => setFilters({ ...filters, status: "Overdue" })} />
         </div>
       )}
 
@@ -188,6 +211,16 @@ export function InvoicesPage() {
             {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </Select>
         </form>
+        <div className={`mt-2 items-center gap-2 text-sm sm:flex ${filtersOpen ? "flex" : "hidden"}`}>
+          <span className="text-ink-600">Quick range</span>
+          <button type="button" className={rangeButton} onClick={() => setFilters({ ...filters, ...monthRange(0) })}>This month</button>
+          <button type="button" className={rangeButton} onClick={() => setFilters({ ...filters, ...monthRange(-1) })}>Last month</button>
+          {activeFilters > 0 && (
+            <button type="button" className="ml-auto rounded font-medium text-brand-700 underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-brand-500" onClick={() => setFilters({})}>
+              Clear filters
+            </button>
+          )}
+        </div>
       </Card>
 
       {error && <LoadError message={error} onRetry={() => void load()} />}
@@ -214,6 +247,7 @@ export function InvoicesPage() {
                   <SortTh label="Total (AED)" sortKey="total" sort={sort} onToggle={toggle} className={`${thClass} text-right`} align="right" />
                   <SortTh label="Balance (AED)" sortKey="balance" sort={sort} onToggle={toggle} className={`${thClass} text-right`} align="right" />
                   <SortTh label="Status" sortKey="status" sort={sort} onToggle={toggle} className={thClass} />
+                  <th scope="col" className={thClass}><span className="sr-only">Actions</span></th>
                 </TRow>
               </THead>
               <tbody>
@@ -221,7 +255,7 @@ export function InvoicesPage() {
                   <TRow key={r.id}>
                     <Td>
                       <button type="button" className="min-h-11 whitespace-nowrap rounded font-semibold text-brand-700 underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-brand-500 md:min-h-0" onClick={() => void open(r.id)}>
-                        {r.number ?? "Draft"}
+                        {r.number ?? <><span aria-hidden="true">&mdash;</span><span className="sr-only">Draft</span></>}
                         <span className="sr-only">{`, ${r.clientName}`}</span>
                       </button>
                     </Td>
@@ -231,7 +265,16 @@ export function InvoicesPage() {
                     <Td className={r.isOverdue ? "font-medium text-danger" : undefined}>{formatDate(r.dueDate)}</Td>
                     <Td numeric>{formatMoney(r.total)}</Td>
                     <Td numeric>{r.status === "Issued" ? formatMoney(r.balanceDue) : "-"}</Td>
-                    <Td><InvoiceStatusBadges status={r.displayStatus} overdue={r.isOverdue} /></Td>
+                    <Td><InvoiceStatusBadges status={r.displayStatus} overdue={r.isOverdue} dueDate={r.dueDate} /></Td>
+                    <Td className="w-12 !px-2">
+                      <RowMenu
+                        label={`More actions for the invoice to ${r.clientName} dated ${formatDate(r.invoiceDate)}`}
+                        items={[
+                          { label: "Open", icon: Eye, onSelect: () => void open(r.id) },
+                          { label: "Download PDF", icon: Download, onSelect: () => void downloadPdf(r) },
+                        ]}
+                      />
+                    </Td>
                   </TRow>
                 ))}
               </tbody>

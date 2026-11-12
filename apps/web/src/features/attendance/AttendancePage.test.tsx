@@ -15,6 +15,23 @@ import { getPayrollSettings } from "../../api/settings";
 import { useAuth } from "../../contexts/AuthContext";
 import { AttendancePage } from "./AttendancePage";
 
+/** Picks a status with the segmented control; leave types use the Leave segment and its type list. "" clears the entry. */
+async function setStatus(user: ReturnType<typeof userEvent.setup>, worker: string, status: string) {
+  const group = screen.getByRole("radiogroup", { name: `Status for ${worker}` });
+  if (status === "") {
+    const chosen = within(group).queryByRole("radio", { checked: true });
+    if (chosen) await user.click(chosen);
+    return;
+  }
+  if (status === "Present" || status === "Absent") {
+    await user.click(within(group).getByRole("radio", { name: status }));
+    return;
+  }
+  const leave = within(group).getByRole("radio", { name: "Leave" });
+  if (leave.getAttribute("aria-checked") !== "true") await user.click(leave);
+  await user.selectOptions(screen.getByLabelText(`Leave type for ${worker}`), status);
+}
+
 vi.mock("../../api/attendance");
 vi.mock("../../api/settings");
 vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
@@ -74,7 +91,7 @@ it("shows a loading state", () => {
 });
 it("starts unrecorded with zero pay and disabled hours; settings supply the shift note", async () => {
   await loaded();
-  expect(screen.getByLabelText("Status for Ahmed Khan")).toHaveValue("");
+  expect(within(screen.getByRole("radiogroup", { name: "Status for Ahmed Khan" })).queryByRole("radio", { checked: true })).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Basic hours for Ahmed Khan")).not.toBeInTheDocument();
   expect(screen.getByLabelText("Overtime hours for Ahmed Khan")).toBeDisabled();
   expect(screen.getByText(/Standard Shift: 06:00 AM/)).toHaveTextContent(
@@ -84,16 +101,12 @@ it("starts unrecorded with zero pay and disabled hours; settings supply the shif
 });
 it("offers Annual, Sick and Emergency Leave and lets the server decide the paid hours", async () => {
   const user = await loaded();
-  const select = screen.getByLabelText("Status for Ahmed Khan");
-  expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
-    "Not recorded",
-    "Present",
-    "Absent",
-    "Annual Leave",
-    "Sick Leave",
-    "Emergency Leave",
-  ]);
-  await user.selectOptions(select, "Sick Leave");
+  const group = screen.getByRole("radiogroup", { name: "Status for Ahmed Khan" });
+  expect(within(group).getAllByRole("radio").map((r) => r.getAttribute("aria-label"))).toEqual(["Present", "Absent", "Leave"]);
+  await user.click(within(group).getByRole("radio", { name: "Leave" }));
+  const types = screen.getByLabelText("Leave type for Ahmed Khan");
+  expect(within(types).getAllByRole("option").map((o) => o.textContent)).toEqual(["Annual Leave", "Sick Leave", "Emergency Leave"]);
+  await user.selectOptions(types, "Sick Leave");
   await user.click(screen.getByRole("button", { name: "Save day" }));
   expect(api.saveAttendance).toHaveBeenCalledWith(expect.any(String), [
     { workerId: 1, status: "Sick Leave", basicHours: 0, overtimeHours: 0 },
@@ -117,10 +130,7 @@ it("locks a day covered by approved leave and says where to change it", async ()
 });
 it("previews pay and saves only after Save day, then uses server values", async () => {
   const user = await loaded();
-  await user.selectOptions(
-    screen.getByLabelText("Status for Ahmed Khan"),
-    "Present",
-  );
+  await setStatus(user, "Ahmed Khan", "Present");
   await user.clear(screen.getByLabelText("Overtime hours for Ahmed Khan"));
   await user.type(screen.getByLabelText("Overtime hours for Ahmed Khan"), "2");
   expect(screen.getByText("104.44")).toBeInTheDocument();
@@ -150,19 +160,13 @@ it("previews pay and saves only after Save day, then uses server values", async 
 });
 it("fills basic hours with the standard shift and does not let them be edited", async () => {
   const user = await loaded();
-  await user.selectOptions(
-    screen.getByLabelText("Status for Ahmed Khan"),
-    "Present",
-  );
+  await setStatus(user, "Ahmed Khan", "Present");
   expect(screen.queryByLabelText("Basic hours for Ahmed Khan")).not.toBeInTheDocument();
   expect(screen.getByText("8.00")).toBeInTheDocument();
 });
 it("switching to absent clears both hours", async () => {
   const user = await loaded();
-  await user.selectOptions(
-    screen.getByLabelText("Status for Ahmed Khan"),
-    "Absent",
-  );
+  await setStatus(user, "Ahmed Khan", "Absent");
   await user.click(screen.getByRole("button", { name: "Save day" }));
   expect(api.saveAttendance).toHaveBeenCalledWith(expect.any(String), [
     { workerId: 1, status: "Absent", basicHours: 0, overtimeHours: 0 },
@@ -179,7 +183,7 @@ it("clears recorded attendance in the same batch", async () => {
     ],
   });
   const user = await loaded();
-  await user.selectOptions(screen.getByLabelText("Status for Ahmed Khan"), "");
+  await setStatus(user, "Ahmed Khan", "");
   await user.click(screen.getByRole("button", { name: "Save day" }));
   expect(api.saveAttendance).toHaveBeenCalledWith(expect.any(String), [
     { workerId: 1, status: null, basicHours: 0, overtimeHours: 0 },
@@ -251,10 +255,7 @@ it("a Supervisor records attendance without any pay column, overtime rate or liv
   expect(screen.getByText(/Standard Shift: 06:00 AM/)).not.toHaveTextContent(
     /Overtime Rate|AED/,
   );
-  await user.selectOptions(
-    screen.getByLabelText("Status for Ahmed Khan"),
-    "Present",
-  );
+  await setStatus(user, "Ahmed Khan", "Present");
   fireEvent.change(screen.getByLabelText("Overtime hours for Ahmed Khan"), {
     target: { value: "2" },
   });
@@ -279,18 +280,17 @@ it("gives Supervisor inputs a thumb-sized touch target", async () => {
   signInAs("Supervisor");
   vi.mocked(api.getAttendance).mockResolvedValue(supervisorDay);
   await loaded();
-  for (const label of [
-    "Status for Ahmed Khan",
-    "Overtime hours for Ahmed Khan",
-    "Work date",
-  ]) {
+  for (const label of ["Overtime hours for Ahmed Khan", "Work date"]) {
     expect(screen.getByLabelText(label).className).toContain("min-h-11");
+  }
+  for (const radio of within(screen.getByRole("radiogroup", { name: "Status for Ahmed Khan" })).getAllByRole("radio")) {
+    expect(radio.className).toContain("min-h-11");
   }
 });
 it("an Administrator can also record attendance", async () => {
   signInAs("Administrator");
   await loaded();
-  expect(screen.getByLabelText("Status for Ahmed Khan")).toBeEnabled();
+  expect(within(screen.getByRole("radiogroup", { name: "Status for Ahmed Khan" })).getByRole("radio", { name: "Present" })).toBeEnabled();
 });
 it("locked days disable editing", async () => {
   vi.mocked(api.getAttendance).mockResolvedValue({ ...day, isFinalised: true });
@@ -305,15 +305,12 @@ it("preserves unsaved input after a server validation failure", async () => {
     }),
   );
   const user = await loaded();
-  await user.selectOptions(
-    screen.getByLabelText("Status for Ahmed Khan"),
-    "Absent",
-  );
+  await setStatus(user, "Ahmed Khan", "Absent");
   await user.click(screen.getByRole("button", { name: "Save day" }));
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Maximum basic hours changed. Reload the day.",
   );
-  expect(screen.getByLabelText("Status for Ahmed Khan")).toHaveValue("Absent");
+  expect(within(screen.getByRole("radiogroup", { name: "Status for Ahmed Khan" })).getByRole("radio", { name: "Absent" })).toBeChecked();
   expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
 });
 it("load failures have retry and empty days have an explanation", async () => {
@@ -333,10 +330,7 @@ it("load failures have retry and empty days have an explanation", async () => {
 });
 it("requires confirmation before a date change discards edits", async () => {
   const user = await loaded();
-  await user.selectOptions(
-    screen.getByLabelText("Status for Ahmed Khan"),
-    "Absent",
-  );
+  await setStatus(user, "Ahmed Khan", "Absent");
   const previousCalls = vi.mocked(api.getAttendance).mock.calls.length;
   fireEvent.change(screen.getByLabelText("Work date"), {
     target: { value: "2026-10-18" },
@@ -362,10 +356,7 @@ it.each([
   ["8", "-1", "0 or greater"],
 ])("rejects basic %s and overtime %s", async (_basic, overtime, message) => {
   const user = await loaded();
-  await user.selectOptions(
-    screen.getByLabelText("Status for Ahmed Khan"),
-    "Present",
-  );
+  await setStatus(user, "Ahmed Khan", "Present");
   fireEvent.change(screen.getByLabelText("Overtime hours for Ahmed Khan"), {
     target: { value: overtime },
   });
@@ -381,14 +372,11 @@ it("disables date, status and save while a batch is pending", async () => {
     }),
   );
   const user = await loaded();
-  await user.selectOptions(
-    screen.getByLabelText("Status for Ahmed Khan"),
-    "Absent",
-  );
+  await setStatus(user, "Ahmed Khan", "Absent");
   await user.click(screen.getByRole("button", { name: "Save day" }));
   expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
   expect(screen.getByLabelText("Work date")).toBeDisabled();
-  expect(screen.getByLabelText("Status for Ahmed Khan")).toBeDisabled();
+  expect(within(screen.getByRole("radiogroup", { name: "Status for Ahmed Khan" })).getByRole("radio", { name: "Present" })).toBeDisabled();
   await act(async () => resolve(day));
 });
 it("uses the UAE business date before UTC midnight", async () => {
@@ -441,10 +429,7 @@ it("validates changed rows only when settings have changed since an older record
     ],
   });
   const user = await loaded();
-  await user.selectOptions(
-    screen.getByLabelText("Status for Ahmed Khan"),
-    "Absent",
-  );
+  await setStatus(user, "Ahmed Khan", "Absent");
   await user.click(screen.getByRole("button", { name: "Save day" }));
   expect(api.saveAttendance).toHaveBeenCalledWith(expect.any(String), [
     { workerId: 1, status: "Absent", basicHours: 0, overtimeHours: 0 },
@@ -536,7 +521,7 @@ it("a Supervisor's save says the entry was submitted for approval", async () => 
   signInAs("Supervisor");
   vi.mocked(api.saveAttendance).mockResolvedValue(dayWithRecord("Submitted"));
   const user = await loaded();
-  await user.selectOptions(screen.getByLabelText("Status for Ahmed Khan"), "Absent");
+  await setStatus(user, "Ahmed Khan", "Absent");
   await user.click(screen.getByRole("button", { name: "Save day" }));
   expect(await screen.findByText("Attendance submitted for manager approval.")).toBeInTheDocument();
 });
@@ -552,4 +537,59 @@ it("lists the days that need attention and opens one when chosen", async () => {
   expect(await screen.findByText("Waiting for approval")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "2026-10-18 (3)" }));
   await waitFor(() => expect(api.getAttendance).toHaveBeenLastCalledWith("2026-10-18"));
+});
+
+it("sets a status from the keyboard and moves to the next worker", async () => {
+  vi.mocked(api.getAttendance).mockResolvedValue({
+    ...day,
+    rows: [day.rows[0], { ...day.rows[0], worker: { ...day.rows[0].worker, id: 2, workerCode: "EMP-002", fullName: "Sara Ali" } }],
+  });
+  const user = await loaded();
+  within(screen.getByRole("radiogroup", { name: "Status for Ahmed Khan" })).getAllByRole("radio")[0].focus();
+  await user.keyboard("p");
+  expect(within(screen.getByRole("radiogroup", { name: "Status for Ahmed Khan" })).getByRole("radio", { name: "Present" })).toBeChecked();
+  expect(within(screen.getByRole("radiogroup", { name: "Status for Sara Ali" })).getAllByRole("radio")[0]).toHaveFocus();
+  await user.keyboard("a");
+  expect(within(screen.getByRole("radiogroup", { name: "Status for Sara Ali" })).getByRole("radio", { name: "Absent" })).toBeChecked();
+});
+it("clicking the chosen status again clears it", async () => {
+  const user = await loaded();
+  await setStatus(user, "Ahmed Khan", "Present");
+  await setStatus(user, "Ahmed Khan", "");
+  expect(within(screen.getByRole("radiogroup", { name: "Status for Ahmed Khan" })).queryByRole("radio", { checked: true })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Save day" })).toBeDisabled();
+});
+it("explains the disabled overtime field", async () => {
+  await loaded();
+  expect(screen.getByLabelText("Overtime hours for Ahmed Khan")).toHaveAttribute("title", "Mark the worker present to enter overtime");
+});
+it("moves a day at a time with the arrows, and offers Today", async () => {
+  const user = await loaded();
+  await user.click(screen.getByRole("button", { name: "Previous day" }));
+  await waitFor(() => expect(api.getAttendance).toHaveBeenCalledTimes(2));
+  expect(screen.getByRole("button", { name: "Next day" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Today" })).toBeEnabled();
+});
+it("copies unrecorded workers' statuses from yesterday and leaves the rest to review", async () => {
+  const yesterday: AttendanceDay = {
+    ...day,
+    date: "2026-10-19",
+    rows: [{ ...day.rows[0], record: { status: "Present", basicHours: 8, overtimeHours: 1.5, approvalStatus: "Approved", rejectionReason: null } }],
+  };
+  vi.mocked(api.getAttendance).mockResolvedValueOnce(day).mockResolvedValueOnce(yesterday);
+  const user = await loaded();
+  await user.click(screen.getByRole("button", { name: "Copy from yesterday" }));
+  expect(await screen.findByText(/Copied 1 entry from yesterday/)).toBeInTheDocument();
+  expect(within(screen.getByRole("radiogroup", { name: "Status for Ahmed Khan" })).getByRole("radio", { name: "Present" })).toBeChecked();
+  expect(screen.getByLabelText("Overtime hours for Ahmed Khan")).toHaveValue(1.5);
+  expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+  expect(api.saveAttendance).not.toHaveBeenCalled();
+});
+it("keeps the exports behind one Export menu", async () => {
+  vi.mocked(api.getAttendanceExport).mockResolvedValue(new Blob(["x"]));
+  const user = await loaded();
+  expect(screen.queryByRole("button", { name: "Print PDF" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /Export/ }));
+  expect(screen.getByRole("menuitem", { name: "Print PDF" })).toBeInTheDocument();
+  expect(screen.getByRole("menuitem", { name: "Excel" })).toBeInTheDocument();
 });

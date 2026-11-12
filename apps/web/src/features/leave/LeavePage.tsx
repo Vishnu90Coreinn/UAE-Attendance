@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { clearNewParam, hasNewParam } from "../../utils/startParam";
 import { LoadingState, PageHeader, StatCard } from "../../ui";
 import { CalendarCheck, CalendarPlus, CalendarX, Hourglass } from "lucide-react";
 import {
@@ -49,7 +50,8 @@ export function LeavePage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(() => hasNewParam() && user?.role !== "HR" && user?.role !== "Viewer");
+  useEffect(clearNewParam, []);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<
     Record<string, string[]> | undefined
@@ -197,18 +199,6 @@ export function LeavePage() {
           <StatCard compact label="Rejected requests" value={rows.filter((r) => r.status === "Rejected").length} icon={CalendarX} tone="danger" />
         </div>
       )}
-      <LeaveReport
-        workers={workers}
-        disabled={busy || !workersReady}
-        onDone={(message) => {
-          setError(null);
-          setSuccess(message);
-        }}
-        onError={(message) => {
-          setSuccess(null);
-          setError(message);
-        }}
-      />
       <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:gap-4">
         <label className="flex min-w-0 max-w-full flex-col text-sm font-medium">
           Filter by status
@@ -241,6 +231,19 @@ export function LeavePage() {
           </select>
         </label>
       </div>
+      <LeaveReport
+        workers={workers}
+        workerId={workerId}
+        disabled={busy || !workersReady}
+        onDone={(message) => {
+          setError(null);
+          setSuccess(message);
+        }}
+        onError={(message) => {
+          setSuccess(null);
+          setError(message);
+        }}
+      />
       {workersError && (
         <LoadError
           message={`Worker options could not be loaded. ${workersError}`}

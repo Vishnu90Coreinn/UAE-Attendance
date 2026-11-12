@@ -1,5 +1,6 @@
 import type { AttendanceRow } from "../../api/attendance";
-import { LEAVE_STATUSES } from "../../utils/leaveStatuses";
+import { isLeaveStatus } from "../../utils/leaveStatuses";
+import { StatusSegments } from "./StatusSegments";
 import { ApprovalCell } from "./ApprovalCell";
 import { previewPay, type AttendanceForm } from "./attendanceForm";
 
@@ -94,35 +95,18 @@ export function AttendanceTable({
                 </th>
                 <td data-label="Status" className={cellClass}>
                   {rowEditable ? (
-                    <>
-                      <label
-                        className="sr-only"
-                        htmlFor={`status-${form.workerId}`}
-                      >
-                        Status for {row.worker.fullName}
-                      </label>
-                      <select
-                        id={`status-${form.workerId}`}
-                        className={`${inputClass} w-40`}
-                        value={form.status ?? ""}
-                        disabled={pending}
-                        onChange={(e) =>
-                          onChange(form.workerId, {
-                            status: (e.target.value ||
-                              null) as AttendanceForm["status"],
-                            basicHours: e.target.value === "Present" || LEAVE_STATUSES.some((leave) => leave === e.target.value) ? String(maximum) : "0",
-                            overtimeHours: "0",
-                          })
-                        }
-                      >
-                        <option value="">Not recorded</option>
-                        <option>Present</option>
-                        <option>Absent</option>
-                        {LEAVE_STATUSES.map((leave) => (
-                          <option key={leave}>{leave}</option>
-                        ))}
-                      </select>
-                    </>
+                    <StatusSegments
+                      workerName={row.worker.fullName}
+                      value={form.status}
+                      disabled={pending}
+                      onChange={(status) =>
+                        onChange(form.workerId, {
+                          status,
+                          basicHours: status === "Present" || isLeaveStatus(status) ? String(maximum) : "0",
+                          overtimeHours: "0",
+                        })
+                      }
+                    />
                   ) : (
                     <>
                       <span className="whitespace-nowrap rounded-full bg-ink-100 px-3 py-1 text-ink-800">
@@ -160,6 +144,7 @@ export function AttendanceTable({
                           className={inputClass}
                           value={form[field]}
                           disabled={pending || form.status !== "Present"}
+                          title={form.status !== "Present" ? "Mark the worker present to enter overtime" : undefined}
                           onChange={(e) =>
                             onChange(form.workerId, { [field]: e.target.value })
                           }

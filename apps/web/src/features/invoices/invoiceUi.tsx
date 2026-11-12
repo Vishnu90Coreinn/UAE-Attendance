@@ -38,13 +38,22 @@ const STATUS_TONE: Record<InvoiceDisplayStatus, StatusTone> = {
   Cancelled: "danger",
 };
 
-export function InvoiceStatusBadges({ status, overdue }: { status: InvoiceDisplayStatus; overdue: boolean }) {
-  return (
-    <span className="inline-flex flex-wrap items-center gap-1">
-      <StatusBadge tone={STATUS_TONE[status]} variant="soft">{STATUS_LABEL[status]}</StatusBadge>
-      {overdue && <StatusBadge tone="danger" variant="soft">Overdue</StatusBadge>}
-    </span>
-  );
+/** Whole days from a YYYY-MM-DD due date to `today`; never negative. */
+export function daysOverdue(dueDate: string, today = todayInDubai()): number {
+  const ms = Date.parse(`${today}T00:00:00Z`) - Date.parse(`${dueDate}T00:00:00Z`);
+  return Math.max(0, Math.round(ms / 86_400_000));
+}
+
+/**
+ * One pill per invoice: its status, or, when it is past due, a single red pill that says so and for how long
+ * ("Overdue · 12 days", "Part-paid · Overdue 12 days").
+ */
+export function InvoiceStatusBadges({ status, overdue, dueDate }: { status: InvoiceDisplayStatus; overdue: boolean; dueDate?: string }) {
+  if (!overdue) return <StatusBadge tone={STATUS_TONE[status]} variant="soft">{STATUS_LABEL[status]}</StatusBadge>;
+  const days = dueDate ? daysOverdue(dueDate) : 0;
+  const age = days > 0 ? ` ${days} ${days === 1 ? "day" : "days"}` : "";
+  const text = status === "Issued" ? `Overdue${age ? ` ·${age}` : ""}` : `${STATUS_LABEL[status]} · Overdue${age}`;
+  return <StatusBadge tone="danger" variant="soft">{text}</StatusBadge>;
 }
 
 /** The company logo, fetched with the sign-in token (an <img> tag cannot send it). Null until loaded or when none is set. */

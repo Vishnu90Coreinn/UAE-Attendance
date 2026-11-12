@@ -12,6 +12,8 @@ interface StatCardProps {
   tone?: "brand" | "success" | "warning" | "danger";
   /** One short row: icon, label and value side by side. For summary strips above a list. */
   compact?: boolean;
+  /** Makes a compact card a button, for cards that filter the list below them. */
+  onClick?: () => void;
 }
 
 const ICON_TONES = {
@@ -21,10 +23,10 @@ const ICON_TONES = {
   danger: "bg-red-50 text-red-700",
 };
 
-export function StatCard({ label, value, icon: Icon, note, tone = "brand", compact }: StatCardProps) {
+export function StatCard({ label, value, icon: Icon, note, tone = "brand", compact, onClick }: StatCardProps) {
   if (compact) {
-    return (
-      <Card className="flex items-center gap-3 px-4 py-3">
+    const content = (
+      <>
         {Icon && (
           <span aria-hidden="true" className={`inline-flex size-9 shrink-0 items-center justify-center rounded-lg ${ICON_TONES[tone]}`}>
             <Icon size={18} />
@@ -37,7 +39,18 @@ export function StatCard({ label, value, icon: Icon, note, tone = "brand", compa
             {note && <span className="truncate text-xs text-ink-500">{note}</span>}
           </p>
         </div>
-      </Card>
+      </>
+    );
+    return onClick ? (
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex w-full items-center gap-3 rounded-card border border-line bg-white px-4 py-3 text-left shadow-card transition hover:border-brand-300 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+      >
+        {content}
+      </button>
+    ) : (
+      <Card className="flex items-center gap-3 px-4 py-3">{content}</Card>
     );
   }
   return (

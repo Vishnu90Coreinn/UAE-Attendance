@@ -315,7 +315,8 @@ export function RequestsPanel({ roles, defaultStatus }: { roles: RequestRoles; d
   useEffect(() => {
     let cancelled = false;
     first.current = false;
-    listRequests(status || undefined)
+    // Everything is fetched once; the tabs below filter it and show how many are in each.
+    listRequests()
       .then((data) => {
         if (!cancelled) {
           setRows(data);
@@ -326,7 +327,10 @@ export function RequestsPanel({ roles, defaultStatus }: { roles: RequestRoles; d
     return () => {
       cancelled = true;
     };
-  }, [status, attempt, openId]);
+  }, [attempt, openId]);
+
+  const counts = (rows ?? []).reduce<Record<string, number>>((acc, r) => ({ ...acc, [r.status]: (acc[r.status] ?? 0) + 1 }), {});
+  const shown = status ? (rows ?? []).filter((r) => r.status === status) : rows;
 
   if (openId !== null) {
     return <RequestDetailView id={openId} roles={roles} onBack={() => setOpenId(null)} onNotice={setNotice} />;
@@ -336,15 +340,23 @@ export function RequestsPanel({ roles, defaultStatus }: { roles: RequestRoles; d
     <div>
       <SuccessRegion message={notice} />
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div className="w-full sm:w-64">
-          <Select label="Show" value={status} onChange={(e) => setStatus(e.target.value as CertificateStatus | "")}>
-            <option value="">All requests</option>
-            {(Object.keys(STATUS_LABELS) as CertificateStatus[]).map((s) => (
-              <option key={s} value={s}>
-                {STATUS_LABELS[s]}
-              </option>
-            ))}
-          </Select>
+        <div role="group" aria-label="Filter by status" className="flex flex-wrap gap-1.5">
+          {([["", "All"], ...(Object.keys(STATUS_LABELS) as CertificateStatus[]).map((k) => [k, STATUS_LABELS[k]])] as [CertificateStatus | "", string][]).map(([key, label]) => (
+            <button
+              key={key || "all"}
+              type="button"
+              aria-pressed={status === key}
+              onClick={() => setStatus(key)}
+              className={`inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${status === key ? "border-brand-600 bg-brand-50 text-brand-800" : "border-ink-300 bg-white text-ink-700 hover:bg-ink-50"}`}
+            >
+              {label}
+              {rows !== null && (
+                <span className="rounded-full bg-ink-100 px-1.5 text-xs tabular-nums text-ink-700">
+                  {key ? (counts[key] ?? 0) : rows.length}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
         {roles.canRaise && (
           <Button icon={Plus} onClick={() => setRaising(true)}>
@@ -361,7 +373,7 @@ export function RequestsPanel({ roles, defaultStatus }: { roles: RequestRoles; d
           </div>
         ) : rows === null ? (
           <LoadingState label="Loading requests..." rows={4} />
-        ) : rows.length === 0 ? (
+        ) : shown === null || shown.length === 0 ? (
           <EmptyState
             icon={FileText}
             title="No requests"
@@ -383,7 +395,7 @@ export function RequestsPanel({ roles, defaultStatus }: { roles: RequestRoles; d
                 </tr>
               </THead>
               <tbody>
-                {rows.map((row) => (
+                {shown.map((row) => (
                   <TRow key={row.id}>
                     <Td>
                       {row.workerName} <span className="text-ink-500">({row.workerCode})</span>

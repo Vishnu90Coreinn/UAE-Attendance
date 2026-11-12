@@ -161,7 +161,7 @@ export function KpiCard<T>({
   return (
     <Link
       to={to}
-      className={`group block min-w-0 rounded-2xl border border-line bg-white p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5 ${focusClass}`}
+      className={`group block min-w-0 rounded-2xl border border-line bg-white p-3 shadow-sm transition hover:border-brand-300 hover:shadow-md sm:p-5 ${focusClass}`}
     >
       <div className="flex items-center justify-between gap-3">
         <span
@@ -169,11 +169,10 @@ export function KpiCard<T>({
         >
           <Icon aria-hidden="true" size={20} />
         </span>
-        <ChevronRight
-          aria-hidden="true"
-          size={18}
-          className="text-ink-400 transition-transform group-hover:translate-x-0.5"
-        />
+        <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-brand-700 group-hover:underline">
+          View
+          <ChevronRight aria-hidden="true" size={14} className="transition-transform group-hover:translate-x-0.5" />
+        </span>
       </div>
       <p className="mt-2 text-sm font-medium text-ink-600 sm:mt-3">{label}</p>
       {state.status === "loading" && <Skeleton height={56} />}
@@ -607,11 +606,11 @@ export function NeedsAttention({
       {loading && <Skeleton height={160} />}
       {failed && <Failed />}
       {empty && (
-        <div className="flex flex-col items-center gap-2 rounded-xl bg-green-50 p-6 text-center">
+        <div className="flex items-center gap-3 rounded-xl bg-green-50 px-4 py-3">
           <CheckCircle2
             aria-hidden="true"
-            className="text-green-700"
-            size={28}
+            className="shrink-0 text-green-700"
+            size={24}
           />
           <p className="text-sm font-medium text-green-900">
             You're all caught up. Nothing is waiting for approval.
@@ -649,5 +648,51 @@ export function NeedsAttention({
         </ul>
       )}
     </Panel>
+  );
+}
+
+
+export interface QuickAction {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+/** One-click starts for the jobs done most often; only the ones this person may do are passed in. */
+export function QuickActions({ actions }: { actions: QuickAction[] }) {
+  return (
+    <Panel title="Quick actions" hint="Jump straight to the job">
+      <ul className="grid grid-cols-2 gap-2">
+        {actions.map(({ to, label, icon: Icon }) => (
+          <li key={label}>
+            <Link
+              to={to}
+              className={`flex min-h-11 items-center gap-2 rounded-xl border border-line bg-ink-50 px-3 text-sm font-medium text-ink-800 transition hover:border-brand-300 hover:bg-brand-50 ${focusClass}`}
+            >
+              <Icon aria-hidden="true" size={16} className="shrink-0 text-brand-600" />
+              {label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  );
+}
+
+/** Replaces the empty chart row: a single line says there is nothing to chart and offers the next step. */
+export function NoAttendanceNotice({ canRecord }: { canRecord: boolean }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-line bg-white px-5 py-4">
+      <p className="text-sm font-medium text-ink-700">No attendance recorded in the last 7 days.</p>
+      {canRecord && (
+        <Link
+          to="/attendance"
+          className={`inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700 ${focusClass}`}
+        >
+          Record attendance
+          <ChevronRight aria-hidden="true" size={16} />
+        </Link>
+      )}
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { MoreHorizontal, type LucideIcon } from "lucide-react";
+import { ChevronDown, MoreHorizontal, type LucideIcon } from "lucide-react";
 import { cx } from "./cx";
 
 export interface RowMenuItem {
@@ -19,13 +19,18 @@ interface RowMenuProps {
   label: string;
   items: RowMenuItem[];
   className?: string;
+  /** Shows a labelled button (for example "Export") instead of the "..." icon. */
+  triggerText?: string;
+  triggerIcon?: LucideIcon;
+  /** Disables the whole menu, for example while a request is running. */
+  disabled?: boolean;
 }
 
 /**
  * A "..." button with a short list of row actions, so risky ones (delete) sit a deliberate click away from the everyday ones.
  * Closes on Escape, on an outside click and after a choice; arrows move between items.
  */
-export function RowMenu({ label, items, className }: RowMenuProps) {
+export function RowMenu({ label, items, className, triggerText, triggerIcon: TriggerIcon, disabled }: RowMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -90,15 +95,28 @@ export function RowMenu({ label, items, className }: RowMenuProps) {
       <button
         ref={buttonRef}
         type="button"
-        aria-label={label}
-        title={label}
+        aria-label={triggerText ? undefined : label}
+        title={triggerText ? undefined : label}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
+        disabled={disabled}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex size-11 items-center justify-center rounded-lg text-ink-600 transition-colors hover:bg-ink-100 hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 md:size-9"
+        className={
+          triggerText
+            ? "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-ink-300 bg-white px-4 text-sm font-medium text-ink-800 hover:bg-ink-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-60 md:min-h-10"
+            : "inline-flex size-11 items-center justify-center rounded-lg text-ink-600 transition-colors hover:bg-ink-100 hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-50 md:size-9"
+        }
       >
-        <MoreHorizontal aria-hidden="true" size={18} />
+        {triggerText ? (
+          <>
+            {TriggerIcon && <TriggerIcon aria-hidden="true" size={16} />}
+            {triggerText}
+            <ChevronDown aria-hidden="true" size={14} />
+          </>
+        ) : (
+          <MoreHorizontal aria-hidden="true" size={18} />
+        )}
       </button>
       {open &&
         createPortal(

@@ -53,8 +53,9 @@ describe("InvoicesPage list", () => {
   it("shows invoices with a status word and an overdue flag, not colour alone", async () => {
     render(<InvoicesPage />);
     const row = (await screen.findByRole("button", { name: /INV-000185/ })).closest("tr")!;
-    expect(within(row).getByText("Part-paid")).toBeInTheDocument();
-    expect(within(row).getByText("Overdue")).toBeInTheDocument();
+    // One pill carries both facts: the status and that it is past due.
+    expect(within(row).getByText(/Part-paid · Overdue/)).toBeInTheDocument();
+    expect(within(row).queryByText("Part-paid")).not.toBeInTheDocument();
     expect(within(row).getByText("55.00")).toBeInTheDocument();
   });
 

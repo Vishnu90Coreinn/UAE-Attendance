@@ -215,6 +215,18 @@ export function PayrollPage() {
               <Download aria-hidden="true" size={16} />
               {exporting ? "Exporting..." : "Export PDF"}
             </button>
+            {canViewAll(user?.role) && (
+              <button
+                type="button"
+                onClick={() => downloadPayslips()}
+                disabled={!ready || busy || !!dialog}
+                aria-busy={exporting}
+                className={`${secondaryButtonClass} disabled:cursor-not-allowed disabled:opacity-60`}
+              >
+                <Download aria-hidden="true" size={16} />
+                Download all payslips
+              </button>
+            )}
             {isManagement(user?.role) && (
               <button
                 type="button"
@@ -230,7 +242,11 @@ export function PayrollPage() {
                   !!dialog ||
                   (report?.status !== "Finalised" && future)
                 }
-                className={secondaryButtonClass}
+                className={cx(
+                  secondaryButtonClass,
+                  "sm:ml-3 sm:border-l-ink-300",
+                  report?.status !== "Finalised" && "!border-amber-500 !bg-amber-50 !text-amber-900 hover:!bg-amber-100",
+                )}
               >
                 {report?.status === "Finalised" ? (
                   <UnlockKeyhole aria-hidden="true" size={16} />
@@ -275,20 +291,6 @@ export function PayrollPage() {
       ) : (
         report && (
           <>
-            {canViewAll(user?.role) && (
-              <div className="no-print flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => downloadPayslips()}
-                  disabled={busy || !!dialog}
-                  aria-busy={exporting}
-                  className={`${secondaryButtonClass} max-sm:w-full`}
-                >
-                  <Download aria-hidden="true" size={16} />
-                  Download all payslips
-                </button>
-              </div>
-            )}
             <div className="rounded-card border border-line bg-white p-4 shadow-card sm:hidden">
               <p className="text-xs font-semibold uppercase text-ink-600">Total net payroll (AED)</p>
               <p className="mt-1 text-3xl font-bold tabular-nums text-ink-900">

@@ -233,7 +233,7 @@ describe("a manager approving", () => {
     render(<LettersPage />);
 
     expect(await screen.findByText("Sajid Mahmood")).toBeInTheDocument();
-    expect(requestsApi.listRequests).toHaveBeenCalledWith("PendingApproval");
+    expect(requestsApi.listRequests).toHaveBeenCalledWith();
     expect(screen.getByRole("button", { name: "Open request for Sajid Mahmood" })).toHaveTextContent("Review");
   });
 
@@ -283,6 +283,8 @@ describe("a manager approving", () => {
     const user = userEvent.setup();
     render(<LettersPage />);
 
+    // A manager starts on "Awaiting approval"; this request is only "Requested", so look at all of them.
+    await user.click(await screen.findByRole("button", { name: /^All/ }));
     await user.click(await screen.findByRole("button", { name: "Open request for Sajid Mahmood" }));
 
     expect(await screen.findByText("HR has not added the details yet")).toBeInTheDocument();
@@ -376,5 +378,23 @@ describe("HR Letters - approved letters", () => {
     await user.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(await screen.findByText("DEAKS/HR/2026/0001")).toBeInTheDocument();
+  });
+});
+
+describe("status filter", () => {
+  it("shows how many requests are in each status and filters by it", async () => {
+    vi.mocked(requestsApi.listRequests).mockResolvedValue([requested, pending, approved]);
+    const user = userEvent.setup();
+    render(<LettersPage />);
+
+    const all = await screen.findByRole("button", { name: /^All/ });
+    expect(all).toHaveTextContent("3");
+    expect(screen.getByRole("button", { name: /^Requested/ })).toHaveTextContent("1");
+    expect(screen.getByRole("button", { name: /^Awaiting approval/ })).toHaveTextContent("1");
+    expect(screen.getByRole("button", { name: /^Returned by manager/ })).toHaveTextContent("0");
+
+    await user.click(screen.getByRole("button", { name: /^Approved/ }));
+    expect(screen.getByRole("button", { name: /^Approved/ })).toHaveAttribute("aria-pressed", "true");
+    expect(requestsApi.listRequests).toHaveBeenCalledTimes(1);
   });
 });
