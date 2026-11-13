@@ -387,7 +387,7 @@ function WorkerForm({ worker, hidePay, firstFieldRef, onClose, onSaved }: FormPr
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
             label="Base salary (AED)"
-            readOnly
+            disabled
             value={values.monthlySalary}
             hint="Loaded from the system; it is the worker's monthly salary."
           />
