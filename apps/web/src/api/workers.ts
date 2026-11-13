@@ -45,6 +45,8 @@ export interface Worker {
   exchangeName?: string | null;
   cardNumber?: string | null;
   exchangeAccountNumber?: string | null;
+  /** The basic salary printed on salary certificates; independent of the monthly salary. Null until set. */
+  basicSalary?: number | null;
 }
 
 /** The editable fields, sent as the body of create and update. */
@@ -86,6 +88,8 @@ export interface WorkerInput {
   exchangeName?: string | null;
   cardNumber?: string | null;
   exchangeAccountNumber?: string | null;
+  /** Omitted or null leaves the stored basic salary unchanged. */
+  basicSalary?: number | null;
   /** A new JPEG portrait, base64 encoded. Omit to keep the stored photo. */
   photoBase64?: string;
   /** True clears the stored photo (ignored when photoBase64 is sent). */

@@ -36,6 +36,8 @@ function initialValues(worker: Worker | null): WorkerFormValues {
         hourlyRate: worker.hourlyRate === null ? "" : formatRate(worker.hourlyRate),
         monthlySalary: worker.monthlySalary == null ? "" : formatRate(worker.monthlySalary),
         overtimeRate: worker.overtimeRate === null ? "" : formatRate(worker.overtimeRate),
+        // A worker with no basic salary of their own starts from the monthly salary; it is a separate figure from then on.
+        basicSalary: allowanceText(worker.basicSalary ?? worker.monthlySalary),
         housingAllowance: allowanceText(worker.housingAllowance),
         transportAllowance: allowanceText(worker.transportAllowance),
         otherAllowance: allowanceText(worker.otherAllowance),
@@ -63,6 +65,7 @@ function initialValues(worker: Worker | null): WorkerFormValues {
         hourlyRate: "",
         monthlySalary: "",
         overtimeRate: "",
+        basicSalary: "",
         housingAllowance: "",
         transportAllowance: "",
         otherAllowance: "",
@@ -155,6 +158,7 @@ function WorkerForm({ worker, hidePay, firstFieldRef, onClose, onSaved }: FormPr
   const emiratesIdRef = useRef<HTMLInputElement>(null);
   const passportRef = useRef<HTMLInputElement>(null);
   const housingRef = useRef<HTMLInputElement>(null);
+  const basicSalaryRef = useRef<HTMLInputElement>(null);
   const transportRef = useRef<HTMLInputElement>(null);
   const otherAllowanceRef = useRef<HTMLInputElement>(null);
   const nationalityRef = useRef<HTMLInputElement>(null);
@@ -176,6 +180,7 @@ function WorkerForm({ worker, hidePay, firstFieldRef, onClose, onSaved }: FormPr
     hourlyRate: hourlyRef,
     monthlySalary: rateRef,
     overtimeRate: overtimeRef,
+    basicSalary: basicSalaryRef,
     housingAllowance: housingRef,
     transportAllowance: transportRef,
     otherAllowance: otherAllowanceRef,
@@ -391,9 +396,8 @@ function WorkerForm({ worker, hidePay, firstFieldRef, onClose, onSaved }: FormPr
             inputMode="decimal"
             autoComplete="off"
             disabled={hidePay}
-            value={values.monthlySalary}
-            onChange={(event) => change("monthlySalary", event.target.value)}
-            hint={hidePay ? "Loaded from the system. Only a manager can change it." : "Loaded from the system. Same figure as the monthly salary above."}
+            hint={hidePay ? "Loaded from the system. Only a manager can change it." : "Printed on salary certificates. Separate from the monthly salary."}
+            {...field("basicSalary")}
           />
           <TextField label="Housing allowance (AED)" type="text" inputMode="decimal" autoComplete="off" disabled={hidePay} {...field("housingAllowance")} />
           <TextField label="Transport allowance (AED)" type="text" inputMode="decimal" autoComplete="off" disabled={hidePay} {...field("transportAllowance")} />

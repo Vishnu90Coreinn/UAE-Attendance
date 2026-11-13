@@ -228,7 +228,7 @@ public sealed class LetterService(AppDbContext db, IAuditLogger audit, TimeProvi
         LetterSalaryTable? salary = null;
         if (worker is not null && type is LetterTypes.Salary or LetterTypes.BankTransfer)
         {
-            var basic = worker!.EffectiveSalary;
+            var basic = worker!.BasicSalary ?? worker.EffectiveSalary;
             var total = basic + worker.HousingAllowance + worker.TransportAllowance + worker.OtherAllowance;
             if (total <= 0) Fail("workerId", "This worker has no salary recorded. Add the salary first.");
             else salary = new LetterSalaryTable(basic, worker.HousingAllowance, worker.TransportAllowance, worker.OtherAllowance, total);

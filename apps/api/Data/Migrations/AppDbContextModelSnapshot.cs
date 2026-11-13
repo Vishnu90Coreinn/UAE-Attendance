@@ -1258,6 +1258,10 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
 
+                    b.Property<decimal?>("BasicSalary")
+                        .HasPrecision(9, 2)
+                        .HasColumnType("decimal(9,2)");
+
                     b.Property<string>("CardNumber")
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");

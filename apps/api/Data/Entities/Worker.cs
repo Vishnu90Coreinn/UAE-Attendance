@@ -34,6 +34,8 @@ public class Worker
 
     // Phase 2 (HR certificates): nationality, the fixed allowances printed on salary letters, and bank details.
     public string? Nationality { get; set; }
+    /// <summary>The basic salary printed on salary certificates. Independent of <see cref="MonthlySalary"/>; null means "use the monthly salary".</summary>
+    public decimal? BasicSalary { get; set; }
     public decimal HousingAllowance { get; set; }
     public decimal TransportAllowance { get; set; }
     public decimal OtherAllowance { get; set; }
