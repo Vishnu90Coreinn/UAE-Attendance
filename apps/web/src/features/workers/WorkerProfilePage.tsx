@@ -328,7 +328,7 @@ export function WorkerProfilePage() {
                   </Fact>
                 </>
               ) : (
-                <Fact label="Base salary">{money(worker.monthlySalary)}</Fact>
+                <Fact label="Basic salary">{money(worker.monthlySalary)}</Fact>
               )}
               <Fact label="Housing allowance">{money(worker.housingAllowance)}</Fact>
               <Fact label="Transport allowance">{money(worker.transportAllowance)}</Fact>

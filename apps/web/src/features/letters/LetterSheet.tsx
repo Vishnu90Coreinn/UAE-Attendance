@@ -159,7 +159,7 @@ export function LetterSheet({ document: doc }: { document: LetterDocument }) {
                 <tbody>
                   {(
                     [
-                      ["Basic Monthly Salary", c.salary.basic],
+                      ["Basic Salary", c.salary.basic],
                       ["Housing Allowance", c.salary.housing],
                       ["Transportation Allowance", c.salary.transport],
                       ["Other Fixed Allowances", c.salary.other],

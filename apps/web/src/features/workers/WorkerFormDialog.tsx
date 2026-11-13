@@ -386,7 +386,7 @@ function WorkerForm({ worker, hidePay, firstFieldRef, onClose, onSaved }: FormPr
         <p className="text-sm text-ink-600">Fixed monthly allowances printed on salary certificates and bank letters. Leave blank for none.</p>
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
-            label="Base salary (AED)"
+            label="Basic salary (AED)"
             disabled
             value={values.monthlySalary}
             hint="Loaded from the system; it is the worker's monthly salary."
