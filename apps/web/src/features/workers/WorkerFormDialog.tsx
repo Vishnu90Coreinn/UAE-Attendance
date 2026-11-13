@@ -387,9 +387,13 @@ function WorkerForm({ worker, hidePay, firstFieldRef, onClose, onSaved }: FormPr
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
             label="Basic salary (AED)"
-            disabled
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            disabled={hidePay}
             value={values.monthlySalary}
-            hint="Loaded from the system; it is the worker's monthly salary."
+            onChange={(event) => change("monthlySalary", event.target.value)}
+            hint={hidePay ? "Loaded from the system. Only a manager can change it." : "Loaded from the system. Same figure as the monthly salary above."}
           />
           <TextField label="Housing allowance (AED)" type="text" inputMode="decimal" autoComplete="off" disabled={hidePay} {...field("housingAllowance")} />
           <TextField label="Transport allowance (AED)" type="text" inputMode="decimal" autoComplete="off" disabled={hidePay} {...field("transportAllowance")} />
