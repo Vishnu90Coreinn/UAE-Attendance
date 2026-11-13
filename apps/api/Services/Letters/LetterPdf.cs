@@ -92,7 +92,7 @@ public sealed class LetterPdf
             y -= 2;
             var rows = new[]
             {
-                ("Basic Monthly Salary", s.Basic), ("Housing Allowance", s.Housing),
+                ("Basic Salary", s.Basic), ("Housing Allowance", s.Housing),
                 ("Transportation Allowance", s.Transport), ("Other Fixed Allowances", s.Other),
             };
             var tableTop = y;

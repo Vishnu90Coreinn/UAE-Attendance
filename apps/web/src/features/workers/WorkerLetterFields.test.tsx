@@ -93,7 +93,7 @@ describe("worker form - letter details", () => {
 
 describe("validateWorker - letter details", () => {
   const base: WorkerFormValues = {
-    workerCode: "EMP-1", fullName: "A", designation: "B", hourlyRate: "5", monthlySalary: "1200", overtimeRate: "",
+    workerCode: "EMP-1", fullName: "A", designation: "B", hourlyRate: "5", monthlySalary: "1200", basicSalary: "", overtimeRate: "",
     housingAllowance: "", transportAllowance: "", otherAllowance: "", joinDate: "", department: "", emiratesId: "",
     passportNumber: "", nationality: "", bankName: "", bankAccountNumber: "", iban: "", exchangeName: "", cardNumber: "", exchangeAccountNumber: "", phone: "", email: "",
     emergencyContact: "", workLocation: "", notes: "",

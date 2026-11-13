@@ -313,6 +313,7 @@ describe("WorkersPage - add and edit", () => {
       monthlySalary: 1920,
       hourlyRate: 8,
       overtimeRate: null,
+      basicSalary: null,
       housingAllowance: 0,
       transportAllowance: 0,
       otherAllowance: 0,

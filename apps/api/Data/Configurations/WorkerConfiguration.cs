@@ -34,6 +34,7 @@ public class WorkerConfiguration : IEntityTypeConfiguration<Worker>
         builder.Property(w => w.WorkLocation).HasMaxLength(120);
         builder.Property(w => w.Notes).HasMaxLength(1000);
         builder.Property(w => w.Nationality).HasMaxLength(60);
+        builder.Property(w => w.BasicSalary).HasPrecision(9, 2);
         builder.Property(w => w.HousingAllowance).HasPrecision(9, 2).HasDefaultValue(0m);
         builder.Property(w => w.TransportAllowance).HasPrecision(9, 2).HasDefaultValue(0m);
         builder.Property(w => w.OtherAllowance).HasPrecision(9, 2).HasDefaultValue(0m);

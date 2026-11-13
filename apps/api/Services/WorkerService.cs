@@ -165,6 +165,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             WorkLocation = input.WorkLocation,
             Notes = input.Notes,
             Nationality = input.Nationality,
+            BasicSalary = input.BasicSalary,
             HousingAllowance = input.HousingAllowance ?? 0m,
             TransportAllowance = input.TransportAllowance ?? 0m,
             OtherAllowance = input.OtherAllowance ?? 0m,
@@ -210,7 +211,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
     }
 
     /// <param name="lockPay">
-    /// True for HR: the hourly rate, monthly salary, overtime rate and the three allowances in the request are ignored and the stored ones kept.
+    /// True for HR: the hourly rate, monthly salary, overtime rate, basic salary and the three allowances in the request are ignored and the stored ones kept.
     /// </param>
     public async Task<WorkerResult> UpdateAsync(int id, WorkerRequest request, CancellationToken cancellationToken = default, bool lockPay = false)
     {
@@ -223,7 +224,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         if (lockPay)
         {
             request = request with { HourlyRate = worker.HourlyRate, MonthlySalary = worker.EffectiveSalary, OvertimeRate = worker.OvertimeRate,
-                HousingAllowance = null, TransportAllowance = null, OtherAllowance = null }; // a missing allowance is left unchanged
+                HousingAllowance = null, TransportAllowance = null, OtherAllowance = null, BasicSalary = null }; // a missing allowance or basic salary is left unchanged
         }
 
         var input = Validate(request, out var errors);
@@ -345,6 +346,12 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
                 changes[key] = new FieldChange(current, value);
                 set(value);
             }
+        }
+
+        if (input.BasicSalary is { } basicSalary && basicSalary != worker.BasicSalary)
+        {
+            changes["basicSalary"] = new FieldChange(worker.BasicSalary, basicSalary);
+            worker.BasicSalary = basicSalary;
         }
 
         Allowance("housingAllowance", worker.HousingAllowance, input.HousingAllowance, v => worker.HousingAllowance = v);
@@ -479,7 +486,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         string? Email, string? EmergencyContact, string? WorkLocation, string? Notes,
         string? Nationality, decimal? HousingAllowance, decimal? TransportAllowance, decimal? OtherAllowance,
         string? BankName, string? BankAccountNumber, string? Iban,
-        string? ExchangeName, string? CardNumber, string? ExchangeAccountNumber);
+        string? ExchangeName, string? CardNumber, string? ExchangeAccountNumber, decimal? BasicSalary);
 
     /// <summary>Audit rows show only the last four characters of an account number or IBAN.</summary>
     private static string? Mask(string? value) =>
@@ -620,6 +627,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         var location = OptionalText(request.WorkLocation, MaxWorkLocationLength, "workLocation", "Work location", errors);
         var notes = OptionalText(request.Notes, MaxNotesLength, "notes", "Notes", errors);
         var nationality = OptionalText(request.Nationality, MaxNationalityLength, "nationality", "Nationality", errors);
+        var basicSalary = OptionalAllowance(request.BasicSalary, "basicSalary", "Basic salary", errors);
         var housing = OptionalAllowance(request.HousingAllowance, "housingAllowance", "Housing allowance", errors);
         var transport = OptionalAllowance(request.TransportAllowance, "transportAllowance", "Transport allowance", errors);
         var otherAllowance = OptionalAllowance(request.OtherAllowance, "otherAllowance", "Other allowance", errors);
@@ -639,7 +647,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
                 salary ?? decimal.Round(rate.Value * PayrollCalculator.HoursPerMonth, 2, MidpointRounding.AwayFromZero), overtime,
                 department, emiratesId, passport, phone, email, emergency, location, notes,
                 nationality, housing, transport, otherAllowance, bankName, bankAccount, iban,
-                exchangeName, cardNumber, exchangeAccount)
+                exchangeName, cardNumber, exchangeAccount, basicSalary)
             : null;
     }
 
@@ -705,5 +713,5 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             worker.SiteOrientationDone, worker.WpsRegistered, worker.BadgeIssued, hasPhoto, worker.EffectiveSalary,
             worker.Nationality, worker.HousingAllowance, worker.TransportAllowance, worker.OtherAllowance,
             worker.BankName, worker.BankAccountNumber, worker.Iban,
-            worker.ExchangeName, worker.CardNumber, worker.ExchangeAccountNumber);
+            worker.ExchangeName, worker.CardNumber, worker.ExchangeAccountNumber, worker.BasicSalary);
 }

@@ -23,7 +23,7 @@ public sealed class WageRedactor(IHttpContextAccessor httpContext)
         HidesWages ? worker with { HourlyRate = null, MonthlySalary = null, OvertimeRate = null, EffectiveOvertimeRate = null,
             HousingAllowance = null, TransportAllowance = null, OtherAllowance = null,
             BankName = null, BankAccountNumber = null, Iban = null,
-            ExchangeName = null, CardNumber = null, ExchangeAccountNumber = null } : worker;
+            ExchangeName = null, CardNumber = null, ExchangeAccountNumber = null, BasicSalary = null } : worker;
 
     public List<WorkerResponse> Apply(List<WorkerResponse> workers) =>
         HidesWages ? workers.Select(Apply).ToList() : workers;

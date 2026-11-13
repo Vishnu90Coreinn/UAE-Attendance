@@ -7,6 +7,7 @@ export type WorkerField =
   | "hourlyRate"
   | "monthlySalary"
   | "overtimeRate"
+  | "basicSalary"
   | "housingAllowance"
   | "transportAllowance"
   | "otherAllowance"
@@ -35,6 +36,7 @@ export const FIELD_ORDER: readonly WorkerField[] = [
   "hourlyRate",
   "monthlySalary",
   "overtimeRate",
+  "basicSalary",
   "housingAllowance",
   "transportAllowance",
   "otherAllowance",
@@ -243,6 +245,7 @@ export function validateWorker(values: WorkerFormValues): FieldMessages {
   }
 
   for (const [field, label] of [
+    ["basicSalary", "basic salary"],
     ["housingAllowance", "housing allowance"],
     ["transportAllowance", "transport allowance"],
     ["otherAllowance", "other allowance"],
@@ -285,6 +288,7 @@ export function toWorkerInput(values: WorkerFormValues, checklist?: ChecklistVal
     monthlySalary: Number(values.monthlySalary.trim()),
     hourlyRate: Number(values.hourlyRate.trim()),
     overtimeRate: overtime === "" ? null : Number(overtime),
+    basicSalary: values.basicSalary.trim() === "" ? null : Number(values.basicSalary.trim()),
     housingAllowance: amountOrZero(values.housingAllowance),
     transportAllowance: amountOrZero(values.transportAllowance),
     otherAllowance: amountOrZero(values.otherAllowance),

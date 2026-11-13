@@ -74,7 +74,9 @@ describe("WorkerProfilePage", () => {
   it("shows pay and bank to people who may see pay", async () => {
     const { user } = renderAt("/workers/7");
     await user.click(await screen.findByRole("tab", { name: "Pay & bank" }));
-    expect(screen.getByText("AED 3000.00")).toBeInTheDocument();
+    // The monthly salary and the basic salary (which falls back to it) are both shown.
+    expect(screen.getAllByText("AED 3000.00")).toHaveLength(2);
+    expect(screen.getByText("Basic salary")).toBeInTheDocument();
     expect(screen.getByText("Emirates NBD")).toBeInTheDocument();
   });
 

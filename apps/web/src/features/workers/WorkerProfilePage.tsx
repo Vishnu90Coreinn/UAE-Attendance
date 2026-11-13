@@ -315,7 +315,7 @@ export function WorkerProfilePage() {
         {tab === "pay" && showPay && (
           <div className="grid gap-4 lg:grid-cols-2">
             <Section title="Pay">
-              {isManagement(user?.role) ? (
+              {isManagement(user?.role) && (
                 <>
                   <Fact label="Monthly salary">{money(worker.monthlySalary)}</Fact>
                   <Fact label="Hourly rate">{money(worker.hourlyRate)}</Fact>
@@ -327,9 +327,8 @@ export function WorkerProfilePage() {
                         : null}
                   </Fact>
                 </>
-              ) : (
-                <Fact label="Base salary">{money(worker.monthlySalary)}</Fact>
               )}
+              <Fact label="Basic salary">{money(worker.basicSalary ?? worker.monthlySalary)}</Fact>
               <Fact label="Housing allowance">{money(worker.housingAllowance)}</Fact>
               <Fact label="Transport allowance">{money(worker.transportAllowance)}</Fact>
               <Fact label="Other allowance">{money(worker.otherAllowance)}</Fact>
