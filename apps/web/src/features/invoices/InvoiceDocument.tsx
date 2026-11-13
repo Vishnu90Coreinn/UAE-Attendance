@@ -6,7 +6,7 @@ interface Props {
   invoice: Pick<
     Invoice,
     | "number" | "status" | "displayStatus" | "clientName" | "clientTrn" | "clientAddress" | "invoiceDate" | "dueDate" | "paymentTerms"
-    | "lpoRef" | "project" | "scope" | "notes" | "subTotal" | "vatTotal" | "total" | "balanceDue" | "amountPaid" | "totalInWords"
+    | "lpoRef" | "pcRef" | "project" | "scope" | "notes" | "subTotal" | "vatTotal" | "total" | "balanceDue" | "amountPaid" | "totalInWords"
   > & { lines: Pick<InvoiceLine, "lineNo" | "description" | "quantity" | "rate" | "taxable" | "vat" | "amount">[]; company: InvoiceCompany };
 }
 
@@ -65,6 +65,8 @@ export function InvoiceDocument({ invoice }: Props) {
           <dd className="font-medium">{formatDate(invoice.dueDate)}</dd>
           <dt className="text-ink-500">LPO ref</dt>
           <dd className="break-words font-medium">{invoice.lpoRef || "-"}</dd>
+          <dt className="text-ink-500">PC ref</dt>
+          <dd className="break-words font-medium">{invoice.pcRef || "-"}</dd>
           <dt className="text-ink-500">Project</dt>
           <dd className="break-words font-medium">{invoice.project || "-"}</dd>
           <dt className="text-ink-500">Scope</dt>

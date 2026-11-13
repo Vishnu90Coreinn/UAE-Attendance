@@ -54,17 +54,17 @@ it("shows the prototype columns and protects the signed-in account", async () =>
 it("offers an Administrator all five roles when adding a user and changing a role", async () => {
   const user = await setup();
   expect(within(screen.getByLabelText("Role for site.user")).getAllByRole("option").map((o) => o.textContent)).toEqual([
-    "Administrator", "Manager", "HR", "Supervisor", "Viewer",
+    "Administrator", "Manager", "HR", "Supervisor", "Partner",
   ]);
   await user.click(screen.getByRole("button", { name: "Add User" }));
   const dialog = screen.getByRole("dialog", { name: "Add User" });
   expect(within(within(dialog).getByLabelText("Role")).getAllByRole("option").map((o) => o.textContent)).toEqual([
-    "Administrator", "Manager", "HR", "Supervisor", "Viewer",
+    "Administrator", "Manager", "HR", "Supervisor", "Partner",
   ]);
   expect(within(dialog).getByLabelText("Role")).toHaveValue("Supervisor");
 });
 
-it("offers a Manager only the HR and Supervisor roles and lists only the accounts the API returns", async () => {
+it("offers a Manager only the HR, Supervisor and Partner roles and lists only the accounts the API returns", async () => {
   auth.user = { id: 5, username: "mgr.sam", role: "Manager" };
   vi.mocked(usersApi.listUsers).mockResolvedValue([rows[1]]);
   const user = await setup();
@@ -72,11 +72,12 @@ it("offers a Manager only the HR and Supervisor roles and lists only the account
   expect(within(screen.getByLabelText("Role for site.user")).getAllByRole("option").map((o) => o.textContent)).toEqual([
     "HR",
     "Supervisor",
+    "Partner",
   ]);
   await user.click(screen.getByRole("button", { name: "Add User" }));
   const dialog = screen.getByRole("dialog", { name: "Add User" });
   const options = within(within(dialog).getByLabelText("Role")).getAllByRole("option").map((o) => o.textContent);
-  expect(options).toEqual(["HR", "Supervisor"]);
+  expect(options).toEqual(["HR", "Supervisor", "Partner"]);
   expect(document.body).not.toHaveTextContent(/HR Staff|Viewer|null|undefined|NaN/);
 });
 

@@ -54,7 +54,7 @@ describe("DashboardPage", () => {
 
   it("offers HR only what HR may do", () => {
     setup("HR");
-    expect(screen.getByRole("link", { name: "Add worker" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Add worker" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "New invoice" })).not.toBeInTheDocument();
   });
 });

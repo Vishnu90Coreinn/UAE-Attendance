@@ -36,6 +36,7 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
   const [dueDate, setDueDate] = useState(invoice?.dueDate ?? todayInDubai());
   const [paymentTerms, setPaymentTerms] = useState(invoice?.paymentTerms ?? "");
   const [lpoRef, setLpoRef] = useState(invoice?.lpoRef ?? "");
+  const [pcRef, setPcRef] = useState(invoice?.pcRef ?? "");
   const [project, setProject] = useState(invoice?.project ?? "");
   const [scope, setScope] = useState(invoice?.scope ?? "");
   const [notes, setNotes] = useState(invoice?.notes ?? "");
@@ -101,7 +102,7 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
     if (Object.keys(found).length > 0) return;
     const body: InvoiceInput = {
       clientId: clientChoice === MANUAL ? null : Number(clientChoice),
-      clientName, clientTrn, clientAddress, invoiceDate, dueDate, paymentTerms, lpoRef, project, scope, notes,
+      clientName, clientTrn, clientAddress, invoiceDate, dueDate, paymentTerms, lpoRef, pcRef, project, scope, notes,
       lines: lines.map((l) => ({ description: l.description, quantity: Number(l.quantity), rate: Number(l.rate) })),
     };
     setPending(true);
@@ -152,6 +153,7 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
         <TextField label="Due date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} error={errors.dueDate} />
         <TextField label="Payment terms" value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} error={errors.paymentTerms} maxLength={40} />
         <TextField label="LPO reference" value={lpoRef} onChange={(e) => setLpoRef(e.target.value)} error={errors.lpoRef} maxLength={80} />
+        <TextField label="PC reference" value={pcRef} onChange={(e) => setPcRef(e.target.value)} error={errors.pcRef} maxLength={80} />
         <TextField label="Project" value={project} onChange={(e) => setProject(e.target.value)} error={errors.project} maxLength={120} />
         <TextField label="Scope" value={scope} onChange={(e) => setScope(e.target.value)} error={errors.scope} maxLength={120} />
       </Card>

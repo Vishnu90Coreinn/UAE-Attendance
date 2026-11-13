@@ -97,6 +97,7 @@ public sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         b.Property(i => i.DueDate).HasColumnType("date");
         b.Property(i => i.PaymentTerms).HasMaxLength(40).IsRequired();
         b.Property(i => i.LpoRef).HasMaxLength(80).IsRequired();
+        b.Property(i => i.PcRef).HasMaxLength(80).IsRequired().HasDefaultValue("");
         b.Property(i => i.Project).HasMaxLength(120).IsRequired();
         b.Property(i => i.Scope).HasMaxLength(120).IsRequired();
         b.Property(i => i.Notes).HasMaxLength(300).IsRequired();

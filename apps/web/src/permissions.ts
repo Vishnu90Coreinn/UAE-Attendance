@@ -19,5 +19,13 @@ export function canViewAll(role: Role | undefined): boolean {
 
 export const VIEW_ALL_ROLES: readonly Role[] = ["Administrator", "Manager", "HR", "Viewer"];
 
-/** Who opens User Manager and Settings: the two who manage them, and the Viewer to look. */
-export const ADMIN_SCREEN_ROLES: readonly Role[] = ["Administrator", "Manager", "Viewer"];
+/** Who opens User Manager and Settings: only the two who manage them. A Partner and HR have neither. */
+export const ADMIN_SCREEN_ROLES: readonly Role[] = ["Administrator", "Manager"];
+
+/** Site Progress is not part of an HR account's access. */
+export const SITE_PROGRESS_ROLES: readonly Role[] = ["Administrator", "Manager", "Supervisor", "Viewer"];
+
+/** The name people see for a role. The read-only "Viewer" account is called Partner on screen; the stored role is unchanged. */
+export function roleLabel(role: string | undefined): string {
+  return role === "Viewer" ? "Partner" : (role ?? "");
+}

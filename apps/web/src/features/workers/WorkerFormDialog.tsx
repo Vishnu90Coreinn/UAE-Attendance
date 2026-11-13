@@ -43,6 +43,9 @@ function initialValues(worker: Worker | null): WorkerFormValues {
         bankName: worker.bankName ?? "",
         bankAccountNumber: worker.bankAccountNumber ?? "",
         iban: worker.iban ?? "",
+        exchangeName: worker.exchangeName ?? "",
+        cardNumber: worker.cardNumber ?? "",
+        exchangeAccountNumber: worker.exchangeAccountNumber ?? "",
         joinDate: worker.joinDate ?? "",
         department: worker.department ?? "",
         emiratesId: worker.emiratesId ?? "",
@@ -67,6 +70,9 @@ function initialValues(worker: Worker | null): WorkerFormValues {
         bankName: "",
         bankAccountNumber: "",
         iban: "",
+        exchangeName: "",
+        cardNumber: "",
+        exchangeAccountNumber: "",
         joinDate: "",
         department: "",
         emiratesId: "",
@@ -130,13 +136,15 @@ function NotesField({ value, error, textareaRef, onChange, onBlur }: NotesFieldP
 
 interface FormProps {
   worker: Worker | null;
+  /** HR: the hourly rate, monthly salary and overtime rate are not shown or changed. */
+  hidePay: boolean;
   firstFieldRef: RefObject<HTMLInputElement | null>;
   onClose: () => void;
   onSaved: (worker: Worker) => void;
 }
 
 /** Mounted only while the dialog is open, so every opening starts from the worker's saved values. */
-function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
+function WorkerForm({ worker, hidePay, firstFieldRef, onClose, onSaved }: FormProps) {
   const nameRef = useRef<HTMLInputElement>(null);
   const designationRef = useRef<HTMLInputElement>(null);
   const rateRef = useRef<HTMLInputElement>(null);
@@ -153,6 +161,9 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
   const bankNameRef = useRef<HTMLInputElement>(null);
   const bankAccountRef = useRef<HTMLInputElement>(null);
   const ibanRef = useRef<HTMLInputElement>(null);
+  const exchangeNameRef = useRef<HTMLInputElement>(null);
+  const cardNumberRef = useRef<HTMLInputElement>(null);
+  const exchangeAccountRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const emergencyRef = useRef<HTMLInputElement>(null);
@@ -172,6 +183,9 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
     bankName: bankNameRef,
     bankAccountNumber: bankAccountRef,
     iban: ibanRef,
+    exchangeName: exchangeNameRef,
+    cardNumber: cardNumberRef,
+    exchangeAccountNumber: exchangeAccountRef,
     joinDate: joinRef,
     department: departmentRef,
     emiratesId: emiratesIdRef,
@@ -345,6 +359,7 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
         </div>
       </fieldset>
 
+      {!hidePay && (
       <fieldset className="space-y-4 border-t border-line pt-4">
         <legend className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-800">Pay</legend>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -364,20 +379,36 @@ function WorkerForm({ worker, firstFieldRef, onClose, onSaved }: FormProps) {
           />
         </div>
       </fieldset>
+      )}
 
       <fieldset className="space-y-4 border-t border-line pt-4">
         <legend className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-800">Salary letter details (optional)</legend>
         <p className="text-sm text-ink-600">Fixed monthly allowances printed on salary certificates and bank letters. Leave blank for none.</p>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField
+            label="Base salary (AED)"
+            readOnly
+            value={values.monthlySalary}
+            hint="Loaded from the system; it is the worker's monthly salary."
+          />
           <TextField label="Housing allowance (AED)" type="text" inputMode="decimal" autoComplete="off" {...field("housingAllowance")} />
           <TextField label="Transport allowance (AED)" type="text" inputMode="decimal" autoComplete="off" {...field("transportAllowance")} />
-          <TextField label="Other allowances (AED)" type="text" inputMode="decimal" autoComplete="off" {...field("otherAllowance")} />
+          <TextField label="Other allowance (AED)" type="text" inputMode="decimal" autoComplete="off" {...field("otherAllowance")} />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField label="Nationality" placeholder="e.g. Pakistani" autoComplete="off" {...field("nationality")} />
+        </div>
+      </fieldset>
+
+      <fieldset className="space-y-4 border-t border-line pt-4">
+        <legend className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-800">Bank (optional)</legend>
+        <div className="grid gap-4 sm:grid-cols-2">
           <TextField label="Bank name" placeholder="e.g. Emirates NBD" autoComplete="off" {...field("bankName")} />
           <TextField label="Bank account number" autoComplete="off" spellCheck={false} {...field("bankAccountNumber")} />
           <TextField label="IBAN" autoComplete="off" autoCapitalize="characters" spellCheck={false} {...field("iban")} />
+          <TextField label="Exchange name" placeholder="e.g. Al Ansari Exchange" autoComplete="off" {...field("exchangeName")} />
+          <TextField label="Card number" autoComplete="off" spellCheck={false} {...field("cardNumber")} />
+          <TextField label="Account exchange number" autoComplete="off" spellCheck={false} {...field("exchangeAccountNumber")} />
         </div>
       </fieldset>
 
@@ -471,12 +502,14 @@ interface WorkerFormDialogProps {
   open: boolean;
   /** The worker to edit, or null to add a new one. */
   worker: Worker | null;
+  /** True for HR, who cannot see or change the pay rates. */
+  hidePay?: boolean;
   onClose: () => void;
   /** Called with the saved worker; the parent closes the dialog. */
   onSaved: (worker: Worker) => void;
 }
 
-export function WorkerFormDialog({ open, worker, onClose, onSaved }: WorkerFormDialogProps) {
+export function WorkerFormDialog({ open, worker, hidePay = false, onClose, onSaved }: WorkerFormDialogProps) {
   const firstFieldRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -487,7 +520,7 @@ export function WorkerFormDialog({ open, worker, onClose, onSaved }: WorkerFormD
       initialFocusRef={firstFieldRef}
       size="wide"
     >
-      <WorkerForm worker={worker} firstFieldRef={firstFieldRef} onClose={onClose} onSaved={onSaved} />
+      <WorkerForm worker={worker} hidePay={hidePay} firstFieldRef={firstFieldRef} onClose={onClose} onSaved={onSaved} />
     </Dialog>
   );
 }

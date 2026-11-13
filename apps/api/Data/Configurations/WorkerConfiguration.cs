@@ -40,6 +40,9 @@ public class WorkerConfiguration : IEntityTypeConfiguration<Worker>
         builder.Property(w => w.BankName).HasMaxLength(80);
         builder.Property(w => w.BankAccountNumber).HasMaxLength(40);
         builder.Property(w => w.Iban).HasMaxLength(40);
+        builder.Property(w => w.ExchangeName).HasMaxLength(80);
+        builder.Property(w => w.CardNumber).HasMaxLength(40);
+        builder.Property(w => w.ExchangeAccountNumber).HasMaxLength(40);
         builder.Property(w => w.ContractSigned).HasDefaultValue(false);
         builder.Property(w => w.VisaMedicalCleared).HasDefaultValue(false);
         builder.Property(w => w.SafetyGearIssued).HasDefaultValue(false);

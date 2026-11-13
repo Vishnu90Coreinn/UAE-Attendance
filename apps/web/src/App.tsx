@@ -5,7 +5,7 @@ import { Layout } from "./components/Layout";
 import { LoginPage } from "./features/auth/LoginPage";
 import { ProtectedRoute } from "./features/auth/ProtectedRoute";
 import { RequireRole } from "./features/auth/RequireRole";
-import { ADMIN_SCREEN_ROLES, canViewAll, VIEW_ALL_ROLES } from "./permissions";
+import { ADMIN_SCREEN_ROLES, canViewAll, SITE_PROGRESS_ROLES, VIEW_ALL_ROLES } from "./permissions";
 import { useAuth } from "./contexts/AuthContext";
 import { NotFound } from "./pages/NotFound";
 
@@ -123,7 +123,14 @@ export default function App() {
               }
             />
             <Route path="letters" element={<LettersPage />} />
-            <Route path="progress" element={<SiteProgressPage />} />
+            <Route
+              path="progress"
+              element={
+                <RequireRole roles={SITE_PROGRESS_ROLES}>
+                  <SiteProgressPage />
+                </RequireRole>
+              }
+            />
             <Route
               path="users"
               element={

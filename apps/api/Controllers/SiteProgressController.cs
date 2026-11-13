@@ -12,7 +12,7 @@ namespace HrPayroll.Api.Controllers;
 public sealed class SiteProjectsController(SiteProgressService progress) : ControllerBase
 {
     [HttpGet]
-    [Authorize(Policy = Policies.AnyUser)]
+    [Authorize(Policy = Policies.SiteProgressAccess)]
     public async Task<IActionResult> List([FromQuery] bool includeInactive, CancellationToken ct) =>
         Ok(await progress.ListProjectsAsync(includeInactive, ct));
 
@@ -33,11 +33,11 @@ public sealed class SiteProjectsController(SiteProgressService progress) : Contr
 public sealed class SiteProgressController(SiteProgressService progress, SiteProgressPdf pdf) : ControllerBase
 {
     [HttpGet("{projectId:int}/dates")]
-    [Authorize(Policy = Policies.AnyUser)]
+    [Authorize(Policy = Policies.SiteProgressAccess)]
     public async Task<IActionResult> Dates(int projectId, CancellationToken ct) => Map(this, await progress.DatesAsync(projectId, ct));
 
     [HttpGet("{projectId:int}")]
-    [Authorize(Policy = Policies.AnyUser)]
+    [Authorize(Policy = Policies.SiteProgressAccess)]
     public async Task<IActionResult> Get(int projectId, [FromQuery] string? date, CancellationToken ct) =>
         Map(this, await progress.GetAsync(projectId, date, ct));
 
@@ -58,7 +58,7 @@ public sealed class SiteProgressController(SiteProgressService progress, SitePro
         Map(this, await progress.DeleteAsync(projectId, date, ct));
 
     [HttpGet("{projectId:int}/csv")]
-    [Authorize(Policy = Policies.AnyUser)]
+    [Authorize(Policy = Policies.SiteProgressAccess)]
     public async Task<IActionResult> Csv(int projectId, [FromQuery] string? date, CancellationToken ct)
     {
         Response.Headers.CacheControl = "no-store";
@@ -66,7 +66,7 @@ public sealed class SiteProgressController(SiteProgressService progress, SitePro
     }
 
     [HttpGet("{projectId:int}/pdf")]
-    [Authorize(Policy = Policies.AnyUser)]
+    [Authorize(Policy = Policies.SiteProgressAccess)]
     public async Task<IActionResult> Pdf(int projectId, [FromQuery] string? date, CancellationToken ct)
     {
         Response.Headers.CacheControl = "no-store";

@@ -213,7 +213,7 @@ public class WorkerConstraintTests(TestDatabase database) : IClassFixture<TestDa
             .ToDictionary(r => (string)r["COLUMN_NAME"]!);
 
         Assert.Equal(
-            new[] { "BadgeIssued", "BankAccountNumber", "BankName", "ContractSigned", "CreatedUtc", "Department", "Designation", "Email", "EmergencyContact", "EmiratesId", "FullName", "HourlyRate", "HousingAllowance", "Iban", "Id", "IsActive", "JoinDate", "MonthlySalary", "Nationality", "Notes", "OtherAllowance", "OvertimeRate", "PassportNumber", "Phone", "SafetyGearIssued", "SiteOrientationDone", "TransportAllowance", "UpdatedUtc", "VisaMedicalCleared", "WorkerCode", "WorkLocation", "WpsRegistered" },
+            new[] { "BadgeIssued", "BankAccountNumber", "BankName", "CardNumber", "ContractSigned", "CreatedUtc", "Department", "Designation", "Email", "EmergencyContact", "EmiratesId", "ExchangeAccountNumber", "ExchangeName", "FullName", "HourlyRate", "HousingAllowance", "Iban", "Id", "IsActive", "JoinDate", "MonthlySalary", "Nationality", "Notes", "OtherAllowance", "OvertimeRate", "PassportNumber", "Phone", "SafetyGearIssued", "SiteOrientationDone", "TransportAllowance", "UpdatedUtc", "VisaMedicalCleared", "WorkerCode", "WorkLocation", "WpsRegistered" },
             columns.Keys.Order().ToArray());
 
         Assert.Equal("nvarchar", columns["WorkerCode"]["DATA_TYPE"]);
@@ -235,7 +235,7 @@ public class WorkerConstraintTests(TestDatabase database) : IClassFixture<TestDa
         Assert.Equal("YES", columns["JoinDate"]["IS_NULLABLE"]);
         Assert.Equal("datetime2", columns["CreatedUtc"]["DATA_TYPE"]);
         Assert.Equal("datetime2", columns["UpdatedUtc"]["DATA_TYPE"]);
-        Assert.All(columns.Where(c => c.Key is not ("OvertimeRate" or "JoinDate" or "Department" or "EmiratesId" or "PassportNumber" or "Phone" or "Email" or "EmergencyContact" or "WorkLocation" or "Notes" or "Nationality" or "BankName" or "BankAccountNumber" or "Iban")).Select(c => c.Value), column => Assert.Equal("NO", column["IS_NULLABLE"]));
+        Assert.All(columns.Where(c => c.Key is not ("OvertimeRate" or "JoinDate" or "Department" or "EmiratesId" or "PassportNumber" or "Phone" or "Email" or "EmergencyContact" or "WorkLocation" or "Notes" or "Nationality" or "BankName" or "BankAccountNumber" or "Iban" or "ExchangeName" or "CardNumber" or "ExchangeAccountNumber")).Select(c => c.Value), column => Assert.Equal("NO", column["IS_NULLABLE"]));
     }
 
     [Fact]

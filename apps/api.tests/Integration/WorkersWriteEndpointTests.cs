@@ -155,7 +155,7 @@ public class WorkersWriteEndpointTests(ApiFixture api) : IClassFixture<ApiFixtur
         Assert.True(id > 0);
         Assert.EndsWith($"/api/workers/{id}", response.Headers.Location?.ToString());
         Assert.Equal(
-            new[] { "badgeIssued", "bankAccountNumber", "bankName", "contractSigned", "department", "designation", "effectiveOvertimeRate", "email", "emergencyContact", "emiratesId", "fullName", "hasPhoto", "hourlyRate", "housingAllowance", "iban", "id", "isActive", "joinDate", "monthlySalary", "nationality", "notes", "otherAllowance", "overtimeRate", "passportNumber", "phone", "safetyGearIssued", "siteOrientationDone", "transportAllowance", "visaMedicalCleared", "workerCode", "workLocation", "wpsRegistered" },
+            new[] { "badgeIssued", "bankAccountNumber", "bankName", "cardNumber", "contractSigned", "department", "designation", "effectiveOvertimeRate", "email", "emergencyContact", "emiratesId", "exchangeAccountNumber", "exchangeName", "fullName", "hasPhoto", "hourlyRate", "housingAllowance", "iban", "id", "isActive", "joinDate", "monthlySalary", "nationality", "notes", "otherAllowance", "overtimeRate", "passportNumber", "phone", "safetyGearIssued", "siteOrientationDone", "transportAllowance", "visaMedicalCleared", "workerCode", "workLocation", "wpsRegistered" },
             json.EnumerateObject().Select(p => p.Name).Order().ToArray());
         Assert.Equal(code, json.GetProperty("workerCode").GetString());
         Assert.Equal("Mohammed Ali", json.GetProperty("fullName").GetString());

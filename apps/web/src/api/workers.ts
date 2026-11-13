@@ -41,6 +41,10 @@ export interface Worker {
   bankName?: string | null;
   bankAccountNumber?: string | null;
   iban?: string | null;
+  /** Money-exchange payout details; null for Supervisors. */
+  exchangeName?: string | null;
+  cardNumber?: string | null;
+  exchangeAccountNumber?: string | null;
 }
 
 /** The editable fields, sent as the body of create and update. */
@@ -79,6 +83,9 @@ export interface WorkerInput {
   bankName?: string | null;
   bankAccountNumber?: string | null;
   iban?: string | null;
+  exchangeName?: string | null;
+  cardNumber?: string | null;
+  exchangeAccountNumber?: string | null;
   /** A new JPEG portrait, base64 encoded. Omit to keep the stored photo. */
   photoBase64?: string;
   /** True clears the stored photo (ignored when photoBase64 is sent). */

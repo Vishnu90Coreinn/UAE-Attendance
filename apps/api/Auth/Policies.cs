@@ -15,6 +15,9 @@ public static class Policies
     /// <summary>Supervisor, Manager or Administrator: entering attendance and raising leave.</summary>
     public const string SupervisorOrAbove = "SupervisorOrAbove";
 
+    /// <summary>Any signed-in user except HR: Site Progress is not part of an HR account's access.</summary>
+    public const string SiteProgressAccess = "SiteProgressAccess";
+
     /// <summary>HR or Administrator: preparing certificate details for approval.</summary>
     public const string HrOrAdmin = "HrOrAdmin";
 }

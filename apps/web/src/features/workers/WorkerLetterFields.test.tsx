@@ -52,7 +52,7 @@ describe("worker form - letter details", () => {
     expect(await screen.findByLabelText("Nationality")).toHaveValue("Pakistani");
     expect(screen.getByLabelText("Housing allowance (AED)")).toHaveValue("800.00");
     expect(screen.getByLabelText("Transport allowance (AED)")).toHaveValue("");
-    expect(screen.getByLabelText("Other allowances (AED)")).toHaveValue("200.00");
+    expect(screen.getByLabelText("Other allowance (AED)")).toHaveValue("200.00");
     expect(screen.getByLabelText("Bank name")).toHaveValue("Emirates NBD");
     expect(screen.getByLabelText("Bank account number")).toHaveValue("0129");
     expect(screen.getByLabelText("IBAN")).toHaveValue("AE03");
@@ -95,7 +95,7 @@ describe("validateWorker - letter details", () => {
   const base: WorkerFormValues = {
     workerCode: "EMP-1", fullName: "A", designation: "B", hourlyRate: "5", monthlySalary: "1200", overtimeRate: "",
     housingAllowance: "", transportAllowance: "", otherAllowance: "", joinDate: "", department: "", emiratesId: "",
-    passportNumber: "", nationality: "", bankName: "", bankAccountNumber: "", iban: "", phone: "", email: "",
+    passportNumber: "", nationality: "", bankName: "", bankAccountNumber: "", iban: "", exchangeName: "", cardNumber: "", exchangeAccountNumber: "", phone: "", email: "",
     emergencyContact: "", workLocation: "", notes: "",
   };
 

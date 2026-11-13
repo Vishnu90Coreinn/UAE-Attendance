@@ -55,8 +55,9 @@ public sealed class WorkersController(WorkerService workers, WageRedactor wages,
         }
     }
 
+    /// <summary>A new worker needs a salary and rates, which HR may not set, so HR cannot add workers.</summary>
     [HttpPost]
-    [Authorize(Policy = Policies.ManagerAdminOrHr)]
+    [Authorize(Policy = Policies.ManagerOrAdmin)]
     public async Task<ActionResult<WorkerResponse>> Create(WorkerRequest request, CancellationToken cancellationToken)
     {
         var result = await workers.CreateAsync(request, cancellationToken);
@@ -68,7 +69,8 @@ public sealed class WorkersController(WorkerService workers, WageRedactor wages,
     [HttpPut("{id:int}")]
     [Authorize(Policy = Policies.ManagerAdminOrHr)]
     public async Task<ActionResult<WorkerResponse>> Update(int id, WorkerRequest request, CancellationToken cancellationToken) =>
-        ToActionResult(await workers.UpdateAsync(id, request, cancellationToken));
+        ToActionResult(await workers.UpdateAsync(id, request, cancellationToken,
+            lockPay: User.IsInRole(Roles.HR) && !User.IsInRole(Roles.Manager) && !User.IsInRole(Roles.Administrator)));
 
     [HttpPost("{id:int}/deactivate")]
     [Authorize(Policy = Policies.ManagerOrAdmin)]

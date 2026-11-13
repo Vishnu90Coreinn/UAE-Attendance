@@ -18,6 +18,9 @@ export type WorkerField =
   | "bankName"
   | "bankAccountNumber"
   | "iban"
+  | "exchangeName"
+  | "cardNumber"
+  | "exchangeAccountNumber"
   | "phone"
   | "email"
   | "emergencyContact"
@@ -43,6 +46,9 @@ export const FIELD_ORDER: readonly WorkerField[] = [
   "bankName",
   "bankAccountNumber",
   "iban",
+  "exchangeName",
+  "cardNumber",
+  "exchangeAccountNumber",
   "phone",
   "email",
   "emergencyContact",
@@ -93,6 +99,9 @@ const OPTIONAL_TEXT: readonly { field: WorkerField; max: number; label: string }
   { field: "bankName", max: 80, label: "Bank name" },
   { field: "bankAccountNumber", max: 40, label: "Account number" },
   { field: "iban", max: 40, label: "IBAN" },
+  { field: "exchangeName", max: 80, label: "Exchange name" },
+  { field: "cardNumber", max: 40, label: "Card number" },
+  { field: "exchangeAccountNumber", max: 40, label: "Exchange account number" },
   { field: "phone", max: 25, label: "Phone" },
   { field: "email", max: 120, label: "Email" },
   { field: "emergencyContact", max: 150, label: "Emergency contact" },
@@ -283,6 +292,9 @@ export function toWorkerInput(values: WorkerFormValues, checklist?: ChecklistVal
     bankName: optional(values.bankName),
     bankAccountNumber: optional(values.bankAccountNumber),
     iban: optional(values.iban),
+    exchangeName: optional(values.exchangeName),
+    cardNumber: optional(values.cardNumber),
+    exchangeAccountNumber: optional(values.exchangeAccountNumber),
     joinDate: values.joinDate.trim() === "" ? null : values.joinDate.trim(),
     department: optional(values.department),
     emiratesId: optional(values.emiratesId),

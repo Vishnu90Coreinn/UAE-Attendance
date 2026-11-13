@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, KeyRound, LogOut } from "lucide-react";
 import type { CurrentUser } from "../api/auth";
 import { cx } from "../ui";
+import { roleLabel } from "../permissions";
 
 interface AccountMenuProps {
   user: CurrentUser;
@@ -62,7 +63,7 @@ export function AccountMenu({ user, onChangePassword, onSignOut }: AccountMenuPr
         </span>
         <span aria-hidden="true" className="hidden text-left leading-tight lg:block">
           <span className="block text-sm font-medium text-ink-900">{user.username}</span>
-          <span className="block text-xs text-ink-500">{user.role}</span>
+          <span className="block text-xs text-ink-500">{roleLabel(user.role)}</span>
         </span>
         <ChevronDown aria-hidden="true" size={14} className={cx("hidden text-ink-500 transition-transform lg:block", open && "rotate-180")} />
       </button>
@@ -70,7 +71,7 @@ export function AccountMenu({ user, onChangePassword, onSignOut }: AccountMenuPr
         <div id={menuId} role="menu" aria-label="Account" className="absolute right-0 top-full z-30 mt-1 w-56 overflow-hidden rounded-card border border-line bg-white shadow-pop">
           <div className="border-b border-line px-3 py-2.5">
             <p className="truncate text-sm font-semibold text-ink-900">{user.username}</p>
-            <p className="text-xs text-ink-600">{user.role}</p>
+            <p className="text-xs text-ink-600">{roleLabel(user.role)}</p>
           </div>
           <div className="py-1">
             <button type="button" role="menuitem" className={itemClass} onClick={() => choose(onChangePassword)}>

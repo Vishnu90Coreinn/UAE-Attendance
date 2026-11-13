@@ -475,6 +475,13 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
+                    b.Property<string>("PcRef")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)")
+                        .HasDefaultValue("");
+
                     b.Property<string>("Project")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -1251,6 +1258,10 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
 
+                    b.Property<string>("CardNumber")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<bool>("ContractSigned")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -1279,6 +1290,14 @@ namespace HrPayroll.Api.Data.Migrations
                     b.Property<string>("EmiratesId")
                         .HasMaxLength(25)
                         .HasColumnType("nvarchar(25)");
+
+                    b.Property<string>("ExchangeAccountNumber")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ExchangeName")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
 
                     b.Property<string>("FullName")
                         .IsRequired()

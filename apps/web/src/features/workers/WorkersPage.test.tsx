@@ -320,6 +320,9 @@ describe("WorkersPage - add and edit", () => {
       bankName: null,
       bankAccountNumber: null,
       iban: null,
+      exchangeName: null,
+      cardNumber: null,
+      exchangeAccountNumber: null,
       joinDate: null,
       department: null,
       emiratesId: null,
@@ -524,10 +527,10 @@ describe("WorkersPage - search and filter", () => {
 });
 
 describe("WorkersPage - HR", () => {
-  it("lets HR add, edit and print, but not deactivate or delete", async () => {
+  it("lets HR edit and print, but not add, deactivate or delete", async () => {
     await renderLoaded("HR", [ahmed]);
 
-    expect(screen.getByRole("button", { name: "Add New Worker" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add New Worker" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit Ahmed Khan" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "More actions for Ahmed Khan" }));
     expect(screen.getByRole("menuitem", { name: "Download record" })).toBeInTheDocument();

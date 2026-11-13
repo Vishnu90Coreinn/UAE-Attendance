@@ -82,6 +82,7 @@ public sealed class Invoice
     public DateOnly DueDate { get; set; }
     public string PaymentTerms { get; set; } = "";
     public string LpoRef { get; set; } = "";
+    public string PcRef { get; set; } = "";
     public string Project { get; set; } = "";
     public string Scope { get; set; } = "";
     public string Notes { get; set; } = "";

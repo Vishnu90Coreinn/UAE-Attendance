@@ -46,7 +46,7 @@ export function DashboardPage() {
   const manager = isManagement(user?.role);
   const actions: QuickAction[] = [
     ...(manager ? [{ to: "/attendance", label: "Mark attendance", icon: ClipboardCheck }] : []),
-    ...(manager || user?.role === "HR" ? [{ to: "/workers?new=1", label: "Add worker", icon: UserPlus }] : []),
+    ...(manager ? [{ to: "/workers?new=1", label: "Add worker", icon: UserPlus }] : []),
     ...(manager ? [{ to: "/invoices?new=1", label: "New invoice", icon: FilePlus2 }] : []),
     ...(manager ? [{ to: "/leave?new=1", label: "New leave", icon: CalendarPlus }] : []),
   ];
