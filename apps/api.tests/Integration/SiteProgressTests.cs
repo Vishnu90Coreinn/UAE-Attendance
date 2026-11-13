@@ -352,7 +352,7 @@ public class SiteProgressTests(ApiFixture api) : IClassFixture<ApiFixture>
     public static TheoryData<string, string, HttpStatusCode> Matrix() => new()
     {
         // role, operation, expected
-        { Roles.Supervisor, "read", HttpStatusCode.OK }, { Roles.HR, "read", HttpStatusCode.OK },
+        { Roles.Supervisor, "read", HttpStatusCode.OK }, { Roles.HR, "read", HttpStatusCode.Forbidden },
         { Roles.Manager, "read", HttpStatusCode.OK }, { Roles.Administrator, "read", HttpStatusCode.OK },
         { Roles.Supervisor, "save", HttpStatusCode.OK }, { Roles.HR, "save", HttpStatusCode.Forbidden },
         { Roles.Manager, "save", HttpStatusCode.OK }, { Roles.Administrator, "save", HttpStatusCode.OK },
@@ -360,7 +360,7 @@ public class SiteProgressTests(ApiFixture api) : IClassFixture<ApiFixture>
         { Roles.Manager, "createProject", HttpStatusCode.Created }, { Roles.Administrator, "createProject", HttpStatusCode.Created },
         { Roles.Supervisor, "deleteReport", HttpStatusCode.Forbidden }, { Roles.HR, "deleteReport", HttpStatusCode.Forbidden },
         { Roles.Manager, "deleteReport", HttpStatusCode.NoContent }, { Roles.Administrator, "deleteReport", HttpStatusCode.NoContent },
-        { Roles.HR, "csv", HttpStatusCode.OK }, { Roles.HR, "pdf", HttpStatusCode.OK }, { Roles.Supervisor, "pdf", HttpStatusCode.OK },
+        { Roles.HR, "csv", HttpStatusCode.Forbidden }, { Roles.HR, "pdf", HttpStatusCode.Forbidden }, { Roles.Supervisor, "pdf", HttpStatusCode.OK },
     };
 
     [Theory]

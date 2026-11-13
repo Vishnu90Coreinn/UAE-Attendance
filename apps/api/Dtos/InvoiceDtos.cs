@@ -11,7 +11,7 @@ public sealed record InvoiceRequest(
     int? ClientId, string? ClientName, string? ClientTrn, string? ClientAddress,
     DateOnly? InvoiceDate, DateOnly? DueDate, string? PaymentTerms,
     string? LpoRef, string? Project, string? Scope, string? Notes,
-    List<InvoiceLineRequest>? Lines);
+    List<InvoiceLineRequest>? Lines, string? PcRef = null);
 
 public sealed record CancelInvoiceRequest(string? Reason);
 
@@ -35,7 +35,8 @@ public sealed record InvoiceResponse(
     DateOnly InvoiceDate, DateOnly DueDate, string PaymentTerms, string LpoRef, string Project, string Scope, string Notes,
     IReadOnlyList<InvoiceLineResponse> Lines, IReadOnlyList<InvoicePaymentResponse> Payments,
     decimal SubTotal, decimal VatTotal, decimal Total, decimal AmountPaid, decimal BalanceDue, string TotalInWords,
-    InvoiceCompany Company, string CreatedBy, DateTime? IssuedUtc, string? IssuedBy, DateTime? CancelledUtc, string? CancelReason);
+    InvoiceCompany Company, string CreatedBy, DateTime? IssuedUtc, string? IssuedBy, DateTime? CancelledUtc, string? CancelReason,
+    string PcRef = "");
 
 public sealed record InvoiceSummary(
     int Id, string? Number, string Status, string DisplayStatus, bool IsOverdue, string ClientName, string Project, string LpoRef,

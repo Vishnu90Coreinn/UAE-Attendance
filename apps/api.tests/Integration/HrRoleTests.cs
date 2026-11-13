@@ -59,23 +59,29 @@ public class HrRoleTests(ApiFixture api) : IClassFixture<ApiFixture>
     }
 
     [Fact]
-    public async Task Hr_CanAddAndEditWorkers_ButNotDeactivateOrDelete()
+    public async Task Hr_CanEditWorkersWithoutChangingPay_ButNotAddDeactivateOrDelete()
     {
         var token = await HrToken();
-        var code = TestWorkers.UniqueCode();
-        var created = await api.SendAsync(HttpMethod.Post, "/api/workers",
-            new { workerCode = code, fullName = "Hr Added", designation = "Glazier", hourlyRate = 10m }, token);
-        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
-        var id = (await TestWorkers.ReadJsonAsync(created)).GetProperty("id").GetInt32();
+        var worker = await TestWorkers.CreateAsync(api.ConnectionString, hourlyRate: 10m);
 
-        var edited = await api.SendAsync(HttpMethod.Put, $"/api/workers/{id}",
-            new { workerCode = code, fullName = "Hr Edited", designation = "Glazier", hourlyRate = 11m }, token);
+        var added = await api.SendAsync(HttpMethod.Post, "/api/workers",
+            new { workerCode = TestWorkers.UniqueCode(), fullName = "Hr Added", designation = "Glazier", hourlyRate = 10m }, token);
+        Assert.Equal(HttpStatusCode.Forbidden, added.StatusCode);
+
+        var edited = await api.SendAsync(HttpMethod.Put, $"/api/workers/{worker.Id}",
+            new { workerCode = worker.WorkerCode, fullName = "Hr Edited", designation = "Glazier", hourlyRate = 99m, monthlySalary = 9999m, overtimeRate = 50m, housingAllowance = 777m, exchangeName = "Al Ansari" }, token);
         Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
+        var json = await TestWorkers.ReadJsonAsync(edited);
+        Assert.Equal("Hr Edited", json.GetProperty("fullName").GetString());
+        Assert.Equal("Al Ansari", json.GetProperty("exchangeName").GetString());
+        Assert.Equal(10m, json.GetProperty("hourlyRate").GetDecimal());
+        Assert.Equal(0m, json.GetProperty("housingAllowance").GetDecimal());
+        Assert.NotEqual(9999m, json.GetProperty("monthlySalary").GetDecimal());
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, json.GetProperty("overtimeRate").ValueKind);
 
-        Assert.Equal(HttpStatusCode.Forbidden, (await api.SendAsync(HttpMethod.Post, $"/api/workers/{id}/deactivate", null, token)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await api.SendAsync(HttpMethod.Delete, $"/api/workers/{id}", null, token)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.SendAsync(HttpMethod.Post, $"/api/workers/{worker.Id}/deactivate", null, token)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.SendAsync(HttpMethod.Delete, $"/api/workers/{worker.Id}", null, token)).StatusCode);
     }
-
     [Fact]
     public async Task Hr_CanAddDeductionsAndTypes()
     {

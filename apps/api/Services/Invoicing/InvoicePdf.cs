@@ -14,7 +14,7 @@ public sealed class InvoicePdf
 {
     private const double Left = 36;
     private const double Right = 559;
-    private static readonly double[] ColumnRight = [78, 340, 400, 460, 520, 559]; // right edges of #, description (left aligned), area, rate, vat, amount
+    private static readonly double[] ColumnRight = [78, 296, 356, 416, 486, 559]; // right edges of #, description (left aligned), area, rate, vat, amount
     private const double Bottom = 60;
 
     /// <summary>
@@ -27,7 +27,7 @@ public sealed class InvoicePdf
         foreach (var text in new[]
         {
             c.CompanyName, c.CompanySubtitle, c.Mobile, c.Address1, c.Address2, c.Email, c.Trn, c.BankName, c.AccountName, c.AccountNumber, c.Iban,
-            invoice.ClientName, invoice.ClientTrn, invoice.ClientAddress, invoice.PaymentTerms, invoice.LpoRef, invoice.Project, invoice.Scope, invoice.Notes,
+            invoice.ClientName, invoice.ClientTrn, invoice.ClientAddress, invoice.PaymentTerms, invoice.LpoRef, invoice.PcRef, invoice.Project, invoice.Scope, invoice.Notes,
         }.Concat(invoice.Lines.Select(l => l.Description)))
             PdfText.EnsurePrintable(text);
         try
@@ -116,7 +116,7 @@ public sealed class InvoicePdf
     private static double Parties(PdfCanvas cv, InvoiceResponse invoice, double top)
     {
         var y = top - 16;
-        const double height = 104;
+        const double height = 118;
         cv.Fill(Left, y - height, 255, height, PdfStyle.Panel);
         cv.Fill(Left + 268, y - height, Right - Left - 268, height, PdfStyle.Panel);
         cv.Text("BILL TO", Left + 12, y - 16, 6.8, true, PdfStyle.Muted);
@@ -132,6 +132,7 @@ public sealed class InvoicePdf
             ("Terms", invoice.PaymentTerms),
             ("Due date", invoice.DueDate.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)),
             ("LPO ref", invoice.LpoRef),
+            ("PC ref", invoice.PcRef),
             ("Project", invoice.Project),
             ("Scope", invoice.Scope),
         };

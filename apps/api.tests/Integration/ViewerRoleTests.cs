@@ -5,7 +5,7 @@ using HrPayroll.Api.Tests.Helpers;
 
 namespace HrPayroll.Api.Tests.Integration;
 
-/// <summary>The Viewer role sees every page, pay included, and can change nothing.</summary>
+/// <summary>The Viewer role (shown as "Partner") sees the pay pages, pay included, and can change nothing. It has no User Manager.</summary>
 public class ViewerRoleTests(ApiFixture api) : IClassFixture<ApiFixture>
 {
     private async Task<string> TokenAsync(string role) => (await TestWorkers.SignInAsync(api, role)).Token;
@@ -14,7 +14,7 @@ public class ViewerRoleTests(ApiFixture api) : IClassFixture<ApiFixture>
     {
         "/api/workers", "/api/payroll?month=2026-10", "/api/deductions?month=2026-10", "/api/deduction-types", "/api/attendance?date=2026-10-05",
         "/api/leave/export/pdf?month=2026-10", "/api/invoices", "/api/invoice-clients", "/api/documents/settings", "/api/letters",
-        "/api/certificate-requests", "/api/site-projects", "/api/settings/payroll", "/api/users",
+        "/api/certificate-requests", "/api/site-projects", "/api/settings/payroll",
     };
 
     [Theory]
@@ -64,15 +64,24 @@ public class ViewerRoleTests(ApiFixture api) : IClassFixture<ApiFixture>
     }
 
     [Fact]
-    public async Task AViewerSeesEveryAccount_IncludingManagersAndAdministrators()
+    public async Task AViewerCannotOpenUserManager()
     {
-        var manager = await TestUsers.CreateAsync(api.ConnectionString, role: Roles.Manager);
+        var response = await api.GetAsync("/api/users", await TokenAsync(Roles.Viewer));
 
-        var users = JsonDocument.Parse(await (await api.GetAsync("/api/users", await TokenAsync(Roles.Viewer))).Content.ReadAsStringAsync()).RootElement;
-
-        Assert.Contains(users.EnumerateArray(), u => u.GetProperty("username").GetString() == manager.Username);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    [Fact]
+    public async Task AManagerSeesPartnerAccounts_ButNotOtherManagers()
+    {
+        var partner = await TestUsers.CreateAsync(api.ConnectionString, role: Roles.Viewer);
+        var otherManager = await TestUsers.CreateAsync(api.ConnectionString, role: Roles.Manager);
+
+        var users = JsonDocument.Parse(await (await api.GetAsync("/api/users", await TokenAsync(Roles.Manager))).Content.ReadAsStringAsync()).RootElement;
+
+        Assert.Contains(users.EnumerateArray(), u => u.GetProperty("username").GetString() == partner.Username);
+        Assert.DoesNotContain(users.EnumerateArray(), u => u.GetProperty("username").GetString() == otherManager.Username);
+    }
     [Fact]
     public async Task AViewerCanStillSignInAndChangeTheirOwnPassword()
     {
@@ -85,14 +94,16 @@ public class ViewerRoleTests(ApiFixture api) : IClassFixture<ApiFixture>
     }
 
     [Fact]
-    public async Task OnlyAnAdministratorCanCreateAViewer()
+    public async Task AManagerCanCreateAPartner_ButNotAnotherManager()
     {
         var admin = await TokenAsync(Roles.Administrator);
         var manager = await TokenAsync(Roles.Manager);
         var body = new { username = TestUsers.UniqueName(), password = TestUsers.DefaultPassword, role = "Viewer" };
 
-        Assert.Equal(HttpStatusCode.Forbidden, (await api.PostAsync("/api/users", body, manager)).StatusCode);
-        Assert.Equal(HttpStatusCode.Created, (await api.PostAsync("/api/users", body, admin)).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await api.PostAsync("/api/users", body, manager)).StatusCode);
+        var managerBody = new { username = TestUsers.UniqueName(), password = TestUsers.DefaultPassword, role = "Manager" };
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.PostAsync("/api/users", managerBody, manager)).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await api.PostAsync("/api/users", managerBody, admin)).StatusCode);
     }
 
     [Fact]

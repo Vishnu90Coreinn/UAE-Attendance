@@ -7,7 +7,7 @@ import { ApiError } from "../../api/client";
 import { listLeave, type LeaveRequest } from "../../api/leave";
 import { getWorkerPhoto, getWorkerProfilePdf, listWorkers, type Worker } from "../../api/workers";
 import { useAuth } from "../../contexts/AuthContext";
-import { canViewAll, isReadOnly } from "../../permissions";
+import { canViewAll, isManagement, isReadOnly } from "../../permissions";
 import { LoadingState, Button, Card, StatusBadge, cx } from "../../ui";
 import { formatDisplayDate } from "../../utils/date";
 import { formatRate } from "../../utils/money";
@@ -315,15 +315,21 @@ export function WorkerProfilePage() {
         {tab === "pay" && showPay && (
           <div className="grid gap-4 lg:grid-cols-2">
             <Section title="Pay">
-              <Fact label="Monthly salary">{money(worker.monthlySalary)}</Fact>
-              <Fact label="Hourly rate">{money(worker.hourlyRate)}</Fact>
-              <Fact label="Overtime rate">
-                {worker.overtimeRate != null
-                  ? money(worker.overtimeRate)
-                  : worker.effectiveOvertimeRate != null
-                    ? `Company rate (${money(worker.effectiveOvertimeRate)})`
-                    : null}
-              </Fact>
+              {isManagement(user?.role) ? (
+                <>
+                  <Fact label="Monthly salary">{money(worker.monthlySalary)}</Fact>
+                  <Fact label="Hourly rate">{money(worker.hourlyRate)}</Fact>
+                  <Fact label="Overtime rate">
+                    {worker.overtimeRate != null
+                      ? money(worker.overtimeRate)
+                      : worker.effectiveOvertimeRate != null
+                        ? `Company rate (${money(worker.effectiveOvertimeRate)})`
+                        : null}
+                  </Fact>
+                </>
+              ) : (
+                <Fact label="Base salary">{money(worker.monthlySalary)}</Fact>
+              )}
               <Fact label="Housing allowance">{money(worker.housingAllowance)}</Fact>
               <Fact label="Transport allowance">{money(worker.transportAllowance)}</Fact>
               <Fact label="Other allowance">{money(worker.otherAllowance)}</Fact>
@@ -332,6 +338,9 @@ export function WorkerProfilePage() {
               <Fact label="Bank">{worker.bankName}</Fact>
               <Fact label="Account number">{worker.bankAccountNumber && <span className="font-mono">{worker.bankAccountNumber}</span>}</Fact>
               <Fact label="IBAN">{worker.iban && <span className="font-mono">{worker.iban}</span>}</Fact>
+              <Fact label="Exchange name">{worker.exchangeName}</Fact>
+              <Fact label="Card number">{worker.cardNumber && <span className="font-mono">{worker.cardNumber}</span>}</Fact>
+              <Fact label="Exchange account number">{worker.exchangeAccountNumber && <span className="font-mono">{worker.exchangeAccountNumber}</span>}</Fact>
             </Section>
           </div>
         )}
@@ -376,6 +385,7 @@ export function WorkerProfilePage() {
         <WorkerFormDialog
           open={editing}
           worker={worker}
+          hidePay={!isManagement(user?.role)}
           onClose={() => setEditing(false)}
           onSaved={() => {
             setEditing(false);

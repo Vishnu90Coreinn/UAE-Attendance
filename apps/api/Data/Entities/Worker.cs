@@ -41,6 +41,11 @@ public class Worker
     public string? BankAccountNumber { get; set; }
     public string? Iban { get; set; }
 
+    // Money-exchange payout details: the exchange house, the card number and the account held there.
+    public string? ExchangeName { get; set; }
+    public string? CardNumber { get; set; }
+    public string? ExchangeAccountNumber { get; set; }
+
     // Onboarding checklist.
     public bool ContractSigned { get; set; }
     public bool VisaMedicalCleared { get; set; }

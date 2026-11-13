@@ -3,7 +3,7 @@ import { Bell, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { COMPANY_NAME, SHORT_NAME } from "../branding";
 import { getPayrollSettings, type PayrollSettings } from "../api/settings";
-import { isManagement } from "../permissions";
+import { isManagement, roleLabel } from "../permissions";
 import { useAuth } from "../contexts/AuthContext";
 import { ChangePasswordDialog } from "../features/auth/ChangePasswordDialog";
 import { useAttendanceSummary } from "../features/attendance/useAttendanceSummary";
@@ -55,7 +55,7 @@ export function Layout() {
   // Each screen names the browser tab, so tabs and history are told apart.
   useEffect(() => {
     const here = tabs.find((item) => item.path && (pathname === item.path || pathname.startsWith(`${item.path}/`)));
-    document.title = here ? `${here.label} · ${SHORT_NAME}` : `${SHORT_NAME} HR & Payroll`;
+    document.title = here ? `${here.label} Â· ${SHORT_NAME}` : `${SHORT_NAME} HR & Payroll`;
   }, [pathname, tabs]);
   const attendanceSummary = useAttendanceSummary(!!user);
   // Managers see what is waiting for them; supervisors see what was sent back to them.
@@ -146,7 +146,7 @@ export function Layout() {
                 </span>
               )}
             </Link>
-            <p className="sr-only">{`Logged in as ${user.username} (${user.role})`}</p>
+            <p className="sr-only">{`Logged in as ${user.username} (${roleLabel(user.role)})`}</p>
             <AccountMenu user={user} onChangePassword={() => setChangePasswordOpen(true)} onSignOut={handleSignOut} />
           </div>
         )}

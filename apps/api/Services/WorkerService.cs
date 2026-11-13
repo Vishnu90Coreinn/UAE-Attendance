@@ -171,6 +171,9 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             BankName = input.BankName,
             BankAccountNumber = input.BankAccountNumber,
             Iban = input.Iban,
+            ExchangeName = input.ExchangeName,
+            CardNumber = input.CardNumber,
+            ExchangeAccountNumber = input.ExchangeAccountNumber,
             ContractSigned = request.ContractSigned ?? false,
             VisaMedicalCleared = request.VisaMedicalCleared ?? false,
             SafetyGearIssued = request.SafetyGearIssued ?? false,
@@ -206,12 +209,21 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         return new WorkerResult(WorkerOutcome.Success, ToResponse(worker, await CompanyOvertimeRateAsync(cancellationToken), photo is not null));
     }
 
-    public async Task<WorkerResult> UpdateAsync(int id, WorkerRequest request, CancellationToken cancellationToken = default)
+    /// <param name="lockPay">
+    /// True for HR: the hourly rate, monthly salary, overtime rate and the three allowances in the request are ignored and the stored ones kept.
+    /// </param>
+    public async Task<WorkerResult> UpdateAsync(int id, WorkerRequest request, CancellationToken cancellationToken = default, bool lockPay = false)
     {
         var worker = await db.Workers.SingleOrDefaultAsync(w => w.Id == id, cancellationToken);
         if (worker is null)
         {
             return new WorkerResult(WorkerOutcome.NotFound);
+        }
+
+        if (lockPay)
+        {
+            request = request with { HourlyRate = worker.HourlyRate, MonthlySalary = worker.EffectiveSalary, OvertimeRate = worker.OvertimeRate,
+                HousingAllowance = null, TransportAllowance = null, OtherAllowance = null }; // a missing allowance is left unchanged
         }
 
         var input = Validate(request, out var errors);
@@ -357,6 +369,24 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             worker.Iban = input.Iban;
         }
 
+        if (worker.ExchangeName != input.ExchangeName)
+        {
+            changes["exchangeName"] = new FieldChange(worker.ExchangeName, input.ExchangeName);
+            worker.ExchangeName = input.ExchangeName;
+        }
+
+        if (worker.CardNumber != input.CardNumber)
+        {
+            changes["cardNumber"] = new FieldChange(Mask(worker.CardNumber), Mask(input.CardNumber));
+            worker.CardNumber = input.CardNumber;
+        }
+
+        if (worker.ExchangeAccountNumber != input.ExchangeAccountNumber)
+        {
+            changes["exchangeAccountNumber"] = new FieldChange(Mask(worker.ExchangeAccountNumber), Mask(input.ExchangeAccountNumber));
+            worker.ExchangeAccountNumber = input.ExchangeAccountNumber;
+        }
+
         // A checklist item missing from the request is left as it is.
         void Check(string key, bool current, bool? requested, Action<bool> set)
         {
@@ -448,7 +478,8 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         string? Department, string? EmiratesId, string? PassportNumber, string? Phone,
         string? Email, string? EmergencyContact, string? WorkLocation, string? Notes,
         string? Nationality, decimal? HousingAllowance, decimal? TransportAllowance, decimal? OtherAllowance,
-        string? BankName, string? BankAccountNumber, string? Iban);
+        string? BankName, string? BankAccountNumber, string? Iban,
+        string? ExchangeName, string? CardNumber, string? ExchangeAccountNumber);
 
     /// <summary>Audit rows show only the last four characters of an account number or IBAN.</summary>
     private static string? Mask(string? value) =>
@@ -595,6 +626,9 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         var bankName = OptionalText(request.BankName, MaxBankNameLength, "bankName", "Bank name", errors);
         var bankAccount = OptionalText(request.BankAccountNumber, MaxBankAccountLength, "bankAccountNumber", "Account number", errors);
         var iban = OptionalText(request.Iban, MaxIbanLength, "iban", "IBAN", errors)?.Replace(" ", "").ToUpperInvariant();
+        var exchangeName = OptionalText(request.ExchangeName, MaxBankNameLength, "exchangeName", "Exchange name", errors);
+        var cardNumber = OptionalText(request.CardNumber, MaxBankAccountLength, "cardNumber", "Card number", errors);
+        var exchangeAccount = OptionalText(request.ExchangeAccountNumber, MaxBankAccountLength, "exchangeAccountNumber", "Exchange account number", errors);
         if (!PhotoUpload.TryDecode(request.PhotoBase64, out _))
         {
             errors["photo"] = "The photo must be a JPEG image of at most 3 MB.";
@@ -604,7 +638,8 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             ? new ValidWorker(code, fullName, designation, rate!.Value,
                 salary ?? decimal.Round(rate.Value * PayrollCalculator.HoursPerMonth, 2, MidpointRounding.AwayFromZero), overtime,
                 department, emiratesId, passport, phone, email, emergency, location, notes,
-                nationality, housing, transport, otherAllowance, bankName, bankAccount, iban)
+                nationality, housing, transport, otherAllowance, bankName, bankAccount, iban,
+                exchangeName, cardNumber, exchangeAccount)
             : null;
     }
 
@@ -669,5 +704,6 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             worker.ContractSigned, worker.VisaMedicalCleared, worker.SafetyGearIssued,
             worker.SiteOrientationDone, worker.WpsRegistered, worker.BadgeIssued, hasPhoto, worker.EffectiveSalary,
             worker.Nationality, worker.HousingAllowance, worker.TransportAllowance, worker.OtherAllowance,
-            worker.BankName, worker.BankAccountNumber, worker.Iban);
+            worker.BankName, worker.BankAccountNumber, worker.Iban,
+            worker.ExchangeName, worker.CardNumber, worker.ExchangeAccountNumber);
 }

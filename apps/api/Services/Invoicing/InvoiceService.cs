@@ -113,7 +113,7 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
         {
             Status = InvoiceStatuses.Draft, ClientId = source.ClientId, ClientName = source.ClientName, ClientTrn = source.ClientTrn,
             ClientAddress = source.ClientAddress, InvoiceDate = today, DueDate = today.AddDays(source.DueDate.DayNumber - source.InvoiceDate.DayNumber),
-            PaymentTerms = source.PaymentTerms, LpoRef = source.LpoRef, Project = source.Project, Scope = source.Scope, Notes = source.Notes,
+            PaymentTerms = source.PaymentTerms, LpoRef = source.LpoRef, PcRef = source.PcRef, Project = source.Project, Scope = source.Scope, Notes = source.Notes,
             SubTotal = source.SubTotal, VatTotal = source.VatTotal, Total = source.Total, CreatedBy = Actor, CreatedUtc = Now, UpdatedUtc = Now,
             Lines = source.Lines.OrderBy(l => l.LineNo).Select(l => new InvoiceLine
             {
@@ -269,7 +269,7 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
 
     private sealed record Built(
         int? ClientId, string ClientName, string ClientTrn, string ClientAddress, DateOnly InvoiceDate, DateOnly DueDate,
-        string PaymentTerms, string LpoRef, string Project, string Scope, string Notes,
+        string PaymentTerms, string LpoRef, string PcRef, string Project, string Scope, string Notes,
         List<(string Description, decimal Quantity, decimal Rate, decimal Taxable, decimal Vat, decimal Amount)> Lines);
 
     private async Task<(Built? Built, Dictionary<string, string[]> Errors)> BuildAsync(InvoiceRequest r, DocumentSettings settings, CancellationToken ct)
@@ -299,6 +299,8 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
         if (terms.Length > 40) errors["paymentTerms"] = ["Terms must be 40 characters or fewer."];
         var lpo = (r.LpoRef ?? "").Trim(); var project = (r.Project ?? "").Trim(); var scope = (r.Scope ?? "").Trim(); var notes = (r.Notes ?? "").Trim();
         if (lpo.Length > 80) errors["lpoRef"] = ["LPO reference must be 80 characters or fewer."];
+        var pc = (r.PcRef ?? "").Trim();
+        if (pc.Length > 80) errors["pcRef"] = ["PC reference must be 80 characters or fewer."];
         if (project.Length > 120) errors["project"] = ["Project must be 120 characters or fewer."];
         if (scope.Length > 120) errors["scope"] = ["Scope must be 120 characters or fewer."];
         if (notes.Length > 300) errors["notes"] = ["Notes must be 300 characters or fewer."];
@@ -328,14 +330,14 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
             if (errors.Count == 0 && lines.Sum(l => l.Item6) > MaxTotal) errors["lines"] = ["The invoice total is too large."];
         }
         if (errors.Count > 0) return (null, errors);
-        return (new Built(r.ClientId, clientName, clientTrn, clientAddress, r.InvoiceDate!.Value, r.DueDate!.Value, terms, lpo, project, scope, notes, lines), errors);
+        return (new Built(r.ClientId, clientName, clientTrn, clientAddress, r.InvoiceDate!.Value, r.DueDate!.Value, terms, lpo, pc, project, scope, notes, lines), errors);
     }
 
     private void Apply(Invoice invoice, Built b)
     {
         invoice.ClientId = b.ClientId; invoice.ClientName = b.ClientName; invoice.ClientTrn = b.ClientTrn; invoice.ClientAddress = b.ClientAddress;
         invoice.InvoiceDate = b.InvoiceDate; invoice.DueDate = b.DueDate; invoice.PaymentTerms = b.PaymentTerms;
-        invoice.LpoRef = b.LpoRef; invoice.Project = b.Project; invoice.Scope = b.Scope; invoice.Notes = b.Notes;
+        invoice.LpoRef = b.LpoRef; invoice.PcRef = b.PcRef; invoice.Project = b.Project; invoice.Scope = b.Scope; invoice.Notes = b.Notes;
         var n = 0;
         foreach (var l in b.Lines)
             invoice.Lines.Add(new InvoiceLine { LineNo = ++n, Description = l.Description, Quantity = l.Quantity, Rate = l.Rate, Taxable = l.Taxable, Vat = l.Vat, Amount = l.Amount });
@@ -417,7 +419,7 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
             i.Lines.OrderBy(l => l.LineNo).Select(l => new InvoiceLineResponse(l.LineNo, l.Description, l.Quantity, l.Rate, l.Taxable, l.Vat, l.Amount)).ToList(),
             i.Payments.OrderBy(p => p.PaidDate).ThenBy(p => p.Id).Select(p => new InvoicePaymentResponse(p.Id, p.PaidDate, p.Amount, p.Method, p.Reference, p.RecordedBy)).ToList(),
             i.SubTotal, i.VatTotal, i.Total, paid, i.Status == InvoiceStatuses.Issued ? i.Total - paid : 0m, AmountInWords.Aed(i.Total),
-            live, i.CreatedBy, i.IssuedUtc, i.IssuedBy, i.CancelledUtc, i.CancelReason);
+            live, i.CreatedBy, i.IssuedUtc, i.IssuedBy, i.CancelledUtc, i.CancelReason, i.PcRef);
     }
 
     private static InvoiceCompany CompanyOf(DocumentSettings s) => new(

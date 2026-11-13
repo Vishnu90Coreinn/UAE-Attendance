@@ -1,5 +1,5 @@
 import type { Role } from "../api/auth";
-import { ADMIN_SCREEN_ROLES, VIEW_ALL_ROLES } from "../permissions";
+import { ADMIN_SCREEN_ROLES, SITE_PROGRESS_ROLES, VIEW_ALL_ROLES } from "../permissions";
 
 export interface NavItem {
   key: string;
@@ -24,7 +24,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "leave", label: "Leave Management", shortLabel: "Leave", roles: ALL_ROLES, path: "/leave" },
   { key: "invoices", label: "Tax Invoices", shortLabel: "Invoices", roles: VIEW_ALL_ROLES, path: "/invoices" },
   { key: "letters", label: "HR Letters", shortLabel: "Letters", roles: ALL_ROLES, path: "/letters" },
-  { key: "progress", label: "Site Progress", shortLabel: "Progress", roles: ALL_ROLES, path: "/progress" },
+  { key: "progress", label: "Site Progress", shortLabel: "Progress", roles: SITE_PROGRESS_ROLES, path: "/progress" },
   { key: "users", label: "User Manager", shortLabel: "Users", roles: ADMIN_SCREEN_ROLES, path: "/users" },
   { key: "settings", label: "Settings", shortLabel: "Settings", roles: ADMIN_SCREEN_ROLES, path: "/settings" },
 ];

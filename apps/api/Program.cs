@@ -140,7 +140,8 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, UnmatchedRouteFriendlyAuthorizationResultHandler>();
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy(Policies.AnyUser, policy => policy.RequireAuthenticatedUser())
-    .AddPolicy(Policies.ManagerOrAdmin, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager))
+    .AddPolicy(Policies.SiteProgressAccess, policy => policy.RequireAuthenticatedUser().RequireAssertion(context => !context.User.IsInRole(Roles.HR)))
+    .AddPolicy(Policies.ManagerOrAdmin,policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager))
     .AddPolicy(Policies.ManagerAdminOrHr, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager, Roles.HR))
     .AddPolicy(Policies.SupervisorOrAbove, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager, Roles.Supervisor))
     .AddPolicy(Policies.HrOrAdmin, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.HR))

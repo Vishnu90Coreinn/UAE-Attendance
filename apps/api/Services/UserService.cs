@@ -31,11 +31,11 @@ public sealed class UserService(
     public const string SelfMutationMessage = "You cannot delete or deactivate your own account.";
     public const string LastAdministratorMessage = "At least one active Administrator account is required.";
     public const string DuplicateUsernameMessage = "Username already exists.";
-    public const string SupervisorsOnlyMessage = "Managers can manage Supervisor and HR accounts only.";
+    public const string SupervisorsOnlyMessage = "Managers can manage Supervisor, HR and Partner accounts only.";
 
-    /// <summary>An Administrator sees every account; a Manager sees Supervisor and HR accounts only.</summary>
+    /// <summary>An Administrator sees every account; a Manager sees Supervisor, HR and Partner (Viewer) accounts only.</summary>
     public async Task<List<UserResponse>> ListAsync(bool administrator, CancellationToken ct) =>
-        (await db.Users.AsNoTracking().Where(x => administrator || x.Role == Roles.Supervisor || x.Role == Roles.HR).OrderBy(x => x.Username).ToListAsync(ct)).Select(Response).ToList();
+        (await db.Users.AsNoTracking().Where(x => administrator || x.Role == Roles.Supervisor || x.Role == Roles.HR || x.Role == Roles.Viewer).OrderBy(x => x.Username).ToListAsync(ct)).Select(Response).ToList();
 
     public async Task<UserResult> CreateAsync(CreateUserRequest request, string actor, bool administrator, CancellationToken ct)
     {
@@ -177,7 +177,7 @@ public sealed class UserService(
     private static bool RemovesActiveAdministrator(User user, string role, bool active) =>
         user.IsActive && user.Role == Roles.Administrator && (!active || role != Roles.Administrator);
     private static UserResult Invalid(Dictionary<string, string> errors) => new(UserOutcome.Invalid, Errors: errors);
-    private static bool IsManagerAssignable(string role) => role is Roles.Supervisor or Roles.HR;
+    private static bool IsManagerAssignable(string role) => role is Roles.Supervisor or Roles.HR or Roles.Viewer;
 
     private static UserResult Forbidden() => new(UserOutcome.Forbidden, Message: SupervisorsOnlyMessage);
     private static string Id(User user) => user.Id.ToString(CultureInfo.InvariantCulture);

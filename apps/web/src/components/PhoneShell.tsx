@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { CircleUserRound, Ellipsis, KeyRound, LogOut } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import type { CurrentUser } from "../api/auth";
+import { roleLabel } from "../permissions";
 import { Dialog } from "./Dialog";
 import { NAV_ICONS as ICONS } from "./navIcons";
 import { phoneNavFor, type NavItem } from "./navItems";
@@ -149,7 +150,7 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
       <Dialog open={accountOpen} onClose={() => setAccountOpen(false)} title="Account" variant="sheet">
         {user && (
           <div className="mt-2 space-y-3">
-            <p className="break-words text-sm text-ink-700">{`Logged in as ${user.username} (${user.role})`}</p>
+            <p className="break-words text-sm text-ink-700">{`Logged in as ${user.username} (${roleLabel(user.role)})`}</p>
             <div className="space-y-1">
               <button
                 type="button"

@@ -20,6 +20,8 @@ export interface InvoiceInput {
   dueDate: string;
   paymentTerms: string;
   lpoRef: string;
+  /** The PC reference printed after the LPO reference. */
+  pcRef?: string;
   project: string;
   scope: string;
   notes: string;

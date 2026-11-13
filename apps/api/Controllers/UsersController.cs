@@ -10,11 +10,11 @@ namespace HrPayroll.Api.Controllers;
 
 [ApiController]
 [Route("api/users")]
-[Authorize(Policy = Policies.ManagerOrAdmin)]
+[Authorize(Roles = $"{Roles.Administrator},{Roles.Manager}")] // a Partner (Viewer) has no User Manager access
 public sealed class UsersController(UserService users) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<List<UserResponse>>> List(CancellationToken ct) => Ok(await users.ListAsync(IsAdministrator() || User.IsInRole(Roles.Viewer), ct));
+    public async Task<ActionResult<List<UserResponse>>> List(CancellationToken ct) => Ok(await users.ListAsync(IsAdministrator(), ct));
 
     [HttpPost]
     public async Task<ActionResult<UserResponse>> Create(CreateUserRequest request, CancellationToken ct)

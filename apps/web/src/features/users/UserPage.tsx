@@ -14,7 +14,7 @@ import {
 } from "../../api/users";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { useAuth } from "../../contexts/AuthContext";
-import { isReadOnly } from "../../permissions";
+import { isReadOnly, roleLabel } from "../../permissions";
 import { ActionFailure, LoadError, primaryButtonClass, SuccessRegion } from "../workers/WorkersFeedback";
 import { AddUserDialog, ResetPasswordDialog } from "./UserDialogs";
 
@@ -124,7 +124,7 @@ export function UserPage() {
     <section className="min-w-0 space-y-4">
       <PageHeader
         title="User Manager"
-        description={readOnly ? "Accounts and their roles, for viewing only." : current?.role === "Administrator" ? "Manage access roles and account status." : "Manage HR and Supervisor accounts."}
+        description={readOnly ? "Accounts and their roles, for viewing only." : current?.role === "Administrator" ? "Manage access roles and account status." : "Manage HR, Supervisor and Partner accounts."}
         actions={
           readOnly ? undefined : <button type="button" disabled={busy} className={`${primaryButtonClass} disabled:opacity-60`}
             onClick={() => { clearFeedback(); setDialogError(null); setFieldErrors(undefined); setAddOpen(true); }}>
@@ -147,7 +147,7 @@ export function UserPage() {
                 <td data-label="Role" className="flex items-center justify-between gap-3 border-t border-line py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-ink-600 md:table-cell md:border-0 md:px-4 md:py-3 md:before:content-none"><select aria-label={`Role for ${row.username}`} value={row.role} disabled={busy || self || readOnly}
                   className={inputClass}
                   onChange={(event) => { clearFeedback(); setRoleChange({ row, role: event.target.value as ManagedUser["role"] }); }}>
-                  {(assignable.includes(row.role) ? assignable : [row.role, ...assignable]).map((role) => <option key={role}>{role}</option>)}</select></td>
+                  {(assignable.includes(row.role) ? assignable : [row.role, ...assignable]).map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}</select></td>
                 <td data-label="Status" className="flex items-center justify-between gap-3 border-t border-line py-2 before:content-[attr(data-label)] before:text-xs before:font-semibold before:uppercase before:text-ink-600 md:table-cell md:border-0 md:px-4 md:py-3 md:before:content-none"><StatusBadge tone={row.isActive ? "success" : "neutral"}>{row.isActive ? "Active" : "Inactive"}</StatusBadge></td>
                 {!readOnly && <td className="block border-t border-line pt-3 md:table-cell md:border-0 md:px-4 md:py-3"><div className="flex items-center gap-2 md:justify-end">
                   {!self && <button type="button" disabled={busy} className={`${actionClass} max-md:flex-1`} aria-label={`${row.isActive ? "Deactivate" : "Activate"} ${row.username}`}
@@ -161,7 +161,7 @@ export function UserPage() {
       {addOpen && <AddUserDialog open roles={assignable} pending={pending} error={dialogError} fieldErrors={fieldErrors} onSubmit={(input) => void add(input)} onClose={() => setAddOpen(false)} />}
       {!!resetUser && <ResetPasswordDialog user={resetUser} pending={pending} error={dialogError} fieldErrors={fieldErrors} onSubmit={(password) => void reset(password)} onClose={() => setResetUser(null)} />}
       <ConfirmDialog open={!!roleChange} title="Change role"
-        message={roleChange ? `Change ${roleChange.row.username} from ${roleChange.row.role} to ${roleChange.role}? Their access changes the next time they sign in.` : ""}
+        message={roleChange ? `Change ${roleChange.row.username} from ${roleLabel(roleChange.row.role)} to ${roleLabel(roleChange.role)}? Their access changes the next time they sign in.` : ""}
         confirmLabel="Change role" confirmIcon={undefined} pending={pending}
         onConfirm={() => { const change = roleChange; setRoleChange(null); if (change) void mutate(() => updateUser(change.row.id, { role: change.role, active: change.row.isActive }), "User role updated."); }}
         onCancel={() => setRoleChange(null)} />

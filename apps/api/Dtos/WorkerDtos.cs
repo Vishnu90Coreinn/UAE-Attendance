@@ -13,7 +13,8 @@ public sealed record WorkerRequest(
     bool? SiteOrientationDone = null, bool? WpsRegistered = null, bool? BadgeIssued = null,
     string? PhotoBase64 = null, bool? RemovePhoto = null, decimal? MonthlySalary = null,
     string? Nationality = null, decimal? HousingAllowance = null, decimal? TransportAllowance = null, decimal? OtherAllowance = null,
-    string? BankName = null, string? BankAccountNumber = null, string? Iban = null);
+    string? BankName = null, string? BankAccountNumber = null, string? Iban = null,
+    string? ExchangeName = null, string? CardNumber = null, string? ExchangeAccountNumber = null);
 
 /// <summary>
 /// <c>OvertimeRate</c> is the worker's own rate (null = none set); <c>EffectiveOvertimeRate</c> is that rate, or the
@@ -28,6 +29,7 @@ public sealed record WorkerResponse(
     bool SiteOrientationDone = false, bool WpsRegistered = false, bool BadgeIssued = false, bool HasPhoto = false,
     decimal? MonthlySalary = null,
     string? Nationality = null, decimal? HousingAllowance = null, decimal? TransportAllowance = null, decimal? OtherAllowance = null,
-    string? BankName = null, string? BankAccountNumber = null, string? Iban = null);
+    string? BankName = null, string? BankAccountNumber = null, string? Iban = null,
+    string? ExchangeName = null, string? CardNumber = null, string? ExchangeAccountNumber = null);
 
 public sealed record NextWorkerCodeResponse(string WorkerCode);

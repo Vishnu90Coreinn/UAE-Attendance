@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { buttonClass, cx, inputClass } from "../../ui";
 import { Loader2 } from "lucide-react";
 import type { Role } from "../../api/auth";
+import { roleLabel } from "../../permissions";
 import { type CreateUserInput, type ManagedUser } from "../../api/users";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
@@ -53,7 +54,7 @@ export function AddUserDialog({ open, roles, pending, error, fieldErrors, onClos
         <label className="block text-sm font-medium text-ink-800">Role
           <select aria-label="Role" value={role} disabled={pending} onChange={(e) => setRole(e.target.value as Role)}
             className={cx(inputClass, "mt-1 w-full")}>
-            {roles.map((value) => <option key={value}>{value}</option>)}
+            {roles.map((value) => <option key={value} value={value}>{roleLabel(value)}</option>)}
           </select>
         </label>
         <div className="flex flex-wrap justify-end gap-3 pt-2">

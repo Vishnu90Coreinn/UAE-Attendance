@@ -47,13 +47,15 @@ export function WorkersPage() {
   const canManage = isManagement(user?.role);
   // HR adds and edits workers but cannot deactivate or delete them.
   const canEdit = canViewAll(user?.role) && !isReadOnly(user?.role);
+  // A new worker needs a salary and rates, which HR may not set, so only management adds workers.
+  const canAdd = canManage;
 
   const [includeInactive, setIncludeInactive] = useState(false);
   const list = useWorkerList(includeInactive);
 
   const [query, setQuery] = useState("");
   const [department, setDepartment] = useState("");
-  const [formOpen, setFormOpen] = useState(() => canEdit && hasNewParam());
+  const [formOpen, setFormOpen] = useState(() => canAdd && hasNewParam());
   useEffect(clearNewParam, []);
   const [editing, setEditing] = useState<Worker | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
@@ -174,7 +176,7 @@ export function WorkersPage() {
             : "View worker profiles and designations."
         }
         actions={
-          canEdit &&
+          canAdd &&
           !showEmpty && (
             <Button icon={UserPlus} onClick={() => openForm(null)}>
               Add New Worker
@@ -244,7 +246,7 @@ export function WorkersPage() {
 
       {list.status === "loading" && <LoadingNotice />}
       {list.status === "error" && <LoadError message={list.error} onRetry={list.retry} />}
-      {showEmpty && <EmptyState onAdd={canEdit ? () => openForm(null) : undefined} />}
+      {showEmpty && <EmptyState onAdd={canAdd ? () => openForm(null) : undefined} />}
       {list.status === "ready" && list.workers.length > 0 && visible.length === 0 && (
         <p role="status" className="rounded-card border border-line bg-white px-4 py-8 text-center text-sm text-ink-600 shadow-card">
           No workers match{filtering ? " your search or filter" : ""}.{" "}
@@ -283,7 +285,7 @@ export function WorkersPage() {
 
       {canEdit && (
         <>
-          <WorkerFormDialog open={formOpen} worker={editing} onClose={() => setFormOpen(false)} onSaved={handleSaved} />
+          <WorkerFormDialog open={formOpen} worker={editing} hidePay={!canManage} onClose={() => setFormOpen(false)} onSaved={handleSaved} />
           <ConfirmDialog
             open={confirmation !== null}
             title={copy.title}
