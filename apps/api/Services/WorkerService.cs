@@ -210,7 +210,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
     }
 
     /// <param name="lockPay">
-    /// True for HR: the hourly rate, monthly salary and overtime rate in the request are ignored and the stored ones kept.
+    /// True for HR: the hourly rate, monthly salary, overtime rate and the three allowances in the request are ignored and the stored ones kept.
     /// </param>
     public async Task<WorkerResult> UpdateAsync(int id, WorkerRequest request, CancellationToken cancellationToken = default, bool lockPay = false)
     {
@@ -222,7 +222,8 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
 
         if (lockPay)
         {
-            request = request with { HourlyRate = worker.HourlyRate, MonthlySalary = worker.EffectiveSalary, OvertimeRate = worker.OvertimeRate };
+            request = request with { HourlyRate = worker.HourlyRate, MonthlySalary = worker.EffectiveSalary, OvertimeRate = worker.OvertimeRate,
+                HousingAllowance = null, TransportAllowance = null, OtherAllowance = null }; // a missing allowance is left unchanged
         }
 
         var input = Validate(request, out var errors);

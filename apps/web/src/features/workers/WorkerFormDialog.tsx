@@ -391,9 +391,9 @@ function WorkerForm({ worker, hidePay, firstFieldRef, onClose, onSaved }: FormPr
             value={values.monthlySalary}
             hint="Loaded from the system; it is the worker's monthly salary."
           />
-          <TextField label="Housing allowance (AED)" type="text" inputMode="decimal" autoComplete="off" {...field("housingAllowance")} />
-          <TextField label="Transport allowance (AED)" type="text" inputMode="decimal" autoComplete="off" {...field("transportAllowance")} />
-          <TextField label="Other allowance (AED)" type="text" inputMode="decimal" autoComplete="off" {...field("otherAllowance")} />
+          <TextField label="Housing allowance (AED)" type="text" inputMode="decimal" autoComplete="off" disabled={hidePay} {...field("housingAllowance")} />
+          <TextField label="Transport allowance (AED)" type="text" inputMode="decimal" autoComplete="off" disabled={hidePay} {...field("transportAllowance")} />
+          <TextField label="Other allowance (AED)" type="text" inputMode="decimal" autoComplete="off" disabled={hidePay} {...field("otherAllowance")} />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField label="Nationality" placeholder="e.g. Pakistani" autoComplete="off" {...field("nationality")} />

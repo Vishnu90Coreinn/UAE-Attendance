@@ -69,12 +69,13 @@ public class HrRoleTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(HttpStatusCode.Forbidden, added.StatusCode);
 
         var edited = await api.SendAsync(HttpMethod.Put, $"/api/workers/{worker.Id}",
-            new { workerCode = worker.WorkerCode, fullName = "Hr Edited", designation = "Glazier", hourlyRate = 99m, monthlySalary = 9999m, overtimeRate = 50m, exchangeName = "Al Ansari" }, token);
+            new { workerCode = worker.WorkerCode, fullName = "Hr Edited", designation = "Glazier", hourlyRate = 99m, monthlySalary = 9999m, overtimeRate = 50m, housingAllowance = 777m, exchangeName = "Al Ansari" }, token);
         Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
         var json = await TestWorkers.ReadJsonAsync(edited);
         Assert.Equal("Hr Edited", json.GetProperty("fullName").GetString());
         Assert.Equal("Al Ansari", json.GetProperty("exchangeName").GetString());
         Assert.Equal(10m, json.GetProperty("hourlyRate").GetDecimal());
+        Assert.Equal(0m, json.GetProperty("housingAllowance").GetDecimal());
         Assert.NotEqual(9999m, json.GetProperty("monthlySalary").GetDecimal());
         Assert.Equal(System.Text.Json.JsonValueKind.Null, json.GetProperty("overtimeRate").ValueKind);
 
