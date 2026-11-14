@@ -102,6 +102,7 @@ internal static class PdfLetterhead
 {
     public const double Left = 36;
     public const double Right = 559;
+    private const double TitleSize = 12.5;
 
     /// <summary>
     /// Logo and company details on the left; document title, subtitle and an optional status badge on the right; an accent
@@ -110,11 +111,13 @@ internal static class PdfLetterhead
     public static double Draw(PdfCanvas cv, byte[] logo, PayrollCompany company, PdfText.LetterheadDetails details,
         string title, string subtitle, string? badge)
     {
-        cv.Image(logo, Left, 757, Left + 78, 808);
+        cv.Image(logo, Left, 767, Left + 62, 808);
 
-        const double textLeft = 128;
+        const double textLeft = 112;
         var y = 797.0;
-        foreach (var line in cv.Wrap(company.CompanyName, 270, 11.5, true))
+        // Keep the company name clear of the (right-aligned) document title: wrap it in the space the title leaves free.
+        var nameWidth = Math.Clamp(Right - cv.Width(title, TitleSize, true) - 16 - textLeft, 150, 270);
+        foreach (var line in cv.Wrap(company.CompanyName, nameWidth, 11.5, true))
         {
             cv.Text(line, textLeft, y, 11.5, true, PdfStyle.Teal);
             y -= 13.5;
@@ -129,7 +132,7 @@ internal static class PdfLetterhead
             y -= 10.5;
         }
 
-        cv.RightText(title, Right, 797, 15, true, PdfStyle.Teal);
+        cv.RightText(title, Right, 797, TitleSize, true, PdfStyle.Teal);
         cv.RightText(subtitle, Right, 780, 9.5, false, PdfStyle.Ink);
         if (badge is not null)
         {

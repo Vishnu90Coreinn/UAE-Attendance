@@ -25,6 +25,8 @@ export interface RequestRoles {
   canRaise: boolean;
   /** HR and the Administrator add and update the details and send for approval. */
   canPrepare: boolean;
+  /** A Manager prepares only the requests they raised themselves; this is their own username. */
+  prepareOwnAs?: string;
   /** Managers and the Administrator approve or send back. */
   canApprove: boolean;
   /** HR, Managers and the Administrator open requests and download approved certificates. */
@@ -43,6 +45,11 @@ export function RequestStatus({ status }: { status: CertificateStatus }) {
     default:
       return <StatusBadge tone="info" icon={FileText}>{label}</StatusBadge>;
   }
+}
+
+/** Whether the signed-in user may prepare a request raised by <paramref name="requestedBy" />. */
+function mayPrepare(roles: RequestRoles, requestedBy: string): boolean {
+  return roles.canPrepare || (roles.prepareOwnAs !== undefined && roles.prepareOwnAs === requestedBy);
 }
 
 function when(iso: string): string {
@@ -210,7 +217,7 @@ function RequestDetailView({ id, roles, onBack, onNotice }: { id: number; roles:
     );
   }
   const request = detail.request;
-  const preparing = roles.canPrepare && (request.status === "Requested" || request.status === "Returned");
+  const preparing = mayPrepare(roles, request.requestedBy) && (request.status === "Requested" || request.status === "Returned");
 
   return (
     <div>
@@ -412,7 +419,7 @@ export function RequestsPanel({ roles, defaultStatus }: { roles: RequestRoles; d
                       <div className="flex justify-end gap-2">
                         {roles.canOpen && (
                           <Button size="sm" variant="secondary" aria-label={`Open request for ${row.workerName}`} onClick={() => setOpenId(row.id)}>
-                            {roles.canPrepare && (row.status === "Requested" || row.status === "Returned")
+                            {mayPrepare(roles, row.requestedBy) && (row.status === "Requested" || row.status === "Returned")
                               ? "Prepare"
                               : roles.canApprove && row.status === "PendingApproval"
                                 ? "Review"
