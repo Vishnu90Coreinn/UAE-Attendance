@@ -32,12 +32,14 @@ public sealed class CertificateRequestsController(CertificateRequestService requ
     [Authorize(Policy = Policies.ManagerAdminOrHr)]
     public async Task<IActionResult> Get(int id, CancellationToken ct) => Map(await requests.GetAsync(id, ct));
 
+    // HR and the Administrator prepare any request; a Manager may prepare only a request they raised themselves
+    // (the service refuses the rest).
     [HttpPut("{id:int}/details")]
-    [Authorize(Policy = Policies.HrOrAdmin)]
+    [Authorize(Policy = Policies.ManagerAdminOrHr)]
     public async Task<IActionResult> SaveDetails(int id, LetterRequest details, CancellationToken ct) => Map(await requests.SaveDetailsAsync(id, details, ct));
 
     [HttpPost("{id:int}/submit")]
-    [Authorize(Policy = Policies.HrOrAdmin)]
+    [Authorize(Policy = Policies.ManagerAdminOrHr)]
     public async Task<IActionResult> Submit(int id, CancellationToken ct) => Map(await requests.SubmitAsync(id, ct));
 
     [HttpPost("{id:int}/approve")]
@@ -53,6 +55,7 @@ public sealed class CertificateRequestsController(CertificateRequestService requ
         200 => Ok(r.Body),
         201 => StatusCode(201, r.Body),
         400 => ValidationProblem(new ValidationProblemDetails(r.Errors!)),
+        403 => Problem(statusCode: 403, title: r.Message ?? "You cannot prepare this request."),
         404 => Problem(statusCode: 404, title: "Request not found."),
         _ => Problem(statusCode: 409, title: r.Message ?? "The request could not be changed. Reload and try again."),
     };

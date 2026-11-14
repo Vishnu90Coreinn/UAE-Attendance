@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using HrPayroll.Api.Auth;
 using HrPayroll.Api.Data;
 using HrPayroll.Api.Data.Entities;
 using HrPayroll.Api.Dtos;
@@ -20,6 +21,16 @@ public sealed class CertificateRequestService(
 
     private string Actor => httpContext.HttpContext?.User.Identity?.Name ?? "";
     private DateTime Now => time.GetUtcNow().UtcDateTime;
+
+    private const string ManagerOwnOnly = "A manager can only prepare a request they raised themselves.";
+
+    /// <summary>HR and the Administrator prepare any request; a Manager only the ones they raised.</summary>
+    private bool CanPrepare(CertificateRequest entity)
+    {
+        var user = httpContext.HttpContext?.User;
+        if (user is null || user.IsInRole(Roles.Administrator) || user.IsInRole(Roles.HR)) return true;
+        return user.IsInRole(Roles.Manager) && entity.RequestedBy == Actor;
+    }
 
     // --- supervisor: raise ---------------------------------------------------------------------------------
 
@@ -87,6 +98,7 @@ public sealed class CertificateRequestService(
     {
         var entity = await db.CertificateRequests.SingleOrDefaultAsync(r => r.Id == id, ct);
         if (entity is null) return new(404);
+        if (!CanPrepare(entity)) return new(403, Message: ManagerOwnOnly);
         if (entity.Status is not (CertificateStatuses.Requested or CertificateStatuses.Returned))
             return new(409, Message: "These details can no longer be changed.");
 
@@ -106,6 +118,7 @@ public sealed class CertificateRequestService(
     {
         var entity = await db.CertificateRequests.SingleOrDefaultAsync(r => r.Id == id, ct);
         if (entity is null) return new(404);
+        if (!CanPrepare(entity)) return new(403, Message: ManagerOwnOnly);
         if (entity.Status is not (CertificateStatuses.Requested or CertificateStatuses.Returned))
             return new(409, Message: "This request has already been sent for approval.");
         var details = Read(entity);

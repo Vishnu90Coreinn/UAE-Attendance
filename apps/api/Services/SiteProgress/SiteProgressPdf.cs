@@ -11,7 +11,7 @@ public sealed class SiteProgressPdf(IConfiguration configuration)
 {
     private const double Left = PdfLetterhead.Left;
     private const double Right = PdfLetterhead.Right;
-    private static readonly double[] Widths = [74, 38, 36, 44, 66, 64, 92, 109];
+    private static readonly double[] Widths = [54, 36, 32, 42, 108, 58, 66, 127];
 
     public byte[] Generate(SiteProgressResponse report, PayrollCompany company)
     {
@@ -49,7 +49,7 @@ public sealed class SiteProgressPdf(IConfiguration configuration)
                 var remarks = canvas.Wrap(f.Remarks.Length == 0 ? "-" : f.Remarks, Widths[7] - 12, 8.5);
                 var wir = canvas.Wrap(SiteProgressService.WirLabel(f.WirStatus), Widths[6] - 12, 8.5);
                 var align = canvas.Wrap(SiteProgressService.AlignmentLabel(f.Alignment), Widths[4] - 12, 8.5);
-                var height = Math.Max(Math.Max(1, remarks.Count), Math.Max(wir.Count, align.Count)) * 11 + 10;
+                var height = Math.Max(Math.Max(1, remarks.Count), Math.Max(wir.Count, align.Count)) * 11 + 8;
                 if (y - height < 60)
                 {
                     canvas = NewPage(false, out y);
@@ -76,7 +76,7 @@ public sealed class SiteProgressPdf(IConfiguration configuration)
             }
 
             if (y < 150) { canvas = NewPage(false, out y); }
-            y -= 60;
+            y -= 44;
             var blocks = new[] { "Site Engineer / Subcontractor", "QA/QC Inspector", "Consultant Approval" };
             const double blockWidth = 150;
             for (var i = 0; i < blocks.Length; i++)
@@ -100,7 +100,7 @@ public sealed class SiteProgressPdf(IConfiguration configuration)
         (string, string)[][] rows =
         [
             [("ALUMINIUM FRAMES", N(k.TotalFrames)), ("FIXED GLASS", N(k.TotalGlass)), ("SHUTTERS FINISHED", N(k.TotalShutters)),
-             ("COMPLETED FLOORS", N(k.CompletedFloors)), ("PENDING INSTALLATION", N(k.NoProgressFloors)), ("HANDOVER READY", k.HandoverReadyPercent + "%")],
+             ("COMPLETED FLOORS", N(k.CompletedFloors)), ("PENDING INSTALL.", N(k.NoProgressFloors)), ("HANDOVER READY", k.HandoverReadyPercent + "%")],
             [("ALIGN: NOT COMPLETE", N(k.AlignmentNotComplete)), ("ALIGN: UNDER PROCESS", N(k.AlignmentUnderProcess)), ("ALIGN: COMPLETE", N(k.AlignmentComplete)),
              ("WIR APPROVED", N(k.ApprovedWir)), ("WIR PENDING", N(k.PendingWir)), ("WIR REJECTED", N(k.RejectedWir))],
         ];

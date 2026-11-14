@@ -47,6 +47,22 @@ public class CertificateRequestTests(ApiFixture api) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public async Task AManagerCanPrepareARequestTheyRaisedThemselves()
+    {
+        var workerId = await WorkerAsync();
+        var manager = await TokenAsync(Roles.Manager);
+        var own = await RaiseAsync(workerId, manager);
+        var bySupervisor = await RaiseAsync(workerId, await TokenAsync(Roles.Supervisor));
+
+        Assert.Equal(HttpStatusCode.OK, (await api.SendAsync(HttpMethod.Put, $"/api/certificate-requests/{own}/details", Details(), manager)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await api.PostAsync($"/api/certificate-requests/{own}/submit", new { }, manager)).StatusCode);
+
+        // A request raised by someone else stays with HR.
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.SendAsync(HttpMethod.Put, $"/api/certificate-requests/{bySupervisor}/details", Details(), manager)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.PostAsync($"/api/certificate-requests/{bySupervisor}/submit", new { }, manager)).StatusCode);
+    }
+
+    [Fact]
     public async Task RolesCanOnlyDoTheirOwnStep()
     {
         var workerId = await WorkerAsync();
