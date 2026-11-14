@@ -184,7 +184,7 @@ function WorkerRow({
           <div>
             <div className="font-semibold"><WorkerName worker={worker} /></div>
             {worker.emiratesId && (
-              <div className="max-w-[9rem] truncate font-mono text-xs font-normal text-ink-600" title={`EID ${worker.emiratesId}`}>
+              <div className="whitespace-nowrap font-mono text-xs font-normal text-ink-600" title={`EID ${worker.emiratesId}`}>
                 EID {worker.emiratesId}
               </div>
             )}
@@ -197,7 +197,7 @@ function WorkerRow({
       >
         <div className="md:whitespace-nowrap">
           <div className="font-medium text-ink-800">{worker.designation}</div>
-          {place && <div className="max-w-[7rem] truncate text-xs" title={place}>{place}</div>}
+          {place && <div className="max-w-[14rem] break-words text-xs" title={place}>{place}</div>}
         </div>
       </td>
       <td
@@ -216,7 +216,7 @@ function WorkerRow({
             )}
             {worker.email && (
               <div
-                className="max-w-[8rem] truncate text-xs"
+                className="max-w-[16rem] break-all text-xs"
                 title={worker.email}
               >
                 {worker.email}
