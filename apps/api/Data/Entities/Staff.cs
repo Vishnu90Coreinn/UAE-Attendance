@@ -84,6 +84,9 @@ public sealed class StaffLeaveType
     public string Name { get; set; } = "";
     public int YearlyDays { get; set; }
     public bool IsActive { get; set; } = true;
+
+    /// <summary>When true, a request of this type cannot be sent without a document (a medical certificate for sick leave).</summary>
+    public bool RequiresDocument { get; set; }
 }
 
 public static class StaffLeaveStatuses
@@ -92,6 +95,15 @@ public static class StaffLeaveStatuses
     public const string Approved = "Approved";
     public const string Rejected = "Rejected";
     public const string Cancelled = "Cancelled";
+}
+
+/// <summary>A medical certificate or other document for a leave request. Kept apart so listing leave never reads the image bytes.</summary>
+public sealed class StaffLeaveAttachment
+{
+    public int StaffLeaveRequestId { get; set; }
+    public StaffLeaveRequest StaffLeaveRequest { get; set; } = null!;
+    public byte[] Data { get; set; } = [];
+    public DateTime UploadedUtc { get; set; }
 }
 
 public sealed class StaffLeaveRequest

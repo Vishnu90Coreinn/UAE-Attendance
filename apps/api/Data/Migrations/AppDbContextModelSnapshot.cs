@@ -1210,6 +1210,23 @@ namespace HrPayroll.Api.Data.Migrations
                     b.ToTable("SiteProjects");
                 });
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.StaffLeaveAttachment", b =>
+                {
+                    b.Property<int>("StaffLeaveRequestId")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<DateTime>("UploadedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("StaffLeaveRequestId");
+
+                    b.ToTable("StaffLeaveAttachments");
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.StaffLeaveRequest", b =>
                 {
                     b.Property<int>("Id")
@@ -1295,6 +1312,11 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasColumnType("nvarchar(60)")
                         .UseCollation("SQL_Latin1_General_CP1_CI_AS");
 
+                    b.Property<bool>("RequiresDocument")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<int>("YearlyDays")
                         .HasColumnType("int");
 
@@ -1311,6 +1333,7 @@ namespace HrPayroll.Api.Data.Migrations
                             Id = 1,
                             IsActive = true,
                             Name = "Annual Leave",
+                            RequiresDocument = false,
                             YearlyDays = 30
                         },
                         new
@@ -1318,6 +1341,7 @@ namespace HrPayroll.Api.Data.Migrations
                             Id = 2,
                             IsActive = true,
                             Name = "Sick Leave",
+                            RequiresDocument = true,
                             YearlyDays = 15
                         },
                         new
@@ -1325,6 +1349,7 @@ namespace HrPayroll.Api.Data.Migrations
                             Id = 3,
                             IsActive = true,
                             Name = "Emergency Leave",
+                            RequiresDocument = false,
                             YearlyDays = 5
                         },
                         new
@@ -1332,6 +1357,7 @@ namespace HrPayroll.Api.Data.Migrations
                             Id = 4,
                             IsActive = true,
                             Name = "Unpaid Leave",
+                            RequiresDocument = false,
                             YearlyDays = 365
                         });
                 });
@@ -1945,6 +1971,17 @@ namespace HrPayroll.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.StaffLeaveAttachment", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.StaffLeaveRequest", "StaffLeaveRequest")
+                        .WithOne()
+                        .HasForeignKey("HrPayroll.Api.Data.Entities.StaffLeaveAttachment", "StaffLeaveRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("StaffLeaveRequest");
                 });
 
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.StaffLeaveRequest", b =>

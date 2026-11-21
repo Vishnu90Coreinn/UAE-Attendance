@@ -81,11 +81,11 @@ describe("navItemsForRole", () => {
 describe("My Attendance and My Leave", () => {
   it("show only for a login that is linked to an office employee record", () => {
     expect(labelsFor("HR")).not.toContain("My Attendance");
-    expect(navItemsForRole("HR", 7).map((item) => item.label).slice(0, 2)).toEqual(["My Attendance", "My Leave"]);
+    expect(navItemsForRole("HR", 7).map((item) => item.label).slice(0, 4)).toEqual(["My Attendance", "My Leave", "My Letters", "My Profile"]);
   });
 
   it("are all an Employee-role login sees", () => {
-    expect(navItemsForRole("Employee", 7).map((item) => item.label)).toEqual(["My Attendance", "My Leave"]);
+    expect(navItemsForRole("Employee", 7).map((item) => item.label)).toEqual(["My Attendance", "My Leave", "My Letters", "My Profile"]);
     expect(navItemsForRole("Employee")).toEqual([]);
   });
 });

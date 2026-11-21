@@ -68,7 +68,7 @@ describe("SettingsPage - loading", () => {
     render(<SettingsPage />);
 
     expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
-    expect(screen.getByText("Company details and payroll rates.")).toBeInTheDocument();
+    expect(screen.getByText("Company details, payroll rates, documents and office staff attendance.")).toBeInTheDocument();
     expect(screen.getByText("Loading settings...")).toBeInTheDocument();
     expect(screen.queryByLabelText("Company name")).not.toBeInTheDocument();
 

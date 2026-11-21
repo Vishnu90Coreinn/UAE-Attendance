@@ -5,6 +5,8 @@ import {
   CalendarDays,
   CalendarPlus,
   Camera,
+  ScrollText,
+  UserRound,
   ClipboardCheck,
   FileSignature,
   FileText,
@@ -22,6 +24,8 @@ import {
 export const NAV_ICONS: Record<string, LucideIcon> = {
   "my-attendance": Camera,
   "my-leave": CalendarPlus,
+  "my-letters": ScrollText,
+  "my-profile": UserRound,
   staff: Building2,
   "staff-leave": CalendarCheck,
   "staff-payroll": Wallet,
@@ -40,7 +44,7 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
 
 /** Sidebar sections. Order within and across groups matches NAV_ITEMS, so the tab order never changes. */
 export const NAV_GROUPS: ReadonlyArray<{ label: string; keys: readonly string[] }> = [
-  { label: "My work", keys: ["my-attendance", "my-leave"] },
+  { label: "My work", keys: ["my-attendance", "my-leave", "my-letters", "my-profile"] },
   { label: "Overview", keys: ["dashboard"] },
   { label: "Workforce", keys: ["workers", "attendance"] },
   { label: "Office staff", keys: ["staff", "staff-leave"] },

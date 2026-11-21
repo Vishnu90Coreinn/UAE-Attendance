@@ -32,6 +32,21 @@ public sealed class CertificateRequestService(
         return user.IsInRole(Roles.Manager) && entity.RequestedBy == Actor;
     }
 
+    private const string EmployeeRequestsManagerOnly = "Only a Manager prepares letters for office employees. HR cannot prepare this request.";
+
+    /// <summary>
+    /// A refusal message, or null when the caller may prepare the request. Requests from office employees are prepared only
+    /// by a Manager (or the Administrator), never by HR; every other request follows <see cref="CanPrepare"/>.
+    /// </summary>
+    private async Task<string?> PrepareRefusalAsync(CertificateRequest entity, CancellationToken ct)
+    {
+        var user = httpContext.HttpContext?.User;
+        var fromEmployee = await db.Workers.AsNoTracking().AnyAsync(w => w.Id == entity.WorkerId && w.Category == WorkerCategories.Employee, ct);
+        if (fromEmployee)
+            return user is null || user.IsInRole(Roles.Administrator) || user.IsInRole(Roles.Manager) ? null : EmployeeRequestsManagerOnly;
+        return CanPrepare(entity) ? null : ManagerOwnOnly;
+    }
+
     // --- supervisor: raise ---------------------------------------------------------------------------------
 
     public async Task<LetterResult> CreateAsync(CertificateRequestCreate request, CancellationToken ct)
@@ -73,6 +88,16 @@ public sealed class CertificateRequestService(
         return await query.OrderByDescending(r => r.RequestedUtc).ThenByDescending(r => r.Id).Take(MaxListed).Select(Project).ToListAsync(ct);
     }
 
+    /// <summary>An office employee's own requests, newest first.</summary>
+    public async Task<IReadOnlyList<CertificateRequestResponse>> ListForWorkerAsync(int workerId, CancellationToken ct) =>
+        await db.CertificateRequests.AsNoTracking().Where(r => r.WorkerId == workerId)
+            .OrderByDescending(r => r.RequestedUtc).ThenByDescending(r => r.Id).Select(Project).ToListAsync(ct);
+
+    /// <summary>The issued letter id of one of this worker's own approved requests, or null.</summary>
+    public async Task<int?> IssuedLetterIdAsync(int workerId, int requestId, CancellationToken ct) =>
+        await db.CertificateRequests.AsNoTracking().Where(r => r.Id == requestId && r.WorkerId == workerId && r.Status == CertificateStatuses.Approved)
+            .Select(r => r.IssuedLetterId).SingleOrDefaultAsync(ct);
+
     public async Task<LetterResult> GetAsync(int id, CancellationToken ct)
     {
         var response = await ResponseAsync(id, ct);
@@ -98,7 +123,7 @@ public sealed class CertificateRequestService(
     {
         var entity = await db.CertificateRequests.SingleOrDefaultAsync(r => r.Id == id, ct);
         if (entity is null) return new(404);
-        if (!CanPrepare(entity)) return new(403, Message: ManagerOwnOnly);
+        if (await PrepareRefusalAsync(entity, ct) is { } refusal) return new(403, Message: refusal);
         if (entity.Status is not (CertificateStatuses.Requested or CertificateStatuses.Returned))
             return new(409, Message: "These details can no longer be changed.");
 
@@ -118,7 +143,7 @@ public sealed class CertificateRequestService(
     {
         var entity = await db.CertificateRequests.SingleOrDefaultAsync(r => r.Id == id, ct);
         if (entity is null) return new(404);
-        if (!CanPrepare(entity)) return new(403, Message: ManagerOwnOnly);
+        if (await PrepareRefusalAsync(entity, ct) is { } refusal) return new(403, Message: refusal);
         if (entity.Status is not (CertificateStatuses.Requested or CertificateStatuses.Returned))
             return new(409, Message: "This request has already been sent for approval.");
         var details = Read(entity);
@@ -181,5 +206,5 @@ public sealed class CertificateRequestService(
     private static readonly System.Linq.Expressions.Expression<Func<CertificateRequest, CertificateRequestResponse>> Project = r =>
         new(r.Id, r.WorkerId, r.Worker.FullName, r.Worker.WorkerCode, r.LetterType, r.Reason, r.Status, r.RequestedBy, r.RequestedUtc,
             r.PreparedBy, r.PreparedUtc, r.ReviewedBy, r.ReviewedUtc, r.ReviewNote, r.DetailsJson != null,
-            r.IssuedLetterId, r.IssuedLetter != null ? r.IssuedLetter.RefNo : null);
+            r.IssuedLetterId, r.IssuedLetter != null ? r.IssuedLetter.RefNo : null, r.Worker.Category);
 }

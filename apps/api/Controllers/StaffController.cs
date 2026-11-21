@@ -12,7 +12,8 @@ namespace HrPayroll.Api.Controllers;
 [Route("api/staff")]
 public sealed class StaffController(
     StaffAttendanceService attendance, StaffLeaveService leave, StaffSettingsService settings, StaffExportService exports,
-    EmployeeLoginService logins) : ControllerBase
+    EmployeeLoginService logins, StaffPayslipService payslips,
+    CertificateRequestService letterRequests, LetterService letters, LetterPdf letterPdf) : ControllerBase
 {
     private int UserId => StaffAttendanceService.UserId(User) ?? 0;
 
@@ -30,6 +31,10 @@ public sealed class StaffController(
     [HttpGet("me")]
     [Authorize(Policy = Policies.AnyUser)]
     public async Task<IActionResult> Me(CancellationToken ct) => Map(await attendance.MeAsync(UserId, ct));
+
+    [HttpGet("me/profile")]
+    [Authorize(Policy = Policies.AnyUser)]
+    public async Task<IActionResult> MyProfile(CancellationToken ct) => Map(await attendance.ProfileAsync(UserId, ct));
 
     [HttpPost("me/punch")]
     [Authorize(Policy = Policies.AnyUser)]
@@ -54,6 +59,69 @@ public sealed class StaffController(
     {
         var result = await leave.CreateAsync(UserId, input, ct);
         return result.Status == 200 ? StatusCode(201, result.Value) : Map(result);
+    }
+
+    /// <summary>The employee's own leave document (a medical certificate, for example).</summary>
+    [HttpGet("me/leave/{id:int}/attachment")]
+    [Authorize(Policy = Policies.AnyUser)]
+    public async Task<IActionResult> MyLeaveDocument(int id, CancellationToken ct) => await Document(id, UserId, ct);
+
+    [HttpGet("leave/{id:int}/attachment")]
+    [Authorize(Policy = Policies.ManagerAdminOrHr)]
+    public async Task<IActionResult> LeaveDocument(int id, CancellationToken ct) => await Document(id, null, ct);
+
+    private async Task<IActionResult> Document(int id, int? ownerUserId, CancellationToken ct)
+    {
+        var data = await leave.AttachmentAsync(id, ownerUserId, ct);
+        if (data is null) return Problem(statusCode: 404, title: "No document is attached to this leave request.");
+        Response.Headers.CacheControl = "private, no-store";
+        return File(data, "image/jpeg");
+    }
+
+    // --- HR letters: an employee raises a request; only a Manager prepares it --------------------------------------
+
+    [HttpGet("me/letters")]
+    [Authorize(Policy = Policies.AnyUser)]
+    public async Task<IActionResult> MyLetters(CancellationToken ct)
+    {
+        var worker = await attendance.EmployeeForUserAsync(UserId, ct);
+        return worker is null ? Problem(statusCode: 404, title: "No active employee record is linked to this login.") : Ok(await letterRequests.ListForWorkerAsync(worker.Id, ct));
+    }
+
+    [HttpPost("me/letters")]
+    [Authorize(Policy = Policies.AnyUser)]
+    public async Task<IActionResult> RequestLetter(MyLetterRequest request, CancellationToken ct)
+    {
+        var worker = await attendance.EmployeeForUserAsync(UserId, ct);
+        if (worker is null) return Problem(statusCode: 404, title: "No active employee record is linked to this login.");
+        var result = await letterRequests.CreateAsync(new CertificateRequestCreate(worker.Id, request.LetterType, request.Reason), ct);
+        return result.StatusCode switch
+        {
+            201 => StatusCode(201, result.Body),
+            400 => ValidationProblem(new ValidationProblemDetails(result.Errors!)),
+            _ => Problem(statusCode: result.StatusCode, title: result.Message),
+        };
+    }
+
+    /// <summary>The employee's own approved letter as a PDF.</summary>
+    [HttpGet("me/letters/{id:int}/pdf")]
+    [Authorize(Policy = Policies.AnyUser)]
+    public async Task<IActionResult> MyLetterPdf(int id, CancellationToken ct)
+    {
+        var worker = await attendance.EmployeeForUserAsync(UserId, ct);
+        if (worker is null) return Problem(statusCode: 404, title: "No active employee record is linked to this login.");
+        var letterId = await letterRequests.IssuedLetterIdAsync(worker.Id, id, ct);
+        var loaded = letterId is { } lid ? await letters.LoadForPdfAsync(lid, ct) : null;
+        if (loaded is null) return Problem(statusCode: 404, title: "This letter has not been issued yet.");
+        try
+        {
+            Response.Headers.CacheControl = "private, no-store";
+            return File(letterPdf.Generate(loaded.Value.Content, loaded.Value.Settings), "application/pdf", loaded.Value.RefNo.Replace('/', '-') + ".pdf");
+        }
+        catch (PdfTextNotSupportedException)
+        {
+            return Problem(statusCode: 422, title: "The PDF supports English text. Ask HR to update your details.");
+        }
     }
 
     [HttpPost("me/leave/{id:int}/cancel")]
@@ -160,6 +228,24 @@ public sealed class StaffController(
     [HttpGet("payroll")]
     [Authorize(Policy = Policies.ManagerAdminOrHr)]
     public async Task<IActionResult> Payroll([FromQuery] string? month, CancellationToken ct) => Map(await attendance.PayrollSummaryAsync(month, ct));
+
+    /// <summary>A payslip for one office employee (or every one, without <c>workerId</c>). Only a Manager or Administrator issues them.</summary>
+    [HttpGet("payroll/payslip")]
+    [Authorize(Policy = Policies.ManagerOrAdmin)]
+    public async Task<IActionResult> Payslip([FromQuery] string? month, [FromQuery] int? workerId, CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "no-store";
+        try
+        {
+            var result = await payslips.GetAsync(month, workerId, ct);
+            if (result.Status != 200) return Map(result);
+            return File(result.Value.Pdf, "application/pdf", result.Value.FileName);
+        }
+        catch (PdfTextNotSupportedException)
+        {
+            return Problem(statusCode: 422, title: "The PDF supports English text. Update names that use other scripts.");
+        }
+    }
 
     [HttpGet("payroll/export/{format:regex(^(pdf|excel)$)}")]
     [Authorize(Policy = Policies.ManagerAdminOrHr)]

@@ -421,7 +421,7 @@ public class StaffTests(ApiFixture api) : IClassFixture<ApiFixture>
         var mine = await TestWorkers.ReadJsonAsync(await api.GetAsync("/api/staff/me/leave", token));
         var day = NextWorkingDay(90);
         var created = await TestWorkers.ReadJsonAsync(await api.SendAsync(HttpMethod.Post, "/api/staff/me/leave",
-            new { leaveTypeId = mine.GetProperty("types")[1].GetProperty("id").GetInt32(), startDate = day, endDate = day, reason = "Dentist" }, token));
+            new { leaveTypeId = mine.GetProperty("types")[0].GetProperty("id").GetInt32(), startDate = day, endDate = day, reason = "Dentist" }, token));
         var id = created.GetProperty("id").GetInt32();
 
         Assert.Equal(HttpStatusCode.NotFound, (await api.SendAsync(HttpMethod.Post, $"/api/staff/me/leave/{id}/cancel", null, other)).StatusCode);
@@ -457,6 +457,25 @@ public class StaffTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(HttpStatusCode.Created, (await api.SendAsync(HttpMethod.Post, "/api/staff/leave-types", body, manager)).StatusCode);
     }
 
+    [Fact]
+    public async Task LeaveTypes_ManagerCanMakeAnotherTypeNeedADocument()
+    {
+        var manager = (await TestWorkers.SignInAsync(api, Roles.Manager)).Token;
+        var created = await api.SendAsync(HttpMethod.Post, "/api/staff/leave-types", new { name = TestUsers.UniqueName("Hosp"), yearlyDays = 5, requiresDocument = true }, manager);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var type = await TestWorkers.ReadJsonAsync(created);
+        Assert.True(type.GetProperty("requiresDocument").GetBoolean());
+        var id = type.GetProperty("id").GetInt32();
+
+        var (_, token, _) = await NewEmployeeAsync();
+        var day = NextWorkingDay(160);
+        var refused = await api.SendAsync(HttpMethod.Post, "/api/staff/me/leave", new { leaveTypeId = id, startDate = day, endDate = day, reason = "Visit" }, token);
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+
+        var off = await api.SendAsync(HttpMethod.Put, $"/api/staff/leave-types/{id}", new { name = type.GetProperty("name").GetString(), yearlyDays = 5, requiresDocument = false }, manager);
+        Assert.False((await TestWorkers.ReadJsonAsync(off)).GetProperty("requiresDocument").GetBoolean());
+    }
+
     [Theory]
     [InlineData("pdf")]
     [InlineData("excel")]
@@ -465,6 +484,131 @@ public class StaffTests(ApiFixture api) : IClassFixture<ApiFixture>
         var hr = (await TestWorkers.SignInAsync(api, Roles.HR)).Token;
         var response = await api.GetAsync($"/api/staff/leave/export/{format}", hr);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    // --- leave documents, payslips and letters -----------------------------------------------------------------
+
+    [Fact]
+    public async Task Leave_CanCarryADocument_ThatTheOwnerAndManagerCanOpen_ButNotAnotherEmployee()
+    {
+        var (_, token, _) = await NewEmployeeAsync();
+        var (_, other, _) = await NewEmployeeAsync();
+        var manager = (await TestWorkers.SignInAsync(api, Roles.Manager)).Token;
+        var mine = await TestWorkers.ReadJsonAsync(await api.GetAsync("/api/staff/me/leave", token));
+        var sick = mine.GetProperty("types").EnumerateArray().First(t => t.GetProperty("name").GetString() == "Sick Leave").GetProperty("id").GetInt32();
+        var day = NextWorkingDay(120);
+
+        var created = await api.SendAsync(HttpMethod.Post, "/api/staff/me/leave",
+            new { leaveTypeId = sick, startDate = day, endDate = day, reason = "Fever", attachmentBase64 = Selfie }, token);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var body = await TestWorkers.ReadJsonAsync(created);
+        Assert.True(body.GetProperty("hasAttachment").GetBoolean());
+        var id = body.GetProperty("id").GetInt32();
+
+        Assert.Equal(HttpStatusCode.OK, (await api.GetAsync($"/api/staff/me/leave/{id}/attachment", token)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await api.GetAsync($"/api/staff/leave/{id}/attachment", manager)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await api.GetAsync($"/api/staff/me/leave/{id}/attachment", other)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.GetAsync($"/api/staff/leave/{id}/attachment", other)).StatusCode);
+
+        var list = await TestWorkers.ReadJsonAsync(await api.GetAsync("/api/staff/me/leave", token));
+        Assert.True(list.GetProperty("requests")[0].GetProperty("hasAttachment").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Leave_SickNeedsADocument_OtherTypesDoNot_AndANonJpegIsRefused()
+    {
+        var (_, token, _) = await NewEmployeeAsync();
+        var mine = await TestWorkers.ReadJsonAsync(await api.GetAsync("/api/staff/me/leave", token));
+        var sickType = mine.GetProperty("types").EnumerateArray().First(t => t.GetProperty("name").GetString() == "Sick Leave");
+        Assert.True(sickType.GetProperty("requiresDocument").GetBoolean());
+        var sick = sickType.GetProperty("id").GetInt32();
+        var day = NextWorkingDay(140);
+        var bad = await api.SendAsync(HttpMethod.Post, "/api/staff/me/leave",
+            new { leaveTypeId = sick, startDate = day, endDate = day, reason = "x", attachmentBase64 = Convert.ToBase64String([1, 2, 3, 4]) }, token);
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+        // Sick leave cannot be sent without the certificate.
+        var plain = await api.SendAsync(HttpMethod.Post, "/api/staff/me/leave", new { leaveTypeId = sick, startDate = day, endDate = day, reason = "Fever" }, token);
+        Assert.Equal(HttpStatusCode.BadRequest, plain.StatusCode);
+        Assert.Contains("supporting document", await plain.Content.ReadAsStringAsync());
+
+        // Another type needs none.
+        var annual = mine.GetProperty("types").EnumerateArray().First(t => t.GetProperty("name").GetString() == "Annual Leave");
+        Assert.False(annual.GetProperty("requiresDocument").GetBoolean());
+        var ok = await api.SendAsync(HttpMethod.Post, "/api/staff/me/leave", new { leaveTypeId = annual.GetProperty("id").GetInt32(), startDate = day, endDate = day, reason = "Errand" }, token);
+        Assert.Equal(HttpStatusCode.Created, ok.StatusCode);
+        Assert.False((await TestWorkers.ReadJsonAsync(ok)).GetProperty("hasAttachment").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Payslip_IsIssuedByAManager_AsAPdf_NotByHrOrTheEmployee()
+    {
+        var (employee, empToken, _) = await NewEmployeeAsync();
+        var manager = (await TestWorkers.SignInAsync(api, Roles.Manager)).Token;
+        var hr = (await TestWorkers.SignInAsync(api, Roles.HR)).Token;
+
+        var one = await api.GetAsync($"/api/staff/payroll/payslip?month={ThisMonth}&workerId={employee.Id}", manager);
+        Assert.Equal(HttpStatusCode.OK, one.StatusCode);
+        Assert.Equal("application/pdf", one.Content.Headers.ContentType?.MediaType);
+        Assert.True((await one.Content.ReadAsByteArrayAsync()).Length > 1000);
+
+        Assert.Equal(HttpStatusCode.OK, (await api.GetAsync($"/api/staff/payroll/payslip?month={ThisMonth}", manager)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.GetAsync($"/api/staff/payroll/payslip?month={ThisMonth}&workerId={employee.Id}", hr)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.GetAsync($"/api/staff/payroll/payslip?month={ThisMonth}&workerId={employee.Id}", empToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await api.GetAsync($"/api/staff/payroll/payslip?month={ThisMonth}&workerId=99999999", manager)).StatusCode);
+    }
+
+    [Fact]
+    public async Task LetterRequest_IsRaisedByTheEmployee_AndOnlyAManagerMayPrepareIt()
+    {
+        var (employee, token, _) = await NewEmployeeAsync();
+        var (_, other, _) = await NewEmployeeAsync();
+        var manager = (await TestWorkers.SignInAsync(api, Roles.Manager)).Token;
+        var hr = (await TestWorkers.SignInAsync(api, Roles.HR)).Token;
+
+        var bad = await api.SendAsync(HttpMethod.Post, "/api/staff/me/letters", new { letterType = "Nope", reason = "" }, token);
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+
+        var created = await api.SendAsync(HttpMethod.Post, "/api/staff/me/letters", new { letterType = "Service", reason = "Visa application" }, token);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var request = await TestWorkers.ReadJsonAsync(created);
+        var id = request.GetProperty("id").GetInt32();
+        Assert.Equal(employee.Id, request.GetProperty("workerId").GetInt32());
+        Assert.Equal("Employee", request.GetProperty("workerCategory").GetString());
+
+        var mine = await TestWorkers.ReadJsonAsync(await api.GetAsync("/api/staff/me/letters", token));
+        Assert.Contains(mine.EnumerateArray(), r => r.GetProperty("id").GetInt32() == id);
+        var others = await TestWorkers.ReadJsonAsync(await api.GetAsync("/api/staff/me/letters", other));
+        Assert.DoesNotContain(others.EnumerateArray(), r => r.GetProperty("id").GetInt32() == id);
+
+        // HR can see the request but cannot prepare or send it.
+        Assert.Equal(HttpStatusCode.OK, (await api.GetAsync($"/api/certificate-requests/{id}", hr)).StatusCode);
+        var details = new { workerId = employee.Id, letterType = "Service" };
+        var hrSave = await api.SendAsync(HttpMethod.Put, $"/api/certificate-requests/{id}/details", details, hr);
+        Assert.Equal(HttpStatusCode.Forbidden, hrSave.StatusCode);
+        Assert.Contains("Only a Manager", await hrSave.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.SendAsync(HttpMethod.Post, $"/api/certificate-requests/{id}/submit", new { }, hr)).StatusCode);
+
+        // A Manager is not refused (the details themselves may still need completing).
+        var mgrSave = await api.SendAsync(HttpMethod.Put, $"/api/certificate-requests/{id}/details", details, manager);
+        Assert.NotEqual(HttpStatusCode.Forbidden, mgrSave.StatusCode);
+
+        // Not issued yet, so there is nothing to download.
+        Assert.Equal(HttpStatusCode.NotFound, (await api.GetAsync($"/api/staff/me/letters/{id}/pdf", token)).StatusCode);
+        // An Employee login cannot use the ordinary certificate endpoints.
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.GetAsync("/api/certificate-requests", token)).StatusCode);
+    }
+
+    [Fact]
+    public async Task HrStillPreparesLetters_ForSiteWorkers()
+    {
+        var worker = await TestWorkers.CreateAsync(api.ConnectionString);
+        var supervisor = (await TestWorkers.SignInAsync(api, Roles.Supervisor)).Token;
+        var hr = (await TestWorkers.SignInAsync(api, Roles.HR)).Token;
+        var created = await api.SendAsync(HttpMethod.Post, "/api/certificate-requests", new { workerId = worker.Id, letterType = "Service", reason = "Bank" }, supervisor);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var id = (await TestWorkers.ReadJsonAsync(created)).GetProperty("id").GetInt32();
+        var save = await api.SendAsync(HttpMethod.Put, $"/api/certificate-requests/{id}/details", new { workerId = worker.Id, letterType = "Service" }, hr);
+        Assert.NotEqual(HttpStatusCode.Forbidden, save.StatusCode);
     }
 
     // --- employee payroll summary ----------------------------------------------------------------------------------
@@ -552,6 +696,28 @@ public class StaffTests(ApiFixture api) : IClassFixture<ApiFixture>
     {
         var (_, token, _) = await NewEmployeeAsync();
         Assert.Equal(HttpStatusCode.Forbidden, (await api.GetAsync($"/api/staff/payroll?month={ThisMonth}", token)).StatusCode);
+    }
+
+    [Fact]
+    public async Task MyProfile_ShowsTheOwnRecord_WithoutPay()
+    {
+        var (employee, token, user) = await NewEmployeeAsync();
+        await using (var db = TestUsers.NewContext(api.ConnectionString))
+        {
+            var row = await db.Workers.SingleAsync(w => w.Id == employee.Id);
+            row.EmiratesId = "784-1990-1234567-1";
+            row.Nationality = "Indian";
+            row.Iban = "AE070331234567890123456";
+            await db.SaveChangesAsync();
+        }
+
+        var response = await api.GetAsync("/api/staff/me/profile", token);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var profile = await TestWorkers.ReadJsonAsync(response);
+        Assert.Equal("784-1990-1234567-1", profile.GetProperty("emiratesId").GetString());
+        Assert.Equal(user.Username, profile.GetProperty("username").GetString());
+        Assert.False(profile.TryGetProperty("iban", out _));
+        Assert.False(profile.TryGetProperty("monthlySalary", out _));
     }
 
     // --- retention ---------------------------------------------------------------------------------------------

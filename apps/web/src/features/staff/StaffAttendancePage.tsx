@@ -7,7 +7,7 @@ import {
   type StaffDashboard, type StaffDayRow, type StaffReport,
 } from "../../api/staff";
 import { Button, Card, CardHeader, Input, LoadingState, PageHeader, Select } from "../../ui";
-import { Avatar, SegmentBar } from "./staffKit";
+import { Avatar, LiveDot, RateBar, Segmented, SegmentBar } from "./staffKit";
 import { saveBlob } from "../payroll/downloadPdf";
 import { ActionFailure, LoadError } from "../workers/WorkersFeedback";
 import { StaffDayDialog } from "./StaffDayDialog";
@@ -63,6 +63,9 @@ export function StaffAttendancePage() {
     };
   }, [reportFrom, reportTo, department]);
 
+  /** Only today's rows can be "in now", so this is 0 when another date is chosen. */
+  const inOfficeNow = rows.filter((r) => r.day.inNow).length;
+
   const departments = useMemo(() => [...new Set(rows.map((r) => r.department).filter((d): d is string => !!d))].sort(), [rows]);
 
   async function download(format: "pdf" | "excel") {
@@ -87,7 +90,23 @@ export function StaffAttendancePage() {
           title="Roll call"
           description={`${shortDate(dash.date)}${dash.dayType ? ` · ${dash.dayType}` : ""} · ${dash.total} office employee${dash.total === 1 ? "" : "s"}`}
         />
-        <div className="p-5">
+        <div className="grid gap-6 p-5 lg:grid-cols-[auto_1fr] lg:items-center">
+          <div className="flex items-end gap-6">
+            <div>
+              <p className="text-5xl font-semibold leading-none tabular-nums text-ink-900">
+                {dash.signedIn}
+                <span className="text-2xl font-normal text-ink-500"> / {dash.total}</span>
+              </p>
+              <p className="mt-1 text-sm text-ink-600">signed in today</p>
+            </div>
+            <div className="border-l border-line pl-6">
+              <p className="flex items-center gap-2 text-3xl font-semibold leading-none tabular-nums text-ink-900">
+                {inOfficeNow > 0 && <LiveDot />}
+                {inOfficeNow}
+              </p>
+              <p className="mt-1 text-sm text-ink-600">in the office now</p>
+            </div>
+          </div>
           <SegmentBar
             total={dash.total}
             segments={[
@@ -161,6 +180,7 @@ export function StaffAttendancePage() {
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium text-ink-900">{r.name}</span>
                     <span className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-ink-600">
+                      {r.day.inNow && <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-800"><LiveDot />In now</span>}
                       <StaffStatusBadge status={r.day.status} />
                       <DayFlags day={r.day} />
                     </span>
@@ -182,7 +202,7 @@ export function StaffAttendancePage() {
                 {rows.map((r) => (
                   <tr key={r.workerId} className="border-t border-line">
                     <td className="px-4 py-2"><div className="flex items-center gap-3"><Avatar name={r.name} size="sm" /><div><div className="font-medium text-ink-900">{r.name}</div><div className="font-mono text-xs text-ink-600">{r.code}{r.department ? ` · ${r.department}` : ""}</div></div></div></td>
-                    <td className="px-4 py-2"><div className="flex flex-wrap items-center gap-2"><StaffStatusBadge status={r.day.status} /><DayFlags day={r.day} /></div></td>
+                    <td className="px-4 py-2"><div className="flex flex-wrap items-center gap-2">{r.day.inNow && <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-800"><LiveDot />In now</span>}<StaffStatusBadge status={r.day.status} /><DayFlags day={r.day} /></div></td>
                     <td className="px-4 py-2 tabular-nums">{r.day.firstIn ?? "-"}</td>
                     <td className="px-4 py-2 tabular-nums">{r.day.lastOut ?? "-"}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{r.day.hours ? r.day.hours.toFixed(2) : "-"}</td>
@@ -199,7 +219,7 @@ export function StaffAttendancePage() {
       <Card>
         <CardHeader
           title="Report"
-          description={`${shortDate(reportFrom)} to ${shortDate(reportTo)}. The week and month end on the date chosen above.`}
+          description={reportFrom === reportTo ? shortDate(reportFrom) : `${shortDate(reportFrom)} to ${shortDate(reportTo)}`}
           actions={
             <>
               <Button variant="secondary" icon={Download} onClick={() => void download("excel")}>Excel</Button>
@@ -207,13 +227,18 @@ export function StaffAttendancePage() {
             </>
           }
         />
-        <div className="flex flex-wrap items-end gap-3 px-5 pt-4">
-          <Select label="Period" value={period} onChange={(e) => setPeriod(e.target.value as Period)}>
-            <option value="day">Daily</option>
-            <option value="week">Weekly (7 days)</option>
-            <option value="month">Monthly (month to date)</option>
-            <option value="custom">Custom range</option>
-          </Select>
+        <div className="flex flex-wrap items-end gap-4 px-5 pt-4">
+          <Segmented
+            label="Report period"
+            value={period}
+            onChange={setPeriod}
+            options={[
+              { value: "day", label: "Day" },
+              { value: "week", label: "7 days" },
+              { value: "month", label: "Month to date" },
+              { value: "custom", label: "Custom" },
+            ]}
+          />
           {period === "custom" && (
             <>
               <Input label="From" type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} />
@@ -225,7 +250,7 @@ export function StaffAttendancePage() {
           <table className="w-full text-left text-sm">
             <thead className="bg-ink-50 text-xs uppercase text-ink-600">
               <tr>
-                <th className="px-3 py-2">Employee</th><th className="px-3 py-2 text-right">Present</th><th className="px-3 py-2 text-right">Late</th>
+                <th className="px-3 py-2">Employee</th><th className="px-3 py-2 text-right">Attendance</th><th className="px-3 py-2 text-right">Present</th><th className="px-3 py-2 text-right">Late</th>
                 <th className="px-3 py-2 text-right">Late min</th><th className="px-3 py-2 text-right">Early min</th><th className="px-3 py-2 text-right">Absent</th>
                 <th className="px-3 py-2 text-right">Leave</th><th className="px-3 py-2 text-right">Hours</th>
               </tr>
@@ -233,12 +258,13 @@ export function StaffAttendancePage() {
             <tbody>
               {(report?.rows ?? []).map((r) => (
                 <tr key={r.workerId} className="border-t border-line">
-                  <td className="px-3 py-2"><div className="font-medium text-ink-900">{r.name}</div><div className="text-xs text-ink-600">{r.code}</div></td>
+                  <td className="px-3 py-2"><div className="whitespace-nowrap font-medium text-ink-900">{r.name}</div><div className="font-mono text-xs text-ink-600">{r.code}</div></td>
+                  <td className="px-3 py-2"><RateBar value={r.presentDays + r.leaveDays + r.absentDays > 0 ? ((r.presentDays + r.leaveDays) / (r.presentDays + r.leaveDays + r.absentDays)) * 100 : null} label="Days present or on leave, of days expected" /></td>
                   <td className="px-3 py-2 text-right tabular-nums">{r.presentDays}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{r.lateDays}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{r.lateMinutes}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${r.lateDays > 0 ? "font-medium text-amber-800" : ""}`}>{r.lateDays}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${r.lateMinutes > 0 ? "text-amber-800" : ""}`}>{r.lateMinutes}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{r.earlyLeaveMinutes}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{r.absentDays}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${r.absentDays > 0 ? "font-medium text-red-800" : ""}`}>{r.absentDays}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{r.leaveDays}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{hoursText(r.totalHours)}</td>
                 </tr>

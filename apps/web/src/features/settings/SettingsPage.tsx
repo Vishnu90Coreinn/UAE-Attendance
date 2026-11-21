@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { LoadingState, PageHeader } from "../../ui";
+import { Card, CardHeader, LoadingState, PageHeader } from "../../ui";
 import { Loader2, Save, TriangleAlert } from "lucide-react";
 import { useOutletContext } from "react-router-dom";
 import type { LayoutContext } from "../../components/LayoutContext";
@@ -31,8 +31,66 @@ function failureMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : GENERIC_FAILURE;
 }
 
-const sectionClass = "space-y-4";
-const sectionTitleClass = "text-lg font-semibold text-ink-800";
+
+/** The section links. They stay in view while scrolling, and the one for the section on screen is marked. */
+function SectionNav({ showStaff }: { showStaff: boolean }) {
+  const sections: [string, string][] = [
+    ["company", "Company"],
+    ["payroll", "Payroll"],
+    ["signatures", "Signatures"],
+    ["documents", "Documents"],
+    ...(showStaff ? ([["office-staff", "Office staff"]] as [string, string][]) : []),
+  ];
+  const [active, setActive] = useState("company");
+  useEffect(() => {
+    // The section being read is the last one whose top has scrolled past the sticky bar. Sections that load late
+    // are simply picked up the next time the page moves.
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      let current = sections[0][0];
+      for (const [id] of sections) {
+        const element = document.getElementById(id);
+        if (element && element.getBoundingClientRect().top <= 140) current = id;
+      }
+      setActive(current);
+    };
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(update);
+    };
+    update();
+    // Capture, because the page may scroll inside a container rather than the window itself.
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    window.addEventListener("resize", onScroll);
+    const settle = window.setInterval(update, 1000); // catches a section that finishes loading while the page is still
+    const stop = window.setTimeout(() => window.clearInterval(settle), 8000);
+    return () => {
+      document.removeEventListener("scroll", onScroll, { capture: true });
+      window.removeEventListener("resize", onScroll);
+      window.clearInterval(settle);
+      window.clearTimeout(stop);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showStaff]);
+  return (
+    <nav aria-label="Settings sections" className="sticky top-0 z-20 -mx-1 mb-4 flex flex-wrap gap-2 bg-canvas/95 px-1 py-2 text-sm backdrop-blur">
+      {sections.map(([id, label]) => (
+        <a
+          key={id}
+          href={`#${id}`}
+          aria-current={active === id ? "true" : undefined}
+          onClick={() => setActive(id)}
+          className={`rounded-full border px-3 py-1.5 font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
+            active === id ? "border-brand-600 bg-brand-600 text-white" : "border-line bg-white text-ink-700 hover:border-brand-300 hover:text-brand-700"
+          }`}
+        >
+          {label}
+        </a>
+      ))}
+    </nav>
+  );
+}
 
 export function SettingsPage() {
   const { user } = useAuth();
@@ -170,23 +228,8 @@ export function SettingsPage() {
 
   return (
     <section>
-      <PageHeader title="Settings" description="Company details and payroll rates." />
-      <nav aria-label="Settings sections" className="mb-4 flex flex-wrap gap-2 text-sm">
-        {[
-          ["company", "Company"],
-          ["payroll", "Payroll"],
-          ["signatures", "Signatures"],
-          ["documents", "Documents"],
-        ].map(([id, label]) => (
-          <a
-            key={id}
-            href={`#${id}`}
-            className="rounded-full border border-line bg-white px-3 py-1.5 font-medium text-ink-700 hover:border-brand-300 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
-          >
-            {label}
-          </a>
-        ))}
-      </nav>
+      <PageHeader title="Settings" description="Company details, payroll rates, documents and office staff attendance." />
+      <SectionNav showStaff={!readOnly} />
 
       {load.status === "loading" && (
         <LoadingState label="Loading settings..." rows={4} />
@@ -199,19 +242,24 @@ export function SettingsPage() {
           <form
             onSubmit={handleSubmit}
             noValidate
-            className="max-w-3xl space-y-8 rounded-card border border-line bg-white p-4 shadow-card sm:p-6"
+            className="max-w-4xl space-y-6"
           >
-            <fieldset disabled={readOnly} className="m-0 min-w-0 space-y-8 border-0 p-0">
-            <div id="company" className={`${sectionClass} scroll-mt-4`}>
-              <h3 className={sectionTitleClass}>Company</h3>
-              <TextField label="Company name" autoComplete="off" {...field("companyName")} />
-              <TextField label="Tagline" autoComplete="off" {...field("tagline")} />
-              <TextField label="Contact email" type="email" autoComplete="off" {...field("contactEmail")} />
-            </div>
+            <fieldset disabled={readOnly} className="m-0 min-w-0 space-y-6 border-0 p-0">
+            <Card id="company" className="scroll-mt-20">
+              <CardHeader title="Company" description="The name and contact details shown on payroll reports and payslips." />
+              <div className="grid gap-4 p-5 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <TextField label="Company name" autoComplete="off" {...field("companyName")} />
+                </div>
+                <TextField label="Tagline" autoComplete="off" {...field("tagline")} />
+                <TextField label="Contact email" type="email" autoComplete="off" {...field("contactEmail")} />
+              </div>
+            </Card>
 
-            <div id="payroll" className={`${sectionClass} scroll-mt-4`}>
-              <h3 className={sectionTitleClass}>Payroll</h3>
-              <p className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <Card id="payroll" className="scroll-mt-20">
+              <CardHeader title="Payroll" description="Rates and hours used to work out site workers' pay." />
+              <div className="grid gap-4 p-5 sm:grid-cols-2">
+              <p className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 sm:col-span-2">
                 <TriangleAlert aria-hidden="true" size={20} className="mt-0.5 shrink-0" />
                 Changing the overtime rate recalculates every month that is not finalised.
               </p>
@@ -229,11 +277,15 @@ export function SettingsPage() {
                 autoComplete="off"
                 {...field("maxBasicHoursPerDay")}
               />
-              <TextField label="Shift description" autoComplete="off" {...field("shiftDescription")} />
-            </div>
+              <div className="sm:col-span-2">
+                <TextField label="Shift description" autoComplete="off" {...field("shiftDescription")} />
+              </div>
+              </div>
+            </Card>
 
-            <div id="signatures" className={`${sectionClass} scroll-mt-4`}>
-              <h3 className={sectionTitleClass}>Payroll report signatures</h3>
+            <Card id="signatures" className="scroll-mt-20">
+              <CardHeader title="Payroll report signatures" description="The titles printed under the signature lines of the payroll report." />
+              <div className="grid gap-4 p-5 sm:grid-cols-2">
               <TextField
                 label="Prepared by"
                 autoComplete="off"
@@ -246,7 +298,8 @@ export function SettingsPage() {
                 hint="The title printed under the Approved by signature line."
                 {...field("approvedByLabel")}
               />
-            </div>
+              </div>
+            </Card>
 
             </fieldset>
 
@@ -261,7 +314,7 @@ export function SettingsPage() {
               </div>
             )}
 
-            {!readOnly && <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-wrap items-center justify-end gap-3 rounded-b-card border-t border-line bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:-mb-6 sm:px-6">
+            {!readOnly && <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-end gap-3 rounded-card border border-line bg-white/95 px-4 py-3 shadow-pop backdrop-blur">
               {dirty && !pending && <p className="mr-auto rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900">Unsaved changes</p>}
               {!dirty && !pending && <p className="text-sm text-ink-600">No changes to save.</p>}
               <button
@@ -286,10 +339,10 @@ export function SettingsPage() {
           </form>
         </>
       )}
-      <div id="documents" className="scroll-mt-4">
+      <div id="documents" className="max-w-4xl scroll-mt-20">
         <CompanyDocumentsCard readOnly={readOnly} />
-        {!readOnly && <StaffSettingsCard />}
       </div>
+      {!readOnly && <StaffSettingsCard />}
     </section>
   );
 }

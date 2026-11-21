@@ -90,6 +90,16 @@ public class StaffDayCalculatorTests
     }
 
     [Fact]
+    public void SignedInAndNotOut_Today_IsInNow_ButNotOnAPastDay()
+    {
+        var now = new DateTime(2026, 11, 16, 11, 0, 0);
+        Assert.True(Day(Monday, [At("In", Monday, 9, 0)], now: now).InNow);
+        Assert.False(Day(Monday, [At("In", Monday, 9, 0), At("Out", Monday, 10, 0)], now: now).InNow);
+        Assert.True(Day(Monday, [At("In", Monday, 9, 0), At("Out", Monday, 10, 0), At("In", Monday, 10, 30)], now: now).InNow);
+        Assert.False(Day(Monday, [At("In", Monday, 9, 0)]).InNow); // a forgotten sign-out on a past day
+    }
+
+    [Fact]
     public void NoPunches_PastWorkingDay_IsAbsent()
     {
         Assert.Equal(StaffStatuses.Absent, Day(Monday, []).Status);

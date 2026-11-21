@@ -42,7 +42,7 @@ public sealed record CertificateRejectRequest(string? Reason);
 public sealed record CertificateRequestResponse(
     int Id, int WorkerId, string WorkerName, string WorkerCode, string LetterType, string Reason, string Status,
     string RequestedBy, DateTime RequestedUtc, string? PreparedBy, DateTime? PreparedUtc, string? ReviewedBy,
-    DateTime? ReviewedUtc, string ReviewNote, bool HasDetails, int? LetterId, string? RefNo);
+    DateTime? ReviewedUtc, string ReviewNote, bool HasDetails, int? LetterId, string? RefNo, string WorkerCategory = "Worker");
 
 /// <summary>The request with the HR-entered details and the letter built from them (null until HR has saved details).</summary>
 public sealed record CertificateRequestDetail(CertificateRequestResponse Request, LetterRequest? Details, LetterDocument? Document);

@@ -64,9 +64,10 @@ public sealed class StaffLeaveTypeConfiguration : IEntityTypeConfiguration<Staff
         builder.Property(t => t.Name).HasMaxLength(60).UseCollation(UserConfiguration.CaseInsensitiveCollation).IsRequired();
         builder.HasIndex(t => t.Name).IsUnique();
         builder.Property(t => t.IsActive).HasDefaultValue(true);
+        builder.Property(t => t.RequiresDocument).HasDefaultValue(false);
         builder.HasData(
             new StaffLeaveType { Id = 1, Name = "Annual Leave", YearlyDays = 30 },
-            new StaffLeaveType { Id = 2, Name = "Sick Leave", YearlyDays = 15 },
+            new StaffLeaveType { Id = 2, Name = "Sick Leave", YearlyDays = 15, RequiresDocument = true },
             new StaffLeaveType { Id = 3, Name = "Emergency Leave", YearlyDays = 5 },
             new StaffLeaveType { Id = 4, Name = "Unpaid Leave", YearlyDays = 365 });
     }
@@ -90,5 +91,15 @@ public sealed class StaffLeaveRequestConfiguration : IEntityTypeConfiguration<St
         builder.HasOne(r => r.LeaveType).WithMany().HasForeignKey(r => r.LeaveTypeId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(r => new { r.WorkerId, r.StartDate });
         builder.HasIndex(r => r.Status);
+    }
+}
+
+public sealed class StaffLeaveAttachmentConfiguration : IEntityTypeConfiguration<StaffLeaveAttachment>
+{
+    public void Configure(EntityTypeBuilder<StaffLeaveAttachment> builder)
+    {
+        builder.HasKey(a => a.StaffLeaveRequestId);
+        builder.Property(a => a.UploadedUtc).HasColumnType("datetime2");
+        builder.HasOne(a => a.StaffLeaveRequest).WithOne().HasForeignKey<StaffLeaveAttachment>(a => a.StaffLeaveRequestId).OnDelete(DeleteBehavior.Cascade);
     }
 }

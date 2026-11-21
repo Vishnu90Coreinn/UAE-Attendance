@@ -11,6 +11,7 @@ import { Button, Card, CardHeader, Input, LoadingState, PageHeader, Select, Stat
 import { saveBlob } from "../payroll/downloadPdf";
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { Avatar, BalanceBar } from "./staffKit";
+import { DocumentButton } from "./LeaveDocument";
 import { errorText, shortDate } from "./staffUi";
 
 const STATUS_TONE: Record<StaffLeave["status"], StatusTone> = { Pending: "warning", Approved: "success", Rejected: "danger", Cancelled: "neutral" };
@@ -53,12 +54,14 @@ function DecisionDialog({ request, approve, onClose, onDone }: { request: StaffL
 function LeaveTypesCard({ types, onChanged, setFailure }: { types: StaffLeaveType[]; onChanged: () => void; setFailure: (m: string | null) => void }) {
   const [name, setName] = useState("");
   const [days, setDays] = useState("");
+  const [needsDoc, setNeedsDoc] = useState(false);
   async function add() {
     setFailure(null);
     try {
-      await addLeaveType(name, Number(days));
+      await addLeaveType(name, Number(days), needsDoc);
       setName("");
       setDays("");
+      setNeedsDoc(false);
       onChanged();
     } catch (e) {
       setFailure(errorText(e));
@@ -68,7 +71,7 @@ function LeaveTypesCard({ types, onChanged, setFailure }: { types: StaffLeaveTyp
     setFailure(null);
     const next = { ...type, ...patch };
     try {
-      await updateLeaveType(type.id, next.name, next.yearlyDays, next.isActive);
+      await updateLeaveType(type.id, next.name, next.yearlyDays, next.isActive, next.requiresDocument);
       onChanged();
     } catch (e) {
       setFailure(errorText(e));
@@ -93,6 +96,10 @@ function LeaveTypesCard({ types, onChanged, setFailure }: { types: StaffLeaveTyp
                 className="min-h-10 w-20 rounded-lg border border-ink-300 px-2 text-right"
               />
             </label>
+            <label className="flex min-h-9 items-center gap-2 text-sm text-ink-700">
+              <input type="checkbox" checked={t.requiresDocument} onChange={(e) => void change(t, { requiresDocument: e.target.checked })} className="size-4 rounded border-ink-300 accent-brand-600" />
+              Document required
+            </label>
             <Button size="sm" variant="secondary" onClick={() => void change(t, { isActive: !t.isActive })}>
               {t.isActive ? "Switch off" : "Switch on"}
             </Button>
@@ -102,6 +109,10 @@ function LeaveTypesCard({ types, onChanged, setFailure }: { types: StaffLeaveTyp
       <div className="flex flex-wrap items-end gap-3 border-t border-line p-5">
         <Input label="New leave type" value={name} onChange={(e) => setName(e.target.value)} />
         <Input label="Days a year" type="number" min={0} max={366} value={days} onChange={(e) => setDays(e.target.value)} />
+        <label className="flex min-h-11 items-center gap-2 text-sm text-ink-700">
+          <input type="checkbox" checked={needsDoc} onChange={(e) => setNeedsDoc(e.target.checked)} className="size-4 rounded border-ink-300 accent-brand-600" />
+          Document required
+        </label>
         <Button onClick={() => void add()} disabled={!name.trim() || days === ""}>Add type</Button>
       </div>
     </Card>
@@ -198,6 +209,7 @@ export function StaffLeavePage() {
                     <p className="text-sm text-ink-600">{r.leaveType} · {r.days} working day{r.days === 1 ? "" : "s"}</p>
                     <p className="mt-1 text-sm font-medium text-ink-800">{shortDate(r.startDate)} to {shortDate(r.endDate)}</p>
                     <p className="mt-2 text-sm text-ink-700">&ldquo;{r.reason}&rdquo;</p>
+                    {r.hasAttachment && <div className="mt-1 -ml-2"><DocumentButton id={r.id} own={false} title={`${r.name}, ${r.leaveType}`} /></div>}
                   </div>
                 </div>
                 <div className="mt-4 flex justify-end gap-2">
@@ -211,7 +223,7 @@ export function StaffLeavePage() {
       )}
 
       <Card className="mb-6">
-        <CardHeader title="All requests" />
+        <CardHeader title="All requests" description={canDecide ? "Pending requests are decided in the cards above." : undefined} />
         {requests.length === 0 ? (
           <p className="px-5 py-6 text-sm text-ink-600">No leave requests.</p>
         ) : (
@@ -220,29 +232,18 @@ export function StaffLeavePage() {
               <thead className="bg-ink-50 text-xs uppercase text-ink-600">
                 <tr>
                   <th className="px-4 py-2">Employee</th><th className="px-4 py-2">Type</th><th className="px-4 py-2">Dates</th>
-                  <th className="px-4 py-2 text-right">Days</th><th className="px-4 py-2">Reason</th><th className="px-4 py-2">Status</th>
-                  {canDecide && <th className="px-4 py-2"><span className="sr-only">Actions</span></th>}
+                  <th className="px-4 py-2 text-right">Days</th><th className="px-4 py-2">Status</th><th className="px-4 py-2">Reason</th>
                 </tr>
               </thead>
               <tbody>
                 {requests.map((r) => (
                   <tr key={r.id} className="border-t border-line align-top">
-                    <td className="px-4 py-2"><div className="flex items-center gap-3"><Avatar name={r.name} size="sm" /><div><div className="font-medium text-ink-900">{r.name}</div><div className="font-mono text-xs text-ink-600">{r.code}{r.department ? ` · ${r.department}` : ""}</div></div></div></td>
-                    <td className="px-4 py-2">{r.leaveType}</td>
+                    <td className="px-4 py-2"><div className="flex items-center gap-3"><Avatar name={r.name} size="sm" /><div><div className="whitespace-nowrap font-medium text-ink-900">{r.name}</div><div className="whitespace-nowrap font-mono text-xs text-ink-600">{r.code}{r.department ? ` · ${r.department}` : ""}</div></div></div></td>
+                    <td className="whitespace-nowrap px-4 py-2">{r.leaveType}</td>
                     <td className="whitespace-nowrap px-4 py-2">{shortDate(r.startDate)} to {shortDate(r.endDate)}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{r.days}</td>
-                    <td className="max-w-xs px-4 py-2 text-ink-700">{r.reason}{r.decisionNote && <div className="text-xs text-ink-600">{r.decidedBy}: {r.decisionNote}</div>}</td>
                     <td className="px-4 py-2"><StatusBadge tone={STATUS_TONE[r.status]} variant="soft">{r.status}</StatusBadge></td>
-                    {canDecide && (
-                      <td className="whitespace-nowrap px-4 py-2 text-right">
-                        {r.status === "Pending" && (
-                          <div className="flex justify-end gap-2">
-                            <Button size="sm" icon={Check} onClick={() => setDeciding({ request: r, approve: true })}>Approve</Button>
-                            <Button size="sm" variant="secondary" icon={X} onClick={() => setDeciding({ request: r, approve: false })}>Reject</Button>
-                          </div>
-                        )}
-                      </td>
-                    )}
+                    <td className="max-w-xs px-4 py-2 text-ink-700">{r.reason}{r.hasAttachment && <div><DocumentButton id={r.id} own={false} title={`${r.name}, ${r.leaveType}`} /></div>}{r.decisionNote && <div className="text-xs text-ink-600">{r.decidedBy}: {r.decisionNote}</div>}</td>
                   </tr>
                 ))}
               </tbody>

@@ -20,7 +20,7 @@ public static class StaffStatuses
 /// <summary>One employee's worked-out day. Late, early leave, missing sign-out and outside office are flags; <see cref="Status"/> is the headline.</summary>
 public sealed record StaffDay(
     DateOnly Date, string Status, decimal Hours, int LateMinutes, int EarlyLeaveMinutes, string? FirstIn, string? LastOut,
-    bool IsLate, bool IsEarlyLeave, bool MissingSignOut, bool OutsideOffice, int PunchCount, string? Note);
+    bool IsLate, bool IsEarlyLeave, bool MissingSignOut, bool OutsideOffice, int PunchCount, string? Note, bool InNow = false);
 
 public sealed record PunchPoint(string Kind, DateTime TimestampUtc, bool OutsideOffice);
 
@@ -109,7 +109,8 @@ public static class StaffDayCalculator
         return new StaffDay(date, headline, hours, lateMinutes, earlyMinutes,
             firstIn?.ToString("HH:mm"), lastOut?.ToString("HH:mm"),
             lateMinutes > 0, earlyMinutes > 0, missing, outside, ordered.Count,
-            weeklyOff ? "Worked on the weekly off day" : holidayName is not null ? $"Worked on {holidayName}" : null);
+            weeklyOff ? "Worked on the weekly off day" : holidayName is not null ? $"Worked on {holidayName}" : null,
+            InNow: open is not null && date == today);
     }
 
     /// <summary>Distance between two coordinates in metres.</summary>

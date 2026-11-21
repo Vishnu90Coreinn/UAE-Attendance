@@ -52,6 +52,12 @@ const MyAttendancePage = lazy(() =>
 const MyLeavePage = lazy(() =>
   import("./features/staff/MyLeavePage").then((m) => ({ default: m.MyLeavePage })),
 );
+const MyLettersPage = lazy(() =>
+  import("./features/staff/MyLettersPage").then((m) => ({ default: m.MyLettersPage })),
+);
+const MyProfilePage = lazy(() =>
+  import("./features/staff/MyProfilePage").then((m) => ({ default: m.MyProfilePage })),
+);
 const StaffAttendancePage = lazy(() =>
   import("./features/staff/StaffAttendancePage").then((m) => ({ default: m.StaffAttendancePage })),
 );
@@ -130,6 +136,8 @@ export default function App() {
             <Route path="leave" element={<LeavePage />} />
             <Route path="my-attendance" element={<MyAttendancePage />} />
             <Route path="my-leave" element={<MyLeavePage />} />
+            <Route path="my-letters" element={<MyLettersPage />} />
+            <Route path="my-profile" element={<MyProfilePage />} />
             <Route
               path="staff"
               element={

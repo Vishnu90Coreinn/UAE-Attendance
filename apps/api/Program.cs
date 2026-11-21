@@ -86,6 +86,8 @@ builder.Services.AddScoped<HrPayroll.Api.Services.Staff.StaffAttendanceService>(
 builder.Services.AddScoped<HrPayroll.Api.Services.Staff.StaffLeaveService>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Staff.StaffExportService>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Staff.EmployeeLoginService>();
+builder.Services.AddSingleton<HrPayroll.Api.Services.Staff.StaffPayslipPdf>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Staff.StaffPayslipService>();
 if (builder.Configuration.GetValue("Staff:RetentionEnabled", true))
 {
     builder.Services.AddHostedService<HrPayroll.Api.Services.Staff.StaffRetentionService>();

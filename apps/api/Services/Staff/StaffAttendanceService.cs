@@ -50,6 +50,17 @@ public sealed class StaffAttendanceService(
             settings.OfficeCheckOn, day, next, punches.Select(p => ToDto(p, withSelfie.Contains(p.Id))).ToList());
     }
 
+    public async Task<StaffResult<StaffProfile>> ProfileAsync(int userId, CancellationToken ct)
+    {
+        var w = await EmployeeForUserAsync(userId, ct);
+        if (w is null) return StaffResult<StaffProfile>.NotFound("No active employee record is linked to this login.");
+        var user = await db.Users.AsNoTracking().SingleAsync(u => u.Id == userId, ct);
+        return StaffResult<StaffProfile>.Ok(new StaffProfile(w.Id, w.WorkerCode, w.FullName, w.Designation, w.Department,
+            w.JoinDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), w.Nationality, w.EmiratesId, w.PassportNumber, w.Phone,
+            w.Email, w.EmergencyContact, w.WorkLocation, user.Username, user.Role,
+            await db.WorkerPhotos.AsNoTracking().AnyAsync(p => p.WorkerId == w.Id, ct)));
+    }
+
     public async Task<StaffResult<StaffMeResponse>> PunchAsync(int userId, PunchRequest request, CancellationToken ct)
     {
         var worker = await EmployeeForUserAsync(userId, ct);

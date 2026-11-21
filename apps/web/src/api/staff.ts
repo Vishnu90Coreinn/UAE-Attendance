@@ -27,6 +27,8 @@ export interface StaffDay {
   outsideOffice: boolean;
   punchCount: number;
   note: string | null;
+  /** Signed in and not yet signed out (today only). */
+  inNow?: boolean;
 }
 
 export interface Punch {
@@ -152,6 +154,8 @@ export interface StaffLeaveType {
   name: string;
   yearlyDays: number;
   isActive: boolean;
+  /** True when a request of this type cannot be sent without a document (sick leave). */
+  requiresDocument: boolean;
 }
 
 export type StaffLeaveStatus = "Pending" | "Approved" | "Rejected" | "Cancelled";
@@ -174,6 +178,7 @@ export interface StaffLeave {
   decidedBy: string | null;
   decidedUtc: string | null;
   decisionNote: string | null;
+  hasAttachment: boolean;
 }
 
 export interface StaffLeaveBalance {
@@ -204,6 +209,8 @@ export interface LeaveRequestInput {
   startDate: string;
   endDate: string;
   reason: string;
+  /** A JPEG document (a medical certificate, for example), base64 encoded. */
+  attachmentBase64?: string;
 }
 
 // --- the signed-in employee ---------------------------------------------------------------------------------------
@@ -277,9 +284,10 @@ export const removeEmployeeLogin = (workerId: number) => apiDelete(`/api/staff/e
 // --- leave (HR, Manager, Partner) ----------------------------------------------------------------------------------
 
 export const listLeaveTypes = () => apiGet<StaffLeaveType[]>("/api/staff/leave-types");
-export const addLeaveType = (name: string, yearlyDays: number) => apiPost<StaffLeaveType>("/api/staff/leave-types", { name, yearlyDays });
-export const updateLeaveType = (id: number, name: string, yearlyDays: number, isActive: boolean) =>
-  apiPut<StaffLeaveType>(`/api/staff/leave-types/${id}`, { name, yearlyDays, isActive });
+export const addLeaveType = (name: string, yearlyDays: number, requiresDocument = false) =>
+  apiPost<StaffLeaveType>("/api/staff/leave-types", { name, yearlyDays, requiresDocument });
+export const updateLeaveType = (id: number, name: string, yearlyDays: number, isActive: boolean, requiresDocument?: boolean) =>
+  apiPut<StaffLeaveType>(`/api/staff/leave-types/${id}`, { name, yearlyDays, isActive, requiresDocument });
 
 export function listStaffLeave(filters: { status?: string; department?: string; year?: number }) {
   const query = new URLSearchParams();
@@ -340,3 +348,40 @@ export function getStaffPayrollFile(format: "pdf" | "excel", month: string): Pro
   const path = `/api/staff/payroll/export/${format}?month=${month}`;
   return format === "pdf" ? apiGetBlob(path) : apiGetFile(path, EXCEL_TYPE);
 }
+
+export interface StaffProfile {
+  workerId: number;
+  code: string;
+  fullName: string;
+  designation: string;
+  department: string | null;
+  joinDate: string | null;
+  nationality: string | null;
+  emiratesId: string | null;
+  passportNumber: string | null;
+  phone: string | null;
+  email: string | null;
+  emergencyContact: string | null;
+  workLocation: string | null;
+  username: string;
+  role: string;
+  hasPhoto: boolean;
+}
+
+export const getMyProfile = () => apiGet<StaffProfile>("/api/staff/me/profile");
+
+/** The document attached to a leave request, as a JPEG blob. Employees open their own; HR and managers open any. */
+export const getLeaveDocument = (id: number, own: boolean) =>
+  apiGetFile(own ? `/api/staff/me/leave/${id}/attachment` : `/api/staff/leave/${id}/attachment`, "image/jpeg");
+
+/** One employee's payslip for a month (Managers and Administrators). Without a worker, every employee in one PDF. */
+export function getStaffPayslip(month: string, workerId?: number): Promise<Blob> {
+  return apiGetBlob(`/api/staff/payroll/payslip?month=${month}${workerId ? `&workerId=${workerId}` : ""}`);
+}
+
+// --- HR letters -----------------------------------------------------------------------------------------------------
+
+export const getMyLetters = () => apiGet<import("./certificateRequests").CertificateRequest[]>("/api/staff/me/letters");
+export const requestMyLetter = (letterType: string, reason: string) =>
+  apiPost<import("./certificateRequests").CertificateRequest>("/api/staff/me/letters", { letterType, reason });
+export const getMyLetterPdf = (id: number) => apiGetBlob(`/api/staff/me/letters/${id}/pdf`);

@@ -6,7 +6,7 @@ import { Card, CardHeader, LoadingState, PageHeader } from "../../ui";
 import { LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { SelfieDialog } from "./SelfieDialog";
 import type { PlaceResult } from "./selfie";
-import { DayStrip, greeting, ShiftBar, uaeClock, useUaeNow } from "./staffKit";
+import { DayStrip, greeting, LiveDot, ShiftBar, uaeClock, useUaeNow } from "./staffKit";
 import { addDays, DayFlags, errorText, hoursText, longDate, StaffStatusBadge, todayInUae } from "./staffUi";
 
 /** Sign-in and sign-out pairs as a vertical timeline, with the time spent between them. */
@@ -140,12 +140,25 @@ export function MyAttendancePage() {
                 <span className="text-6xl font-medium leading-none tracking-tight sm:text-7xl">{clock.time}</span>
                 <span className="text-2xl text-brand-300">:{clock.seconds}</span>
               </p>
-              <div className="mt-5 flex flex-wrap items-center gap-3">
+              <p className="mt-5 flex items-center gap-2 text-base font-medium" role="status">
+                {me.nextKind === "Out" ? (
+                  <>
+                    <LiveDot /> In the office since {me.today.firstIn}
+                  </>
+                ) : me.punches.length > 0 ? (
+                  <>
+                    <span aria-hidden="true" className="size-2.5 rounded-full bg-brand-300" /> Signed out at {me.today.lastOut ?? me.punches[me.punches.length - 1].time.slice(0, 5)}
+                  </>
+                ) : (
+                  <>
+                    <span aria-hidden="true" className="size-2.5 rounded-full border border-brand-300" /> Not signed in yet
+                  </>
+                )}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
                 <StaffStatusBadge status={me.today.status} />
                 <DayFlags day={me.today} onDark />
-                <span className="text-sm text-brand-100">
-                  {hoursText(me.today.hours)} worked{me.today.firstIn ? ` · in at ${me.today.firstIn}` : ""}
-                </span>
+                <span className="text-sm text-brand-100">{hoursText(me.today.hours)} worked today</span>
               </div>
               <div className="mt-6">
                 <ShiftBar start={me.shiftStart} end={me.shiftEnd} nowMinutes={clock.minutes} />

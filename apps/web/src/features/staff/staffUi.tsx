@@ -72,3 +72,10 @@ export function hoursText(hours: number): string {
   const minutes = Math.round((hours - whole) * 60);
   return `${whole}h ${String(minutes).padStart(2, "0")}m`;
 }
+
+const MONEY = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** 13,500.00: amounts with thousands separators so long figures read at a glance. */
+export function formatMoney(value: number): string {
+  return MONEY.format(value);
+}

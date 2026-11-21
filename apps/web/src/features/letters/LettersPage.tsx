@@ -164,6 +164,7 @@ export function LettersPage() {
     canRaise: role === "Supervisor" || role === "Manager" || role === "Administrator",
     canPrepare: role === "HR" || role === "Administrator",
     prepareOwnAs: role === "Manager" ? user?.username : undefined,
+    prepareEmployeeRequests: role === "Manager" || role === "Administrator",
     canApprove: role === "Manager" || role === "Administrator",
     canOpen: role === "HR" || role === "Manager" || role === "Administrator" || role === "Viewer",
   };

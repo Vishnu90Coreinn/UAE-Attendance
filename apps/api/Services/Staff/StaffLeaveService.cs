@@ -18,7 +18,7 @@ public sealed class StaffLeaveService(
     {
         var query = db.StaffLeaveTypes.AsNoTracking();
         if (activeOnly) query = query.Where(t => t.IsActive);
-        return (await query.OrderBy(t => t.Id).ToListAsync(ct)).Select(t => new StaffLeaveTypeDto(t.Id, t.Name, t.YearlyDays, t.IsActive)).ToList();
+        return (await query.OrderBy(t => t.Id).ToListAsync(ct)).Select(t => new StaffLeaveTypeDto(t.Id, t.Name, t.YearlyDays, t.IsActive, t.RequiresDocument)).ToList();
     }
 
     public async Task<StaffResult<StaffLeaveTypeDto>> SaveTypeAsync(int? id, StaffLeaveTypeRequest request, CancellationToken ct)
@@ -36,7 +36,7 @@ public sealed class StaffLeaveService(
             type = await db.StaffLeaveTypes.SingleOrDefaultAsync(t => t.Id == existing, ct) ?? null!;
             if (type is null) return StaffResult<StaffLeaveTypeDto>.NotFound("Leave type not found.");
             audit.Write("StaffLeaveTypeUpdated", Actor, nameof(StaffLeaveType), existing.ToString(CultureInfo.InvariantCulture),
-                new { before = new { type.Name, type.YearlyDays, type.IsActive }, after = new { Name = name, request.YearlyDays, IsActive = request.IsActive ?? type.IsActive } });
+                new { before = new { type.Name, type.YearlyDays, type.IsActive, type.RequiresDocument }, after = new { Name = name, request.YearlyDays, IsActive = request.IsActive ?? type.IsActive, RequiresDocument = request.RequiresDocument ?? type.RequiresDocument } });
         }
         else
         {
@@ -47,6 +47,7 @@ public sealed class StaffLeaveService(
         type.Name = name;
         type.YearlyDays = request.YearlyDays.Value;
         if (request.IsActive is { } active) type.IsActive = active;
+        if (request.RequiresDocument is { } required) type.RequiresDocument = required;   // not sent = left as it is
         await db.SaveChangesAsync(ct);
         if (id is null)
         {
@@ -54,7 +55,7 @@ public sealed class StaffLeaveService(
             await db.SaveChangesAsync(ct);
         }
 
-        return StaffResult<StaffLeaveTypeDto>.Ok(new(type.Id, type.Name, type.YearlyDays, type.IsActive));
+        return StaffResult<StaffLeaveTypeDto>.Ok(new(type.Id, type.Name, type.YearlyDays, type.IsActive, type.RequiresDocument));
     }
 
     // --- balances ----------------------------------------------------------------------------------------------
@@ -90,7 +91,7 @@ public sealed class StaffLeaveService(
         if (worker is null) return StaffResult<StaffMyLeaveResponse>.NotFound("No active employee record is linked to this login.");
         var year = StaffTime.Today(time).Year;
         var requests = await QueryRequests().Where(r => r.WorkerId == worker.Id).OrderByDescending(r => r.StartDate).ThenByDescending(r => r.Id).ToListAsync(ct);
-        return StaffResult<StaffMyLeaveResponse>.Ok(new(await BalancesAsync(worker.Id, year, ct), requests.Select(ToDto).ToList(), await TypesAsync(true, ct)));
+        return StaffResult<StaffMyLeaveResponse>.Ok(new(await BalancesAsync(worker.Id, year, ct), await ToDtosAsync(requests, ct), await TypesAsync(true, ct)));
     }
 
     public async Task<List<StaffLeaveBalanceRow>> AllBalancesAsync(int? year, string? department, CancellationToken ct)
@@ -116,8 +117,7 @@ public sealed class StaffLeaveService(
         if (workerId is { } id) query = query.Where(r => r.WorkerId == id);
         if (!string.IsNullOrWhiteSpace(department)) query = query.Where(r => r.Worker.Department == department);
         if (year is { } y) query = query.Where(r => r.StartDate.Year == y || r.EndDate.Year == y);
-        return (await query.OrderBy(r => r.Status == StaffLeaveStatuses.Pending ? 0 : 1).ThenByDescending(r => r.StartDate).ThenByDescending(r => r.Id).ToListAsync(ct))
-            .Select(ToDto).ToList();
+        return await ToDtosAsync(await query.OrderBy(r => r.Status == StaffLeaveStatuses.Pending ? 0 : 1).ThenByDescending(r => r.StartDate).ThenByDescending(r => r.Id).ToListAsync(ct), ct);
     }
 
     public async Task<StaffResult<StaffLeaveDto>> CreateAsync(int userId, StaffLeaveRequestInput input, CancellationToken ct)
@@ -137,6 +137,8 @@ public sealed class StaffLeaveService(
         var reason = (input.Reason ?? "").Trim();
         if (reason.Length == 0) errors["reason"] = ["Give a reason for the leave."];
         else if (reason.Length > 500) errors["reason"] = ["Reason must be 500 characters or fewer."];
+        if (!PhotoUpload.TryDecode(input.AttachmentBase64, out var document)) errors["attachment"] = ["The document must be a JPEG image of at most 3 MB."];
+        else if (document is null && type is { RequiresDocument: true }) errors["attachment"] = [$"{type.Name} needs a supporting document, for example a medical certificate. Attach it to send the request."];
         if (errors.Count > 0) return new(400, Errors: errors);
 
         var settings = await settingsService.LoadAsync(ct);
@@ -157,11 +159,12 @@ public sealed class StaffLeaveService(
             Status = StaffLeaveStatuses.Pending, CreatedBy = Actor, CreatedUtc = time.GetUtcNow().UtcDateTime,
         };
         db.StaffLeaveRequests.Add(request);
+        if (document is not null) db.StaffLeaveAttachments.Add(new StaffLeaveAttachment { StaffLeaveRequest = request, Data = document, UploadedUtc = request.CreatedUtc });
         await db.SaveChangesAsync(ct);
         audit.Write("StaffLeaveRequested", Actor, nameof(StaffLeaveRequest), request.Id.ToString(CultureInfo.InvariantCulture),
-            new { workerId = worker.Id, leaveType = type.Name, start = input.StartDate, end = input.EndDate, days });
+            new { workerId = worker.Id, leaveType = type.Name, start = input.StartDate, end = input.EndDate, days, hasDocument = document is not null });
         await db.SaveChangesAsync(ct);
-        return StaffResult<StaffLeaveDto>.Ok(ToDto(await QueryRequests().SingleAsync(r => r.Id == request.Id, ct)));
+        return StaffResult<StaffLeaveDto>.Ok(await ToDtoAsync(await QueryRequests().SingleAsync(r => r.Id == request.Id, ct), ct));
     }
 
     /// <summary>A message when the request would take more days than the employee has left this year; null when it fits.</summary>
@@ -196,7 +199,7 @@ public sealed class StaffLeaveService(
         request.Status = StaffLeaveStatuses.Cancelled;
         audit.Write("StaffLeaveCancelled", Actor, nameof(StaffLeaveRequest), id.ToString(CultureInfo.InvariantCulture));
         await db.SaveChangesAsync(ct);
-        return StaffResult<StaffLeaveDto>.Ok(ToDto(await QueryRequests().SingleAsync(r => r.Id == id, ct)));
+        return StaffResult<StaffLeaveDto>.Ok(await ToDtoAsync(await QueryRequests().SingleAsync(r => r.Id == id, ct), ct));
     }
 
     /// <summary>The manager approves or rejects a pending request. Nobody decides their own request.</summary>
@@ -224,12 +227,31 @@ public sealed class StaffLeaveService(
         audit.Write(approve ? "StaffLeaveApproved" : "StaffLeaveRejected", Actor, nameof(StaffLeaveRequest), id.ToString(CultureInfo.InvariantCulture),
             new { workerId = request.WorkerId, note = request.DecisionNote });
         await db.SaveChangesAsync(ct);
-        return StaffResult<StaffLeaveDto>.Ok(ToDto(request));
+        return StaffResult<StaffLeaveDto>.Ok(await ToDtoAsync(request, ct));
     }
 
-    private static StaffLeaveDto ToDto(StaffLeaveRequest r) =>
+    /// <summary>The attached document (JPEG) of a request, or null. <paramref name="userId"/> limits it to the request's own employee.</summary>
+    public async Task<byte[]?> AttachmentAsync(int requestId, int? userId, CancellationToken ct)
+    {
+        var query = db.StaffLeaveAttachments.AsNoTracking().Where(a => a.StaffLeaveRequestId == requestId);
+        if (userId is { } id)
+            query = query.Where(a => db.StaffLeaveRequests.Any(r => r.Id == requestId && r.Worker.UserId == id));
+        return await query.Select(a => (byte[]?)a.Data).SingleOrDefaultAsync(ct);
+    }
+
+    private async Task<List<StaffLeaveDto>> ToDtosAsync(IReadOnlyList<StaffLeaveRequest> list, CancellationToken ct)
+    {
+        var ids = list.Select(r => r.Id).ToArray();
+        var with = ids.Length == 0 ? [] : (await db.StaffLeaveAttachments.AsNoTracking().Where(a => ids.Contains(a.StaffLeaveRequestId)).Select(a => a.StaffLeaveRequestId).ToListAsync(ct)).ToHashSet();
+        return list.Select(r => ToDto(r, with.Contains(r.Id))).ToList();
+    }
+
+    private async Task<StaffLeaveDto> ToDtoAsync(StaffLeaveRequest r, CancellationToken ct) =>
+        ToDto(r, await db.StaffLeaveAttachments.AsNoTracking().AnyAsync(a => a.StaffLeaveRequestId == r.Id, ct));
+
+    private static StaffLeaveDto ToDto(StaffLeaveRequest r, bool hasAttachment) =>
         new(r.Id, r.WorkerId, r.Worker.WorkerCode, r.Worker.FullName, r.Worker.Department, r.LeaveTypeId, r.LeaveType.Name,
             r.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), r.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             r.Days, r.Reason, r.Status, r.CreatedBy, DateTime.SpecifyKind(r.CreatedUtc, DateTimeKind.Utc).ToString("o", CultureInfo.InvariantCulture),
-            r.DecidedBy, r.DecidedUtc is { } d ? DateTime.SpecifyKind(d, DateTimeKind.Utc).ToString("o", CultureInfo.InvariantCulture) : null, r.DecisionNote);
+            r.DecidedBy, r.DecidedUtc is { } d ? DateTime.SpecifyKind(d, DateTimeKind.Utc).ToString("o", CultureInfo.InvariantCulture) : null, r.DecisionNote, hasAttachment);
 }

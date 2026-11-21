@@ -21,6 +21,12 @@ public sealed record StaffMeResponse(
     int WorkerId, string Code, string Name, string? Department, string ShiftStart, string ShiftEnd, bool OfficeCheckOn,
     StaffDay Today, string NextKind, List<PunchDto> Punches);
 
+/// <summary>The employee's own record. Pay and bank details are not part of it.</summary>
+public sealed record StaffProfile(
+    int WorkerId, string Code, string FullName, string Designation, string? Department, string? JoinDate, string? Nationality,
+    string? EmiratesId, string? PassportNumber, string? Phone, string? Email, string? EmergencyContact, string? WorkLocation,
+    string Username, string Role, bool HasPhoto);
+
 public sealed record StaffDayRow(int WorkerId, string Code, string Name, string? Department, StaffDay Day);
 
 public sealed record StaffDayDetail(StaffDayRow Row, List<PunchDto> Punches);
@@ -49,19 +55,21 @@ public sealed record StaffPayrollSummary(
     string Month, string Label, List<StaffPayrollRow> Rows, decimal TotalSalary, decimal TotalDeductions, decimal TotalNet,
     bool DeductAbsentDays, decimal LateDeductionPerMinute);
 
+public sealed record MyLetterRequest(string? LetterType, string? Reason);
+
 public sealed record StaffLinkableUser(int Id, string Username, string Role);
 public sealed record EmployeeLoginRequest(int? LinkUserId, string? Username, string? Password);
 
 // Leave (stage 2)
-public sealed record StaffLeaveTypeDto(int Id, string Name, int YearlyDays, bool IsActive);
-public sealed record StaffLeaveTypeRequest(string? Name, int? YearlyDays, bool? IsActive);
+public sealed record StaffLeaveTypeDto(int Id, string Name, int YearlyDays, bool IsActive, bool RequiresDocument = false);
+public sealed record StaffLeaveTypeRequest(string? Name, int? YearlyDays, bool? IsActive, bool? RequiresDocument = null);
 
 public sealed record StaffLeaveDto(
     int Id, int WorkerId, string Code, string Name, string? Department, int LeaveTypeId, string LeaveType, string StartDate,
     string EndDate, int Days, string Reason, string Status, string CreatedBy, string CreatedUtc, string? DecidedBy,
-    string? DecidedUtc, string? DecisionNote);
+    string? DecidedUtc, string? DecisionNote, bool HasAttachment = false);
 
-public sealed record StaffLeaveRequestInput(int? LeaveTypeId, string? StartDate, string? EndDate, string? Reason, int? WorkerId = null);
+public sealed record StaffLeaveRequestInput(int? LeaveTypeId, string? StartDate, string? EndDate, string? Reason, int? WorkerId = null, string? AttachmentBase64 = null);
 public sealed record StaffLeaveDecision(string? Note);
 
 public sealed record StaffLeaveBalanceDto(int LeaveTypeId, string LeaveType, int Entitlement, int Used, int Pending, int Remaining);

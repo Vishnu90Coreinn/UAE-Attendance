@@ -4,6 +4,7 @@ import { cancelMyLeave, getMyLeave, requestLeave, type StaffLeave, type StaffMyL
 import { Button, Card, CardHeader, Input, LoadingState, PageHeader, Select, StatusBadge, Textarea, type StatusTone } from "../../ui";
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { BalanceBar } from "./staffKit";
+import { DocumentButton, DocumentPicker, type PickedDocument } from "./LeaveDocument";
 import { errorText, shortDate, todayInUae } from "./staffUi";
 
 const STATUS_TONE: Record<StaffLeave["status"], StatusTone> = {
@@ -13,6 +14,15 @@ const STATUS_TONE: Record<StaffLeave["status"], StatusTone> = {
   Cancelled: "neutral",
 };
 
+/** "3 calendar days" for the chosen range; the server works out the working days that count. */
+function calendarDays(start: string, end: string): string {
+  const a = Date.parse(start);
+  const b = Date.parse(end);
+  if (Number.isNaN(a) || Number.isNaN(b) || b < a) return "Choose valid dates";
+  const days = Math.round((b - a) / 86400000) + 1;
+  return `${days} calendar day${days === 1 ? "" : "s"}`;
+}
+
 export function MyLeavePage() {
   const [data, setData] = useState<StaffMyLeave | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +30,7 @@ export function MyLeavePage() {
   const [start, setStart] = useState(todayInUae());
   const [end, setEnd] = useState(todayInUae());
   const [reason, setReason] = useState("");
+  const [document, setDocument] = useState<PickedDocument | null>(null);
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -45,8 +56,9 @@ export function MyLeavePage() {
     setFailure(null);
     setSuccess(null);
     try {
-      await requestLeave({ leaveTypeId: Number(typeId), startDate: start, endDate: end, reason });
+      await requestLeave({ leaveTypeId: Number(typeId), startDate: start, endDate: end, reason, ...(document ? { attachmentBase64: document.base64 } : {}) });
       setReason("");
+      setDocument(null);
       setSuccess("Leave request sent to your manager.");
       await load();
     } catch (e) {
@@ -67,6 +79,9 @@ export function MyLeavePage() {
       setFailure(errorText(e));
     }
   }
+
+  const selectedType = data?.types.find((t) => String(t.id) === typeId);
+  const needsDocument = selectedType?.requiresDocument === true;
 
   if (error) return <LoadError message={error} onRetry={() => void load()} />;
   if (!data) return <LoadingState label="Loading..." />;
@@ -93,7 +108,8 @@ export function MyLeavePage() {
         ))}
       </div>
 
-      <Card className="mb-6">
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,5fr)_minmax(0,4fr)]">
+      <Card>
         <CardHeader title="Request leave" />
         <form onSubmit={submit} className="grid gap-4 p-5 sm:grid-cols-2" noValidate>
           <Select label="Leave type" value={typeId} onChange={(e) => setTypeId(e.target.value)}>
@@ -107,14 +123,24 @@ export function MyLeavePage() {
             <Input label="From" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
             <Input label="To" type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} />
           </div>
+          <p className="text-sm text-ink-600 sm:col-span-2">{calendarDays(start, end)}. Sundays and public holidays are not counted against your balance.</p>
           <div className="sm:col-span-2">
             <Textarea label="Reason" rows={2} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
+          </div>
+          <div className="sm:col-span-2">
+            <DocumentPicker
+              value={document}
+              onChange={setDocument}
+              required={needsDocument}
+              label={needsDocument ? `${selectedType?.name}: document` : "Supporting document"}
+              hint={needsDocument ? "Required. Attach your doctor's certificate or sick note. Your manager opens it when deciding." : "Attach a document if it supports your request."}
+            />
           </div>
           <div className="sm:col-span-2">
             {failure && <ActionFailure message={failure} />}
             <SuccessRegion message={success} />
             <div className="mt-3 flex justify-end">
-              <Button type="submit" icon={pending ? Loader2 : CalendarPlus} disabled={pending || !typeId || !reason.trim()}>
+              <Button type="submit" icon={pending ? Loader2 : CalendarPlus} disabled={pending || !typeId || !reason.trim() || (needsDocument && !document)}>
                 {pending ? "Sending..." : "Send request"}
               </Button>
             </div>
@@ -148,6 +174,7 @@ export function MyLeavePage() {
                   <StatusBadge tone={STATUS_TONE[r.status]} variant="soft">
                     {r.status}
                   </StatusBadge>
+                  {r.hasAttachment && <DocumentButton id={r.id} own title={`${r.leaveType}, ${shortDate(r.startDate)}`} />}
                   {r.status === "Pending" && (
                     <Button size="sm" variant="secondary" onClick={() => void cancel(r)}>
                       Cancel
@@ -159,6 +186,7 @@ export function MyLeavePage() {
           </ul>
         )}
       </Card>
+      </div>
     </section>
   );
 }

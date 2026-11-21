@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { StaffDay, StaffStatus } from "../../api/staff";
 import { cx } from "../../ui";
 import { longDate } from "./staffUi";
+import { Check } from "lucide-react";
 
 /** Initials in a quiet teal disc. The tint comes from the name so a list of people is easy to scan. */
 const AVATAR_TINTS = [
@@ -176,5 +177,90 @@ export function SegmentBar({ segments, total }: { segments: Segment[]; total: nu
         ))}
       </ul>
     </div>
+  );
+}
+
+/** A small green dot that pulses (unless motion is reduced) for "in the office right now". */
+export function LiveDot({ className }: { className?: string }) {
+  return (
+    <span aria-hidden="true" className={cx("relative inline-flex size-2.5", className)}>
+      <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-500 opacity-60 motion-reduce:animate-none" />
+      <span className="relative inline-flex size-2.5 rounded-full bg-green-500" />
+    </span>
+  );
+}
+
+/** Buttons that act like one choice (a radio group): clearer than a dropdown for three or four options. */
+export function Segmented<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: readonly { value: T; label: string }[];
+  onChange: (next: T) => void;
+}) {
+  return (
+    <div role="radiogroup" aria-label={label} className="inline-flex rounded-lg bg-ink-100 p-1">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="radio"
+          aria-checked={value === o.value}
+          onClick={() => onChange(o.value)}
+          className={cx(
+            "min-h-9 rounded-md px-3 text-sm font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500",
+            value === o.value ? "bg-white text-brand-800 shadow-card" : "text-ink-600 hover:text-ink-900",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** A percentage as a thin bar with the number beside it. Colour tracks the value but the number is always there. */
+export function RateBar({ value, label }: { value: number | null; label: string }) {
+  if (value === null) return <span className="text-ink-500">-</span>;
+  const pct = Math.max(0, Math.min(100, Math.round(value)));
+  const tone = pct >= 95 ? "bg-green-600" : pct >= 85 ? "bg-amber-500" : "bg-red-700";
+  return (
+    <div className="flex items-center justify-end gap-2" title={label}>
+      <div aria-hidden="true" className="h-1.5 w-14 overflow-hidden rounded-full bg-ink-100">
+        <div className={cx("h-full rounded-full", tone)} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="w-9 text-right tabular-nums text-ink-800">{pct}%</span>
+    </div>
+  );
+}
+
+/** Where a request is in its journey. Finished steps get a tick, the current one is outlined. */
+export function Stepper({ steps, current, note }: { steps: readonly string[]; current: number; note?: string }) {
+  return (
+    <ol className="flex items-center gap-2 text-xs" aria-label="Progress">
+      {steps.map((step, index) => {
+        const done = index < current;
+        const active = index === current;
+        return (
+          <li key={step} className="flex items-center gap-2" aria-current={active ? "step" : undefined}>
+            <span
+              className={cx(
+                "inline-flex size-5 items-center justify-center rounded-full text-[10px] font-semibold",
+                done ? "bg-brand-600 text-white" : active ? "border-2 border-brand-600 text-brand-700" : "border border-ink-300 text-ink-500",
+              )}
+            >
+              {done ? <Check aria-hidden="true" size={12} /> : index + 1}
+            </span>
+            <span className={cx(done || active ? "font-medium text-ink-800" : "text-ink-500")}>{step}</span>
+            {index < steps.length - 1 && <span aria-hidden="true" className={cx("h-px w-5", done ? "bg-brand-600" : "bg-ink-300")} />}
+          </li>
+        );
+      })}
+      {note && <span className="sr-only">{note}</span>}
+    </ol>
   );
 }
