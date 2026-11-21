@@ -1,3 +1,4 @@
+using HrPayroll.Api.Data.Entities;
 using System.Globalization;
 using HrPayroll.Api.Data;
 using HrPayroll.Api.Dtos;
@@ -13,7 +14,7 @@ public sealed class LeaveBalanceService(AppDbContext db, TimeProvider time)
     public async Task<List<WorkerLeaveBalance>> ListAsync(CancellationToken ct)
     {
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time.GetUtcNow(), CompanyTimeZone).DateTime);
-        var workers = await db.Workers.AsNoTracking().Where(w => w.IsActive).OrderBy(w => w.WorkerCode).ToListAsync(ct);
+        var workers = await db.Workers.AsNoTracking().Where(w => w.IsActive && w.Category == WorkerCategories.Worker).OrderBy(w => w.WorkerCode).ToListAsync(ct);
         var ids = workers.Select(w => w.Id).ToArray();
         var paidDays = (await db.Attendance.AsNoTracking()
             .Where(a => ids.Contains(a.WorkerId) && a.BasicHours > 0 && LeaveEntitlements.Types.Contains(a.Status))

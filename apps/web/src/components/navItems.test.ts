@@ -4,7 +4,10 @@ import { navItemsForRole, phoneNavFor } from "./navItems";
 const MODULES = [
   "Worker Directory",
   "Daily Attendance",
+  "Staff Attendance",
+  "Staff Leave",
   "Payroll Summary",
+  "Staff Payroll Summary",
   "Deductions",
   "Leave Management",
   "Tax Invoices",
@@ -63,12 +66,27 @@ describe("navItemsForRole", () => {
       "Payroll Summary": "/payroll",
       "Deductions": "/deductions",
       "Leave Management": "/leave",
+      "Staff Attendance": "/staff",
+      "Staff Payroll Summary": "/staff-payroll",
+      "Staff Leave": "/staff-leave",
       "Tax Invoices": "/invoices",
       "HR Letters": "/letters",
       "Site Progress": "/progress",
       "User Manager": "/users",
       Settings: "/settings",
     });
+  });
+});
+
+describe("My Attendance and My Leave", () => {
+  it("show only for a login that is linked to an office employee record", () => {
+    expect(labelsFor("HR")).not.toContain("My Attendance");
+    expect(navItemsForRole("HR", 7).map((item) => item.label).slice(0, 2)).toEqual(["My Attendance", "My Leave"]);
+  });
+
+  it("are all an Employee-role login sees", () => {
+    expect(navItemsForRole("Employee", 7).map((item) => item.label)).toEqual(["My Attendance", "My Leave"]);
+    expect(navItemsForRole("Employee")).toEqual([]);
   });
 });
 
@@ -82,6 +100,9 @@ describe("phoneNavFor", () => {
     expect(labels(more)).toEqual([
       "Leave Management",
       "Deductions",
+      "Staff Attendance",
+      "Staff Payroll Summary",
+      "Staff Leave",
       "Site Progress",
       "Tax Invoices",
       "HR Letters",

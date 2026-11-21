@@ -1,11 +1,13 @@
 import { apiGet, apiPost } from "./client";
 
-export type Role = "Administrator" | "Manager" | "Supervisor" | "HR" | "Viewer";
+export type Role = "Administrator" | "Manager" | "Supervisor" | "HR" | "Viewer" | "Employee";
 
 export interface CurrentUser {
   id: number;
   username: string;
   role: Role;
+  /** The office employee record linked to this login; decides whether My Attendance and My Leave show. */
+  employeeId?: number | null;
 }
 
 export interface LoginResponse {

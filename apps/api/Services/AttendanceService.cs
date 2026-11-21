@@ -32,7 +32,7 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
             if (await periodLock.IsFinalisedAsync(db, day, ct)) return new(409);
             var settings = await db.PayrollSettings.AsNoTracking().SingleAsync(ct);
             var ids = requests.Where(r => r is not null).Select(r => r!.WorkerId).ToArray();
-            var workers = await db.Workers.Where(w => ids.Contains(w.Id)).ToDictionaryAsync(w => w.Id, ct);
+            var workers = await db.Workers.Where(w => ids.Contains(w.Id) && w.Category == WorkerCategories.Worker).ToDictionaryAsync(w => w.Id, ct);
             var existing = await db.Attendance.Where(a => a.WorkDate == day && ids.Contains(a.WorkerId)).ToDictionaryAsync(a => a.WorkerId, ct);
             var onLeave = await ApprovedLeaveAsync(day, ids, ct);
             var manager = IsManager;
@@ -140,7 +140,7 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
         var settings = await db.PayrollSettings.AsNoTracking().SingleAsync(ct);
         var records = await db.Attendance.AsNoTracking().Where(a => a.WorkDate == date).ToDictionaryAsync(a => a.WorkerId, ct);
         var ids = records.Keys.ToArray();
-        var workers = await db.Workers.AsNoTracking().Where(w => w.IsActive || ids.Contains(w.Id)).OrderBy(w => w.WorkerCode).ToListAsync(ct);
+        var workers = await db.Workers.AsNoTracking().Where(w => w.Category == WorkerCategories.Worker && (w.IsActive || ids.Contains(w.Id))).OrderBy(w => w.WorkerCode).ToListAsync(ct);
         var sunday = date.DayOfWeek == DayOfWeek.Sunday;
         var finalised = await periodLock.IsFinalisedAsync(db, date, ct);
         // R9: a finalised month's figures come only from the payroll snapshot (frozen per-worker rates).
@@ -269,7 +269,7 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
         var start = end.AddDays(1 - days);
         var records = await db.Attendance.AsNoTracking().Where(a => a.WorkDate >= start && a.WorkDate <= end)
             .Select(a => new { a.WorkDate, a.WorkerId, a.Status }).ToListAsync(ct);
-        var workers = await db.Workers.AsNoTracking().Select(w => new { w.Id, w.IsActive }).ToListAsync(ct);
+        var workers = await db.Workers.AsNoTracking().Where(w => w.Category == WorkerCategories.Worker).Select(w => new { w.Id, w.IsActive }).ToListAsync(ct);
         var active = workers.Where(w => w.IsActive).Select(w => w.Id).ToHashSet();
         var byDay = records.ToLookup(r => r.WorkDate);
         var result = Enumerable.Range(0, days).Select(offset =>

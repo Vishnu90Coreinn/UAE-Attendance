@@ -54,7 +54,7 @@ public sealed class LeaveService(AppDbContext db, IAuditLogger audit, TimeProvid
             await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             await LockAsync(input.WorkerId!.Value, ct);
             var worker = await db.Workers.SingleOrDefaultAsync(x => x.Id == input.WorkerId, ct);
-            if (worker is null || !worker.IsActive) return new(400, Errors: new() { ["workerId"] = ["Select an active worker."] });
+            if (worker is null || !worker.IsActive || worker.Category != WorkerCategories.Worker) return new(400, Errors: new() { ["workerId"] = ["Select an active worker."] });
             if (await Overlaps(input.WorkerId.Value, start, end, 0, ct)) return new(409);
             var leave = new LeaveRequest { Worker = worker, WorkerId = worker.Id, LeaveType = input.LeaveType!, StartDate = start, EndDate = end, CreatedBy = actor, CreatedUtc = time.GetUtcNow().UtcDateTime };
             db.LeaveRequests.Add(leave);
@@ -82,7 +82,7 @@ public sealed class LeaveService(AppDbContext db, IAuditLogger audit, TimeProvid
             await LockAsync(workerId.Value, ct);
             // Consistent worker then request lock order with create; refresh state only after the lock.
             var worker = await db.Workers.SingleOrDefaultAsync(x => x.Id == workerId, ct);
-            if (worker is null) return new(404);
+            if (worker is null || worker.Category != WorkerCategories.Worker) return new(404);
             var leave = await db.LeaveRequests.SingleOrDefaultAsync(x => x.Id == id, ct);
             if (leave is null) return new(404);
             leave.Worker = worker;

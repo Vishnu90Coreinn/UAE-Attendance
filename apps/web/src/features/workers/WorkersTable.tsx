@@ -1,4 +1,5 @@
 import {
+  KeyRound,
   Pencil,
   Printer,
   Trash2,
@@ -18,6 +19,8 @@ interface RowActions {
   onDeactivate?: (worker: Worker) => void;
   onActivate?: (worker: Worker) => void;
   onDelete?: (worker: Worker) => void;
+  /** Office employees only: give them a login or link an account. */
+  onLogin?: (worker: Worker) => void;
 }
 
 interface WorkersTableProps {
@@ -156,6 +159,9 @@ function WorkerRow({
   showRates: boolean;
 }) {
   const menuItems: RowMenuItem[] = [
+    ...(worker.category === "Employee" && actions?.onLogin
+      ? [{ label: worker.userId ? "Login details" : "Give a login", icon: KeyRound, disabled: busy, onSelect: () => actions.onLogin!(worker) }]
+      : []),
     ...(onPrint ? [{ label: "Download record", icon: Printer, disabled: busy, onSelect: () => onPrint(worker) }] : []),
     ...(worker.isActive && actions?.onDeactivate
       ? [{ label: "Deactivate", icon: UserX, disabled: busy, onSelect: () => actions.onDeactivate!(worker) }]
@@ -182,7 +188,12 @@ function WorkerRow({
       >
         <div className="flex items-center gap-3">
           <div>
-            <div className="font-semibold"><WorkerName worker={worker} /></div>
+            <div className="font-semibold">
+              <WorkerName worker={worker} />
+              {worker.category === "Employee" && (
+                <span className="ml-2 rounded-md bg-sky-50 px-1.5 py-0.5 align-middle text-xs font-medium text-sky-800">Office</span>
+              )}
+            </div>
             {worker.emiratesId && (
               <div className="whitespace-nowrap font-mono text-xs font-normal text-ink-600" title={`EID ${worker.emiratesId}`}>
                 EID {worker.emiratesId}

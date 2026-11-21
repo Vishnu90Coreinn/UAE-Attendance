@@ -72,7 +72,8 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
 
     // --- reads ---------------------------------------------------------------------------------------------
 
-    public async Task<List<WorkerResponse>> ListAsync(bool includeInactive, CancellationToken cancellationToken = default)
+    /// <param name="category">Null lists everyone; otherwise only workers or only office employees.</param>
+    public async Task<List<WorkerResponse>> ListAsync(bool includeInactive, CancellationToken cancellationToken = default, string? category = null)
     {
         var query = db.Workers.AsNoTracking();
         if (!includeInactive)
@@ -80,10 +81,16 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             query = query.Where(w => w.IsActive);
         }
 
+        if (category is not null)
+        {
+            query = query.Where(w => w.Category == category);
+        }
+
         var workers = await query.OrderBy(w => w.WorkerCode).ToListAsync(cancellationToken);
         var companyRate = await CompanyOvertimeRateAsync(cancellationToken);
         var withPhoto = (await db.WorkerPhotos.AsNoTracking().Select(p => p.WorkerId).ToListAsync(cancellationToken)).ToHashSet();
-        return workers.Select(w => ToResponse(w, companyRate, withPhoto.Contains(w.Id))).ToList();
+        var usernames = await db.Users.AsNoTracking().Select(u => new { u.Id, u.Username }).ToDictionaryAsync(u => u.Id, u => u.Username, cancellationToken);
+        return workers.Select(w => ToResponse(w, companyRate, withPhoto.Contains(w.Id), w.UserId is { } uid && usernames.TryGetValue(uid, out var name) ? name : null)).ToList();
     }
 
     public async Task<WorkerResponse?> GetAsync(int id, CancellationToken cancellationToken = default)
@@ -98,7 +105,8 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
 
     private async Task<WorkerResponse> RespondAsync(Worker worker, CancellationToken cancellationToken) =>
         ToResponse(worker, await CompanyOvertimeRateAsync(cancellationToken),
-            await db.WorkerPhotos.AsNoTracking().AnyAsync(p => p.WorkerId == worker.Id, cancellationToken));
+            await db.WorkerPhotos.AsNoTracking().AnyAsync(p => p.WorkerId == worker.Id, cancellationToken),
+            worker.UserId is { } uid ? await db.Users.AsNoTracking().Where(u => u.Id == uid).Select(u => u.Username).SingleOrDefaultAsync(cancellationToken) : null);
 
     /// <summary>
     /// <c>EMP-</c> plus one more than the highest number among codes shaped <c>EMP-</c>digits, padded to at least three
@@ -149,6 +157,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         var now = time.GetUtcNow().UtcDateTime;
         var worker = new Worker
         {
+            Category = request.Category ?? WorkerCategories.Worker,
             WorkerCode = input.Code,
             FullName = input.FullName,
             Designation = input.Designation,
@@ -201,13 +210,13 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         }
 
         // Only an explicit overtime rate is worth recording; a worker created on the company rate has nothing to add.
-        object? details = worker.OvertimeRate is null
-            ? null
-            : new Dictionary<string, FieldChange> { ["overtimeRate"] = new(null, worker.OvertimeRate) };
-        audit.Write("WorkerCreated", entityType: nameof(Worker), entityId: worker.Id.ToString(CultureInfo.InvariantCulture), details: details);
+        var details = new Dictionary<string, FieldChange>();
+        if (worker.OvertimeRate is not null) details["overtimeRate"] = new(null, worker.OvertimeRate);
+        if (worker.Category != WorkerCategories.Worker) details["category"] = new(null, worker.Category);
+        audit.Write("WorkerCreated", entityType: nameof(Worker), entityId: worker.Id.ToString(CultureInfo.InvariantCulture), details: details.Count == 0 ? null : details);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new WorkerResult(WorkerOutcome.Success, ToResponse(worker, await CompanyOvertimeRateAsync(cancellationToken), photo is not null));
+        return new WorkerResult(WorkerOutcome.Success, ToResponse(worker, await CompanyOvertimeRateAsync(cancellationToken), photo is not null, null));
     }
 
     /// <param name="lockPay">
@@ -239,6 +248,12 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
         }
 
         var changes = new Dictionary<string, FieldChange>();
+        if (request.Category is { } category && category != worker.Category)
+        {
+            changes["category"] = new FieldChange(worker.Category, category);
+            worker.Category = category;
+        }
+
         if (!string.Equals(worker.WorkerCode, input.Code, StringComparison.Ordinal))
         {
             changes["workerCode"] = new FieldChange(worker.WorkerCode, input.Code);
@@ -538,6 +553,11 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             errors["workerCode"] = "Worker ID can contain only letters, numbers, hyphens and underscores.";
         }
 
+        if (request.Category is not null && !WorkerCategories.IsValid(request.Category))
+        {
+            errors["category"] = "Category must be Worker or Employee.";
+        }
+
         var fullName = (request.FullName ?? "").Trim();
         if (fullName.Length == 0)
         {
@@ -704,7 +724,7 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             .Select(s => s.OvertimeRatePerHour)
             .SingleAsync(cancellationToken);
 
-    private static WorkerResponse ToResponse(Worker worker, decimal companyOvertimeRate, bool hasPhoto) =>
+    private static WorkerResponse ToResponse(Worker worker, decimal companyOvertimeRate, bool hasPhoto, string? username) =>
         new(worker.Id, worker.WorkerCode, worker.FullName, worker.Designation, worker.HourlyRate,
             worker.OvertimeRate, worker.OvertimeRate ?? companyOvertimeRate, worker.IsActive, worker.JoinDate,
             worker.Department, worker.EmiratesId, worker.PassportNumber, worker.Phone,
@@ -713,5 +733,6 @@ public partial class WorkerService(AppDbContext db, IAuditLogger audit, TimeProv
             worker.SiteOrientationDone, worker.WpsRegistered, worker.BadgeIssued, hasPhoto, worker.EffectiveSalary,
             worker.Nationality, worker.HousingAllowance, worker.TransportAllowance, worker.OtherAllowance,
             worker.BankName, worker.BankAccountNumber, worker.Iban,
-            worker.ExchangeName, worker.CardNumber, worker.ExchangeAccountNumber, worker.BasicSalary);
+            worker.ExchangeName, worker.CardNumber, worker.ExchangeAccountNumber, worker.BasicSalary,
+            worker.Category, worker.UserId, username);
 }

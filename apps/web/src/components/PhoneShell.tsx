@@ -35,7 +35,7 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
   const [moreOpen, setMoreOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const { pathname } = useLocation();
-  const { tabs, more } = user ? phoneNavFor(user.role) : { tabs: [], more: [] };
+  const { tabs, more } = user ? phoneNavFor(user.role, user.employeeId) : { tabs: [], more: [] };
   const moreActive = more.some((item) => item.path && pathname.startsWith(item.path));
 
   function tabContent(item: NavItem) {

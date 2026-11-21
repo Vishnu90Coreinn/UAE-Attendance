@@ -46,6 +46,21 @@ const SiteProgressPage = lazy(() =>
 const UserPage = lazy(() =>
   import("./features/users/UserPage").then((m) => ({ default: m.UserPage })),
 );
+const MyAttendancePage = lazy(() =>
+  import("./features/staff/MyAttendancePage").then((m) => ({ default: m.MyAttendancePage })),
+);
+const MyLeavePage = lazy(() =>
+  import("./features/staff/MyLeavePage").then((m) => ({ default: m.MyLeavePage })),
+);
+const StaffAttendancePage = lazy(() =>
+  import("./features/staff/StaffAttendancePage").then((m) => ({ default: m.StaffAttendancePage })),
+);
+const StaffLeavePage = lazy(() =>
+  import("./features/staff/StaffLeavePage").then((m) => ({ default: m.StaffLeavePage })),
+);
+const StaffPayrollPage = lazy(() =>
+  import("./features/staff/StaffPayrollPage").then((m) => ({ default: m.StaffPayrollPage })),
+);
 const SettingsPage = lazy(() =>
   import("./features/settings/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );
@@ -63,15 +78,14 @@ function Screens() {
   );
 }
 
-/** Managers and administrators land on the dashboard; supervisors, who have none, land on the worker directory. */
+/**
+ * Managers and administrators land on the dashboard; supervisors, who have none, land on the worker directory.
+ * An Employee-role login has only its own sign-in page.
+ */
 function Home() {
   const { user } = useAuth();
-  return (
-    <Navigate
-      to={canViewAll(user?.role) ? "/dashboard" : "/workers"}
-      replace
-    />
-  );
+  const target = user?.role === "Employee" ? "/my-attendance" : canViewAll(user?.role) ? "/dashboard" : "/workers";
+  return <Navigate to={target} replace />;
 }
 
 export default function App() {
@@ -114,6 +128,32 @@ export default function App() {
               }
             />
             <Route path="leave" element={<LeavePage />} />
+            <Route path="my-attendance" element={<MyAttendancePage />} />
+            <Route path="my-leave" element={<MyLeavePage />} />
+            <Route
+              path="staff"
+              element={
+                <RequireRole roles={VIEW_ALL_ROLES}>
+                  <StaffAttendancePage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="staff-payroll"
+              element={
+                <RequireRole roles={VIEW_ALL_ROLES}>
+                  <StaffPayrollPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="staff-leave"
+              element={
+                <RequireRole roles={VIEW_ALL_ROLES}>
+                  <StaffLeavePage />
+                </RequireRole>
+              }
+            />
             <Route
               path="invoices"
               element={

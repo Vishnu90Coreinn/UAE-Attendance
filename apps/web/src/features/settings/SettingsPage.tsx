@@ -9,6 +9,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { TextField } from "../../components/TextField";
 import { CompanyDocumentsCard } from "./CompanyDocumentsCard";
+import { StaffSettingsCard } from "../staff/StaffSettingsCard";
 import { LoadError, primaryButtonClass, SuccessRegion } from "../workers/WorkersFeedback";
 import {
   FIELD_ORDER,
@@ -287,6 +288,7 @@ export function SettingsPage() {
       )}
       <div id="documents" className="scroll-mt-4">
         <CompanyDocumentsCard readOnly={readOnly} />
+        {!readOnly && <StaffSettingsCard />}
       </div>
     </section>
   );

@@ -20,6 +20,14 @@ public class Worker
     public decimal? OvertimeRate { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    /// <summary>Site worker (the default) or office employee. Payroll, worker attendance and worker leave only ever see workers.</summary>
+    public string Category { get; set; } = WorkerCategories.Worker;
+
+    /// <summary>The login this person signs in with (office attendance and leave). Null when they have none.</summary>
+    public int? UserId { get; set; }
+    public User? User { get; set; }
+
     public DateOnly? JoinDate { get; set; }
 
     // Optional profile details; null means "not recorded".
@@ -58,4 +66,14 @@ public class Worker
 
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
+}
+
+public static class WorkerCategories
+{
+    public const string Worker = "Worker";
+    public const string Employee = "Employee";
+
+    public static readonly string[] All = [Worker, Employee];
+
+    public static bool IsValid(string? category) => category is Worker or Employee;
 }
