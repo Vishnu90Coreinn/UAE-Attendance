@@ -672,6 +672,44 @@ public class StaffTests(ApiFixture api) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public async Task Deductions_ListOfficeEmployees_AndFlowIntoThePayrollSummaryAndPayslip()
+    {
+        var manager = (await TestWorkers.SignInAsync(api, Roles.Manager)).Token;
+        var (employee, _, _) = await NewEmployeeAsync();
+        await using (var db = TestUsers.NewContext(api.ConnectionString))
+        {
+            var row = await db.Workers.SingleAsync(w => w.Id == employee.Id);
+            row.MonthlySalary = 3000m;
+            row.HourlyRate = 12.5m;
+            await db.SaveChangesAsync();
+        }
+
+        var month = await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/deductions?month={ThisMonth}", manager));
+        var listed = month.GetProperty("workers").EnumerateArray().First(w => w.GetProperty("workerId").GetInt32() == employee.Id);
+        Assert.Equal("Employee", listed.GetProperty("category").GetString());
+
+        var typeId = month.GetProperty("types").EnumerateArray().First(t => t.GetProperty("isActive").GetBoolean()).GetProperty("id").GetInt32();
+        var save = await api.SendAsync(HttpMethod.Put, $"/api/deductions/{ThisMonth}", new
+        {
+            workers = new[] { new { workerId = employee.Id, entries = new[] { new { deductionTypeId = typeId, amount = 250.5m, note = "Salary advance" } } } },
+        }, manager);
+        Assert.Equal(HttpStatusCode.OK, save.StatusCode);
+
+        var summary = await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/staff/payroll?month={ThisMonth}", manager));
+        var mine = summary.GetProperty("rows").EnumerateArray().First(r => r.GetProperty("workerId").GetInt32() == employee.Id);
+        Assert.Equal(250.5m, mine.GetProperty("otherDeduction").GetDecimal());
+        Assert.Equal("Salary advance", mine.GetProperty("otherItems")[0].GetProperty("reason").GetString());
+        Assert.Equal(3000m - mine.GetProperty("absentDeduction").GetDecimal() - mine.GetProperty("lateDeduction").GetDecimal() - 250.5m,
+            mine.GetProperty("netSalary").GetDecimal());
+
+        var payslip = await api.GetAsync($"/api/staff/payroll/payslip?month={ThisMonth}&workerId={employee.Id}", manager);
+        Assert.Equal(HttpStatusCode.OK, payslip.StatusCode);
+
+        // The test database is shared: take the deduction back out so other payroll tests see none.
+        await api.SendAsync(HttpMethod.Put, $"/api/deductions/{ThisMonth}", new { workers = new[] { new { workerId = employee.Id, entries = Array.Empty<object>() } } }, manager);
+    }
+
+    [Fact]
     public async Task PayrollSummary_RefusesAFutureMonth_AndABadOne()
     {
         var hr = (await TestWorkers.SignInAsync(api, Roles.HR)).Token;

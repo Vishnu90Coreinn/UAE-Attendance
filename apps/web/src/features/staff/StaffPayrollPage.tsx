@@ -98,7 +98,7 @@ export function StaffPayrollPage() {
           <Card>
             <CardHeader
               title={summary.label}
-              description={rules.length > 0 ? rules.join(" ") : "No deductions are applied. A Manager can set deduction rules in Settings."}
+              description={rules.length > 0 ? rules.join(" ") : "No automatic deductions are applied. A Manager can set deduction rules in Settings. Advances and loans are entered on the Deductions page."}
             />
             {summary.rows.length === 0 ? (
               <p className="px-5 py-8 text-sm text-ink-600">No office employees yet.</p>
@@ -148,8 +148,8 @@ export function StaffPayrollPage() {
                           <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">{hoursText(r.totalHours)}</td>
                           <td className="whitespace-nowrap px-4 py-3 text-right">
                             <div className="text-base font-semibold tabular-nums text-ink-900">{formatMoney(r.netSalary)}</div>
-                            {r.absentDeduction + r.lateDeduction > 0 && (
-                              <div className="text-xs tabular-nums text-ink-600">after {formatMoney(r.absentDeduction + r.lateDeduction)} deducted</div>
+                            {r.absentDeduction + r.lateDeduction + (r.otherDeduction ?? 0) > 0 && (
+                              <div className="text-xs tabular-nums text-ink-600">after {formatMoney(r.absentDeduction + r.lateDeduction + (r.otherDeduction ?? 0))} deducted</div>
                             )}
                           </td>
                           {canIssue && (

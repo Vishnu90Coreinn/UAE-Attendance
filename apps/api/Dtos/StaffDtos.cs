@@ -49,7 +49,11 @@ public sealed record StaffReport(string From, string To, List<StaffReportRow> Ro
 public sealed record StaffPayrollRow(
     int WorkerId, string Code, string Name, string? Department, decimal MonthlySalary, int WorkingDays, int PresentDays,
     int AbsentDays, int LeaveDays, int LateDays, int LateMinutes, int EarlyLeaveMinutes, decimal TotalHours,
-    decimal AbsentDeduction, decimal LateDeduction, decimal NetSalary);
+    decimal AbsentDeduction, decimal LateDeduction, decimal NetSalary,
+    decimal OtherDeduction = 0m, List<StaffOtherDeduction>? OtherItems = null);
+
+/// <summary>An advance, loan or other deduction entered on the Deductions page, with its reason.</summary>
+public sealed record StaffOtherDeduction(string Type, string Reason, decimal Amount);
 
 public sealed record StaffPayrollSummary(
     string Month, string Label, List<StaffPayrollRow> Rows, decimal TotalSalary, decimal TotalDeductions, decimal TotalNet,

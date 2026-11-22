@@ -369,7 +369,10 @@ export function DeductionsPage() {
                 >
                   <th scope="row" className="block px-0 pb-2 text-left font-medium md:table-cell md:px-4 md:py-3 md:align-top">
                     {worker.fullName}
-                    <span className="block text-xs font-normal text-ink-600">{worker.workerCode}</span>
+                    <span className="block text-xs font-normal text-ink-600">
+                      {worker.workerCode}
+                      {worker.category === "Employee" && <span className="ml-2 rounded bg-sky-50 px-1.5 py-0.5 font-medium text-sky-800">Office</span>}
+                    </span>
                     {!worker.isActive && <span className="block text-xs text-ink-600">Inactive</span>}
                   </th>
                   {activeTypes.map((type) => {

@@ -56,9 +56,9 @@ public sealed class StaffExportService(
             s.Rows.Select(r => new[]
             {
                 r.Code, r.Name, Money(r.MonthlySalary), N(r.WorkingDays), N(r.PresentDays), N(r.AbsentDays), N(r.LeaveDays), N(r.LateMinutes),
-                Money(r.AbsentDeduction + r.LateDeduction), Money(r.NetSalary),
+                Money(r.AbsentDeduction + r.LateDeduction + r.OtherDeduction), Money(r.NetSalary),
             }).Append(["", "Total", Money(s.TotalSalary), "", "", "", "", "", Money(s.TotalDeductions), Money(s.TotalNet)]).ToList(),
-            [rule.Length == 0 ? "No deductions are applied." : rule.Trim(), "Attendance only: salary is not changed by anything else here."]);
+            [rule.Length == 0 ? "No attendance deductions are applied." : rule.Trim(), "Advances, loans and other deductions entered on the Deductions page are included in DEDUCT."]);
         return await BuildAsync(table, new Table("DETAIL", table.Subtitle, table.FileStem, table.Columns, table.Rows, []), format, ct);
     }
 

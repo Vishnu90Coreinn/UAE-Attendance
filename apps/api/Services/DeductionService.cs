@@ -59,13 +59,13 @@ public sealed class DeductionService(AppDbContext db, IAuditLogger audit, TimePr
     public async Task<DeductionResult> GetMonthAsync(DateOnly month, CancellationToken ct)
     {
         var types = await ListTypesAsync(ct);
-        var workers = await db.Workers.AsNoTracking().Where(w => w.Category == WorkerCategories.Worker).OrderBy(w => w.WorkerCode).ToListAsync(ct);
+        var workers = await db.Workers.AsNoTracking().OrderBy(w => w.WorkerCode).ToListAsync(ct);
         var entries = (await db.WorkerDeductions.AsNoTracking()
             .Where(d => d.Year == month.Year && d.Month == month.Month).ToListAsync(ct)).ToLookup(d => d.WorkerId);
         var finalised = await IsFinalisedAsync(month, ct);
         var rows = workers.Where(w => w.IsActive || entries[w.Id].Any()).Select(w => new MonthDeductionWorker(w.Id, w.WorkerCode, w.FullName, w.IsActive,
             entries[w.Id].OrderBy(e => e.DeductionTypeId)
-                .Select(e => new DeductionEntry(e.DeductionTypeId, e.Amount, e.Note)).ToArray())).ToArray();
+                .Select(e => new DeductionEntry(e.DeductionTypeId, e.Amount, e.Note)).ToArray(), w.Category)).ToArray();
         return new(200, new MonthDeductionsResponse(Label(month), finalised, types, rows));
     }
 
@@ -79,7 +79,7 @@ public sealed class DeductionService(AppDbContext db, IAuditLogger audit, TimePr
             errors["workers"] = ["Each worker may appear only once."];
 
         var workerIds = rows.Select(r => r.WorkerId).ToArray();
-        var workers = await db.Workers.AsNoTracking().Where(w => workerIds.Contains(w.Id) && w.Category == WorkerCategories.Worker).Select(w => w.Id).ToListAsync(ct);
+        var workers = await db.Workers.AsNoTracking().Where(w => workerIds.Contains(w.Id)).Select(w => w.Id).ToListAsync(ct);
         var typeIds = await db.DeductionTypes.AsNoTracking().Where(t => t.IsActive).Select(t => t.Id).ToListAsync(ct);
 
         for (var i = 0; i < rows.Count; i++)

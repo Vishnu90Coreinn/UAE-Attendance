@@ -279,6 +279,12 @@ public sealed class StaffAttendanceService(
         var workers = await Employees(null).ToListAsync(ct);
         var rows = await RowsAsync(workers, first, last, ct);
         var settings = await settingsService.LoadAsync(ct);
+        var manual = (await (from d in db.WorkerDeductions.AsNoTracking()
+                             join t in db.DeductionTypes.AsNoTracking() on d.DeductionTypeId equals t.Id
+                             where d.Year == first.Year && d.Month == first.Month
+                             orderby t.Name
+                             select new { d.WorkerId, t.Name, d.Note, d.Amount }).ToListAsync(ct))
+            .ToLookup(x => x.WorkerId, x => new StaffOtherDeduction(x.Name, x.Note, x.Amount));
         var result = workers.Select(w =>
         {
             var mine = rows.Where(r => r.WorkerId == w.Id).Select(r => r.Day).ToList();
@@ -290,15 +296,18 @@ public sealed class StaffAttendanceService(
             var lateCut = decimal.Round(settings.LateDeductionPerMinute * lateMinutes, 2, MidpointRounding.AwayFromZero);
             var cut = Math.Min(salary, absentCut + lateCut);
             if (absentCut + lateCut > cut) { lateCut = Math.Max(0, cut - absentCut); absentCut = Math.Min(absentCut, cut); }
+            // Advances, loans and other deductions from the Deductions page; pay still never goes below zero.
+            var items = manual[w.Id].ToList();
+            var other = Math.Min(items.Sum(i => i.Amount), salary - cut);
             return new StaffPayrollRow(w.Id, w.WorkerCode, w.FullName, w.Department, salary,
                 mine.Count(d => d.Status is not (StaffStatuses.WeeklyOff or StaffStatuses.PublicHoliday)),
                 mine.Count(d => d.PunchCount > 0), absent, mine.Count(d => d.Status == StaffStatuses.OnLeave),
                 mine.Count(d => d.IsLate), lateMinutes, mine.Sum(d => d.EarlyLeaveMinutes), mine.Sum(d => d.Hours),
-                absentCut, lateCut, salary - cut);
+                absentCut, lateCut, salary - cut - other, other, items);
         }).ToList();
         return StaffResult<StaffPayrollSummary>.Ok(new StaffPayrollSummary(
             first.ToString("yyyy-MM", CultureInfo.InvariantCulture), first.ToString("MMMM yyyy", CultureInfo.InvariantCulture), result,
-            result.Sum(r => r.MonthlySalary), result.Sum(r => r.AbsentDeduction + r.LateDeduction), result.Sum(r => r.NetSalary),
+            result.Sum(r => r.MonthlySalary), result.Sum(r => r.AbsentDeduction + r.LateDeduction + r.OtherDeduction), result.Sum(r => r.NetSalary),
             settings.DeductAbsentDays, settings.LateDeductionPerMinute));
     }
 
