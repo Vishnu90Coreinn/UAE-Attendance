@@ -329,6 +329,9 @@ export interface StaffPayrollRow {
   absentDeduction: number;
   lateDeduction: number;
   netSalary: number;
+  /** Advances, loans and other deductions from the Deductions page. */
+  otherDeduction?: number;
+  otherItems?: { type: string; reason: string; amount: number }[] | null;
 }
 
 export interface StaffPayrollSummary {

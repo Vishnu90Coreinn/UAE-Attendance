@@ -121,8 +121,9 @@ public sealed class StaffPayslipPdf(IConfiguration configuration)
         var deductions = new List<string[]>();
         if (r.AbsentDeduction > 0) deductions.Add(["Absence", $"{r.AbsentDays} absent day(s) x salary / 30", Money(r.AbsentDeduction)]);
         if (r.LateDeduction > 0) deductions.Add(["Late arrival", $"{r.LateMinutes} min x AED {Money(slip.LateRate)}", Money(r.LateDeduction)]);
+        foreach (var item in r.OtherItems ?? []) deductions.Add([item.Type, item.Reason, Money(item.Amount)]);
         if (deductions.Count == 0) deductions.Add(["No deductions this month", "-", Money(0)]);
-        Table("DEDUCTIONS", ["Description", "Reason", "Amount (AED)"], deductions, ["Total Deductions", "", Money(r.AbsentDeduction + r.LateDeduction)]);
+        Table("DEDUCTIONS", ["Description", "Reason", "Amount (AED)"], deductions, ["Total Deductions", "", Money(r.AbsentDeduction + r.LateDeduction + r.OtherDeduction)]);
 
         // The attendance the figures come from, so the employee can see why.
         y -= 26;

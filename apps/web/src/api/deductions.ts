@@ -16,6 +16,8 @@ export interface MonthDeductionWorker {
   fullName: string;
   isActive: boolean;
   entries: DeductionEntry[];
+  /** "Worker" (site) or "Employee" (office). */
+  category?: string;
 }
 export interface MonthDeductions {
   month: string;
