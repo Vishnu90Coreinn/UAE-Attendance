@@ -12,6 +12,7 @@ public class WorkerConfiguration : IEntityTypeConfiguration<Worker>
         {
             t.HasCheckConstraint("CK_Workers_HourlyRate", "[HourlyRate] > 0");
             t.HasCheckConstraint("CK_Workers_Allowances", "[HousingAllowance] >= 0 AND [TransportAllowance] >= 0 AND [OtherAllowance] >= 0");
+            t.HasCheckConstraint("CK_Workers_Category", "[Category] IN ('Worker', 'Employee')");
             t.HasCheckConstraint("CK_Workers_OvertimeRate", "[OvertimeRate] IS NULL OR [OvertimeRate] >= 0");
         });
 
@@ -24,6 +25,10 @@ public class WorkerConfiguration : IEntityTypeConfiguration<Worker>
         builder.Property(w => w.MonthlySalary).HasPrecision(10, 2);
         builder.Property(w => w.OvertimeRate).HasPrecision(9, 2);
         builder.Property(w => w.IsActive).HasDefaultValue(true);
+        builder.Property(w => w.Category).HasMaxLength(12).HasDefaultValue(WorkerCategories.Worker).IsRequired();
+        builder.HasIndex(w => w.Category);
+        builder.HasOne(w => w.User).WithMany().HasForeignKey(w => w.UserId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasIndex(w => w.UserId).IsUnique().HasFilter("[UserId] IS NOT NULL");
         builder.Property(w => w.JoinDate).HasColumnType("date");
         builder.Property(w => w.Department).HasMaxLength(80);
         builder.Property(w => w.EmiratesId).HasMaxLength(25);

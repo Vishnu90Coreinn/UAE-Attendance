@@ -27,6 +27,8 @@ export interface RequestRoles {
   canPrepare: boolean;
   /** A Manager prepares only the requests they raised themselves; this is their own username. */
   prepareOwnAs?: string;
+  /** Managers and the Administrator prepare requests raised by office employees; HR never does. */
+  prepareEmployeeRequests?: boolean;
   /** Managers and the Administrator approve or send back. */
   canApprove: boolean;
   /** HR, Managers and the Administrator open requests and download approved certificates. */
@@ -48,7 +50,8 @@ export function RequestStatus({ status }: { status: CertificateStatus }) {
 }
 
 /** Whether the signed-in user may prepare a request raised by <paramref name="requestedBy" />. */
-function mayPrepare(roles: RequestRoles, requestedBy: string): boolean {
+function mayPrepare(roles: RequestRoles, requestedBy: string, category?: string): boolean {
+  if (category === "Employee") return roles.prepareEmployeeRequests === true;
   return roles.canPrepare || (roles.prepareOwnAs !== undefined && roles.prepareOwnAs === requestedBy);
 }
 
@@ -217,7 +220,7 @@ function RequestDetailView({ id, roles, onBack, onNotice }: { id: number; roles:
     );
   }
   const request = detail.request;
-  const preparing = mayPrepare(roles, request.requestedBy) && (request.status === "Requested" || request.status === "Returned");
+  const preparing = mayPrepare(roles, request.requestedBy, request.workerCategory) && (request.status === "Requested" || request.status === "Returned");
 
   return (
     <div>
@@ -243,6 +246,11 @@ function RequestDetailView({ id, roles, onBack, onNotice }: { id: number; roles:
       {request.status === "Returned" && request.reviewNote && (
         <p role="status" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
           Sent back by {request.reviewedBy}: {request.reviewNote}
+        </p>
+      )}
+      {request.workerCategory === "Employee" && !preparing && (request.status === "Requested" || request.status === "Returned") && (
+        <p role="status" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          This request is from an office employee. Only a Manager prepares it.
         </p>
       )}
       {request.status === "PendingApproval" && !roles.canApprove && (
@@ -295,7 +303,15 @@ function RequestDetailView({ id, roles, onBack, onNotice }: { id: number; roles:
         </>
       ) : (
         <Card>
-          <EmptyState icon={FileText} title="HR has not added the details yet" description="You will see the certificate here once HR sends it for approval." />
+          <EmptyState
+            icon={FileText}
+            title={request.workerCategory === "Employee" ? "The details have not been prepared yet" : "HR has not added the details yet"}
+            description={
+              request.workerCategory === "Employee"
+                ? "You will see the certificate here once a Manager has prepared it."
+                : "You will see the certificate here once HR sends it for approval."
+            }
+          />
         </Card>
       )}
 
@@ -419,7 +435,7 @@ export function RequestsPanel({ roles, defaultStatus }: { roles: RequestRoles; d
                       <div className="flex justify-end gap-2">
                         {roles.canOpen && (
                           <Button size="sm" variant="secondary" aria-label={`Open request for ${row.workerName}`} onClick={() => setOpenId(row.id)}>
-                            {mayPrepare(roles, row.requestedBy) && (row.status === "Requested" || row.status === "Returned")
+                            {mayPrepare(roles, row.requestedBy, row.workerCategory) && (row.status === "Requested" || row.status === "Returned")
                               ? "Prepare"
                               : roles.canApprove && row.status === "PendingApproval"
                                 ? "Review"

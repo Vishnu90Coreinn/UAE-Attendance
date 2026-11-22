@@ -47,7 +47,14 @@ export interface Worker {
   exchangeAccountNumber?: string | null;
   /** The basic salary printed on salary certificates; independent of the monthly salary. Null until set. */
   basicSalary?: number | null;
+  /** Site worker (the default) or office employee. */
+  category?: WorkerCategory;
+  /** The login linked to an office employee, if any. */
+  userId?: number | null;
+  username?: string | null;
 }
+
+export type WorkerCategory = "Worker" | "Employee";
 
 /** The editable fields, sent as the body of create and update. */
 export interface WorkerInput {
@@ -94,6 +101,8 @@ export interface WorkerInput {
   photoBase64?: string;
   /** True clears the stored photo (ignored when photoBase64 is sent). */
   removePhoto?: boolean;
+  /** Omitted leaves the category unchanged (a new record is a Worker). */
+  category?: WorkerCategory;
 }
 
 export function listWorkers(includeInactive: boolean): Promise<Worker[]> {

@@ -27,7 +27,7 @@ public sealed class AuthController(AppDbContext db, AuthService authService, Jwt
             case LoginOutcome.Success:
                 var user = result.User!;
                 var (token, expiresUtc) = tokenService.CreateToken(user);
-                return Ok(new LoginResponse(token, expiresUtc, new CurrentUserResponse(user.Id, user.Username, user.Role)));
+                return Ok(new LoginResponse(token, expiresUtc, new CurrentUserResponse(user.Id, user.Username, user.Role, await EmployeeIdAsync(user.Id, cancellationToken))));
 
             case LoginOutcome.Locked:
                 return Failure(StatusCodes.Status423Locked, "Account temporarily locked. Try again later.");
@@ -53,7 +53,7 @@ public sealed class AuthController(AppDbContext db, AuthService authService, Jwt
             return Unauthorized();
         }
 
-        return Ok(new CurrentUserResponse(user.Id, user.Username, user.Role));
+        return Ok(new CurrentUserResponse(user.Id, user.Username, user.Role, await EmployeeIdAsync(user.Id, cancellationToken)));
     }
 
     [HttpPost("change-password")]
@@ -82,6 +82,10 @@ public sealed class AuthController(AppDbContext db, AuthService authService, Jwt
                 return Unauthorized();
         }
     }
+
+    private Task<int?> EmployeeIdAsync(int userId, CancellationToken ct) =>
+        db.Workers.AsNoTracking().Where(w => w.UserId == userId && w.Category == Data.Entities.WorkerCategories.Employee && w.IsActive)
+            .Select(w => (int?)w.Id).FirstOrDefaultAsync(ct);
 
     private int? CurrentUserId()
     {

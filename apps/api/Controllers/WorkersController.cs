@@ -1,4 +1,5 @@
 using HrPayroll.Api.Auth;
+using HrPayroll.Api.Data.Entities;
 using HrPayroll.Api.Dtos;
 using HrPayroll.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -13,8 +14,11 @@ public sealed class WorkersController(WorkerService workers, WageRedactor wages,
     [HttpGet]
     [Authorize(Policy = Policies.AnyUser)]
     public async Task<ActionResult<List<WorkerResponse>>> List(
-        [FromQuery] bool includeInactive = false, CancellationToken cancellationToken = default) =>
-        Ok(wages.Apply(await workers.ListAsync(includeInactive, cancellationToken)));
+        [FromQuery] bool includeInactive = false, [FromQuery] string? category = null, CancellationToken cancellationToken = default)
+    {
+        if (category is not null && !WorkerCategories.IsValid(category)) return BadRequest();
+        return Ok(wages.Apply(await workers.ListAsync(includeInactive, cancellationToken, category)));
+    }
 
     [HttpGet("next-code")]
     [Authorize(Policy = Policies.AnyUser)]

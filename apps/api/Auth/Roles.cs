@@ -20,5 +20,8 @@ public static class Roles
     /// </summary>
     public const string Viewer = "Viewer";
 
-    public static readonly string[] All = [Administrator, Manager, Supervisor, HR, Viewer];
+    /// <summary>An office employee: signs in and out with a selfie and raises leave, and sees only their own attendance and leave.</summary>
+    public const string Employee = "Employee";
+
+    public static readonly string[] All = [Administrator, Manager, Supervisor, HR, Viewer, Employee];
 }

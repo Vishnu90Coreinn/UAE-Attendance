@@ -7,6 +7,11 @@ export function isManagement(role: Role | undefined): boolean {
 
 export const MANAGEMENT_ROLES: readonly Role[] = ["Administrator", "Manager"];
 
+/** An Employee-role account uses only its own sign-in, attendance and leave pages. */
+export function isEmployeeAccount(role: Role | undefined): boolean {
+  return role === "Employee";
+}
+
 /** The Viewer sees every screen, pay included, and can change nothing. The server refuses all of a Viewer's writes. */
 export function isReadOnly(role: Role | undefined): boolean {
   return role === "Viewer";

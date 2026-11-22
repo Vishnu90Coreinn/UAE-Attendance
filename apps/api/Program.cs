@@ -80,6 +80,19 @@ builder.Services.AddScoped<PayslipService>();
 builder.Services.AddScoped<DeductionService>();
 builder.Services.AddScoped<IPayrollPeriodLock, PayrollPeriodLock>();
 
+// Phase 3: office employees (QTN-HR-2026-005), stages 1 and 2.
+builder.Services.AddScoped<HrPayroll.Api.Services.Staff.StaffSettingsService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Staff.StaffAttendanceService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Staff.StaffLeaveService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Staff.StaffExportService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Staff.EmployeeLoginService>();
+builder.Services.AddSingleton<HrPayroll.Api.Services.Staff.StaffPayslipPdf>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Staff.StaffPayslipService>();
+if (builder.Configuration.GetValue("Staff:RetentionEnabled", true))
+{
+    builder.Services.AddHostedService<HrPayroll.Api.Services.Staff.StaffRetentionService>();
+}
+
 // Phase 2 modules (QTN-HR-2026-003).
 builder.Services.AddInvoicing();
 builder.Services.AddLetters();
@@ -275,6 +288,7 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseMiddleware<ViewerReadOnlyMiddleware>();
+app.UseMiddleware<EmployeeScopeMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

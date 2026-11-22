@@ -24,7 +24,7 @@ public class WorkersAuthorizationTests(ApiFixture api) : IClassFixture<ApiFixtur
     public static TheoryData<string, string> ReadsByRole()
     {
         var data = new TheoryData<string, string>();
-        foreach (var role in Roles.All)
+        foreach (var role in Roles.All.Where(r => r != Roles.Employee)) // an Employee-role login only uses its own pages (StaffTests)
         {
             foreach (var route in ReadRoutes)
             {

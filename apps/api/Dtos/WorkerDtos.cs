@@ -14,7 +14,8 @@ public sealed record WorkerRequest(
     string? PhotoBase64 = null, bool? RemovePhoto = null, decimal? MonthlySalary = null,
     string? Nationality = null, decimal? HousingAllowance = null, decimal? TransportAllowance = null, decimal? OtherAllowance = null,
     string? BankName = null, string? BankAccountNumber = null, string? Iban = null,
-    string? ExchangeName = null, string? CardNumber = null, string? ExchangeAccountNumber = null, decimal? BasicSalary = null);
+    string? ExchangeName = null, string? CardNumber = null, string? ExchangeAccountNumber = null, decimal? BasicSalary = null,
+    string? Category = null);
 
 /// <summary>
 /// <c>OvertimeRate</c> is the worker's own rate (null = none set); <c>EffectiveOvertimeRate</c> is that rate, or the
@@ -30,6 +31,7 @@ public sealed record WorkerResponse(
     decimal? MonthlySalary = null,
     string? Nationality = null, decimal? HousingAllowance = null, decimal? TransportAllowance = null, decimal? OtherAllowance = null,
     string? BankName = null, string? BankAccountNumber = null, string? Iban = null,
-    string? ExchangeName = null, string? CardNumber = null, string? ExchangeAccountNumber = null, decimal? BasicSalary = null);
+    string? ExchangeName = null, string? CardNumber = null, string? ExchangeAccountNumber = null, decimal? BasicSalary = null,
+    string Category = "Worker", int? UserId = null, string? Username = null);
 
 public sealed record NextWorkerCodeResponse(string WorkerCode);

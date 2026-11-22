@@ -123,6 +123,9 @@ describe("Layout on a phone", () => {
     expect(within(sheet).getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
       ["Leave Management", "/leave"],
       ["Deductions", "/deductions"],
+      ["Staff Attendance", "/staff"],
+      ["Staff Payroll Summary", "/staff-payroll"],
+      ["Staff Leave", "/staff-leave"],
       ["Site Progress", "/progress"],
       ["Tax Invoices", "/invoices"],
       ["HR Letters", "/letters"],

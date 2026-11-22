@@ -31,6 +31,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<SiteProgressReport> SiteProgressReports => Set<SiteProgressReport>();
     public DbSet<SiteProgressFloor> SiteProgressFloors => Set<SiteProgressFloor>();
 
+    // Office employees (Phase 3, stages 1 and 2).
+    public DbSet<StaffPunch> StaffPunches => Set<StaffPunch>();
+    public DbSet<StaffPunchSelfie> StaffPunchSelfies => Set<StaffPunchSelfie>();
+    public DbSet<PublicHoliday> PublicHolidays => Set<PublicHoliday>();
+    public DbSet<StaffSettings> StaffSettings => Set<StaffSettings>();
+    public DbSet<StaffLeaveType> StaffLeaveTypes => Set<StaffLeaveType>();
+    public DbSet<StaffLeaveRequest> StaffLeaveRequests => Set<StaffLeaveRequest>();
+    public DbSet<StaffLeaveAttachment> StaffLeaveAttachments => Set<StaffLeaveAttachment>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 }

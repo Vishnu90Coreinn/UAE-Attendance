@@ -122,7 +122,7 @@ public sealed class PayrollService(AppDbContext db, IAuditLogger? audit = null, 
     {
         var end = new DateOnly(start.Year, start.Month, DateTime.DaysInMonth(start.Year, start.Month));
         var settings = await db.PayrollSettings.AsNoTracking().SingleAsync(ct);
-        var allWorkers = await db.Workers.AsNoTracking().OrderBy(w => w.WorkerCode).ToListAsync(ct);
+        var allWorkers = await db.Workers.AsNoTracking().Where(w => w.Category == WorkerCategories.Worker).OrderBy(w => w.WorkerCode).ToListAsync(ct);
         var inMonth = db.Attendance.AsNoTracking().Where(a => a.WorkDate >= start && a.WorkDate <= end);
         // Only manager-approved entries are payable; submitted entries are counted so the manager can see what is waiting.
         var attendance = await inMonth.Where(a => a.ApprovalStatus == ApprovalStatuses.Approved).ToListAsync(ct);

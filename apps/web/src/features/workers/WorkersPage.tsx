@@ -12,6 +12,7 @@ import { useWorkerList } from "./useWorkerList";
 import { WorkerFormDialog } from "./WorkerFormDialog";
 import { ActionFailure, EmptyState, LoadError, LoadingNotice, primaryButtonClass, SuccessRegion } from "./WorkersFeedback";
 import { onboardingProgress, WorkersTable } from "./WorkersTable";
+import { EmployeeLoginDialog } from "../staff/EmployeeLoginDialog";
 
 type Confirmation = { kind: "deactivate" | "delete"; worker: Worker };
 
@@ -55,6 +56,8 @@ export function WorkersPage() {
 
   const [query, setQuery] = useState("");
   const [department, setDepartment] = useState("");
+  const [category, setCategory] = useState<"" | "Worker" | "Employee">("");
+  const [loginFor, setLoginFor] = useState<Worker | null>(null);
   const [formOpen, setFormOpen] = useState(() => canAdd && hasNewParam());
   useEffect(clearNewParam, []);
   const [editing, setEditing] = useState<Worker | null>(null);
@@ -140,12 +143,13 @@ export function WorkersPage() {
     const text = query.trim().toLowerCase();
     return list.workers.filter((w) => {
       if (department && w.department !== department) return false;
+      if (category && (w.category ?? "Worker") !== category) return false;
       if (!text) return true;
       return [w.fullName, w.workerCode, w.designation, w.emiratesId, w.phone, w.department]
         .some((value) => value?.toLowerCase().includes(text));
     });
-  }, [list.workers, query, department]);
-  const filtering = query.trim() !== "" || department !== "";
+  }, [list.workers, query, department, category]);
+  const filtering = query.trim() !== "" || department !== "" || category !== "";
   const activeCount = list.workers.filter((w) => w.isActive).length;
   const onboardingOpen = list.workers.filter((w) => {
     const { done, total } = onboardingProgress(w);
@@ -215,6 +219,23 @@ export function WorkersPage() {
               />
             </div>
           </div>
+          {list.workers.some((w) => w.category === "Employee") && (
+            <div className="max-sm:w-full sm:min-w-44">
+              <label htmlFor="worker-category-filter" className="sr-only">
+                Type
+              </label>
+              <select
+                id="worker-category-filter"
+                value={category}
+                onChange={(event) => setCategory(event.target.value as "" | "Worker" | "Employee")}
+                className={cx(inputClass, "w-full")}
+              >
+                <option value="">Workers and office staff</option>
+                <option value="Worker">Site workers</option>
+                <option value="Employee">Office employees</option>
+              </select>
+            </div>
+          )}
           {departments.length > 0 && (
             <div className="max-sm:w-full sm:min-w-52">
               <label htmlFor="worker-department" className="sr-only">
@@ -255,6 +276,7 @@ export function WorkersPage() {
             onClick={() => {
               setQuery("");
               setDepartment("");
+              setCategory("");
             }}
             className="font-medium text-brand-700 underline focus-visible:border-brand-500 focus-visible:outline-2 focus-visible:outline-brand-500/30"
           >
@@ -272,6 +294,7 @@ export function WorkersPage() {
             canEdit
               ? {
                   onEdit: openForm,
+                  onLogin: setLoginFor,
                   ...(canManage && {
                     onDeactivate: (worker: Worker) => ask("deactivate", worker),
                     onActivate: activate,
@@ -280,6 +303,20 @@ export function WorkersPage() {
                 }
               : undefined
           }
+        />
+      )}
+
+      {loginFor && (
+        <EmployeeLoginDialog
+          worker={loginFor}
+          canCreate={canManage}
+          canRemove={canManage}
+          onClose={() => setLoginFor(null)}
+          onDone={(message) => {
+            setLoginFor(null);
+            setSuccess(message);
+            list.refresh();
+          }}
         />
       )}
 

@@ -3,7 +3,7 @@ import { buttonClass } from "../../ui";
 import { Loader2, Save } from "lucide-react";
 import { ApiError } from "../../api/client";
 import { getPayrollSettings } from "../../api/settings";
-import { createWorker, getNextWorkerCode, updateWorker, type Worker } from "../../api/workers";
+import { createWorker, getNextWorkerCode, updateWorker, type Worker, type WorkerCategory } from "../../api/workers";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
 import { WorkerPhotoField, type PhotoChange } from "./WorkerPhotoField";
@@ -209,6 +209,7 @@ function WorkerForm({ worker, hidePay, firstFieldRef, onClose, onSaved }: FormPr
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [photoChange, setPhotoChange] = useState<PhotoChange>({});
+  const [category, setCategory] = useState<WorkerCategory>(worker?.category ?? "Worker");
   // The company overtime rate, shown in the hint; stays null when it cannot be read.
   const [companyRate, setCompanyRate] = useState<number | null>(null);
 
@@ -313,7 +314,9 @@ function WorkerForm({ worker, hidePay, firstFieldRef, onClose, onSaved }: FormPr
     setPending(true);
     setServerErrors({});
     try {
-      const input = { ...toWorkerInput(values, checklist), ...photoChange };
+      // The category is only sent when it matters, so a plain worker is saved exactly as before.
+      const sendCategory = category === "Employee" || worker?.category === "Employee";
+      const input = { ...toWorkerInput(values, checklist), ...photoChange, ...(sendCategory ? { category } : {}) };
       const saved = worker ? await updateWorker(worker.id, input) : await createWorker(input);
       onSaved(saved);
     } catch (error) {
@@ -350,6 +353,24 @@ function WorkerForm({ worker, hidePay, firstFieldRef, onClose, onSaved }: FormPr
         <legend className="mb-3 text-sm font-semibold uppercase tracking-wide text-teal-800">Identity</legend>
         <WorkerPhotoField worker={worker} disabled={pending} onChange={setPhotoChange} />
         <div className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label htmlFor="worker-category" className="block text-sm font-medium text-ink-800">Type</label>
+            <select
+              id="worker-category"
+              value={category}
+              onChange={(event) => setCategory(event.target.value as WorkerCategory)}
+              disabled={pending}
+              className="mt-1 block min-h-11 w-full rounded-lg border border-ink-300 bg-white px-3 text-base text-ink-900 md:min-h-10 md:text-sm"
+            >
+              <option value="Worker">Site worker</option>
+              <option value="Employee">Office employee</option>
+            </select>
+            <p className="mt-1 text-sm text-ink-600">
+              {category === "Employee"
+                ? "Office employees sign in with a selfie and request leave themselves. They are not part of site attendance."
+                : "Site workers are recorded by supervisors and paid through payroll."}
+            </p>
+          </div>
           <TextField label="Worker ID" autoComplete="off" autoCapitalize="characters" spellCheck={false} {...field("workerCode")} />
           <TextField label="Full name" autoComplete="off" {...field("fullName")} />
           <TextField

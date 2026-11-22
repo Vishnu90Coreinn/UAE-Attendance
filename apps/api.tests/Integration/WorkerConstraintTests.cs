@@ -213,7 +213,7 @@ public class WorkerConstraintTests(TestDatabase database) : IClassFixture<TestDa
             .ToDictionary(r => (string)r["COLUMN_NAME"]!);
 
         Assert.Equal(
-            new[] { "BadgeIssued", "BankAccountNumber", "BankName", "BasicSalary", "CardNumber", "ContractSigned", "CreatedUtc", "Department", "Designation", "Email", "EmergencyContact", "EmiratesId", "ExchangeAccountNumber", "ExchangeName", "FullName", "HourlyRate", "HousingAllowance", "Iban", "Id", "IsActive", "JoinDate", "MonthlySalary", "Nationality", "Notes", "OtherAllowance", "OvertimeRate", "PassportNumber", "Phone", "SafetyGearIssued", "SiteOrientationDone", "TransportAllowance", "UpdatedUtc", "VisaMedicalCleared", "WorkerCode", "WorkLocation", "WpsRegistered" },
+            new[] { "BadgeIssued", "BankAccountNumber", "BankName", "BasicSalary", "CardNumber", "Category", "ContractSigned", "CreatedUtc", "Department", "Designation", "Email", "EmergencyContact", "EmiratesId", "ExchangeAccountNumber", "ExchangeName", "FullName", "HourlyRate", "HousingAllowance", "Iban", "Id", "IsActive", "JoinDate", "MonthlySalary", "Nationality", "Notes", "OtherAllowance", "OvertimeRate", "PassportNumber", "Phone", "SafetyGearIssued", "SiteOrientationDone", "TransportAllowance", "UpdatedUtc", "UserId", "VisaMedicalCleared", "WorkerCode", "WorkLocation", "WpsRegistered" },
             columns.Keys.Order().ToArray());
 
         Assert.Equal("nvarchar", columns["WorkerCode"]["DATA_TYPE"]);
@@ -235,7 +235,7 @@ public class WorkerConstraintTests(TestDatabase database) : IClassFixture<TestDa
         Assert.Equal("YES", columns["JoinDate"]["IS_NULLABLE"]);
         Assert.Equal("datetime2", columns["CreatedUtc"]["DATA_TYPE"]);
         Assert.Equal("datetime2", columns["UpdatedUtc"]["DATA_TYPE"]);
-        Assert.All(columns.Where(c => c.Key is not ("OvertimeRate" or "JoinDate" or "Department" or "EmiratesId" or "PassportNumber" or "Phone" or "Email" or "EmergencyContact" or "WorkLocation" or "Notes" or "Nationality" or "BankName" or "BankAccountNumber" or "Iban" or "ExchangeName" or "CardNumber" or "ExchangeAccountNumber" or "BasicSalary")).Select(c => c.Value), column => Assert.Equal("NO", column["IS_NULLABLE"]));
+        Assert.All(columns.Where(c => c.Key is not ("OvertimeRate" or "JoinDate" or "Department" or "EmiratesId" or "PassportNumber" or "Phone" or "Email" or "EmergencyContact" or "WorkLocation" or "Notes" or "Nationality" or "BankName" or "BankAccountNumber" or "Iban" or "ExchangeName" or "CardNumber" or "ExchangeAccountNumber" or "BasicSalary" or "UserId")).Select(c => c.Value), column => Assert.Equal("NO", column["IS_NULLABLE"]));
     }
 
     [Fact]
@@ -244,7 +244,7 @@ public class WorkerConstraintTests(TestDatabase database) : IClassFixture<TestDa
         var checks = (await QueryAsync(
             "SELECT cc.name, cc.definition FROM sys.check_constraints cc WHERE cc.parent_object_id = OBJECT_ID('Workers')"))
             .ToDictionary(c => (string)c["name"]!, c => (string)c["definition"]!);
-        Assert.Equal(["CK_Workers_Allowances", "CK_Workers_HourlyRate", "CK_Workers_OvertimeRate"], checks.Keys.Order().ToArray());
+        Assert.Equal(["CK_Workers_Allowances", "CK_Workers_Category", "CK_Workers_HourlyRate", "CK_Workers_OvertimeRate"], checks.Keys.Order().ToArray());
         Assert.Contains("HourlyRate", checks["CK_Workers_HourlyRate"]);
         Assert.Contains("OvertimeRate", checks["CK_Workers_OvertimeRate"]);
 
@@ -253,8 +253,8 @@ public class WorkerConstraintTests(TestDatabase database) : IClassFixture<TestDa
             "JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id " +
             "JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id " +
             "WHERE i.object_id = OBJECT_ID('Workers') AND i.is_primary_key = 0");
-        var index = Assert.Single(indexes);
+        var index = Assert.Single(indexes, i => (string)i["column_name"]! == "WorkerCode");
         Assert.Equal(true, index["is_unique"]);
-        Assert.Equal("WorkerCode", index["column_name"]);
+        Assert.Equal(["Category", "UserId", "WorkerCode"], indexes.Select(i => (string)i["column_name"]!).Order().ToArray());
     }
 }

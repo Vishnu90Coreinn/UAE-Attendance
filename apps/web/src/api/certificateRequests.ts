@@ -31,6 +31,8 @@ export interface CertificateRequest {
   /** Set once approved: the issued letter and its reference number. */
   letterId: number | null;
   refNo: string | null;
+  /** "Employee" for a request raised by an office employee; only a Manager prepares those. */
+  workerCategory?: "Worker" | "Employee";
 }
 
 /** The request with HR's saved details and the letter built from them (or the issued letter once approved). */
