@@ -206,7 +206,7 @@ export function StaffAttendancePage() {
                     <td className="px-4 py-2 tabular-nums">{r.day.firstIn ?? "-"}</td>
                     <td className="px-4 py-2 tabular-nums">{r.day.lastOut ?? "-"}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{r.day.hours ? r.day.hours.toFixed(2) : "-"}</td>
-                    <td className="px-4 py-2 text-right"><Button size="sm" variant="secondary" onClick={() => setOpen({ workerId: r.workerId, date })}>{canEdit ? "Review" : "View"}</Button></td>
+                    <td className="px-4 py-2 text-right"><Button size="sm" variant="secondary" onClick={() => setOpen({ workerId: r.workerId, date })}>{canEdit && r.workerId !== user?.employeeId ? "Review" : "View"}</Button></td>
                   </tr>
                 ))}
               </tbody>
@@ -274,7 +274,7 @@ export function StaffAttendancePage() {
         </div>
       </Card>
 
-      {open && <StaffDayDialog workerId={open.workerId} date={open.date} canEdit={canEdit} onClose={() => setOpen(null)} onChanged={() => void loadDay()} />}
+      {open && <StaffDayDialog workerId={open.workerId} date={open.date} canEdit={canEdit && open.workerId !== user?.employeeId} onClose={() => setOpen(null)} onChanged={() => void loadDay()} />}
     </section>
   );
 }

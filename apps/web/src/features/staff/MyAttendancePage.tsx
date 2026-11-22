@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Camera, LogIn, LogOut, MapPinOff } from "lucide-react";
+import { Camera, CalendarOff, LogIn, LogOut, MapPinOff } from "lucide-react";
 import { ApiError } from "../../api/client";
 import { getMyDays, getMyStaff, punch, type Punch, type StaffDay, type StaffMe } from "../../api/staff";
-import { Card, CardHeader, LoadingState, PageHeader } from "../../ui";
+import { Dialog } from "../../components/Dialog";
+import { Button, Card, CardHeader, LoadingState, PageHeader } from "../../ui";
 import { LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { SelfieDialog } from "./SelfieDialog";
 import type { PlaceResult } from "./selfie";
@@ -68,6 +69,7 @@ export function MyAttendancePage() {
   const [days, setDays] = useState<StaffDay[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [capturing, setCapturing] = useState(false);
+  const [dayOffWarning, setDayOffWarning] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const now = useUaeNow();
   const clock = uaeClock(now);
@@ -169,7 +171,9 @@ export function MyAttendancePage() {
                 type="button"
                 onClick={() => {
                   setSuccess(null);
-                  setCapturing(true);
+                  // A first sign-in on a weekly off or a public holiday asks first; they may still carry on.
+                  if (signingIn && me.dayType && me.punches.length === 0) setDayOffWarning(true);
+                  else setCapturing(true);
                 }}
                 className={`group flex min-h-16 w-full items-center justify-center gap-3 rounded-lg text-lg font-semibold transition-transform duration-150 active:scale-[0.99] motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
                   signingIn ? "bg-white text-brand-800 hover:bg-brand-50" : "bg-brand-500 text-white hover:bg-brand-400"
@@ -236,6 +240,31 @@ export function MyAttendancePage() {
           </details>
         </Card>
       </div>
+
+      <Dialog open={dayOffWarning} title="Today is not a working day" onClose={() => setDayOffWarning(false)}>
+        <div className="mt-3 flex gap-3">
+          <CalendarOff aria-hidden="true" size={22} className="mt-0.5 shrink-0 text-amber-700" />
+          <div className="space-y-2 text-base text-ink-800">
+            <p>
+              {me.dayType === "Weekly off" ? "Today is your weekly off." : `Today is a public holiday: ${me.dayType}.`} You are not expected to work.
+            </p>
+            <p>Do you still want to sign in? Your sign-in will be recorded for your manager to see.</p>
+          </div>
+        </div>
+        <div className="mt-6 flex flex-wrap justify-end gap-3">
+          <Button variant="secondary" onClick={() => setDayOffWarning(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              setDayOffWarning(false);
+              setCapturing(true);
+            }}
+          >
+            Sign in anyway
+          </Button>
+        </div>
+      </Dialog>
 
       {capturing && <SelfieDialog kind={me.nextKind} onCancel={() => setCapturing(false)} onConfirm={confirm} />}
     </section>

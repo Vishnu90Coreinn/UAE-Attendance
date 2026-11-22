@@ -115,6 +115,28 @@ public class StaffTests(ApiFixture api) : IClassFixture<ApiFixture>
     // --- signing in and out ------------------------------------------------------------------------------------
 
     [Fact]
+    public async Task Me_ReportsTheDayType_SoTheAppCanWarnBeforeASignInOnADayOff()
+    {
+        var manager = (await TestWorkers.SignInAsync(api, Roles.Manager)).Token;
+        var (_, token, _) = await NewEmployeeAsync();
+        var weekday = (int)StaffTime.Today(TimeProvider.System).DayOfWeek;
+        try
+        {
+            await api.SendAsync(HttpMethod.Put, "/api/staff/settings", new { shiftStart = "09:00", shiftEnd = "17:00", lateGraceMinutes = 15, earlyGraceMinutes = 15, weeklyOff = weekday }, manager);
+            var off = await TestWorkers.ReadJsonAsync(await api.GetAsync("/api/staff/me", token));
+            Assert.Equal("Weekly off", off.GetProperty("dayType").GetString());
+
+            await api.SendAsync(HttpMethod.Put, "/api/staff/settings", new { shiftStart = "09:00", shiftEnd = "17:00", lateGraceMinutes = 15, earlyGraceMinutes = 15, weeklyOff = (weekday + 1) % 7 }, manager);
+            var working = await TestWorkers.ReadJsonAsync(await api.GetAsync("/api/staff/me", token));
+            Assert.Equal(System.Text.Json.JsonValueKind.Null, working.GetProperty("dayType").ValueKind);
+        }
+        finally
+        {
+            await api.SendAsync(HttpMethod.Put, "/api/staff/settings", DefaultSettings, manager);
+        }
+    }
+
+    [Fact]
     public async Task Punch_RequiresASelfie()
     {
         var (_, token, _) = await NewEmployeeAsync();
@@ -225,6 +247,24 @@ public class StaffTests(ApiFixture api) : IClassFixture<ApiFixture>
 
         await using var db = TestUsers.NewContext(api.ConnectionString);
         Assert.True(await db.AuditLogs.AnyAsync(a => a.Action == "StaffPunchAdded" && a.DetailsJson!.Contains("Phone battery died")));
+    }
+
+    [Fact]
+    public async Task Nobody_CorrectsTheirOwnAttendance_ButAnotherHrCan()
+    {
+        var (me, myToken, _) = await NewEmployeeAsync(Roles.HR);
+        var otherHr = (await TestWorkers.SignInAsync(api, Roles.HR)).Token;
+        var yesterday = StaffTime.Today(TimeProvider.System).AddDays(-1).ToString("yyyy-MM-dd");
+        var body = new { workerId = me.Id, date = yesterday, time = "09:00", kind = "In", reason = "Forgot to sign in" };
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.SendAsync(HttpMethod.Post, "/api/staff/punches", body, myToken)).StatusCode);
+
+        var added = await api.SendAsync(HttpMethod.Post, "/api/staff/punches", body, otherHr);
+        Assert.Equal(HttpStatusCode.OK, added.StatusCode);
+        var punchId = (await TestWorkers.ReadJsonAsync(added)).GetProperty("punches")[0].GetProperty("id").GetInt64();
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await api.SendAsync(HttpMethod.Post, $"/api/staff/punches/{punchId}/void", new { reason = "Changed my mind" }, myToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await api.SendAsync(HttpMethod.Post, $"/api/staff/punches/{punchId}/void", new { reason = "Entered in error" }, otherHr)).StatusCode);
     }
 
     [Fact]
