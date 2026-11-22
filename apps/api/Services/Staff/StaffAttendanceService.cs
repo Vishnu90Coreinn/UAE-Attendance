@@ -45,9 +45,12 @@ public sealed class StaffAttendanceService(
         var withSelfie = await SelfieIdsAsync(punches.Select(p => p.Id), ct);
         var day = days[worker.Id].SingleOrDefault() ?? StaffDayCalculator.Compute(today, StaffTime.NowLocal(time), settings, null, null, [], null)!;
         var next = punches.Count > 0 && punches[^1].Kind == PunchKinds.In ? PunchKinds.Out : PunchKinds.In;
+        // Today's holiday name, or "Weekly off": the app warns before a sign-in on a day nobody is expected to work.
+        var holiday = await db.PublicHolidays.AsNoTracking().Where(h => h.Date == today).Select(h => h.Name).FirstOrDefaultAsync(ct);
+        var dayType = holiday ?? (today.DayOfWeek == settings.WeeklyOff ? "Weekly off" : null);
         return new StaffMeResponse(worker.Id, worker.WorkerCode, worker.FullName, worker.Department,
             settings.ShiftStart.ToString("HH:mm", CultureInfo.InvariantCulture), settings.ShiftEnd.ToString("HH:mm", CultureInfo.InvariantCulture),
-            settings.OfficeCheckOn, day, next, punches.Select(p => ToDto(p, withSelfie.Contains(p.Id))).ToList());
+            settings.OfficeCheckOn, day, next, punches.Select(p => ToDto(p, withSelfie.Contains(p.Id))).ToList(), dayType);
     }
 
     public async Task<StaffResult<StaffProfile>> ProfileAsync(int userId, CancellationToken ct)
@@ -176,7 +179,10 @@ public sealed class StaffAttendanceService(
         db.Workers.AsNoTracking().AnyAsync(w => w.Id == workerId && w.UserId == userId, ct);
 
     /// <summary>HR or a manager adds a missing sign-in or sign-out. A reason is required and the change is audited.</summary>
-    public async Task<StaffResult<StaffDayDetail>> AddManualPunchAsync(ManualPunchRequest request, CancellationToken ct)
+    /// <summary>Nobody corrects their own attendance: a second person must, so a record can never be edited by the one it benefits.</summary>
+    private const string OwnAttendanceMessage = "You cannot add or change your own attendance. Ask a manager to correct it.";
+
+    public async Task<StaffResult<StaffDayDetail>> AddManualPunchAsync(ManualPunchRequest request, int actingUserId, CancellationToken ct)
     {
         var reason = (request.Reason ?? "").Trim();
         if (reason.Length == 0) return StaffResult<StaffDayDetail>.Invalid("reason", "A reason is required.");
@@ -190,6 +196,7 @@ public sealed class StaffAttendanceService(
             ? await db.Workers.AsNoTracking().SingleOrDefaultAsync(w => w.Id == id && w.Category == WorkerCategories.Employee, ct)
             : null;
         if (worker is null) return StaffResult<StaffDayDetail>.Invalid("workerId", "Choose an office employee.");
+        if (worker.UserId == actingUserId) return StaffResult<StaffDayDetail>.Forbidden(OwnAttendanceMessage);
 
         var stamp = StaffTime.ToUtc(day, at);
         if (stamp > time.GetUtcNow().UtcDateTime) return StaffResult<StaffDayDetail>.Invalid("time", "The time cannot be in the future.");
@@ -207,7 +214,7 @@ public sealed class StaffAttendanceService(
         return await DetailAsync(worker.Id, request.Date, ct);
     }
 
-    public async Task<StaffResult<StaffDayDetail>> VoidPunchAsync(long punchId, VoidPunchRequest request, CancellationToken ct)
+    public async Task<StaffResult<StaffDayDetail>> VoidPunchAsync(long punchId, VoidPunchRequest request, int actingUserId, CancellationToken ct)
     {
         var reason = (request.Reason ?? "").Trim();
         if (reason.Length == 0) return StaffResult<StaffDayDetail>.Invalid("reason", "A reason is required.");
@@ -215,6 +222,8 @@ public sealed class StaffAttendanceService(
         var punch = await db.StaffPunches.SingleOrDefaultAsync(p => p.Id == punchId, ct);
         if (punch is null) return StaffResult<StaffDayDetail>.NotFound("Sign-in record not found.");
         if (punch.IsVoided) return StaffResult<StaffDayDetail>.Conflict("That record is already voided.");
+        if (await db.Workers.AsNoTracking().AnyAsync(w => w.Id == punch.WorkerId && w.UserId == actingUserId, ct))
+            return StaffResult<StaffDayDetail>.Forbidden(OwnAttendanceMessage);
 
         punch.IsVoided = true;
         punch.VoidReason = reason;

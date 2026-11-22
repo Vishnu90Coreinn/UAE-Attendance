@@ -59,6 +59,8 @@ export interface StaffMe {
   today: StaffDay;
   nextKind: "In" | "Out";
   punches: Punch[];
+  /** Today's public holiday name, or "Weekly off"; null on a working day. */
+  dayType?: string | null;
 }
 
 export interface PunchInput {

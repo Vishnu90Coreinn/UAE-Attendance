@@ -19,7 +19,7 @@ public sealed record PunchDto(
 
 public sealed record StaffMeResponse(
     int WorkerId, string Code, string Name, string? Department, string ShiftStart, string ShiftEnd, bool OfficeCheckOn,
-    StaffDay Today, string NextKind, List<PunchDto> Punches);
+    StaffDay Today, string NextKind, List<PunchDto> Punches, string? DayType = null);
 
 /// <summary>The employee's own record. Pay and bank details are not part of it.</summary>
 public sealed record StaffProfile(

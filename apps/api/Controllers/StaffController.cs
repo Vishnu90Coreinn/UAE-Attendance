@@ -208,11 +208,11 @@ public sealed class StaffController(
 
     [HttpPost("punches")]
     [Authorize(Policy = Policies.ManagerAdminOrHr)]
-    public async Task<IActionResult> AddPunch(ManualPunchRequest request, CancellationToken ct) => Map(await attendance.AddManualPunchAsync(request, ct));
+    public async Task<IActionResult> AddPunch(ManualPunchRequest request, CancellationToken ct) => Map(await attendance.AddManualPunchAsync(request, UserId, ct));
 
     [HttpPost("punches/{id:long}/void")]
     [Authorize(Policy = Policies.ManagerAdminOrHr)]
-    public async Task<IActionResult> VoidPunch(long id, VoidPunchRequest request, CancellationToken ct) => Map(await attendance.VoidPunchAsync(id, request, ct));
+    public async Task<IActionResult> VoidPunch(long id, VoidPunchRequest request, CancellationToken ct) => Map(await attendance.VoidPunchAsync(id, request, UserId, ct));
 
     [HttpGet("report")]
     [Authorize(Policy = Policies.ManagerAdminOrHr)]
