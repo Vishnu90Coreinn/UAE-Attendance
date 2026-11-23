@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from "react";
-import { CircleUserRound, Ellipsis, KeyRound, LogOut } from "lucide-react";
+import { Bell, BellOff, CircleUserRound, Ellipsis, KeyRound, LogOut } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import type { CurrentUser } from "../api/auth";
 import { roleLabel } from "../permissions";
 import { Dialog } from "./Dialog";
 import { NAV_ICONS as ICONS } from "./navIcons";
 import { phoneNavFor, type NavItem } from "./navItems";
+import { usePushToggle } from "../usePushToggle";
 
 /** One slot of the bottom bar: icon over a short label, at least 64px tall so it is easy to hit with a thumb. */
 const slotClass =
@@ -34,6 +35,7 @@ interface PhoneShellProps {
 export function PhoneShell({ companyName, user, attendanceAttention, onChangePassword, onSignOut, children }: PhoneShellProps) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const push = usePushToggle(user?.username);
   const { pathname } = useLocation();
   const { tabs, more } = user ? phoneNavFor(user.role, user.employeeId) : { tabs: [], more: [] };
   const moreActive = more.some((item) => item.path && pathname.startsWith(item.path));
@@ -163,6 +165,17 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
                 <KeyRound aria-hidden="true" size={20} />
                 Change password
               </button>
+              {push.visible && (
+                <button
+                  type="button"
+                  disabled={push.busy || push.state === "blocked"}
+                  onClick={() => void push.toggle()}
+                  className={`${sheetRowClass} text-ink-800 hover:bg-ink-100 disabled:opacity-60`}
+                >
+                  {push.state === "on" ? <BellOff aria-hidden="true" size={20} /> : <Bell aria-hidden="true" size={20} />}
+                  {push.label}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
