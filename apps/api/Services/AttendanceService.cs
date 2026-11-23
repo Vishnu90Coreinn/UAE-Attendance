@@ -10,7 +10,8 @@ using Microsoft.EntityFrameworkCore;
 namespace HrPayroll.Api.Services;
 
 public sealed record AttendanceResult(int StatusCode, AttendanceDayResponse? Day = null,
-    Dictionary<string, string[]>? Errors = null, int SubmittedForApproval = 0);
+    Dictionary<string, string[]>? Errors = null, int SubmittedForApproval = 0,
+    IReadOnlyDictionary<string, int>? RejectedBySubmitter = null);
 
 public sealed record AttendanceResult<T>(int StatusCode, T? Value = default, Dictionary<string, string[]>? Errors = null);
 
@@ -238,7 +239,11 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
                     details: new { date = dateText, workerIds = submitted.Select(r => r.WorkerId).ToArray(), reason });
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
-            return new(200, await ReadAsync(day, ct));
+            // Who sent the rejected entries in, so the controller can tell each of them.
+            var rejectedBy = decision == ApprovalStatuses.Rejected
+                ? submitted.Where(r => r.UpdatedBy.Length > 0).GroupBy(r => r.UpdatedBy).ToDictionary(g => g.Key, g => g.Count())
+                : null;
+            return new(200, await ReadAsync(day, ct), RejectedBySubmitter: rejectedBy);
         }
         catch (DbUpdateConcurrencyException) { return new(409); }
         catch (Exception ex) when (IsWriteConflict(ex) || PayrollPeriodLock.IsConflict(ex)) { return new(409); }

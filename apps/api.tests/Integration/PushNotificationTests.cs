@@ -130,10 +130,19 @@ public class PushNotificationTests(PushApiFixture api) : IClassFixture<PushApiFi
         Assert.Contains("2025-03-12", told.Body);
         Assert.Equal("/attendance", told.Url);
         Assert.Empty(SentTo(hr.Endpoint));
-        Assert.Empty(SentTo(supervisor.Endpoint));
+        Assert.Empty(SentTo(supervisor.Endpoint)); // submitting does not notify the submitter
 
         // Saving the same values again changes nothing, so nobody is bothered twice.
         await api.SendAsync(HttpMethod.Put, "/api/attendance/2025-03-12", rows, supervisor.Token);
+        Assert.Single(SentTo(manager.Endpoint));
+
+        // Rejecting sends the reason back to the supervisor who submitted it, and only to them.
+        var managerLogin = await TestUsers.LoginAsync(api.Client, manager.User.Username);
+        Assert.Equal(HttpStatusCode.OK, (await api.SendAsync(HttpMethod.Post, "/api/attendance/2025-03-12/reject", new { workerIds = new[] { worker.Id }, reason = "Wrong hours" }, managerLogin)).StatusCode);
+        var sentBack = Assert.Single(SentTo(supervisor.Endpoint));
+        Assert.Equal("Attendance sent back", sentBack.Title);
+        Assert.Contains("Wrong hours", sentBack.Body);
+        Assert.Equal("/attendance", sentBack.Url);
         Assert.Single(SentTo(manager.Endpoint));
 
         // A manager's own edit is approved at once: nothing to notify.

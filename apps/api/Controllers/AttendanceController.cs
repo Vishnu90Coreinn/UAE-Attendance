@@ -41,8 +41,16 @@ public sealed class AttendanceController(AttendanceService attendance, WageRedac
 
     [HttpPost("{date}/reject")]
     [Authorize(Policy = Policies.ManagerOrAdmin)]
-    public async Task<IActionResult> Reject(string date, [FromBody] RejectAttendanceRequest? request, CancellationToken ct) =>
-        Map(await attendance.RejectAsync(date, request?.WorkerIds, request?.Reason, ct));
+    public async Task<IActionResult> Reject(string date, [FromBody] RejectAttendanceRequest? request, CancellationToken ct)
+    {
+        var result = await attendance.RejectAsync(date, request?.WorkerIds, request?.Reason, ct);
+        // Each supervisor whose entries were sent back hears why, so they can correct and resubmit.
+        if (result is { StatusCode: 200, RejectedBySubmitter: { } rejected })
+            foreach (var (username, count) in rejected)
+                await push.NotifyUsernameAsync(username,
+                    new("Attendance sent back", $"{date}: {count} {(count == 1 ? "entry was" : "entries were")} rejected. {request?.Reason?.Trim()}", "/attendance"), ct);
+        return Map(result);
+    }
 
     [HttpGet("{date}/export/pdf")]
     [Authorize(Policy = Policies.AnyUser)]
