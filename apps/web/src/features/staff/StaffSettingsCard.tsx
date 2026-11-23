@@ -68,6 +68,7 @@ export function StaffSettingsCard() {
   const [base, setBase] = useState<StaffSettings | null>(null);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [holidayDate, setHolidayDate] = useState("");
+  const [holidayEnd, setHolidayEnd] = useState("");
   const [holidayName, setHolidayName] = useState("");
   const [failure, setFailure] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -141,8 +142,9 @@ export function StaffSettingsCard() {
   async function addDay() {
     setFailure(null);
     try {
-      await addHoliday(holidayDate, holidayName);
+      await addHoliday(holidayDate, holidayName, holidayEnd && holidayEnd > holidayDate ? holidayEnd : undefined);
       setHolidayDate("");
+      setHolidayEnd("");
       setHolidayName("");
       setHolidays(await listHolidays());
     } catch (e) {
@@ -240,11 +242,12 @@ export function StaffSettingsCard() {
               </ul>
             )}
             <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-line pt-4">
-              <Input label="Date" type="date" value={holidayDate} onChange={(e) => setHolidayDate(e.target.value)} />
+              <Input label="From" type="date" value={holidayDate} onChange={(e) => setHolidayDate(e.target.value)} />
+              <Input label="To (optional, for several days)" type="date" value={holidayEnd} min={holidayDate || undefined} onChange={(e) => setHolidayEnd(e.target.value)} />
               <Input label="Holiday name" value={holidayName} maxLength={100} onChange={(e) => setHolidayName(e.target.value)} />
               <Button variant="secondary" icon={Plus} onClick={() => void addDay()} disabled={!holidayDate || !holidayName.trim()}>Add holiday</Button>
             </div>
-            <p className="mt-2 text-xs text-ink-600">Holidays are saved as soon as you add or remove them. The other settings need Save.</p>
+            <p className="mt-2 text-xs text-ink-600">Leave "To" empty for a single day; for a multi-day holiday such as National Day, pick the first and last day and each day is listed. Holidays are saved as soon as you add or remove them. The other settings need Save.</p>
           </Group>
 
           {failure && <ActionFailure message={failure} />}

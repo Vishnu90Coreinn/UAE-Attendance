@@ -271,7 +271,9 @@ export function getStaffReportFile(format: "pdf" | "excel", from: string, to: st
 export const getStaffSettings = () => apiGet<StaffSettings>("/api/staff/settings");
 export const saveStaffSettings = (settings: StaffSettings) => apiPut<StaffSettings>("/api/staff/settings", settings);
 export const listHolidays = (year?: number) => apiGet<Holiday[]>(`/api/staff/holidays${year ? `?year=${year}` : ""}`);
-export const addHoliday = (date: string, name: string) => apiPost<Holiday>("/api/staff/holidays", { date, name });
+/** endDate is optional: a range (for example National Day, 3-5 December) is added as one holiday per day. */
+export const addHoliday = (date: string, name: string, endDate?: string) =>
+  apiPost<Holiday>("/api/staff/holidays", endDate ? { date, name, endDate } : { date, name });
 export const deleteHoliday = (id: number) => apiDelete(`/api/staff/holidays/${id}`);
 
 // --- logins -------------------------------------------------------------------------------------------------------

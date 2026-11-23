@@ -338,6 +338,46 @@ public class StaffTests(ApiFixture api) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public async Task Holidays_CanSpanSeveralDays_AsOneRowPerDay()
+    {
+        var manager = (await TestWorkers.SignInAsync(api, Roles.Manager)).Token;
+        var month = Random.Shared.Next(1, 12);
+        var start = new DateOnly(2032, month, 3);
+
+        var added = await api.SendAsync(HttpMethod.Post, "/api/staff/holidays", new { date = start.ToString("yyyy-MM-dd"), endDate = start.AddDays(2).ToString("yyyy-MM-dd"), name = "National Day" }, manager);
+        Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+        var listed = await TestWorkers.ReadJsonAsync(await api.GetAsync("/api/staff/holidays?year=2032", manager));
+        var days = listed.EnumerateArray().Where(h => h.GetProperty("name").GetString() == "National Day" && DateOnly.Parse(h.GetProperty("date").GetString()!).Month == month).Select(h => h.GetProperty("date").GetString()).ToList();
+        Assert.Equal(new[] { start.ToString("yyyy-MM-dd"), start.AddDays(1).ToString("yyyy-MM-dd"), start.AddDays(2).ToString("yyyy-MM-dd") }, days);
+
+        // Overlapping an existing holiday day and an end before the start are both rejected.
+        Assert.Equal(HttpStatusCode.BadRequest, (await api.SendAsync(HttpMethod.Post, "/api/staff/holidays", new { date = start.AddDays(2).ToString("yyyy-MM-dd"), endDate = start.AddDays(4).ToString("yyyy-MM-dd"), name = "Overlap" }, manager)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await api.SendAsync(HttpMethod.Post, "/api/staff/holidays", new { date = start.AddDays(10).ToString("yyyy-MM-dd"), endDate = start.AddDays(8).ToString("yyyy-MM-dd"), name = "Backwards" }, manager)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Deductions_HrCannotChangeTheirOwnRecord_ButManagerCan()
+    {
+        var (worker, hrToken, _) = await NewEmployeeAsync(Roles.HR);
+        var manager = (await TestWorkers.SignInAsync(api, Roles.Manager)).Token;
+        var month = "2024-03";
+        var types = await TestWorkers.ReadJsonAsync(await api.GetAsync("/api/deduction-types", manager));
+        var typeId = types.EnumerateArray().First(t => t.GetProperty("isActive").GetBoolean()).GetProperty("id").GetInt32();
+        var change = new { workers = new[] { new { workerId = worker.Id, entries = new[] { new { deductionTypeId = typeId, amount = 25m, note = "Advance" } } } } };
+
+        var own = await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/deductions?month={month}", hrToken));
+        Assert.True(own.GetProperty("workers").EnumerateArray().Single(w => w.GetProperty("workerId").GetInt32() == worker.Id).GetProperty("isSelf").GetBoolean());
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await api.SendAsync(HttpMethod.Put, $"/api/deductions/{month}", change, hrToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await api.SendAsync(HttpMethod.Put, $"/api/deductions/{month}", change, manager)).StatusCode);
+
+        // HR can still save while their own row is unchanged, and the manager's view does not flag it.
+        Assert.Equal(HttpStatusCode.OK, (await api.SendAsync(HttpMethod.Put, $"/api/deductions/{month}", change, hrToken)).StatusCode);
+        var asManager = await TestWorkers.ReadJsonAsync(await api.GetAsync($"/api/deductions?month={month}", manager));
+        Assert.False(asManager.GetProperty("workers").EnumerateArray().Single(w => w.GetProperty("workerId").GetInt32() == worker.Id).GetProperty("isSelf").GetBoolean());
+    }
+
+    [Fact]
     public async Task Settings_RejectAShiftThatEndsBeforeItStarts()
     {
         var manager = (await TestWorkers.SignInAsync(api, Roles.Manager)).Token;

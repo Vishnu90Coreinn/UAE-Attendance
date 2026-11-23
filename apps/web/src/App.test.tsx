@@ -60,12 +60,12 @@ function renderAt(path: string) {
 function signInWithStoredToken(
   role: authApi.Role = "Administrator",
 ) {
-  sessionStorage.setItem(TOKEN_STORAGE_KEY, "stored-tok");
+  localStorage.setItem(TOKEN_STORAGE_KEY, "stored-tok");
   vi.mocked(authApi.getMe).mockResolvedValue({ ...admin, role });
 }
 
 beforeEach(() => {
-  sessionStorage.clear();
+  localStorage.clear();
   vi.mocked(workersApi.listWorkers).mockResolvedValue([]);
   vi.mocked(leaveApi.listLeave).mockResolvedValue([]);
   vi.mocked(usersApi.listUsers).mockResolvedValue([]);

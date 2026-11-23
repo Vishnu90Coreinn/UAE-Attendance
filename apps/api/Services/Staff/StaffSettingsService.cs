@@ -64,6 +64,8 @@ public sealed class StaffSettingsService(AppDbContext db, IAuditLogger audit)
         return StaffResult<StaffSettingsDto>.Ok(after);
     }
 
+    private const int MaxHolidayRangeDays = 31;
+
     public async Task<List<HolidayDto>> HolidaysAsync(int? year, CancellationToken ct)
     {
         var query = db.PublicHolidays.AsNoTracking();
@@ -78,13 +80,23 @@ public sealed class StaffSettingsService(AppDbContext db, IAuditLogger audit)
         var name = (request.Name ?? "").Trim();
         if (name.Length == 0) return StaffResult<HolidayDto>.Invalid("name", "Holiday name is required.");
         if (name.Length > 100) return StaffResult<HolidayDto>.Invalid("name", "Holiday name must be 100 characters or fewer.");
-        if (await db.PublicHolidays.AnyAsync(h => h.Date == date, ct))
-            return StaffResult<HolidayDto>.Invalid("date", "That date is already a public holiday.");
+        var end = date;
+        if (!string.IsNullOrWhiteSpace(request.EndDate)
+            && !DateOnly.TryParseExact(request.EndDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out end))
+            return StaffResult<HolidayDto>.Invalid("endDate", "Enter a valid end date.");
+        if (end < date) return StaffResult<HolidayDto>.Invalid("endDate", "The end date cannot be before the start date.");
+        if (end.DayNumber - date.DayNumber >= MaxHolidayRangeDays)
+            return StaffResult<HolidayDto>.Invalid("endDate", $"A holiday can span at most {MaxHolidayRangeDays} days.");
+        if (await db.PublicHolidays.AnyAsync(h => h.Date >= date && h.Date <= end, ct))
+            return StaffResult<HolidayDto>.Invalid("date", end == date ? "That date is already a public holiday." : "One of those dates is already a public holiday.");
 
-        var holiday = new PublicHoliday { Date = date, Name = name };
-        db.PublicHolidays.Add(holiday);
+        // One row per day: attendance and leave counting look holidays up by single date.
+        var days = Enumerable.Range(0, end.DayNumber - date.DayNumber + 1)
+            .Select(offset => new PublicHoliday { Date = date.AddDays(offset), Name = name }).ToList();
+        db.PublicHolidays.AddRange(days);
+        var holiday = days[0];
         await db.SaveChangesAsync(ct);
-        audit.Write("PublicHolidayAdded", entityType: nameof(PublicHoliday), entityId: holiday.Id.ToString(CultureInfo.InvariantCulture), details: new { date = request.Date, name });
+        audit.Write("PublicHolidayAdded", entityType: nameof(PublicHoliday), entityId: holiday.Id.ToString(CultureInfo.InvariantCulture), details: new { date = request.Date, endDate = end.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), name });
         await db.SaveChangesAsync(ct);
         return StaffResult<HolidayDto>.Ok(Dto(holiday));
     }
