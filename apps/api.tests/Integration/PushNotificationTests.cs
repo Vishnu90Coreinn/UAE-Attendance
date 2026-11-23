@@ -114,4 +114,32 @@ public class PushNotificationTests(PushApiFixture api) : IClassFixture<PushApiFi
         Assert.Equal("/my-leave", told.Url);
         Assert.Single(SentTo(manager.Endpoint)); // deciding does not notify the manager again
     }
+
+    [Fact]
+    public async Task SupervisorSubmittingAttendance_NotifiesManagers_ButAManagersOwnSaveDoesNot()
+    {
+        var manager = await SubscribedAsync(Roles.Manager);
+        var hr = await SubscribedAsync(Roles.HR);
+        var supervisor = await SubscribedAsync(Roles.Supervisor);
+        var worker = await TestWorkers.CreateAsync(api.ConnectionString);
+        var rows = new[] { new { workerId = worker.Id, status = "Present", basicHours = 8m, overtimeHours = 0m } };
+
+        Assert.Equal(HttpStatusCode.OK, (await api.SendAsync(HttpMethod.Put, "/api/attendance/2025-03-12", rows, supervisor.Token)).StatusCode);
+        var told = Assert.Single(SentTo(manager.Endpoint));
+        Assert.Equal("Attendance submitted", told.Title);
+        Assert.Contains("2025-03-12", told.Body);
+        Assert.Equal("/attendance", told.Url);
+        Assert.Empty(SentTo(hr.Endpoint));
+        Assert.Empty(SentTo(supervisor.Endpoint));
+
+        // Saving the same values again changes nothing, so nobody is bothered twice.
+        await api.SendAsync(HttpMethod.Put, "/api/attendance/2025-03-12", rows, supervisor.Token);
+        Assert.Single(SentTo(manager.Endpoint));
+
+        // A manager's own edit is approved at once: nothing to notify.
+        var other = await TestWorkers.CreateAsync(api.ConnectionString);
+        var managerToken = await TestUsers.LoginAsync(api.Client, manager.User.Username);
+        await api.SendAsync(HttpMethod.Put, "/api/attendance/2025-03-12", new[] { new { workerId = other.Id, status = "Present", basicHours = 8m, overtimeHours = 0m } }, managerToken);
+        Assert.Single(SentTo(manager.Endpoint));
+    }
 }

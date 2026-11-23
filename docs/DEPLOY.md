@@ -81,6 +81,7 @@ Installed phone apps can receive notifications (HTTPS is required). Who is told,
 |---|---|
 | Office employee requests leave | Managers and Administrators |
 | Supervisor raises leave for a site worker | Managers and Administrators |
+| Supervisor submits attendance for approval | Managers and Administrators |
 | Leave approved or rejected | The employee (office) or the supervisor who raised it (site) |
 | Payroll month finalised | HR and Administrators (not the person who finalised it) |
 

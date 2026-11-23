@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace HrPayroll.Api.Services;
 
 public sealed record AttendanceResult(int StatusCode, AttendanceDayResponse? Day = null,
-    Dictionary<string, string[]>? Errors = null);
+    Dictionary<string, string[]>? Errors = null, int SubmittedForApproval = 0);
 
 public sealed record AttendanceResult<T>(int StatusCode, T? Value = default, Dictionary<string, string[]>? Errors = null);
 
@@ -70,6 +70,7 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
             }
             if (errors.Count > 0) return new(400, Errors: errors);
             var changed = new List<int>();
+            var submittedForApproval = 0;
             foreach (var input in requests)
             {
                 var row = input!;
@@ -95,6 +96,7 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
                 record.UpdatedBy = actor;
                 // Supervisors submit for approval; managers and administrators edit directly, which counts as approved.
                 record.ApprovalStatus = manager ? ApprovalStatuses.Approved : ApprovalStatuses.Submitted;
+                if (!manager) submittedForApproval++;
                 record.RejectionReason = null;
                 record.DecidedBy = manager ? actor : null;
                 record.DecidedUtc = manager ? now : null;
@@ -104,7 +106,7 @@ public sealed class AttendanceService(AppDbContext db, IAuditLogger audit, TimeP
                 details: new { date, numberOfRows = requests.Count, workersChanged = changed });
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
-            return new(200, await ReadAsync(day, ct));
+            return new(200, await ReadAsync(day, ct), SubmittedForApproval: submittedForApproval);
         }
         catch (DbUpdateConcurrencyException) { return new(409); }
         catch (Exception ex) when (IsWriteConflict(ex) || PayrollPeriodLock.IsConflict(ex)) { return new(409); }
