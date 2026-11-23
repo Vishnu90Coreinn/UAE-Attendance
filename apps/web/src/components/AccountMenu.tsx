@@ -3,7 +3,7 @@ import { Bell, BellOff, ChevronDown, KeyRound, LogOut } from "lucide-react";
 import type { CurrentUser } from "../api/auth";
 import { cx } from "../ui";
 import { roleLabel } from "../permissions";
-import { disablePush, enablePush, pushSupported, readPushState, type PushState } from "../push";
+import { usePushToggle } from "../usePushToggle";
 
 interface AccountMenuProps {
   user: CurrentUser;
@@ -20,30 +20,7 @@ export function AccountMenu({ user, onChangePassword, onSignOut }: AccountMenuPr
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
-  const [push, setPush] = useState<PushState>("unavailable");
-  const [pushBusy, setPushBusy] = useState(false);
-
-  useEffect(() => {
-    if (!pushSupported()) return;
-    let cancelled = false;
-    readPushState(user.username)
-      .then((state) => !cancelled && setPush(state))
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [user.username]);
-
-  async function togglePush() {
-    setPushBusy(true);
-    try {
-      setPush(push === "on" ? await disablePush(user.username) : await enablePush(user.username));
-    } catch {
-      setPush(await readPushState(user.username).catch(() => "off" as PushState));
-    } finally {
-      setPushBusy(false);
-    }
-  }
+  const push = usePushToggle(user.username);
 
   useEffect(() => {
     if (!open) return;
@@ -103,16 +80,16 @@ export function AccountMenu({ user, onChangePassword, onSignOut }: AccountMenuPr
               <KeyRound aria-hidden="true" size={16} />
               Change password
             </button>
-            {push !== "unavailable" && (
+            {push.visible && (
               <button
                 type="button"
                 role="menuitem"
                 className={cx(itemClass, "disabled:opacity-60")}
-                disabled={pushBusy || push === "blocked"}
-                onClick={() => void togglePush()}
+                disabled={push.busy || push.state === "blocked"}
+                onClick={() => void push.toggle()}
               >
-                {push === "on" ? <BellOff aria-hidden="true" size={16} /> : <Bell aria-hidden="true" size={16} />}
-                {push === "on" ? "Turn off notifications" : push === "blocked" ? "Notifications blocked in browser" : "Turn on notifications"}
+                {push.state === "on" ? <BellOff aria-hidden="true" size={16} /> : <Bell aria-hidden="true" size={16} />}
+                {push.label}
               </button>
             )}
             <button type="button" role="menuitem" className={itemClass} onClick={() => choose(onSignOut)}>
