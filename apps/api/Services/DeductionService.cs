@@ -63,9 +63,11 @@ public sealed class DeductionService(AppDbContext db, IAuditLogger audit, TimePr
         var entries = (await db.WorkerDeductions.AsNoTracking()
             .Where(d => d.Year == month.Year && d.Month == month.Month).ToListAsync(ct)).ToLookup(d => d.WorkerId);
         var finalised = await IsFinalisedAsync(month, ct);
+        var hrUserId = HrCallerUserId();
         var rows = workers.Where(w => w.IsActive || entries[w.Id].Any()).Select(w => new MonthDeductionWorker(w.Id, w.WorkerCode, w.FullName, w.IsActive,
             entries[w.Id].OrderBy(e => e.DeductionTypeId)
-                .Select(e => new DeductionEntry(e.DeductionTypeId, e.Amount, e.Note)).ToArray(), w.Category)).ToArray();
+                .Select(e => new DeductionEntry(e.DeductionTypeId, e.Amount, e.Note)).ToArray(), w.Category,
+            IsSelf: hrUserId is not null && w.UserId == hrUserId)).ToArray();
         return new(200, new MonthDeductionsResponse(Label(month), finalised, types, rows));
     }
 
@@ -79,7 +81,8 @@ public sealed class DeductionService(AppDbContext db, IAuditLogger audit, TimePr
             errors["workers"] = ["Each worker may appear only once."];
 
         var workerIds = rows.Select(r => r.WorkerId).ToArray();
-        var workers = await db.Workers.AsNoTracking().Where(w => workerIds.Contains(w.Id)).Select(w => w.Id).ToListAsync(ct);
+        var workerRows = await db.Workers.AsNoTracking().Where(w => workerIds.Contains(w.Id)).Select(w => new { w.Id, w.UserId }).ToListAsync(ct);
+        var workers = workerRows.Select(w => w.Id).ToList();
         var typeIds = await db.DeductionTypes.AsNoTracking().Where(t => t.IsActive).Select(t => t.Id).ToListAsync(ct);
 
         for (var i = 0; i < rows.Count; i++)
@@ -99,6 +102,25 @@ public sealed class DeductionService(AppDbContext db, IAuditLogger audit, TimePr
                 var note = Clean(entry.Note);
                 if (note.Length == 0) errors[$"{prefix}.note"] = ["Enter the reason for this deduction."];
                 else if (note.Length > MaxNoteLength) errors[$"{prefix}.note"] = [$"Reason must be {MaxNoteLength} characters or fewer."];
+            }
+        }
+
+        // HR sees their own record on this page but only a manager or administrator may change it.
+        var hrUserId = HrCallerUserId();
+        if (hrUserId is not null)
+        {
+            var selfIds = workerRows.Where(w => w.UserId == hrUserId).Select(w => w.Id).ToList();
+            if (selfIds.Count > 0)
+            {
+                var stored = (await db.WorkerDeductions.AsNoTracking()
+                    .Where(d => d.Year == month.Year && d.Month == month.Month && selfIds.Contains(d.WorkerId)).ToListAsync(ct))
+                    .Where(d => typeIds.Contains(d.DeductionTypeId))
+                    .Select(d => (d.WorkerId, d.DeductionTypeId, d.Amount, Note: d.Note ?? "")).OrderBy(d => d.WorkerId).ThenBy(d => d.DeductionTypeId).ToList();
+                var requested = rows.Where(r => selfIds.Contains(r.WorkerId))
+                    .SelectMany(r => (r.Entries ?? []).Select(e => (r.WorkerId, e.DeductionTypeId, Amount: e.Amount ?? 0m, Note: Clean(e.Note))))
+                    .OrderBy(d => d.WorkerId).ThenBy(d => d.DeductionTypeId).ToList();
+                if (!stored.SequenceEqual(requested))
+                    errors["workers"] = ["You cannot change your own deductions. Ask a manager or administrator."];
             }
         }
         if (errors.Count > 0) return new(400, Errors: errors);
@@ -153,6 +175,15 @@ public sealed class DeductionService(AppDbContext db, IAuditLogger audit, TimePr
             return new(409, Message: "The deductions changed while you were saving. Reload and try again.");
         }
         return await GetMonthAsync(month, ct);
+    }
+
+    /// <summary>The signed-in user's id when they are an HR user (the role that may not edit its own deductions), else null.</summary>
+    private int? HrCallerUserId()
+    {
+        var user = httpContext.HttpContext?.User;
+        if (user is null || !user.IsInRole(Auth.Roles.HR)) return null;
+        var subject = user.FindFirst("sub")?.Value ?? user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return int.TryParse(subject, System.Globalization.NumberStyles.None, CultureInfo.InvariantCulture, out var id) ? id : null;
     }
 
     private async Task<bool> IsFinalisedAsync(DateOnly month, CancellationToken ct) =>

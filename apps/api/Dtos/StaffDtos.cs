@@ -8,7 +8,8 @@ public sealed record StaffSettingsDto(
     bool? DeductAbsentDays = null, decimal? LateDeductionPerMinute = null);
 
 public sealed record HolidayDto(int Id, string Date, string Name);
-public sealed record HolidayRequest(string? Date, string? Name);
+/// <summary>EndDate is optional: when set, every day from Date to EndDate (inclusive) becomes a holiday with this name.</summary>
+public sealed record HolidayRequest(string? Date, string? Name, string? EndDate = null);
 
 /// <summary>A sign-in or sign-out. The selfie is a JPEG as base64; the location is optional but expected.</summary>
 public sealed record PunchRequest(string? SelfieBase64, double? Latitude, double? Longitude, double? AccuracyMeters);

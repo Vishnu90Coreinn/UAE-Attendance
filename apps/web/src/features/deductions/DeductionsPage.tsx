@@ -161,7 +161,7 @@ export function DeductionsPage() {
       setError(problem);
       return;
     }
-    const workers = data.workers.map((worker) => ({
+    const workers = data.workers.filter((worker) => !worker.isSelf).map((worker) => ({
       workerId: worker.workerId,
       entries: activeTypes
         .filter((type) => (draft[worker.workerId]?.[type.id]?.amount ?? "").trim() !== "")
@@ -374,6 +374,7 @@ export function DeductionsPage() {
                       {worker.category === "Employee" && <span className="ml-2 rounded bg-sky-50 px-1.5 py-0.5 font-medium text-sky-800">Office</span>}
                     </span>
                     {!worker.isActive && <span className="block text-xs text-ink-600">Inactive</span>}
+                    {worker.isSelf && <span className="block text-xs text-ink-600">Your own record: a manager must change it</span>}
                   </th>
                   {activeTypes.map((type) => {
                     const entry = draft[worker.workerId]?.[type.id] ?? { amount: "", note: "" };
@@ -393,7 +394,7 @@ export function DeductionsPage() {
                             min="0"
                             step="0.01"
                             value={entry.amount}
-                            disabled={locked || saving}
+                            disabled={locked || saving || worker.isSelf}
                             onChange={(e) => change(worker.workerId, type.id, { amount: e.target.value })}
                             className={inputClass}
                           />
@@ -406,7 +407,7 @@ export function DeductionsPage() {
                             maxLength={200}
                             value={entry.note}
                             placeholder="Reason"
-                            disabled={locked || saving}
+                            disabled={locked || saving || worker.isSelf}
                             onChange={(e) => change(worker.workerId, type.id, { note: e.target.value })}
                             aria-invalid={Number(entry.amount) > 0 && entry.note.trim() === "" ? true : undefined}
                             className={cx(inputClass, Number(entry.amount) > 0 && entry.note.trim() === "" && "!border-danger")}

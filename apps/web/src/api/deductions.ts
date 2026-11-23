@@ -18,6 +18,8 @@ export interface MonthDeductionWorker {
   entries: DeductionEntry[];
   /** "Worker" (site) or "Employee" (office). */
   category?: string;
+  /** True when this row is the signed-in HR user's own record: only a manager or administrator may change it. */
+  isSelf?: boolean;
 }
 export interface MonthDeductions {
   month: string;

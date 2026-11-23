@@ -12,7 +12,7 @@ public sealed class DeductionTypeRequest
 public sealed record DeductionEntry(int DeductionTypeId, decimal? Amount, string? Note);
 
 public sealed record MonthDeductionWorker(int WorkerId, string WorkerCode, string FullName, bool IsActive,
-    IReadOnlyList<DeductionEntry> Entries, string Category = "Worker");
+    IReadOnlyList<DeductionEntry> Entries, string Category = "Worker", bool IsSelf = false);
 
 public sealed record MonthDeductionsResponse(string Month, bool IsFinalised, IReadOnlyList<DeductionTypeResponse> Types,
     IReadOnlyList<MonthDeductionWorker> Workers);
