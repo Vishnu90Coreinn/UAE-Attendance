@@ -1,6 +1,7 @@
 using HrPayroll.Api.Auth;
 using HrPayroll.Api.Dtos;
 using HrPayroll.Api.Services;
+using HrPayroll.Api.Services.Push;
 using HrPayroll.Api.Services.Staff;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -13,7 +14,7 @@ namespace HrPayroll.Api.Controllers;
 public sealed class StaffController(
     StaffAttendanceService attendance, StaffLeaveService leave, StaffSettingsService settings, StaffExportService exports,
     EmployeeLoginService logins, StaffPayslipService payslips,
-    CertificateRequestService letterRequests, LetterService letters, LetterPdf letterPdf) : ControllerBase
+    CertificateRequestService letterRequests, LetterService letters, LetterPdf letterPdf, IPushNotifier push) : ControllerBase
 {
     private int UserId => StaffAttendanceService.UserId(User) ?? 0;
 
@@ -58,6 +59,10 @@ public sealed class StaffController(
     public async Task<IActionResult> RequestLeave(StaffLeaveRequestInput input, CancellationToken ct)
     {
         var result = await leave.CreateAsync(UserId, input, ct);
+        // The people who decide leave (managers and the administrator) hear about it straight away.
+        if (result is { Status: 200, Value: { } created })
+            await push.NotifyRolesAsync([Roles.Manager, Roles.Administrator],
+                new($"New leave request", $"{created.Name}: {created.LeaveType}, {created.StartDate} to {created.EndDate}", "/staff-leave"), UserId, ct);
         return result.Status == 200 ? StatusCode(201, result.Value) : Map(result);
     }
 
@@ -282,11 +287,23 @@ public sealed class StaffController(
 
     [HttpPost("leave/{id:int}/approve")]
     [Authorize(Policy = Policies.ManagerOrAdmin)]
-    public async Task<IActionResult> Approve(int id, StaffLeaveDecision request, CancellationToken ct) => Map(await leave.DecideAsync(UserId, id, true, request.Note, ct));
+    public async Task<IActionResult> Approve(int id, StaffLeaveDecision request, CancellationToken ct) => await DecideAsync(id, true, request.Note, ct);
 
     [HttpPost("leave/{id:int}/reject")]
     [Authorize(Policy = Policies.ManagerOrAdmin)]
-    public async Task<IActionResult> Reject(int id, StaffLeaveDecision request, CancellationToken ct) => Map(await leave.DecideAsync(UserId, id, false, request.Note, ct));
+    public async Task<IActionResult> Reject(int id, StaffLeaveDecision request, CancellationToken ct) => await DecideAsync(id, false, request.Note, ct);
+
+    /// <summary>Decides a request and tells the employee who raised it.</summary>
+    private async Task<IActionResult> DecideAsync(int id, bool approve, string? note, CancellationToken ct)
+    {
+        var result = await leave.DecideAsync(UserId, id, approve, note, ct);
+        if (result is { Status: 200, Value: { } decided })
+        {
+            var body = $"{decided.LeaveType}, {decided.StartDate} to {decided.EndDate}" + (approve || string.IsNullOrWhiteSpace(decided.DecisionNote) ? "" : $". {decided.DecisionNote}");
+            await push.NotifyUsernameAsync(decided.CreatedBy, new(approve ? "Leave approved" : "Leave rejected", body, "/my-leave"), ct);
+        }
+        return Map(result);
+    }
 
     [HttpGet("leave/export/{format:regex(^(pdf|excel)$)}")]
     [Authorize(Policy = Policies.ManagerAdminOrHr)]

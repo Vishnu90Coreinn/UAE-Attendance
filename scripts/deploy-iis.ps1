@@ -19,7 +19,10 @@ New-Item -ItemType Directory -Force $SitePath | Out-Null
 $offline = Join-Path $SitePath 'app_offline.htm'
 
 # IIS stops the app and releases its files while app_offline.htm exists.
-Set-Content $offline '<html><body><h1>Updating, back in a minute.</h1></body></html>'
+# The branded page (scripts/app_offline.htm) is self-contained: while IIS shows it the app's own files are unavailable.
+$offlineTemplate = Join-Path $PSScriptRoot 'app_offline.htm'
+if (Test-Path $offlineTemplate) { Copy-Item $offlineTemplate $offline -Force }
+else { Set-Content $offline '<html><body><h1>Upgrading, back in a minute.</h1></body></html>' }
 Start-Sleep -Seconds 3
 try {
   # Mirror the release but keep the server's own logs, the offline marker and its production settings file.

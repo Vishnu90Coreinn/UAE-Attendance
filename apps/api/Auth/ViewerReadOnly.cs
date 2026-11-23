@@ -24,7 +24,7 @@ public sealed class ViewerReadOnlyMiddleware(RequestDelegate next)
     public async Task InvokeAsync(HttpContext context)
     {
         var path = context.Request.Path;
-        if (context.User.IsInRole(Roles.Viewer) && !ViewerReadOnly.IsRead(context.Request.Method) && !path.StartsWithSegments("/api/auth"))
+        if (context.User.IsInRole(Roles.Viewer) && !ViewerReadOnly.IsRead(context.Request.Method) && !path.StartsWithSegments("/api/auth") && !path.StartsWithSegments("/api/push"))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             await context.Response.WriteAsJsonAsync(new { title = "This account is read-only.", status = 403 });

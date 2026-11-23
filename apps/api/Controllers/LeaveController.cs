@@ -1,6 +1,7 @@
 using HrPayroll.Api.Auth;
 using HrPayroll.Api.Dtos;
 using HrPayroll.Api.Services;
+using HrPayroll.Api.Services.Push;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,7 +9,7 @@ namespace HrPayroll.Api.Controllers;
 
 [ApiController]
 [Route("api/leave")]
-public sealed class LeaveController(LeaveService leave, LeaveBalanceService balances, LeaveExportService exports) : ControllerBase
+public sealed class LeaveController(LeaveService leave, LeaveBalanceService balances, LeaveExportService exports, IPushNotifier push) : ControllerBase
 {
     /// <summary>Leave requests that touch one month (<c>month=yyyy-MM</c>), for everyone or one worker, as a PDF or Excel file.</summary>
     [HttpGet("export/{format:regex(^(pdf|excel)$)}")]
@@ -41,7 +42,14 @@ public sealed class LeaveController(LeaveService leave, LeaveBalanceService bala
     /// <summary>Supervisors raise leave; the Manager decides it.</summary>
     [HttpPost]
     [Authorize(Policy = Policies.SupervisorOrAbove)]
-    public async Task<IActionResult> Create(CreateLeaveRequest request, CancellationToken ct) => Map(await leave.CreateAsync(request, User.Identity!.Name!, ct));
+    public async Task<IActionResult> Create(CreateLeaveRequest request, CancellationToken ct)
+    {
+        var result = await leave.CreateAsync(request, User.Identity!.Name!, ct);
+        if (result is { StatusCode: 201, Value: LeaveResponse created })
+            await push.NotifyRolesAsync([Roles.Manager, Roles.Administrator],
+                new("New leave request", $"{created.WorkerName}: {created.LeaveType}, {created.StartDate} to {created.EndDate}", "/leave"), null, ct);
+        return Map(result);
+    }
 
     /// <summary>The photo of the leave request or doctor's note, when one was attached.</summary>
     [HttpGet("{id:int}/attachment")]
@@ -57,11 +65,21 @@ public sealed class LeaveController(LeaveService leave, LeaveBalanceService bala
     /// <summary>Only a Manager or the Administrator decides leave, so a supervisor can never approve even their own request.</summary>
     [HttpPost("{id:int}/approve")]
     [Authorize(Policy = Policies.ManagerOrAdmin)]
-    public async Task<IActionResult> Approve(int id, CancellationToken ct) => Map(await leave.ChangeAsync(id, "Approved", User.Identity!.Name!, CanDeleteAny(), ct));
+    public async Task<IActionResult> Approve(int id, CancellationToken ct) => await DecideAsync(id, "Approved", ct);
 
     [HttpPost("{id:int}/reject")]
     [Authorize(Policy = Policies.ManagerOrAdmin)]
-    public async Task<IActionResult> Reject(int id, CancellationToken ct) => Map(await leave.ChangeAsync(id, "Rejected", User.Identity!.Name!, CanDeleteAny(), ct));
+    public async Task<IActionResult> Reject(int id, CancellationToken ct) => await DecideAsync(id, "Rejected", ct);
+
+    /// <summary>Decides a request and tells the supervisor who raised it.</summary>
+    private async Task<IActionResult> DecideAsync(int id, string status, CancellationToken ct)
+    {
+        var result = await leave.ChangeAsync(id, status, User.Identity!.Name!, CanDeleteAny(), ct);
+        if (result is { StatusCode: 200, Value: LeaveResponse decided })
+            await push.NotifyUsernameAsync(decided.CreatedBy,
+                new(status == "Approved" ? "Leave approved" : "Leave rejected", $"{decided.WorkerName}: {decided.LeaveType}, {decided.StartDate} to {decided.EndDate}", "/leave"), ct);
+        return Map(result);
+    }
 
     /// <summary>A Manager or the Administrator deletes any request; a supervisor only their own request while it is pending.</summary>
     [HttpDelete("{id:int}")]

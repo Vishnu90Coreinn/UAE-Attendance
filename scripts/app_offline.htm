@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="15">
+  <title>Upgrading - DXB HR &amp; FINANCE</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #0c2a2d;
+      background: linear-gradient(160deg, #eef6f6 0%, #ffffff 60%); }
+    main { max-width: 30rem; text-align: center; }
+    .badge { width: 72px; height: 72px; margin: 0 auto 20px; border-radius: 20px; background: #0c2a2d; display: flex; align-items: center; justify-content: center; }
+    .badge svg { animation: spin 6s linear infinite; }
+    h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 12px; }
+    p { margin: 0 0 10px; font-size: 1.05rem; line-height: 1.5; color: #3d5558; }
+    .bar { height: 6px; margin: 24px auto 12px; max-width: 14rem; border-radius: 3px; background: #d8e6e6; overflow: hidden; }
+    .bar span { display: block; height: 100%; width: 40%; border-radius: 3px; background: #0c2a2d; animation: slide 1.6s ease-in-out infinite; }
+    small { color: #6b8082; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes slide { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+    @media (prefers-reduced-motion: reduce) { .badge svg, .bar span { animation: none; } .bar span { width: 100%; } }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0c1a1c; color: #e8f1f1; } p { color: #a9bfc1; } small { color: #7f9a9c; }
+      .badge { background: #1d4a4f; } .bar { background: #1d3336; } .bar span { background: #6fc3c9; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="badge" aria-hidden="true">
+      <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+      </svg>
+    </div>
+    <h1>We're making DXB HR &amp; FINANCE even better</h1>
+    <p>A fresh upgrade is being installed right now. Good things take a moment, and this one is worth it.</p>
+    <div class="bar" aria-hidden="true"><span></span></div>
+    <p><small>This page refreshes by itself. You'll be back in a minute, and your work is safe.</small></p>
+  </main>
+</body>
+</html>

@@ -73,12 +73,36 @@ Changing `Jwt__Key` later signs everyone out.
 - The web app caches nothing but an offline page. The entry page, `sw.js` and `manifest.webmanifest` are sent with
   `Cache-Control: no-cache`, hashed files under `/assets` cache for a year; do not override these on the ALB or a CDN.
 
-## 7. First sign-in
+## 7. Phone notifications (optional)
+
+Installed phone apps can receive notifications (HTTPS is required). Who is told, by user type:
+
+| Event | Who is notified |
+|---|---|
+| Office employee requests leave | Managers and Administrators |
+| Supervisor raises leave for a site worker | Managers and Administrators |
+| Supervisor submits attendance for approval | Managers and Administrators |
+| Manager rejects submitted attendance | The supervisor who submitted it, with the reason |
+| Leave approved or rejected | The employee (office) or the supervisor who raised it (site) |
+| Payroll month finalised | HR and Administrators (not the person who finalised it) |
+
+Setup, once:
+
+1. On any machine run `./scripts/new-vapid-keys.ps1 -Subject mailto:<a monitored address>`.
+2. Set the three printed values (`Push__PublicKey`, `Push__PrivateKey`, `Push__Subject`) as environment variables of the
+   site (or under `"Push"` in `appsettings.Production.json`) and restart the pool. Keep the private key secret and keep
+   the same pair for good: changing it silently switches off every phone's notifications.
+3. Each person opens the account menu on their phone and taps **Turn on notifications**, then allows the prompt.
+   Signing out stops notifications for that person on that phone.
+
+Without the three values the menu item is hidden and nothing is sent.
+
+## 8. First sign-in
 
 With the seed variables set, the first start creates the administrator. Sign in at `https://<your domain>`, change the
 password from the account menu, then **remove `Seed__AdminUsername` and `Seed__AdminPassword`** and recycle the pool.
 
-## 8. Automatic deploy on merge (GitHub Actions)
+## 9. Automatic deploy on merge (GitHub Actions)
 
 Merging a pull request into `master` runs `.github/workflows/ci.yml`: web checks, API tests, the IIS package, then the
 **Deploy to IIS** job. That job runs on a **self-hosted runner installed on the server**, so the server needs no
@@ -99,7 +123,7 @@ One-time setup:
 The job copies the release over the site (keeping `logs`), shows `app_offline.htm` meanwhile and fails the run if
 `/api/health` does not return `database: ok`. With `Database:MigrateOnStartup` on, the site applies new migrations when it starts after the deploy. Re-run a deploy from Actions > CI > Run workflow.
 
-## 9. Releasing an update by hand
+## 10. Releasing an update by hand
 
 1. Take a database backup (RDS snapshot or `BACKUP DATABASE`).
 2. Apply any new migrations (step 3).
@@ -110,7 +134,7 @@ The job copies the release over the site (keeping `logs`), shows `app_offline.ht
 **Rollback:** redeploy the previous release folder. Migrations are forward-only, so restore the backup if a migration
 must be undone.
 
-## 10. Operations
+## 11. Operations
 
 - Logs: `C:\inetpub\hr-payroll\logs\hrpayroll-*.log` (daily files). Every request line carries a correlation id.
 - Back up the database daily and test a restore. The finalised payroll months live there.

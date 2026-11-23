@@ -1,6 +1,7 @@
 using HrPayroll.Api.Auth;
 using HrPayroll.Api.Dtos;
 using HrPayroll.Api.Services;
+using HrPayroll.Api.Services.Push;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,7 +9,7 @@ namespace HrPayroll.Api.Controllers;
 
 [ApiController]
 [Route("api/attendance")]
-public sealed class AttendanceController(AttendanceService attendance, WageRedactor wages, AttendanceExportService exports) : ControllerBase
+public sealed class AttendanceController(AttendanceService attendance, WageRedactor wages, AttendanceExportService exports, IPushNotifier push) : ControllerBase
 {
     [HttpGet]
     [Authorize(Policy = Policies.AnyUser)]
@@ -16,7 +17,18 @@ public sealed class AttendanceController(AttendanceService attendance, WageRedac
 
     [HttpPut("{date}")]
     [Authorize(Policy = Policies.SupervisorOrAbove)]
-    public async Task<IActionResult> Put(string date, [FromBody] List<AttendanceRequest?> rows, CancellationToken ct) => Map(await attendance.SaveAsync(date, rows, ct));
+    public async Task<IActionResult> Put(string date, [FromBody] List<AttendanceRequest?> rows, CancellationToken ct)
+    {
+        var result = await attendance.SaveAsync(date, rows, ct);
+        // A supervisor sending entries for approval tells the managers there is something waiting.
+        if (result is { StatusCode: 200, SubmittedForApproval: > 0 })
+            await push.NotifyRolesAsync([Roles.Manager, Roles.Administrator],
+                new("Attendance submitted", $"{User.Identity?.Name} submitted attendance for {date} ({result.SubmittedForApproval} {(result.SubmittedForApproval == 1 ? "worker" : "workers")}).", "/attendance"), CurrentUserId(), ct);
+        return Map(result);
+    }
+
+    private int? CurrentUserId() =>
+        int.TryParse(User.FindFirst("sub")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id) ? id : null;
 
     [HttpDelete("{date}/{workerId:int}")]
     [Authorize(Policy = Policies.SupervisorOrAbove)]
@@ -29,8 +41,16 @@ public sealed class AttendanceController(AttendanceService attendance, WageRedac
 
     [HttpPost("{date}/reject")]
     [Authorize(Policy = Policies.ManagerOrAdmin)]
-    public async Task<IActionResult> Reject(string date, [FromBody] RejectAttendanceRequest? request, CancellationToken ct) =>
-        Map(await attendance.RejectAsync(date, request?.WorkerIds, request?.Reason, ct));
+    public async Task<IActionResult> Reject(string date, [FromBody] RejectAttendanceRequest? request, CancellationToken ct)
+    {
+        var result = await attendance.RejectAsync(date, request?.WorkerIds, request?.Reason, ct);
+        // Each supervisor whose entries were sent back hears why, so they can correct and resubmit.
+        if (result is { StatusCode: 200, RejectedBySubmitter: { } rejected })
+            foreach (var (username, count) in rejected)
+                await push.NotifyUsernameAsync(username,
+                    new("Attendance sent back", $"{date}: {count} {(count == 1 ? "entry was" : "entries were")} rejected. {request?.Reason?.Trim()}", "/attendance"), ct);
+        return Map(result);
+    }
 
     [HttpGet("{date}/export/pdf")]
     [Authorize(Policy = Policies.AnyUser)]
