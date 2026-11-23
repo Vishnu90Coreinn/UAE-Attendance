@@ -1,8 +1,8 @@
 namespace HrPayroll.Api.Auth;
 
 /// <summary>
-/// An account with the Employee role may use only its own sign-in, attendance and leave pages and the sign-in and password
-/// endpoints. Every other endpoint is refused before it reaches a controller, including those open to any signed-in user.
+/// An account with the Employee role may use only its own sign-in, attendance and leave pages and the sign-in, password and
+/// phone-notification endpoints. Every other endpoint is refused before it reaches a controller, including those open to any signed-in user.
 /// </summary>
 public sealed class EmployeeScopeMiddleware(RequestDelegate next)
 {
@@ -13,6 +13,7 @@ public sealed class EmployeeScopeMiddleware(RequestDelegate next)
             && !path.StartsWithSegments("/api/auth")
             && !path.StartsWithSegments("/api/staff/me")
             && !path.StartsWithSegments("/api/staff/punches")
+            && !path.StartsWithSegments("/api/push")
             && !path.StartsWithSegments("/api/health"))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;

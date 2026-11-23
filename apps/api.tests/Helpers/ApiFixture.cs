@@ -1,5 +1,8 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace HrPayroll.Api.Tests.Helpers;
 
@@ -7,10 +10,17 @@ namespace HrPayroll.Api.Tests.Helpers;
 /// One throw-away database and one API host shared by all tests in a class. Tests stay independent
 /// by creating their own uniquely named users.
 /// </summary>
-public sealed class ApiFixture : IAsyncLifetime
+public class ApiFixture : IAsyncLifetime
 {
     private readonly TestDatabase _database = new();
     private ApiFactory? _factory;
+    private WebApplicationFactory<Program>? _derived;
+
+    /// <summary>A fixture subclass adds settings here (for example push keys) before the host starts.</summary>
+    protected virtual IReadOnlyDictionary<string, string?> ExtraConfig => new Dictionary<string, string?>();
+
+    /// <summary>A fixture subclass replaces services here (for example a recording push sender).</summary>
+    protected virtual void ConfigureTestServices(IServiceCollection services) { }
 
     public string ConnectionString => _database.ConnectionString;
     public HttpClient Client { get; private set; } = null!;
@@ -20,15 +30,17 @@ public sealed class ApiFixture : IAsyncLifetime
         await _database.InitializeAsync();
         // The shared host sees far more sign-ins than one real client would in a minute, so the per-IP login
         // limit is raised well out of the way; LoginRateLimitTests covers the limiter itself.
-        _factory = new ApiFactory(
-            _database.ConnectionString,
-            new Dictionary<string, string?> { ["RateLimiting:LoginPerMinute"] = "100000" });
-        Client = _factory.CreateClient();
+        var config = new Dictionary<string, string?> { ["RateLimiting:LoginPerMinute"] = "100000" };
+        foreach (var (key, value) in ExtraConfig) config[key] = value;
+        _factory = new ApiFactory(_database.ConnectionString, config);
+        _derived = _factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(ConfigureTestServices));
+        Client = _derived.CreateClient();
     }
 
     public async Task DisposeAsync()
     {
         Client.Dispose();
+        if (_derived is not null) await _derived.DisposeAsync();
         if (_factory is not null)
         {
             await _factory.DisposeAsync();

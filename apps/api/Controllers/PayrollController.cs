@@ -1,6 +1,7 @@
 using HrPayroll.Api.Auth;
 using HrPayroll.Api.Dtos;
 using HrPayroll.Api.Services;
+using HrPayroll.Api.Services.Push;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,7 +10,7 @@ namespace HrPayroll.Api.Controllers;
 [ApiController]
 [TypeFilter(typeof(PayrollConflictFilter))]
 [Route("api/payroll")]
-public sealed class PayrollController(PayrollService payroll, PayrollPdf pdf, PayslipService payslips) : ControllerBase
+public sealed class PayrollController(PayrollService payroll, PayrollPdf pdf, PayslipService payslips, IPushNotifier push) : ControllerBase
 {
     [HttpGet]
     [Authorize(Policy = Policies.ManagerAdminOrHr)]
@@ -75,6 +76,10 @@ public sealed class PayrollController(PayrollService payroll, PayrollPdf pdf, Pa
         if (string.IsNullOrWhiteSpace(request.Revision)) return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
             { ["revision"] = ["Reload the report and provide its revision."] }));
         var result = await payroll.FinaliseAsync(start, request.Revision, ct);
+        // HR and the administrator are told when a month is closed; the person who closed it already knows.
+        if (result.StatusCode == 200)
+            await push.NotifyRolesAsync([Roles.HR, Roles.Administrator],
+                new("Payroll finalised", $"{month} payroll has been finalised.", "/payroll"), CurrentUserId(), ct);
         return result.StatusCode == 200 ? Ok(result.Report) : Problem(statusCode: 409, title: result.Message ?? "Payroll is already finalised or changed. Reload the report.");
     }
 
@@ -90,6 +95,9 @@ public sealed class PayrollController(PayrollService payroll, PayrollPdf pdf, Pa
         var result = await payroll.ReopenAsync(start, reason, ct);
         return result.StatusCode == 200 ? Ok(result.Report) : Problem(statusCode: 409, title: "Payroll is not finalised. Reload the report.");
     }
+
+    private int? CurrentUserId() =>
+        int.TryParse(User.FindFirst("sub")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id) ? id : null;
 
     private IActionResult InvalidMonth() => ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
         { ["month"] = ["Choose a valid month in YYYY-MM format (0001-01 to 9999-12)."] }));

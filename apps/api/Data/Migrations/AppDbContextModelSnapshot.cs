@@ -1080,6 +1080,45 @@ namespace HrPayroll.Api.Data.Migrations
                     b.ToTable("PublicHolidays");
                 });
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.PushDevice", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Auth")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasMaxLength(800)
+                        .HasColumnType("nvarchar(800)");
+
+                    b.Property<string>("P256dh")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Endpoint")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("PushDevices", (string)null);
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.SiteProgressFloor", b =>
                 {
                     b.Property<int>("Id")
@@ -1949,6 +1988,17 @@ namespace HrPayroll.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Period");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.PushDevice", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.SiteProgressFloor", b =>

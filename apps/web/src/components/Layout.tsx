@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Bell, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { COMPANY_NAME, SHORT_NAME } from "../branding";
+import { forgetDeviceOnSignOut } from "../push";
 import { getPayrollSettings, type PayrollSettings } from "../api/settings";
 import { isManagement, roleLabel } from "../permissions";
 import { useAuth } from "../contexts/AuthContext";
@@ -64,6 +65,7 @@ export function Layout() {
     : (attendanceSummary?.rejectedTotal ?? 0);
 
   function handleSignOut() {
+    forgetDeviceOnSignOut();
     logout();
     navigate("/login", { replace: true });
   }
