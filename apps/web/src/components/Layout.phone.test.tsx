@@ -19,7 +19,7 @@ type TestRole = authApi.CurrentUser["role"];
 
 /** Renders the Layout as it appears on a phone, under the real AuthProvider with a restored session. */
 async function renderPhone(role: TestRole = "Manager", username = "mgr.sam", initialPath = "/workers") {
-  sessionStorage.setItem(TOKEN_STORAGE_KEY, "stored-tok");
+  localStorage.setItem(TOKEN_STORAGE_KEY, "stored-tok");
   vi.mocked(authApi.getMe).mockResolvedValue({ id: 1, username, role });
   render(
     <MemoryRouter initialEntries={[initialPath]}>
@@ -38,7 +38,7 @@ async function renderPhone(role: TestRole = "Manager", username = "mgr.sam", ini
 }
 
 beforeEach(() => {
-  sessionStorage.clear();
+  localStorage.clear();
   mockViewport("phone");
   vi.mocked(settingsApi.getPayrollSettings).mockResolvedValue({
     companyName: "Gulf Glass LLC",
@@ -163,7 +163,7 @@ describe("Layout on a phone", () => {
     await user.click(await screen.findByRole("button", { name: "Sign out" }));
 
     expect(await screen.findByText("login screen")).toBeInTheDocument();
-    expect(sessionStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
   });
 
   it("opens the change-password dialog from the account menu", async () => {

@@ -34,7 +34,7 @@ async function renderLayout(
   username = "admin",
   initialPath = "/workers",
 ) {
-  sessionStorage.setItem(TOKEN_STORAGE_KEY, "stored-tok");
+  localStorage.setItem(TOKEN_STORAGE_KEY, "stored-tok");
   vi.mocked(authApi.getMe).mockResolvedValue({ id: 1, username, role });
 
   render(
@@ -62,7 +62,7 @@ function tabLabels() {
 }
 
 beforeEach(() => {
-  sessionStorage.clear();
+  localStorage.clear();
   vi.mocked(settingsApi.getPayrollSettings).mockResolvedValue({
     companyName: COMPANY_NAME,
     tagline: "Official HR & Payroll System",
@@ -242,7 +242,7 @@ describe("Layout", () => {
 
     expect(await screen.findByText("login screen")).toBeInTheDocument();
     expect(screen.queryByText("page content")).not.toBeInTheDocument();
-    expect(sessionStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
   });
 
   it("opens the change-password dialog from the header button", async () => {

@@ -66,7 +66,7 @@ public class LoginEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
 
         var expires = DateTimeOffset.FromUnixTimeSeconds(payload.GetProperty("exp").GetInt64()).UtcDateTime;
         var lifetime = expires - DateTime.UtcNow;
-        Assert.InRange(lifetime, TimeSpan.FromHours(8) - TimeSpan.FromMinutes(2), TimeSpan.FromHours(8) + TimeSpan.FromMinutes(1));
+        Assert.InRange(lifetime, TimeSpan.FromHours(168) - TimeSpan.FromMinutes(2), TimeSpan.FromHours(168) + TimeSpan.FromMinutes(1));
         Assert.True(Math.Abs((body.GetProperty("expiresUtc").GetDateTime().ToUniversalTime() - expires).TotalSeconds) < 2);
     }
 

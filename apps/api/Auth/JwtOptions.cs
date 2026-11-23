@@ -9,5 +9,5 @@ public sealed class JwtOptions
     public string Issuer { get; set; } = "";
     public string Audience { get; set; } = "";
     public string Key { get; set; } = "";
-    public double ExpiryHours { get; set; } = 8;
+    public double ExpiryHours { get; set; } = 168;
 }

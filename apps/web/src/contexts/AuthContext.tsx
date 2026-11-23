@@ -20,10 +20,10 @@ export interface AuthContextValue extends AuthState {
 
 const SIGNED_OUT: AuthState = { status: "signedOut", user: null, token: null };
 
-// sessionStorage can throw (blocked storage, private modes), so every access is guarded.
+// localStorage keeps the user signed in across app restarts (installed phone app); it can throw (blocked storage, private modes), so every access is guarded.
 function readStoredToken(): string | null {
   try {
-    return sessionStorage.getItem(TOKEN_STORAGE_KEY);
+    return localStorage.getItem(TOKEN_STORAGE_KEY);
   } catch {
     return null;
   }
@@ -32,9 +32,9 @@ function readStoredToken(): string | null {
 function storeToken(token: string | null): void {
   try {
     if (token) {
-      sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
+      localStorage.setItem(TOKEN_STORAGE_KEY, token);
     } else {
-      sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
     }
   } catch {
     // The in-memory token still works for this page load.

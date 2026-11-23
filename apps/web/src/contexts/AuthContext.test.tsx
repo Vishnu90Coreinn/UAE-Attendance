@@ -32,7 +32,7 @@ function renderProvider() {
 }
 
 beforeEach(() => {
-  sessionStorage.clear();
+  localStorage.clear();
   vi.mocked(authApi.login).mockResolvedValue({
     token: "tok-1",
     expiresUtc: "2026-10-20T20:00:00Z",
@@ -55,7 +55,7 @@ describe("AuthProvider", () => {
     expect(authApi.getMe).not.toHaveBeenCalled();
   });
 
-  it("login stores the token, mirrors it to sessionStorage and signs in", async () => {
+  it("login stores the token, mirrors it to localStorage and signs in", async () => {
     const user = userEvent.setup();
     renderProvider();
 
@@ -65,7 +65,7 @@ describe("AuthProvider", () => {
     expect(authApi.login).toHaveBeenCalledWith("admin", "pw");
     expect(screen.getByTestId("user")).toHaveTextContent("admin (Administrator)");
     expect(screen.getByTestId("token")).toHaveTextContent("tok-1");
-    expect(sessionStorage.getItem(TOKEN_STORAGE_KEY)).toBe("tok-1");
+    expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBe("tok-1");
   });
 
   it("login failure leaves the user signed out and rethrows", async () => {
@@ -84,7 +84,7 @@ describe("AuthProvider", () => {
     await expect(captured!.login("admin", "bad")).rejects.toThrow("Invalid username or password.");
 
     expect(captured!.status).toBe("signedOut");
-    expect(sessionStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
   });
 
   it("logout clears the state and the stored token", async () => {
@@ -98,11 +98,11 @@ describe("AuthProvider", () => {
     expect(screen.getByTestId("status")).toHaveTextContent("signedOut");
     expect(screen.getByTestId("user")).toHaveTextContent("none");
     expect(screen.getByTestId("token")).toHaveTextContent("none");
-    expect(sessionStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
   });
 
   it("restores a stored token by validating it with getMe", async () => {
-    sessionStorage.setItem(TOKEN_STORAGE_KEY, "stored-tok");
+    localStorage.setItem(TOKEN_STORAGE_KEY, "stored-tok");
     renderProvider();
 
     expect(screen.getByTestId("status")).toHaveTextContent("loading");
@@ -113,7 +113,7 @@ describe("AuthProvider", () => {
   });
 
   it("sends the restored token with API calls", async () => {
-    sessionStorage.setItem(TOKEN_STORAGE_KEY, "stored-tok");
+    localStorage.setItem(TOKEN_STORAGE_KEY, "stored-tok");
     const fetchMock = vi.fn().mockResolvedValue(
       new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }),
     );
@@ -128,12 +128,12 @@ describe("AuthProvider", () => {
   });
 
   it("discards a stored token the server rejects", async () => {
-    sessionStorage.setItem(TOKEN_STORAGE_KEY, "stale-tok");
+    localStorage.setItem(TOKEN_STORAGE_KEY, "stale-tok");
     vi.mocked(authApi.getMe).mockRejectedValue(new ApiError(401, "Unauthorized"));
     renderProvider();
 
     await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("signedOut"));
-    expect(sessionStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
     expect(screen.getByTestId("token")).toHaveTextContent("none");
   });
 
@@ -157,10 +157,10 @@ describe("AuthProvider", () => {
     });
 
     expect(screen.getByTestId("status")).toHaveTextContent("signedOut");
-    expect(sessionStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
   });
 
-  it("still works when sessionStorage throws", async () => {
+  it("still works when localStorage throws", async () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("blocked");
     });
