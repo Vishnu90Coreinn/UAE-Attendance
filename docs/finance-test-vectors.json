@@ -1,0 +1,39 @@
+{
+  "description": "Shared by the xUnit FinanceCalculatorTests (and later the web finance tests) so the browser and the server cannot drift. Money is AED with 2 decimals. Balance = opening + income - expense + transfers in - transfers out; voided rows count nowhere; a transfer is never income or expense.",
+  "balances": [
+    { "name": "opening only", "opening": 1000.00, "movements": [], "balance": 1000.00 },
+    { "name": "income and expense", "opening": 1000.00, "movements": [
+        { "type": "income", "amount": 250.50 }, { "type": "expense", "amount": 100.25 } ], "balance": 1150.25 },
+    { "name": "transfer out lowers the source only", "opening": 500.00, "movements": [
+        { "type": "transferOut", "amount": 200.00 } ], "balance": 300.00 },
+    { "name": "transfer in raises the target only", "opening": 0.00, "movements": [
+        { "type": "transferIn", "amount": 200.00 } ], "balance": 200.00 },
+    { "name": "voided rows are ignored", "opening": 100.00, "movements": [
+        { "type": "expense", "amount": 40.00, "voided": true }, { "type": "income", "amount": 15.00, "voided": true },
+        { "type": "transferOut", "amount": 10.00, "voided": true }, { "type": "expense", "amount": 5.00 } ], "balance": 95.00 },
+    { "name": "overdrawn account goes negative", "opening": 100.00, "movements": [
+        { "type": "expense", "amount": 150.75 } ], "balance": -50.75 },
+    { "name": "many small amounts add exactly", "opening": 0.00, "movements": [
+        { "type": "income", "amount": 0.10 }, { "type": "income", "amount": 0.20 }, { "type": "expense", "amount": 0.30 } ], "balance": 0.00 }
+  ],
+  "periods": [
+    { "name": "transfers are not income or expense", "movements": [
+        { "type": "income", "amount": 1000.00 }, { "type": "expense", "amount": 400.50 },
+        { "type": "transferIn", "amount": 999.00 }, { "type": "transferOut", "amount": 999.00 } ],
+      "income": 1000.00, "expense": 400.50, "net": 599.50 },
+    { "name": "voided rows are left out", "movements": [
+        { "type": "income", "amount": 300.00 }, { "type": "income", "amount": 700.00, "voided": true },
+        { "type": "expense", "amount": 50.00, "voided": true } ],
+      "income": 300.00, "expense": 0.00, "net": 300.00 },
+    { "name": "spending beats income", "movements": [
+        { "type": "income", "amount": 10.00 }, { "type": "expense", "amount": 25.40 } ],
+      "income": 10.00, "expense": 25.40, "net": -15.40 }
+  ],
+  "money": [
+    { "value": 12.5, "valid": true },
+    { "value": 12.55, "valid": true },
+    { "value": 12.555, "valid": false },
+    { "value": 0, "valid": true },
+    { "value": 999999999.99, "valid": true }
+  ]
+}

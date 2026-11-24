@@ -9,6 +9,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { TextField } from "../../components/TextField";
 import { CompanyDocumentsCard } from "./CompanyDocumentsCard";
+import { FinanceCategoriesCard } from "../finance/FinanceCategoriesCard";
 import { StaffSettingsCard } from "../staff/StaffSettingsCard";
 import { LoadError, primaryButtonClass, SuccessRegion } from "../workers/WorkersFeedback";
 import {
@@ -39,7 +40,7 @@ function SectionNav({ showStaff }: { showStaff: boolean }) {
     ["payroll", "Payroll"],
     ["signatures", "Signatures"],
     ["documents", "Documents"],
-    ...(showStaff ? ([["office-staff", "Office staff"]] as [string, string][]) : []),
+    ...(showStaff ? ([["office-staff", "Office staff"], ["finance", "Finance"]] as [string, string][]) : []),
   ];
   const [active, setActive] = useState("company");
   useEffect(() => {
@@ -343,6 +344,11 @@ export function SettingsPage() {
         <CompanyDocumentsCard readOnly={readOnly} />
       </div>
       {!readOnly && <StaffSettingsCard />}
+      {!readOnly && (
+        <div id="finance" className="max-w-4xl scroll-mt-20">
+          <FinanceCategoriesCard />
+        </div>
+      )}
     </section>
   );
 }

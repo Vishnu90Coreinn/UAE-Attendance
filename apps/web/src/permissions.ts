@@ -24,6 +24,9 @@ export function canViewAll(role: Role | undefined): boolean {
 
 export const VIEW_ALL_ROLES: readonly Role[] = ["Administrator", "Manager", "HR", "Viewer"];
 
+/** Expense and income tracking: Managers and Administrators edit; the Partner reads. HR, Supervisors and Employees have no access. */
+export const FINANCE_ROLES: readonly Role[] = ["Administrator", "Manager", "Viewer"];
+
 /** Who opens User Manager and Settings: only the two who manage them. A Partner and HR have neither. */
 export const ADMIN_SCREEN_ROLES: readonly Role[] = ["Administrator", "Manager"];
 

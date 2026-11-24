@@ -82,6 +82,10 @@ builder.Services.AddScoped<LeaveExportService>();
 builder.Services.AddScoped<PayslipService>();
 builder.Services.AddScoped<DeductionService>();
 builder.Services.AddScoped<IPayrollPeriodLock, PayrollPeriodLock>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceRedactor>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceAccountService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceCategoryService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceTransferService>();
 
 // Phase 3: office employees (QTN-HR-2026-005), stages 1 and 2.
 builder.Services.AddScoped<HrPayroll.Api.Services.Staff.StaffSettingsService>();
@@ -158,7 +162,8 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy(Policies.AnyUser, policy => policy.RequireAuthenticatedUser())
     .AddPolicy(Policies.SiteProgressAccess, policy => policy.RequireAuthenticatedUser().RequireAssertion(context => !context.User.IsInRole(Roles.HR)))
     .AddPolicy(Policies.ManagerOrAdmin,policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager))
-    .AddPolicy(Policies.ManagerAdminOrHr, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager, Roles.HR))
+    .AddPolicy(Policies.Finance, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager))
+    .AddPolicy(Policies.ManagerAdminOrHr,policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager, Roles.HR))
     .AddPolicy(Policies.SupervisorOrAbove, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager, Roles.Supervisor))
     .AddPolicy(Policies.HrOrAdmin, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.HR))
     .AddPolicy(Policies.AdminOnly, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator))

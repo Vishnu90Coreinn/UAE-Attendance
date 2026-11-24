@@ -41,6 +41,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<StaffLeaveAttachment> StaffLeaveAttachments => Set<StaffLeaveAttachment>();
     public DbSet<PushDevice> PushDevices => Set<PushDevice>();
 
+    // Expense and income tracking (Phase 3, stage 3).
+    public DbSet<FinAccount> FinAccounts => Set<FinAccount>();
+    public DbSet<FinCategory> FinCategories => Set<FinCategory>();
+    public DbSet<FinEntry> FinEntries => Set<FinEntry>();
+    public DbSet<FinTransfer> FinTransfers => Set<FinTransfer>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 }

@@ -18,6 +18,9 @@ public static class Policies
     /// <summary>Any signed-in user except HR: Site Progress is not part of an HR account's access.</summary>
     public const string SiteProgressAccess = "SiteProgressAccess";
 
+    /// <summary>Manager or Administrator edit expense and income tracking; the read-only Partner (Viewer) reads. HR, Supervisor and Employee have no access.</summary>
+    public const string Finance = "Finance";
+
     /// <summary>HR or Administrator: preparing certificate details for approval.</summary>
     public const string HrOrAdmin = "HrOrAdmin";
 }
