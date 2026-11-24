@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { CircleCheck } from "lucide-react";
+import { CircleAlert, CircleCheck } from "lucide-react";
 
 /**
  * A short confirmation floating just above the tab bar. A saved day or report is confirmed where the thumb and the eye
@@ -10,12 +10,15 @@ export function PhoneToast({
   message,
   action,
   lift = false,
+  error = false,
   onDone,
 }: {
   message: string | null;
   action?: { label: string; onClick: () => void };
   /** True while a save bar is showing, so the toast sits above it instead of on top of it. */
   lift?: boolean;
+  /** True when the message reports a failure: an alert icon instead of a tick. */
+  error?: boolean;
   /** Called when the toast has been up long enough; the page clears its message. */
   onDone: () => void;
 }) {
@@ -36,7 +39,7 @@ export function PhoneToast({
         lift ? "bottom-[calc(9.25rem+env(safe-area-inset-bottom))]" : "bottom-[calc(4.75rem+env(safe-area-inset-bottom))]"
       }`}
     >
-      {!action && <CircleCheck aria-hidden="true" size={18} className="shrink-0 text-brand-300" />}
+      {!action && (error ? <CircleAlert aria-hidden="true" size={18} className="shrink-0 text-amber-300" /> : <CircleCheck aria-hidden="true" size={18} className="shrink-0 text-brand-300" />)}
       <span className="min-w-0 flex-1 py-2.5">{message}</span>
       {action && (
         <button

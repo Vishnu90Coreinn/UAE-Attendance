@@ -47,11 +47,18 @@ describe("SelfieDialog on a phone", () => {
     expect(onConfirm).toHaveBeenCalledWith("abc", expect.objectContaining({ ok: true }));
   });
 
-  it("offers Try again when the camera is blocked", async () => {
+  it("offers Try again when the camera is blocked, and not when the address is not secure", async () => {
+    vi.mocked(selfie.cameraAvailable).mockReturnValue(true);
+    Object.defineProperty(navigator, "mediaDevices", { value: { getUserMedia: vi.fn().mockRejectedValue(new Error("denied")) }, configurable: true });
+    const { unmount } = render(<SelfieDialog kind="Out" onCancel={vi.fn()} onConfirm={vi.fn()} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/blocked/);
+    expect(screen.getByRole("button", { name: /Try again/ })).toBeInTheDocument();
+    unmount();
+
     vi.mocked(selfie.cameraAvailable).mockReturnValue(false);
     render(<SelfieDialog kind="Out" onCancel={vi.fn()} onConfirm={vi.fn()} />);
-
     expect(await screen.findByRole("alert")).toHaveTextContent(/secure/);
-    expect(screen.getByRole("button", { name: /Try again/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Try again/ })).not.toBeInTheDocument();
   });
 });

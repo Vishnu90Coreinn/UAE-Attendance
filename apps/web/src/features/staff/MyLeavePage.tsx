@@ -76,6 +76,7 @@ export function MyLeavePage() {
   }
 
   async function sendFromPhone(input: Parameters<typeof requestLeave>[0]) {
+    setFailure(null);
     try {
       await requestLeave(input);
     } catch (e) {
@@ -86,12 +87,13 @@ export function MyLeavePage() {
   }
 
   async function cancelFromPhone(request: StaffLeave) {
+    setFailure(null);
     try {
       await cancelMyLeave(request.id);
       setSuccess("Leave request cancelled.");
       await load();
     } catch (e) {
-      setSuccess(errorText(e));
+      setFailure(errorText(e));
     }
   }
 
@@ -105,7 +107,7 @@ export function MyLeavePage() {
     return (
       <>
         <MyLeavePhone data={data} onSend={sendFromPhone} onCancel={cancelFromPhone} />
-        <PhoneToast message={success} onDone={() => setSuccess(null)} />
+        <PhoneToast message={failure ?? success} error={failure !== null} onDone={() => (failure ? setFailure(null) : setSuccess(null))} />
       </>
     );
   }

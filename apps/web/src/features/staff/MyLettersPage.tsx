@@ -79,6 +79,7 @@ export function MyLettersPage() {
   }
 
   async function sendFromPhone(letterType: string, why: string) {
+    setFailure(null);
     try {
       await requestMyLetter(letterType, why);
     } catch (e) {
@@ -95,7 +96,7 @@ export function MyLettersPage() {
     return (
       <>
         <MyLettersPhone requests={requests} busyId={busyId} onSend={sendFromPhone} onDownload={(r) => void download(r)} />
-        <PhoneToast message={failure ?? success} onDone={() => (failure ? setFailure(null) : setSuccess(null))} />
+        <PhoneToast message={failure ?? success} error={failure !== null} onDone={() => (failure ? setFailure(null) : setSuccess(null))} />
       </>
     );
   }

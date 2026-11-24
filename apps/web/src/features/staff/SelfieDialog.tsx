@@ -110,13 +110,15 @@ export function SelfieDialog({ kind, onCancel, onConfirm }: Props) {
       <p className="mt-1 text-sm text-ink-600">
         {shot ? "Is your face clear? If not, take it again." : "Face the camera in good light. Your location is recorded with the photo."}
       </p>
-      <div className={`mt-4 overflow-hidden border border-line bg-ink-900 ${frame}`}>
+      <div className={`relative mt-4 overflow-hidden border border-line bg-ink-900 ${frame}`}>
         {cameraError ? (
           <div role="alert" className="flex min-h-44 flex-col items-center justify-center gap-3 p-5 text-center text-sm text-white">
             {cameraError}
-            <button type="button" onClick={() => setAttempt((n) => n + 1)} className={phoneButton("secondary", "sm")}>
-              <RotateCcw aria-hidden="true" size={16} /> Try again
-            </button>
+            {cameraAvailable() && (
+              <button type="button" onClick={() => setAttempt((n) => n + 1)} className={phoneButton("secondary", "sm")}>
+                <RotateCcw aria-hidden="true" size={16} /> Try again
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -126,9 +128,9 @@ export function SelfieDialog({ kind, onCancel, onConfirm }: Props) {
               muted
               aria-label="Camera preview"
               onPlaying={() => setReady(true)}
-              className={`size-full -scale-x-100 object-cover ${shot ? "hidden" : ""}`}
+              className="size-full -scale-x-100 object-cover"
             />
-            {shot && <img src={`data:image/jpeg;base64,${shot}`} alt="Your selfie" className="size-full object-cover" />}
+            {shot && <img src={`data:image/jpeg;base64,${shot}`} alt="Your selfie" className="absolute inset-0 size-full object-cover" />}
           </>
         )}
       </div>
