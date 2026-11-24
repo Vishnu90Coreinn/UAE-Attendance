@@ -16,7 +16,7 @@ export type ProfileTab = "overview" | "pay" | "onboarding" | "leave";
 const focusRing = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500";
 
 /** One labelled value in a group: the label at the left, the value at the right, so a group reads down like a settings list. */
-function Row({ label, children, center = false }: { label: string; children?: ReactNode; center?: boolean }) {
+export function Row({ label, children, center = false }: { label: string; children?: ReactNode; center?: boolean }) {
   return (
     <div className={`flex ${center ? "items-center" : "items-start"} justify-between gap-4 py-3.5`}>
       <dt className="shrink-0 text-sm text-ink-600">{label}</dt>
@@ -28,7 +28,7 @@ function Row({ label, children, center = false }: { label: string; children?: Re
 }
 
 /** A titled group of rows in one card. */
-function Group({ title, children }: { title: string; children: ReactNode }) {
+export function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section aria-label={title} className="space-y-2">
       <h3 className="px-1 text-sm font-bold text-ink-700">{title}</h3>
@@ -41,7 +41,7 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
  * A document or account number, hidden until asked for: only the last four characters show. A glance over a supervisor's
  * shoulder on site should not read an Emirates ID, a passport or a bank account.
  */
-function Secret({ label, value }: { label: string; value: string | null | undefined }) {
+export function Secret({ label, value }: { label: string; value: string | null | undefined }) {
   const [shown, setShown] = useState(false);
   if (!value) return <Row label={label} />;
   const masked = `•••• ${value.slice(-4)}`;
