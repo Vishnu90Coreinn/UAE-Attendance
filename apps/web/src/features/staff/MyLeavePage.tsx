@@ -56,7 +56,7 @@ export function MyLeavePage() {
     setFailure(null);
     setSuccess(null);
     try {
-      await requestLeave({ leaveTypeId: Number(typeId), startDate: start, endDate: end, reason, ...(document ? { attachmentBase64: document.base64 } : {}) });
+      await requestLeave({ leaveTypeId: Number(typeId), startDate: start, endDate: end, reason, ...(needsDocument && document ? { attachmentBase64: document.base64 } : {}) });
       setReason("");
       setDocument(null);
       setSuccess("Leave request sent to your manager.");
@@ -127,15 +127,17 @@ export function MyLeavePage() {
           <div className="sm:col-span-2">
             <Textarea label="Reason" rows={2} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
           </div>
-          <div className="sm:col-span-2">
-            <DocumentPicker
-              value={document}
-              onChange={setDocument}
-              required={needsDocument}
-              label={needsDocument ? `${selectedType?.name}: document` : "Supporting document"}
-              hint={needsDocument ? "Required. Attach your doctor's certificate or sick note. Your manager opens it when deciding." : "Attach a document if it supports your request."}
-            />
-          </div>
+          {needsDocument && (
+            <div className="sm:col-span-2">
+              <DocumentPicker
+                value={document}
+                onChange={setDocument}
+                required
+                label={`${selectedType?.name}: document`}
+                hint="Required. Attach your doctor's certificate or sick note. Your manager opens it when deciding."
+              />
+            </div>
+          )}
           <div className="sm:col-span-2">
             {failure && <ActionFailure message={failure} />}
             <SuccessRegion message={success} />

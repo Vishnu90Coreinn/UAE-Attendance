@@ -33,7 +33,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 /** Manager and Administrator home: headline figures, attendance and payroll charts, and what is waiting on them. */
 export function DashboardPage() {
   const { user } = useAuth();
-  const { trend, waiting, leave, payroll, staff, staffLeave, invoices, updatedAt, refreshing, refresh } = useDashboardData();
+  const { trend, waiting, leave, payroll, staffPayroll, staff, staffLeave, invoices, updatedAt, refreshing, refresh } = useDashboardData();
   const manager = isManagement(user?.role);
   const waitingCount =
     (waiting.status === "ready" ? waiting.value.submitted.length : 0) +
@@ -117,7 +117,7 @@ export function DashboardPage() {
 
         <div className="grid gap-px border-t border-ink-300 bg-ink-200 md:grid-cols-3">
           <div className="bg-white"><OfficeToday state={staff} /></div>
-          <div className="bg-white"><Payroll state={payroll} /></div>
+          <div className="bg-white"><Payroll state={payroll} staffState={staffPayroll} /></div>
           <div className="bg-white"><Invoices state={invoices} /></div>
         </div>
       </div>
