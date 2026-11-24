@@ -5,7 +5,7 @@ import type { AttendanceSummary } from "../../api/attendance";
 import type { LeaveRequest } from "../../api/leave";
 import type { InvoiceSummary } from "../../api/invoices";
 import type { PayrollReport } from "../../api/payroll";
-import type { StaffDashboard, StaffLeave } from "../../api/staff";
+import type { StaffDashboard, StaffLeave, StaffPayrollSummary } from "../../api/staff";
 import type { Load, TrendDay } from "./useDashboardData";
 
 /**
@@ -618,16 +618,35 @@ export function OfficeToday({ state }: { state: Load<StaffDashboard> }) {
   );
 }
 
-/** The month's site payroll read left to right as the sum it is, then who earns most. */
-export function Payroll({ state }: { state: Load<PayrollReport> }) {
-  const report = state.status === "ready" ? state.value : null;
+/** The month's payroll (site workers plus office employees) read left to right as the sum it is, then who earns most. */
+export function Payroll({ state, staffState }: { state: Load<PayrollReport>; staffState?: Load<StaffPayrollSummary> }) {
+  const workers = state.status === "ready" ? state.value : null;
+  const office = staffState?.status === "ready" ? staffState.value : null;
+  const loading = state.status === "loading" || staffState?.status === "loading";
+  const failed = !loading && (state.status === "error" || staffState?.status === "error");
+  const ready = !!workers && (!staffState || !!office);
+  const lines = ready
+    ? [
+        ...workers.lines.map((l) => ({ name: l.workerName, netPay: l.netPay })),
+        ...(office?.rows ?? []).map((r) => ({ name: r.name, netPay: r.netSalary })),
+      ]
+    : [];
+  const report = ready ? { period: workers.period, status: workers.status, lines } : null;
   const earners = report ? [...report.lines].filter((l) => l.netPay > 0).sort((a, b) => b.netPay - a.netPay).slice(0, 3) : [];
   const top = earners[0]?.netPay ?? 1;
-  const terms = report
+  const totals = ready
+    ? {
+        basicPay: workers.totals.basicPay + (office?.totalSalary ?? 0),
+        overtimePay: workers.totals.overtimePay,
+        totalDeductions: workers.totals.totalDeductions + (office?.totalDeductions ?? 0),
+        netPay: workers.totals.netPay + (office?.totalNet ?? 0),
+      }
+    : null;
+  const terms = totals
     ? [
-        { label: "Basic pay", value: report.totals.basicPay, sign: "" },
-        { label: "Overtime", value: report.totals.overtimePay, sign: "+" },
-        { label: "Deductions", value: report.totals.totalDeductions, sign: "−" },
+        { label: "Basic pay", value: totals.basicPay, sign: "" },
+        { label: "Overtime", value: totals.overtimePay, sign: "+" },
+        { label: "Deductions", value: totals.totalDeductions, sign: "−" },
       ]
     : [];
   return (
@@ -640,8 +659,8 @@ export function Payroll({ state }: { state: Load<PayrollReport> }) {
         </Link>
       }
     >
-      {state.status === "loading" && <Skeleton height={160} />}
-      {state.status === "error" && <Failed />}
+      {loading && <Skeleton height={160} />}
+      {failed && <Failed />}
       {report && report.lines.length === 0 && <p className="text-sm text-ink-600">No payroll lines for this month yet.</p>}
       {report && report.lines.length > 0 && (
         <div className="space-y-3">
@@ -660,7 +679,7 @@ export function Payroll({ state }: { state: Load<PayrollReport> }) {
                 <span aria-hidden="true" className="pb-0.5 text-lg text-ink-400">=</span>
                 <div>
                   <dt className="text-xs font-semibold text-brand-700">Net payroll (AED)</dt>
-                  <dd className="text-2xl font-semibold tabular-nums text-ink-900">{money.format(report.totals.netPay)}</dd>
+                  <dd className="text-2xl font-semibold tabular-nums text-ink-900">{money.format(totals!.netPay)}</dd>
                 </div>
               </div>
             </dl>
@@ -672,8 +691,8 @@ export function Payroll({ state }: { state: Load<PayrollReport> }) {
             ) : (
               <ol className="space-y-1.5">
                 {earners.map((line) => (
-                  <li key={line.workerName} className="grid grid-cols-[minmax(0,8.5rem)_1fr_auto] items-center gap-3 text-sm">
-                    <span className="truncate text-ink-800">{line.workerName}</span>
+                  <li key={line.name} className="grid grid-cols-[minmax(0,8.5rem)_1fr_auto] items-center gap-3 text-sm">
+                    <span className="truncate text-ink-800">{line.name}</span>
                     <span aria-hidden="true" className="h-1.5 rounded-sm bg-ink-100">
                       <span className="block h-full rounded-sm bg-brand-500" style={{ width: `${(line.netPay / top) * 100}%` }} />
                     </span>

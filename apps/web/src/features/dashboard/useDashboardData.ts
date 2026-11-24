@@ -7,7 +7,7 @@ import {
 import { listLeave, type LeaveRequest } from "../../api/leave";
 import { listInvoices, type InvoiceSummary } from "../../api/invoices";
 import { getPayroll, type PayrollReport } from "../../api/payroll";
-import { getStaffDashboard, listStaffLeave, type StaffDashboard, type StaffLeave } from "../../api/staff";
+import { getStaffDashboard, getStaffPayroll, listStaffLeave, type StaffDashboard, type StaffLeave, type StaffPayrollSummary } from "../../api/staff";
 
 export type Load<T> =
   { status: "loading" } | { status: "error" } | { status: "ready"; value: T };
@@ -86,6 +86,8 @@ export interface DashboardData {
   waiting: Load<AttendanceSummary>;
   leave: Load<LeaveRequest[]>;
   payroll: Load<PayrollReport>;
+  /** Office employees' payroll for the same month; added to the site payroll on the dashboard. */
+  staffPayroll: Load<StaffPayrollSummary>;
   /** Office employees today: signed in, late, absent, on leave. */
   staff: Load<StaffDashboard>;
   staffLeave: Load<StaffLeave[]>;
@@ -97,7 +99,7 @@ export interface DashboardData {
   refresh: () => void;
 }
 
-const LOADS = 7;
+const LOADS = 8;
 
 export function useDashboardData(): DashboardData {
   const { date, month } = dubaiToday();
@@ -119,6 +121,7 @@ export function useDashboardData(): DashboardData {
   const waiting = useLoad(() => getAttendanceSummary(), version, settled);
   const leave = useLoad(() => listLeave({ status: "Pending" }), version, settled);
   const payroll = useLoad(() => getPayroll(month), version, settled);
+  const staffPayroll = useLoad(() => getStaffPayroll(month), version, settled);
   const staff = useLoad(() => getStaffDashboard(), version, settled);
   const staffLeave = useLoad(() => listStaffLeave({ status: "Pending" }), version, settled);
   const invoices = useLoad(() => listInvoices(), version, settled);
@@ -128,5 +131,5 @@ export function useDashboardData(): DashboardData {
     setRefreshing(true);
     setVersion((v) => v + 1);
   };
-  return { trend, waiting, leave, payroll, staff, staffLeave, invoices, updatedAt, refreshing, refresh };
+  return { trend, waiting, leave, payroll, staffPayroll, staff, staffLeave, invoices, updatedAt, refreshing, refresh };
 }
