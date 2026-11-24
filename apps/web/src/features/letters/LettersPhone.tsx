@@ -158,7 +158,7 @@ export function NewRequestSheet({
   const [letterType, setLetterType] = useState<LetterType | "">("");
   const [reason, setReason] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [failure, setFailure] = useState<string | null>(loadFailure);
+  const [failure, setFailure] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   async function submit(event: FormEvent) {
@@ -232,7 +232,7 @@ export function NewRequestSheet({
           {errors.reason && <p className="text-sm text-red-700">{errors.reason}</p>}
         </div>
 
-        {failure && <ActionFailure message={failure} />}
+        {(failure ?? loadFailure) && <ActionFailure message={(failure ?? loadFailure) as string} />}
 
         <div className="sticky bottom-0 -mx-5 flex gap-2 border-t border-line bg-white px-5 pb-1 pt-3">
           <button

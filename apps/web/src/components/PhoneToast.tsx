@@ -20,12 +20,13 @@ export function PhoneToast({
   onDone: () => void;
 }) {
   const done = useRef(onDone);
+  const hasAction = Boolean(action);
   done.current = onDone;
   useEffect(() => {
     if (!message) return;
-    const timer = window.setTimeout(() => done.current(), action ? 8000 : 5000);
+    const timer = window.setTimeout(() => done.current(), hasAction ? 8000 : 5000);
     return () => window.clearTimeout(timer);
-  }, [message, action]);
+  }, [message, hasAction]);
 
   if (!message) return null;
   return (

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle2, ChevronDown, CircleDashed, Clock, Loader, Lock, LockOpen, Minus, Pencil, Plus, Save, Send, Trash2, Undo2, XCircle, type LucideIcon } from "lucide-react";
 import {
   ALIGNMENT_OPTIONS,
@@ -187,12 +187,12 @@ interface FloorAccordionProps {
  * and the site note. Updating a floor and saying why is one visit, with no second form. One floor is open at a time.
  */
 export function FloorAccordion({ rows, canEdit, canLock, onChange, onEdit, onDelete, onNoteFocus }: FloorAccordionProps) {
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [openName, setOpenName] = useState<string | null>(null);
   return (
     <ul aria-label="Floors" className="divide-y divide-ink-100 overflow-hidden rounded-3xl border border-line bg-white shadow-card">
       {rows.map((row) => {
         const f = row.floor;
-        const open = openIndex === row.index;
+        const open = openName === f.floor;
         const editable = canEdit && !f.isLocked;
         const panelId = `floor-panel-${row.index}`;
         const menuItems = [
@@ -205,7 +205,7 @@ export function FloorAccordion({ rows, canEdit, canLock, onChange, onEdit, onDel
                   icon: Trash2,
                   danger: true,
                   onSelect: () => {
-                    setOpenIndex(null);
+                    setOpenName(null);
                     onDelete(row.index);
                   },
                 },
@@ -221,7 +221,7 @@ export function FloorAccordion({ rows, canEdit, canLock, onChange, onEdit, onDel
               aria-label={`${f.floor}${f.isLocked ? " (locked)" : ""}`}
               onClick={(event) => {
                 const item = event.currentTarget.closest("li");
-                setOpenIndex(open ? null : row.index);
+                setOpenName(open ? null : f.floor);
                 // Bring the floor you opened to the top, so its controls are in view rather than below the fold.
                 if (!open) requestAnimationFrame(() => item?.scrollIntoView?.({ block: "start" }));
               }}
@@ -314,18 +314,7 @@ export function FloorAccordion({ rows, canEdit, canLock, onChange, onEdit, onDel
                       <label htmlFor={`note-${row.index}`} className={fieldLabel}>
                         Site note
                       </label>
-                      <textarea
-                        id={`note-${row.index}`}
-                        aria-label={`${f.floor} site note`}
-                        rows={3}
-                        maxLength={500}
-                        value={f.remarks}
-                        placeholder="Say what changed, or what is holding this floor up"
-                        onChange={(event) => onChange(row.index, { remarks: event.target.value })}
-                        onFocus={() => onNoteFocus?.(true)}
-                        onBlur={() => onNoteFocus?.(false)}
-                        className={`block w-full resize-none rounded-xl border border-ink-300 bg-white px-3 py-2.5 text-base text-ink-900 placeholder:text-ink-500 ${focusRing}`}
-                      />
+                      <NoteField floor={f} id={`note-${row.index}`} onChange={(value) => onChange(row.index, { remarks: value })} onFocusChange={onNoteFocus} />
                     </div>
                   </>
                 ) : (
@@ -351,7 +340,7 @@ export function FloorAccordion({ rows, canEdit, canLock, onChange, onEdit, onDel
                 <div className="flex items-center gap-2 border-t border-ink-200 pt-4">
                   <button
                     type="button"
-                    onClick={() => setOpenIndex(null)}
+                    onClick={() => setOpenName(null)}
                     className={phoneButton("primary", "md", "flex-1")}
                   >
                     Done
@@ -364,6 +353,25 @@ export function FloorAccordion({ rows, canEdit, canLock, onChange, onEdit, onDel
         );
       })}
     </ul>
+  );
+}
+
+/** The site note box. If it disappears while focused (the floor closes or is removed) the page is told it lost focus. */
+function NoteField({ floor, id, onChange, onFocusChange }: { floor: SiteFloor; id: string; onChange: (value: string) => void; onFocusChange?: (active: boolean) => void }) {
+  useEffect(() => () => onFocusChange?.(false), [onFocusChange]);
+  return (
+    <textarea
+      id={id}
+      aria-label={`${floor.floor} site note`}
+      rows={3}
+      maxLength={500}
+      value={floor.remarks}
+      placeholder="Say what changed, or what is holding this floor up"
+      onChange={(event) => onChange(event.target.value)}
+      onFocus={() => onFocusChange?.(true)}
+      onBlur={() => onFocusChange?.(false)}
+      className={`block w-full resize-none rounded-xl border border-ink-300 bg-white px-3 py-2.5 text-base text-ink-900 placeholder:text-ink-500 ${focusRing}`}
+    />
   );
 }
 

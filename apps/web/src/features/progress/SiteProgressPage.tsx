@@ -520,6 +520,7 @@ export function SiteProgressPage({ guardNavigation = false }: { guardNavigation?
 
   return (
     <div className="payroll-page">
+      {guardNavigation && <AttendanceNavigationGuard dirty={dirty} pending={saving} subject="site progress changes" />}
       <div className="payroll-controls">
         <PageHeader
           title="Site Progress"
