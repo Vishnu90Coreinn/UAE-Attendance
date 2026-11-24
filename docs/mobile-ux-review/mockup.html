@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Supervisor mobile redesign — mockup (390×844)</title>
+<style>
+  :root{
+    --ink:#12272e; --ink2:#41545c; --mute:#5b6b73; --line:#d3dcdf; --bg:#eef2f3; --card:#fff;
+    --teal:#0f5f63; --teal-d:#0b4a4d; --teal-50:#e3f1f1;
+    --ok:#0a7a3b; --ok-bg:#e4f5ea; --bad:#b42318; --bad-bg:#fde9e7; --warn:#9a5b00; --warn-bg:#fff1d6; --info:#1a5fa8; --info-bg:#e5f0fb;
+    --r:14px;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{font-family:"IBM Plex Sans",system-ui,"Segoe UI",Roboto,sans-serif;background:#dfe6e8;color:var(--ink);padding:28px 20px 60px;-webkit-font-smoothing:antialiased}
+  h1{font-size:26px;margin-bottom:6px}
+  .lede{max-width:880px;color:var(--ink2);line-height:1.5;margin-bottom:22px}
+  .wrap{max-width:1320px;margin:0 auto}
+  .panel{background:#fff;border-radius:16px;padding:20px 22px;margin-bottom:26px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .panel h2{font-size:17px;margin-bottom:10px}
+  table.m{border-collapse:collapse;width:100%;font-size:14px}
+  table.m th,table.m td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  table.m th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute)}
+  td.after{color:var(--ok);font-weight:600}
+  .principles{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;font-size:14px;line-height:1.45;color:var(--ink2)}
+  .principles b{display:block;color:var(--ink);margin-bottom:2px}
+  .section-t{font-size:20px;margin:34px 0 4px}
+  .section-s{color:var(--ink2);margin-bottom:16px;font-size:14px}
+  .frames{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start}
+  figure{width:390px}
+  figcaption{font-size:13px;line-height:1.5;color:var(--ink2);margin-top:12px}
+  figcaption b{color:var(--ink)}
+  figcaption ul{padding-left:18px;margin-top:4px}
+
+  /* phone */
+  .phone{width:390px;height:844px;border-radius:30px;overflow:hidden;position:relative;background:var(--bg);display:flex;flex-direction:column;box-shadow:0 0 0 9px #0c1a1f,0 18px 40px rgba(0,0,0,.3)}
+  .appbar{flex:none;height:56px;background:#12272e;color:#fff;display:flex;align-items:center;gap:8px;padding:0 8px 0 16px}
+  .appbar h3{font-size:19px;font-weight:700;flex:1}
+  .appbar .ib{width:48px;height:48px;border-radius:50%;border:0;background:transparent;color:#fff;display:grid;place-items:center}
+  .appbar .ib svg{width:24px;height:24px}
+  .screen{flex:1;overflow-y:auto;position:relative;scrollbar-width:none}
+  .screen::-webkit-scrollbar{display:none}
+  .tabbar{flex:none;height:60px;background:#12272e;display:grid;grid-template-columns:repeat(5,1fr)}
+  .tabbar a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#a9bcc2;font-size:12px;text-decoration:none;position:relative}
+  .tabbar a svg{width:24px;height:24px}
+  .tabbar a.on{color:#7fd6d3;font-weight:700}
+  .tabbar a.on::before{content:"";position:absolute;top:0;left:22%;right:22%;height:3px;border-radius:0 0 3px 3px;background:#7fd6d3}
+  svg{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+  button{font:inherit;color:inherit;cursor:pointer}
+  .btn{height:52px;border-radius:14px;border:2px solid var(--teal);background:#fff;color:var(--teal);font-weight:700;font-size:16px;padding:0 16px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+  .btn.pri{background:var(--teal);color:#fff}
+  .btn[disabled]{opacity:.5;cursor:default}
+  .btn svg{width:20px;height:20px}
+  .chip{height:40px;border-radius:20px;border:1.5px solid var(--line);background:#fff;padding:0 14px;font-size:15px;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .chip b{font-weight:700;background:#eef2f3;border-radius:10px;padding:0 7px;font-size:13px;line-height:20px}
+  .chip.on{background:var(--teal);border-color:var(--teal);color:#fff}
+  .chip.on b{background:rgba(255,255,255,.12)}
+  .pill{display:inline-block;font-style:normal;font-size:12.5px;font-weight:700;border-radius:999px;padding:2px 9px;line-height:18px}
+  .pill.ok{background:var(--ok-bg);color:var(--ok)}
+  .pill.bad{background:var(--bad-bg);color:var(--bad)}
+  .pill.leave,.pill.warn{background:var(--warn-bg);color:var(--warn)}
+  .pill.info{background:var(--info-bg);color:var(--info)}
+  .pill.gray{background:#e8edef;color:var(--ink2)}
+
+  /* date pill + sticky strip */
+  .date{display:flex;align-items:center;background:#fff;border-bottom:1px solid var(--line);height:56px;padding:0 6px}
+  .date button.arrow{width:48px;height:48px;border:0;background:transparent;display:grid;place-items:center;border-radius:12px}
+  .date button.arrow:disabled{opacity:.25}
+  .date .d{flex:1;text-align:center;font-weight:700;font-size:17px}
+  .date .d small{display:block;font-weight:500;font-size:12.5px;color:var(--mute);margin-top:-1px}
+  .sticky{position:sticky;top:0;z-index:5;background:var(--bg)}
+  .prog{padding:10px 12px 6px;background:var(--bg)}
+  .prog .t{display:flex;justify-content:space-between;align-items:baseline;font-size:15px;font-weight:700;margin-bottom:6px}
+  .prog .t span{font-weight:500;color:var(--mute);font-size:13px}
+  .bar{height:8px;border-radius:4px;background:#d8e1e4;overflow:hidden;display:flex}
+  .bar i{display:block;height:100%}
+  .chips{display:flex;gap:8px;padding:8px 12px 10px;overflow-x:auto;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+
+  /* attendance rows */
+  ul.rows{list-style:none;padding:0 12px 140px;display:flex;flex-direction:column;gap:8px}
+  .row{height:68px;border-radius:14px;background:#fff;border:1.5px solid var(--line);display:flex;align-items:center;gap:8px;padding:0 6px 0 14px;position:relative}
+  .row .who{flex:1;min-width:0}
+  .row .who b{display:block;font-size:17px;line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .sub{display:block;font-size:13px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:20px}
+  .row.P{background:var(--ok-bg);border-color:#a8dcb9}
+  .row.A{background:var(--bad-bg);border-color:#f1b5af}
+  .row.L{background:var(--warn-bg);border-color:#efcf8f}
+  .st{width:52px;height:52px;border-radius:14px;border:2px solid;background:#fff;display:grid;place-items:center;flex:none}
+  .st svg{width:26px;height:26px;stroke-width:3}
+  .st.p{color:var(--ok);border-color:#8fcfa5}
+  .st.a{color:var(--bad);border-color:#ecaaa3}
+  .st.p.on{background:var(--ok);border-color:var(--ok);color:#fff}
+  .st.a.on{background:var(--bad);border-color:var(--bad);color:#fff}
+  .more{width:44px;height:52px;border:0;background:transparent;display:grid;place-items:center;color:var(--ink2);flex:none}
+  .more svg{width:24px;height:24px}
+  .legend{display:flex;gap:14px;font-size:12.5px;color:var(--mute);padding:0 14px 6px;justify-content:flex-end}
+  .legend span{display:inline-flex;align-items:center;gap:4px}
+  .legend svg{width:14px;height:14px;stroke-width:3}
+
+  /* action bar */
+  .actions{position:absolute;left:0;right:0;bottom:60px;background:#fff;border-top:1px solid var(--line);padding:10px 12px;display:flex;gap:10px;z-index:8;box-shadow:0 -6px 16px rgba(0,0,0,.06)}
+  .actions .btn{flex:1}
+  .actions .btn.pri{flex:none;min-width:104px}
+  .toast{position:absolute;left:12px;right:12px;bottom:144px;background:#12272e;color:#fff;border-radius:12px;padding:0 6px 0 16px;height:52px;display:none;align-items:center;justify-content:space-between;z-index:9;font-weight:600;font-size:15px}
+  .toast.show{display:flex}
+  .toast button{border:0;background:transparent;color:#7fd6d3;font-weight:800;height:48px;padding:0 14px;font-size:15px}
+
+  /* sheet */
+  .backdrop{position:absolute;inset:0;background:rgba(10,25,30,.5);z-index:20;display:none}
+  .backdrop.show{display:block}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;padding:10px 16px 18px;z-index:21;transform:translateY(105%);transition:transform .22s ease}
+  .sheet.show{transform:none}
+  .sheet .grab{width:40px;height:5px;border-radius:3px;background:#ccd5d8;margin:0 auto 12px}
+  .sheet h4{font-size:19px;margin-bottom:2px}
+  .sheet p.s{color:var(--mute);font-size:14px;margin-bottom:12px;line-height:1.4}
+  .opt{width:100%;height:56px;border-radius:14px;border:1.5px solid var(--line);background:#fff;display:flex;align-items:center;gap:12px;padding:0 14px;font-size:17px;font-weight:600;text-align:left;margin-bottom:8px}
+  .opt .r{width:22px;height:22px;border-radius:50%;border:2px solid #9fb0b6;flex:none}
+  .opt.on{border-color:var(--warn);background:var(--warn-bg)}
+  .opt.on .r{border-color:var(--warn);background:var(--warn);box-shadow:inset 0 0 0 4px var(--warn-bg)}
+  .ot{display:flex;align-items:center;gap:8px;margin:6px 0 14px}
+  .ot .lab{flex:1;font-weight:700;font-size:16px}
+  .ot .lab small{display:block;color:var(--mute);font-weight:500;font-size:13px}
+  .ot button.sq{width:52px;height:52px;border-radius:14px;border:2px solid var(--line);background:#fff;font-size:26px;font-weight:600}
+  .ot output{min-width:56px;text-align:center;font-size:22px;font-weight:800}
+  .sheet .row2{display:flex;gap:10px;margin-top:6px}
+  .sheet .row2 .btn{flex:1}
+  .lnk{border:0;background:transparent;color:var(--bad);font-weight:700;font-size:16px;height:52px;padding:0 14px}
+
+  /* generic list cards */
+  .list{padding:10px 12px 120px;display:flex;flex-direction:column;gap:8px}
+  .item{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:10px 12px 10px 14px;display:flex;align-items:center;gap:12px;min-height:68px}
+  .item .av{width:42px;height:42px;border-radius:50%;background:var(--teal-50);color:var(--teal);display:grid;place-items:center;font-weight:800;font-size:15px;flex:none}
+  .item .tx{flex:1;min-width:0}
+  .item .tx b{display:block;font-size:17px;line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .item .tx span{display:block;font-size:13px;color:var(--mute);line-height:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .call{width:48px;height:48px;border-radius:50%;border:2px solid var(--teal);color:var(--teal);background:#fff;display:grid;place-items:center;flex:none}
+  .call svg{width:22px;height:22px}
+  .search{margin:10px 12px 0;height:48px;border-radius:14px;background:#fff;border:1.5px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 14px;color:var(--mute);font-size:16px}
+  .search svg{width:20px;height:20px}
+  .gh{padding:10px 14px 0;font-size:13px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--mute)}
+  .fab{position:absolute;right:14px;bottom:76px;height:56px;border-radius:28px;background:var(--teal);color:#fff;border:0;font-weight:800;font-size:16px;padding:0 22px 0 18px;display:flex;align-items:center;gap:8px;box-shadow:0 6px 16px rgba(0,0,0,.28);z-index:6}
+  .fab svg{width:22px;height:22px;stroke-width:2.6}
+  .card{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;margin:0 12px 10px}
+  .card h3{font-size:13px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--mute);margin-bottom:8px}
+  .kv{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid #edf1f2;font-size:16px}
+  .kv:first-of-type{border-top:0}
+  .kv span{color:var(--mute);font-size:14px}
+  .kv b{font-weight:600;text-align:right}
+  .reveal{color:var(--teal);font-weight:700;border:0;background:none;padding:0 0 0 8px;height:32px}
+  .head{background:#fff;border-bottom:1px solid var(--line);padding:14px 16px}
+  .head .top{display:flex;gap:14px;align-items:center}
+  .head .big{width:60px;height:60px;border-radius:50%;background:var(--teal-50);color:var(--teal);font-weight:800;font-size:21px;display:grid;place-items:center}
+  .head h2{font-size:21px;line-height:26px}
+  .qa{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+  .qa .btn{height:48px;padding:0 6px;font-size:15px}
+  .tabs{display:flex;background:#fff;border-bottom:1px solid var(--line)}
+  .tabs a{flex:1;height:48px;display:grid;place-items:center;font-weight:600;font-size:15px;color:var(--mute);border-bottom:3px solid transparent}
+  .tabs a.on{color:var(--teal);border-color:var(--teal);font-weight:800}
+  .month{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
+  .month div{padding:4px 8px;border-left:1px solid #edf1f2}
+  .month div:first-child{border-left:0}
+  .month b{display:block;font-size:22px}
+  .month span{font-size:12px;color:var(--mute)}
+  .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1.5px solid var(--line);border-radius:12px;overflow:hidden;margin:4px 0 12px}
+  .seg button{height:48px;border:0;border-left:1.5px solid var(--line);background:#fff;font-weight:600;font-size:14px;padding:0 2px}
+  .seg button:first-child{border-left:0}
+  .seg button.on{background:var(--teal);color:#fff;font-weight:800}
+  .seg button.on.g{background:var(--ok)}
+  .seg button.on.b{background:var(--info)}
+  .lab2{font-size:12.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--mute)}
+  .stepper{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0 14px}
+  .stepper .s{padding:2px 0 4px;text-align:center}
+  .stepper .s small{display:block;font-size:12px;color:var(--mute);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+  .stepper .s div{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
+  .stepper .s button{width:36px;height:40px;border:0;background:#eef2f3;border-radius:10px;font-size:20px;font-weight:700}
+  .stepper .s b{font-size:20px}
+  .floor{background:#fff;border:1.5px solid var(--line);border-radius:14px;margin:0 12px 8px;overflow:hidden}
+  .floor .fh{display:flex;align-items:center;gap:10px;padding:10px 6px 10px 14px;min-height:76px}
+  .floor .fh .tx{flex:1;min-width:0}
+  .floor .fh b{display:block;font-size:17px;margin-bottom:4px}
+  .floor .fh .pills{display:flex;gap:6px;flex-wrap:wrap}
+  .floor .fb{padding:0 14px 12px;border-top:1px solid #edf1f2}
+  .floor.open{border-color:var(--teal);box-shadow:0 0 0 1px var(--teal)}
+  .sum{margin:10px 12px;background:#0d4a4d;color:#fff;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:14px}
+  .sum .n{font-size:30px;font-weight:800}
+  .sum .bar{background:rgba(255,255,255,.25);margin-top:6px}
+  .sum .bar i{background:#fff}
+  .sum small{display:block;font-size:13px;opacity:.85}
+  .note{font-size:12.5px;color:var(--mute);padding:6px 14px}
+  .delta{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:6px 10px;font-size:13.5px;font-weight:700;margin:0 12px}
+  .stale{display:inline-flex;gap:6px;align-items:center;background:var(--warn-bg);color:var(--warn);font-weight:700;font-size:13px;border-radius:999px;padding:3px 10px}
+  .sel{margin:10px 12px 0;height:52px;border-radius:14px;background:#fff;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-weight:700;font-size:17px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Supervisor mobile redesign — mockup</h1>
+  <p class="lede">Seven 390×844 screens that restructure the supervisor's pages around one job: <b>mark 12–25 workers before the shift starts, one-handed, in sun, on patchy signal.</b> Frame 1 is interactive (tap ✓ ✕ ⋯, the filter chips, “Mark rest present”, “Save”). All names come from the seeded data; other values (leave status owners, attendance counts on the profile, the “Approved” letter action) are <b>illustrative</b>. Nothing here changes the app. The findings behind each choice are in <code>critique.md</code>.</p>
+
+  <div class="panel">
+    <h2>What the redesign measurably changes</h2>
+    <table class="m">
+      <tr><th>Page</th><th>Today (measured at 390×844)</th><th>Mockup</th></tr>
+      <tr><td>Attendance</td><td>246 px per worker; list 3,084 px; page 3,991 px (5.5 screens); first worker starts at 516 px; 1 worker's buttons visible on load</td><td class="after">68 px per worker; 12 workers = 816 px, 25 workers ≈ 1,700 px; first worker at ~190 px; 6–7 workers visible on load</td></tr>
+      <tr><td>Attendance, 2 exceptions + overtime</td><td>≈ 8 taps, 4–5 scrolls (14 taps if marking all by hand)</td><td class="after">≈ 5 taps, ≤ 1 scroll; lands here after sign-in</td></tr>
+      <tr><td>Workers</td><td>~250 px per card; page 4,308 px; ≈ 210 px of stat cards + ≈ 236 px of filters before the first worker (first worker at 650 px)</td><td class="after">68 px rows; call button 48 px; one search line + one chip row</td></tr>
+      <tr><td>Leave</td><td>First request at 636 px; ~330 px per request (estimated); pending not first</td><td class="after">Needs-a-decision group first; ~84 px per request; status chip on the first line</td></tr>
+      <tr><td>Site Progress</td><td>444 px per floor; 6 taps to set three statuses; delete 4 px from edit</td><td class="after">76 px collapsed floor; 1 tap per status; delete only in overflow with a confirm</td></tr>
+      <tr><td>HR Letters</td><td>738-px table in a 356-px viewport; Status off-screen</td><td class="after">Cards; status chip top-right; nothing needs a sideways swipe</td></tr>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Design rules used</h2>
+    <div class="principles">
+      <div><b>One job per screen</b>The daily task is the home screen; reference pages stay reference.</div>
+      <div><b>Rows, not cards</b>One record = one line of 64–76 px with state at a glance; detail on demand.</div>
+      <div><b>48 px minimum targets, 52 px for the repeat action</b>Gloves, glare, one thumb. The ✓ and ✕ are 52 px.</div>
+      <div><b>State = colour + icon + word</b>Never colour alone; unmarked rows stay white so gaps are visible.</div>
+      <div><b>Thumb-zone actions, undo over confirm</b>Primary actions at the bottom; reversible toasts for cheap actions, a single prompt only where pay is affected.</div>
+      <div><b>Never lose work</b>Marks are kept as a draft on the phone; saving is explicit and one pattern everywhere.</div>
+    </div>
+  </div>
+
+  <h2 class="section-t">1 · Daily Attendance (interactive)</h2>
+  <p class="section-s">The page that matters. Try: tap ✕ on a worker, tap ⋯ on another and pick Sick leave, then “Mark 5 present”, then Save.</p>
+  <div class="frames">
+    <figure>
+      <div class="phone" id="att">
+        <div class="appbar"><h3>Attendance</h3><button class="ib" aria-label="Account"><svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="3.5"/><path d="M5 20c.8-3.5 3.6-5.5 7-5.5s6.2 2 7 5.5"/></svg></button></div>
+        <div class="screen" id="attScreen">
+          <div class="sticky">
+            <div class="date">
+              <button class="arrow" aria-label="Previous day"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+              <div class="d">Today · Tue 24 Nov<small>Shift 06:00–17:30</small></div>
+              <button class="arrow" disabled aria-label="Next day"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+              <button class="arrow" id="infoBtn" aria-label="Shift rules"><svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></button>
+            </div>
+            <div class="prog">
+              <div class="t"><div id="progT">7 of 12 marked</div><span id="progS">5 left</span></div>
+              <div class="bar" id="bar"></div>
+            </div>
+            <div class="chips" id="chips"></div>
+            <div class="legend"><span style="color:var(--ok)"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Present</span><span style="color:var(--bad)"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>Absent</span><span>⋯ Leave · overtime</span></div>
+          </div>
+          <ul class="rows" id="rows"></ul>
+        </div>
+        <div class="toast" id="toast"><span id="toastT"></span><button id="undo">UNDO</button></div>
+        <div class="actions" id="actions"></div>
+        <div class="backdrop" id="bd"></div>
+        <div class="sheet" id="sheet"></div>
+        <nav class="tabbar" data-on="attendance"></nav>
+      </div>
+      <figcaption><b>Replaces the 246-px cards.</b>
+        <ul>
+          <li>Lands here after sign-in; app bar and date are one 112-px block instead of 516 px of preamble.</li>
+          <li>Unmarked rows stay white, marked rows tint green / red / amber, so gaps pop out; the strip filters to them.</li>
+          <li>“Mark 5 present” only touches unmarked rows and shows Undo. Saving with unmarked workers asks once.</li>
+          <li>Leave and overtime live behind ⋯ in a bottom sheet; basic hours (always 8.00) is gone.</li>
+        </ul>
+      </figcaption>
+    </figure>
+  </div>
+
+  <h2 class="section-t">2 · Workers and profile</h2>
+  <p class="section-s">Reference screens: scan fast, call in one tap, hide personal documents by default.</p>
+  <div class="frames">
+    <figure>
+      <div class="phone">
+        <div class="appbar"><h3>Workers</h3><button class="ib" aria-label="Account"><svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="3.5"/><path d="M5 20c.8-3.5 3.6-5.5 7-5.5s6.2 2 7 5.5"/></svg></button></div>
+        <div class="screen">
+          <div class="sticky" style="padding-bottom:6px">
+            <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>Search name, ID or phone</div>
+            <div class="chips" style="padding-top:10px;padding-bottom:4px"><span class="chip on">All <b>14</b></span><span class="chip">Site <b>12</b></span><span class="chip">Office <b>2</b></span><span class="chip">Inactive <b>0</b></span></div>
+          </div>
+          <div class="list" id="wlist" style="padding-top:4px"></div>
+        </div>
+        <nav class="tabbar" data-on="workers"></nav>
+      </div>
+      <figcaption><b>Workers.</b>
+        <ul>
+          <li>Three stat cards, two selects and a checkbox (≈ 450 px) become one search line and one chip row.</li>
+          <li>Whole row opens the profile; the call button is 48 px. No Emirates ID in the list.</li>
+          <li>The “Active” chip and onboarding bar are dropped from the row (they were identical on every worker).</li>
+        </ul>
+      </figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone">
+        <div class="appbar"><button class="ib" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><h3>Worker</h3></div>
+        <div class="screen">
+          <div class="head">
+            <div class="top"><div class="big">MR</div><div><h2>Mohammed Rafiq</h2><div style="color:var(--mute);font-size:14px;margin:2px 0 4px">EMP-005 · Glass Fixer · Abudhabi lane</div><span class="pill ok">Active</span></div></div>
+            <div class="qa">
+              <button class="btn"><svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>Call</button>
+              <button class="btn"><svg viewBox="0 0 24 24"><path d="M4 20l1.3-4A8 8 0 1 1 8 18.7z"/></svg>Chat</button>
+              <button class="btn pri"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>Mark</button>
+            </div>
+          </div>
+          <div class="tabs"><a class="on">Overview</a><a>Attendance</a><a>Leave</a></div>
+          <div style="height:12px"></div>
+          <div class="card"><h3>This month · illustrative</h3>
+            <div class="month"><div><b>18</b><span>Present</span></div><div><b>1</b><span>Absent</span></div><div><b>2</b><span>Leave</span></div><div><b>6</b><span>OT hrs</span></div></div></div>
+          <div class="card"><h3>Work</h3>
+            <div class="kv"><span>Site</span><b>Abudhabi lane</b></div>
+            <div class="kv"><span>Department</span><b>Installation</b></div>
+            <div class="kv"><span>Joined</span><b>12 Feb 2024 · 2y 9m</b></div>
+            <div class="kv"><span>Phone</span><b>+971 50 100 0001</b></div></div>
+          <div class="card"><h3>Documents</h3>
+            <div class="kv"><span>Emirates ID</span><b>•••-••••-•••3700-1 <button class="reveal">Show</button></b></div>
+            <div class="kv"><span>Passport</span><b>••••1100 <button class="reveal">Show</button></b></div>
+            <div class="kv"><span>Nationality</span><b>Pakistani</b></div></div>
+          <div style="height:30px"></div>
+        </div>
+        <nav class="tabbar" data-on="workers"></nav>
+      </div>
+      <figcaption><b>Profile.</b>
+        <ul>
+          <li>Call / Chat / Mark are buttons in the header; today the phone is a 20-px text link below the fold.</li>
+          <li>Work and this month's attendance come first; IDs are masked until “Show”.</li>
+          <li>The 200-px empty hero is gone; the Onboarding tab is replaced by Attendance for this role.</li>
+        </ul>
+      </figcaption>
+    </figure>
+  </div>
+
+  <h2 class="section-t">3 · Leave</h2>
+  <p class="section-s">Group by what needs attention; start a request from the thumb zone.</p>
+  <div class="frames">
+    <figure>
+      <div class="phone">
+        <div class="appbar"><h3>Leave</h3><button class="ib" aria-label="More"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg></button></div>
+        <div class="screen">
+          <div class="chips" style="padding-top:12px"><span class="chip on">All</span><span class="chip">Pending <b>2</b></span><span class="chip">Approved <b>1</b></span><span class="chip">Rejected <b>0</b></span></div>
+          <div class="gh">Needs a decision · 2</div>
+          <div class="list" style="padding-top:8px;padding-bottom:0">
+            <div class="item" style="display:block;padding:12px 14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:17px">Employee1</b><i class="pill warn">Pending</i></div><div style="margin:4px 0 2px;font-size:15px;font-weight:600">Annual leave · 25–28 Nov · 4 days</div><div style="font-size:13px;color:var(--mute)">EMP-001 · waiting for manager <small>(illustrative)</small></div></div>
+            <div class="item" style="display:block;padding:12px 14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:17px">Employee2</b><i class="pill warn">Pending</i></div><div style="margin:4px 0 2px;font-size:15px;font-weight:600">Sick leave · 23–24 Nov · 2 days</div><div style="font-size:13px;color:var(--mute)">EMP-002 · waiting for manager <small>(illustrative)</small></div></div>
+          </div>
+          <div class="gh" style="padding-top:16px">Upcoming · past</div>
+          <div class="list" style="padding-top:8px">
+            <div class="item" style="display:block;padding:12px 14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:17px">Verify Tester</b><i class="pill ok">Approved</i></div><div style="margin:4px 0 2px;font-size:15px;font-weight:600">Sick leave · 1–2 Dec · 2 days</div><div style="font-size:13px;color:var(--mute)">EMP-004 · note attached</div></div>
+          </div>
+        </div>
+        <button class="fab"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New request</button>
+        <nav class="tabbar" data-on="leave"></nav>
+      </div>
+      <figcaption><b>Leave list.</b>
+        <ul>
+          <li>Three stacked stat cards (≈ 210 px) become one chip row that is also the filter; “Rejected 0” no longer gets a card.</li>
+          <li>Pending first; status on line one, dates on one line (“25–28 Nov · 4 days”) instead of six label/value rows.</li>
+          <li>The monthly report moves into the ⋯ menu.</li>
+        </ul>
+      </figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone">
+        <div class="appbar"><button class="ib" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button><h3>New leave request</h3></div>
+        <div class="screen" style="padding:14px 12px 100px">
+          <div class="lab2">Worker</div>
+          <div class="sel" style="margin:6px 0 4px"><span style="color:var(--mute);font-weight:500">Search 14 workers…</span><svg width="20" height="20" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></div>
+          <div class="chips" style="padding:6px 0 12px"><span class="chip">Employee1</span><span class="chip">Employee2</span><span class="chip">Ahmed</span><span class="chip">Verify Tester</span></div>
+          <div class="lab2">Type</div>
+          <div class="seg"><button class="on">Annual</button><button>Sick</button><button>Emergency</button></div>
+          <div class="lab2">Dates</div>
+          <div class="sel" style="margin:6px 0 4px"><span>Tue 24 Nov → Tue 24 Nov</span><span class="pill info">1 day</span></div>
+          <div style="font-size:13px;color:var(--mute);margin-bottom:14px">Both days count. Once approved, this fills Attendance for each day.</div>
+          <div class="lab2">Doctor's note · sick leave only</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;opacity:.45"><button class="btn" disabled style="height:48px">Take photo</button><button class="btn" disabled style="height:48px">Upload</button></div>
+        </div>
+        <div class="actions"><button class="btn pri" style="flex:1">Send request</button></div>
+        <nav class="tabbar" data-on="leave"></nav>
+      </div>
+      <figcaption><b>New request.</b>
+        <ul>
+          <li>Worker search with recent names; type as three big buttons; one date line with a live day count.</li>
+          <li>Policy copy shrinks to one line; the photo field appears only for Sick (greyed here to show where it goes).</li>
+          <li>Send is in the thumb zone.</li>
+        </ul>
+      </figcaption>
+    </figure>
+  </div>
+
+  <h2 class="section-t">4 · Site Progress</h2>
+  <p class="section-s">Collapse floors, one-tap statuses, one unsaved-changes pattern shared with Attendance.</p>
+  <div class="frames">
+    <figure>
+      <div class="phone">
+        <div class="appbar"><h3>Site progress</h3><button class="ib" aria-label="More"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg></button></div>
+        <div class="screen">
+          <div class="sel" style="margin-top:12px"><span>Abudhabi lane</span><svg width="20" height="20" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div style="padding:8px 14px 0"><span class="stale">⚠ Last report 12 days ago · admin</span></div>
+          <div class="sum"><div><div class="n">50%</div></div><div style="flex:1"><b style="font-size:15px">Ready for handover</b><small>1 of 2 floors completed and WIR approved</small><div class="bar"><i style="width:50%"></i></div></div></div>
+          <div class="floor"><div class="fh"><div class="tx"><b>First Floor</b><div class="pills"><i class="pill ok">Aligned</i><i class="pill ok">Complete</i><i class="pill ok">WIR ✓</i></div></div><button class="more" aria-label="Floor menu"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg></button></div></div>
+          <div class="floor open"><div class="fh"><div class="tx"><b>2nd Floor</b><div class="pills"><i class="pill info">Aligning</i><i class="pill info">In progress</i><i class="pill warn">WIR not sent</i></div></div><button class="more" aria-label="Floor menu"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg></button></div>
+            <div class="fb">
+              <div class="stepper">
+                <div class="s"><small>Frames</small><div><button>−</button><b>5</b><button>+</button></div></div>
+                <div class="s"><small>Fixed glass</small><div><button>−</button><b>7</b><button>+</button></div></div>
+                <div class="s"><small>Shutters</small><div><button>−</button><b>8</b><button>+</button></div></div>
+              </div>
+              <div class="lab2">Alignment</div>
+              <div class="seg"><button>Not done</button><button class="on b">Aligning</button><button>Complete</button></div>
+              <div class="lab2">Completion</div>
+              <div class="seg"><button>Not started</button><button class="on b">In progress</button><button>Completed</button></div>
+              <div class="lab2">WIR inspection</div>
+              <div class="seg" style="margin-bottom:0"><button class="on">Not sent</button><button>Submitted</button><button>Approved</button></div>
+            </div></div>
+          <div style="height:110px"></div>
+        </div>
+        <div class="actions"><button class="btn">Discard</button><button class="btn pri" style="min-width:150px">Save report · 1 floor</button></div>
+        <nav class="tabbar" data-on="progress"></nav>
+      </div>
+      <figcaption><b>Progress.</b>
+        <ul>
+          <li>A collapsed floor is 76 px (was 444); expanding shows one-tap segmented statuses instead of three native selects (6 taps → 3).</li>
+          <li>Delete and rename sit in the floor's ⋯ menu with a confirm, away from the edit controls; PDF/CSV and Add floor go to the app-bar menu.</li>
+          <li>The save bar matches Attendance and names what changed. A 12-day-old report is flagged.</li>
+          <li>Counts show their label with −/+ steppers; I could not tell from the screen what the three counts measure, so the labels need a product answer.</li>
+        </ul>
+      </figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone">
+        <div class="appbar"><h3>HR letters</h3><button class="ib" aria-label="Account"><svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="3.5"/><path d="M5 20c.8-3.5 3.6-5.5 7-5.5s6.2 2 7 5.5"/></svg></button></div>
+        <div class="screen">
+          <div class="chips" style="padding-top:12px"><span class="chip">Needs me <b>0</b></span><span class="chip">In progress <b>0</b></span><span class="chip on">Done <b>1</b></span></div>
+          <div class="list" style="padding-top:2px">
+            <div class="item" style="display:block;padding:12px 14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:17px">Rajesh Nair</b><i class="pill ok">Approved</i></div><div style="margin:4px 0 2px;font-size:15px;font-weight:600">Salary Certificate</div><div style="font-size:13px;color:var(--mute)">Requested 10 Nov by you · DEAKS/HR/2026/0006</div>
+              <div style="margin-top:10px"><button class="btn" style="height:44px;font-size:15px;width:100%">Open letter <small style="font-weight:500">(action assumed)</small></button></div></div>
+          </div>
+          <div style="text-align:center;color:var(--mute);font-size:14px;padding:30px 30px 0;line-height:1.5">Nothing needs you right now. A letter returned by a manager moves to <b>Needs me</b>.</div>
+        </div>
+        <button class="fab"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Request letter</button>
+        <nav class="tabbar" data-on="letters"></nav>
+      </div>
+      <figcaption><b>HR letters.</b>
+        <ul>
+          <li>The 738-px table (Status at x = 422, off-screen) becomes cards with the status chip on line one.</li>
+          <li>Five wrapped chips (four read “0”) become three, ordered by who must act; “Returned by manager” folds into <b>Needs me</b>.</li>
+          <li>The certificate type has no default; New request is a floating button.</li>
+          <li>The “Open letter” action is my assumption — I could not see the table's Actions column on the phone.</li>
+        </ul>
+      </figcaption>
+    </figure>
+  </div>
+</div>
+
+<script>
+const ICON={
+  attendance:'<path d="M9 4h6v3H9z M7 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1 M9 14l2 2 4-4"/>',
+  workers:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6 M16 4.5a3.5 3.5 0 0 1 0 7 M18 14c2.2.6 3.5 2.5 3.5 6"/>',
+  leave:'<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17 M8 3v4 M16 3v4"/>',
+  progress:'<path d="M3 18h18 M5 18a7 7 0 0 1 14 0 M12 6v5 M9 18v-4 M15 18v-4"/>',
+  letters:'<path d="M6 3h8l4 4v14H6z M14 3v4h4 M9 12h6 M9 16h6"/>'
+};
+const LABEL={attendance:'Attendance',workers:'Workers',leave:'Leave',progress:'Progress',letters:'Letters'};
+document.querySelectorAll('.tabbar').forEach(n=>{
+  n.innerHTML=Object.keys(ICON).map(k=>`<a class="${n.dataset.on===k?'on':''}"><svg viewBox="0 0 24 24">${ICON[k]}</svg>${LABEL[k]}</a>`).join('');
+});
+const CHECK='<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>';
+const CROSS='<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const DOTS='<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg>';
+const PHONE='<svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>';
+
+/* ---------- workers list (frame 2) ---------- */
+const NAMES=[['Employee1','EMP-001','Glass Installer'],['Employee2','EMP-002','Aluminium'],['Ahmed','EMP-003','Tester'],['Verify Tester','EMP-004','Glazier'],['Mohammed Rafiq','EMP-005','Glass Fixer'],['Suresh Kumar','EMP-006','Aluminium Fabricator'],['Anwar Hossain','EMP-007','Helper'],['Rajesh Nair','EMP-008','Site Supervisor'],['Imran Sheikh','EMP-009','Glazing Technician'],['Joseph Mathew','EMP-010','CNC Operator'],['Habib Ullah','EMP-011','Shutter Installer'],['Dinesh Perera','EMP-012','Storekeeper']];
+const ini=n=>n.split(' ').map(s=>s[0]).join('').slice(0,2).toUpperCase();
+document.getElementById('wlist').innerHTML=NAMES.map(w=>`<div class="item"><div class="av">${ini(w[0])}</div><div class="tx"><b>${w[0]}</b><span>${w[1]} · ${w[2]}</span></div><button class="call" aria-label="Call ${w[0]}">${PHONE}</button></div>`).join('');
+
+/* ---------- attendance (frame 1) ---------- */
+const LV={AL:'Annual leave',SL:'Sick leave',EL:'Emergency leave'};
+let W=NAMES.map(w=>({n:w[0],id:w[1],r:w[2],s:null,ot:0}));
+const init={0:'P',1:'P',2:'P',3:'SL',4:'P',5:'A',6:'P'}; Object.entries(init).forEach(([i,s])=>W[i].s=s); W[6].ot=2;
+let filter='all', dirty=true, saved=false, snap=null, openIdx=null, toastTimer;
+const $=id=>document.getElementById(id);
+const grp=s=>s==null?'U':s==='P'?'P':s==='A'?'A':'L';
+const count=g=>W.filter(w=>grp(w.s)===g).length;
+
+function render(){
+  const U=count('U'),P=count('P'),A=count('A'),L=count('L'),M=W.length-U;
+  $('progT').textContent=`${M} of ${W.length} marked`;
+  $('progS').textContent=U?`${U} left`:'All marked ✓';
+  $('bar').innerHTML=`<i style="width:${P/W.length*100}%;background:var(--ok)"></i><i style="width:${A/W.length*100}%;background:var(--bad)"></i><i style="width:${L/W.length*100}%;background:#d49a1a"></i>`;
+  const C=[['all','All',W.length],['U','Unmarked',U],['P','Present',P],['A','Absent',A],['L','Leave',L]];
+  $('chips').innerHTML=C.map(c=>`<button class="chip ${filter===c[0]?'on':''}" data-f="${c[0]}">${c[1]} <b>${c[2]}</b></button>`).join('');
+  $('rows').innerHTML=W.map((w,i)=>({w,i})).filter(o=>filter==='all'||grp(o.w.s)===filter).map(({w,i})=>{
+    const g=grp(w.s);
+    let sub=`${w.id} · ${w.r}`;
+    if(g==='L')sub=`<i class="pill leave">${LV[w.s]}</i>`;
+    else if(g==='P'&&w.ot)sub=`<i class="pill ok">Present · OT ${w.ot}h</i>`;
+    else if(g==='P')sub=`<i class="pill ok">Present</i>`;
+    else if(g==='A')sub=`<i class="pill bad">Absent</i>`;
+    return `<li class="row ${g==='U'?'':g}" data-i="${i}"><div class="who"><b>${w.n}</b><span class="sub">${sub}</span></div>
+      <button class="st p ${w.s==='P'?'on':''}" data-a="P" aria-pressed="${w.s==='P'}" aria-label="Present: ${w.n}">${CHECK}</button>
+      <button class="st a ${w.s==='A'?'on':''}" data-a="A" aria-pressed="${w.s==='A'}" aria-label="Absent: ${w.n}">${CROSS}</button>
+      <button class="more" data-a="more" aria-label="Leave or overtime: ${w.n}">${DOTS}</button></li>`;
+  }).join('')||`<li style="text-align:center;color:var(--mute);padding:30px">Nobody here. ${filter==='U'?'Everyone is marked ✓':''}</li>`;
+  const bar=$('actions');
+  if(saved&&!dirty) bar.innerHTML=`<button class="btn pri" style="flex:1" disabled>Saved ✓ · 24 Nov</button>`;
+  else if(U) bar.innerHTML=`<button class="btn" id="rest">Mark ${U} present</button><button class="btn pri" id="save">Save</button>`;
+  else bar.innerHTML=`<button class="btn pri" style="flex:1" id="save">Save day · ${W.length} of ${W.length}</button>`;
+}
+function toast(t,undo){ $('toastT').textContent=t; $('undo').style.display=undo?'':'none'; $('toast').classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>$('toast').classList.remove('show'),5000); }
+function sheet(html){ $('sheet').innerHTML=`<div class="grab"></div>`+html; $('bd').classList.add('show'); $('sheet').classList.add('show'); }
+function closeSheet(){ $('bd').classList.remove('show'); $('sheet').classList.remove('show'); openIdx=null; }
+function more(i){
+  openIdx=i; const w=W[i];
+  sheet(`<h4>${w.n}</h4><p class="s">${w.id} · ${w.r}</p>
+    ${Object.keys(LV).map(k=>`<button class="opt ${w.s===k?'on':''}" data-lv="${k}"><span class="r"></span>${LV[k]}</button>`).join('')}
+    <div class="ot"><div class="lab">Overtime<small>${w.s==='P'?'Basic 8 h is automatic':'Mark present first'}</small></div>
+      <button class="sq" data-ot="-1" ${w.s!=='P'?'disabled':''}>−</button><output>${w.ot} h</output><button class="sq" data-ot="1" ${w.s!=='P'?'disabled':''}>+</button></div>
+    <div class="row2"><button class="lnk" data-clear>Clear mark</button><button class="btn pri" data-done>Done</button></div>`);
+}
+function markDirty(){ dirty=true; saved=false; }
+$('rows').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return; const i=+b.closest('.row').dataset.i, w=W[i];
+  if(b.dataset.a==='more') return more(i);
+  const a=b.dataset.a; w.s=(w.s===a)?null:a; if(w.s!=='P')w.ot=0; markDirty(); render();
+});
+$('chips').addEventListener('click',e=>{const b=e.target.closest('[data-f]'); if(!b)return; filter=(filter===b.dataset.f&&b.dataset.f!=='all')?'all':b.dataset.f; render();});
+$('actions').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b||b.disabled)return;
+  if(b.id==='rest'){ snap=W.map(w=>({...w})); const n=count('U'); W.forEach(w=>{if(w.s==null)w.s='P'}); markDirty(); render(); toast(`Marked ${n} present`,true); }
+  if(b.id==='save'){ const U=count('U'); if(U){ sheet(`<h4>${U} not marked</h4><p class="s">Workers who are not marked get <b>no hours today</b>. Save anyway, or go back and mark them.</p><div class="row2"><button class="btn" data-back>Go back</button><button class="btn pri" data-save>Save anyway</button></div>`);} else doSave(); }
+});
+function doSave(){ closeSheet(); dirty=false; saved=true; render(); toast(`Saved · ${count('U')?W.length-count('U')+' of '+W.length+' marked':'all '+W.length+' marked'}`,false); }
+$('undo').onclick=()=>{ if(snap){W=snap; snap=null; markDirty(); render(); $('toast').classList.remove('show');} };
+$('sheet').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  if(b.dataset.back!==undefined) return closeSheet();
+  if(b.dataset.save!==undefined) return doSave();
+  if(openIdx===null) return;
+  const w=W[openIdx];
+  if(b.dataset.lv){ w.s=b.dataset.lv; w.ot=0; markDirty(); closeSheet(); render(); }
+  else if(b.dataset.ot){ w.ot=Math.max(0,Math.min(6,w.ot+ +b.dataset.ot)); markDirty(); const i=openIdx; more(i); render(); }
+  else if(b.dataset.clear!==undefined){ w.s=null; w.ot=0; markDirty(); closeSheet(); render(); }
+  else if(b.dataset.done!==undefined){ closeSheet(); render(); }
+});
+$('bd').onclick=closeSheet;
+$('infoBtn').onclick=()=>sheet(`<h4>Shift rules</h4><p class="s">Standard shift 06:00 – 17:30 (8 basic hours max).<br><b>Not marked means no hours are counted.</b></p><div class="row2"><button class="btn pri" data-back>Got it</button></div>`);
+render();
+</script>
+</body>
+</html>

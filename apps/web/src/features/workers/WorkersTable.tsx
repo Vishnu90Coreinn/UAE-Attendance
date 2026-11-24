@@ -13,7 +13,7 @@ import { Link, useInRouterContext } from "react-router-dom";
 import { Pager, RowMenu, SortTh, usePaging, useSort, type RowMenuItem } from "../../ui";
 import { WorkerStatusBadge } from "./WorkerStatusBadge";
 
-interface RowActions {
+export interface RowActions {
   onEdit: (worker: Worker) => void;
   /** Deactivate, activate and delete are for Managers and Administrators only; HR can edit but not remove. */
   onDeactivate?: (worker: Worker) => void;
@@ -145,6 +145,28 @@ function OnboardingCell({ worker }: { worker: Worker }) {
   );
 }
 
+/** The "more" actions for one worker, shared by the desktop row and the phone list. Delete is always last and red. */
+export function workerMenuItems(
+  worker: Worker,
+  actions: RowActions | undefined,
+  onPrint: ((worker: Worker) => void) | undefined,
+  busy: boolean,
+): RowMenuItem[] {
+  return [
+    ...(worker.category === "Employee" && actions?.onLogin
+      ? [{ label: worker.userId ? "Login details" : "Give a login", icon: KeyRound, disabled: busy, onSelect: () => actions.onLogin!(worker) }]
+      : []),
+    ...(onPrint ? [{ label: "Download record", icon: Printer, disabled: busy, onSelect: () => onPrint(worker) }] : []),
+    ...(worker.isActive && actions?.onDeactivate
+      ? [{ label: "Deactivate", icon: UserX, disabled: busy, onSelect: () => actions.onDeactivate!(worker) }]
+      : []),
+    ...(!worker.isActive && actions?.onActivate
+      ? [{ label: "Activate", icon: UserCheck, disabled: busy, onSelect: () => actions.onActivate!(worker) }]
+      : []),
+    ...(actions?.onDelete ? [{ label: "Delete", icon: Trash2, danger: true, disabled: busy, onSelect: () => actions.onDelete!(worker) }] : []),
+  ];
+}
+
 function WorkerRow({
   worker,
   actions,
@@ -158,19 +180,7 @@ function WorkerRow({
   busy: boolean;
   showRates: boolean;
 }) {
-  const menuItems: RowMenuItem[] = [
-    ...(worker.category === "Employee" && actions?.onLogin
-      ? [{ label: worker.userId ? "Login details" : "Give a login", icon: KeyRound, disabled: busy, onSelect: () => actions.onLogin!(worker) }]
-      : []),
-    ...(onPrint ? [{ label: "Download record", icon: Printer, disabled: busy, onSelect: () => onPrint(worker) }] : []),
-    ...(worker.isActive && actions?.onDeactivate
-      ? [{ label: "Deactivate", icon: UserX, disabled: busy, onSelect: () => actions.onDeactivate!(worker) }]
-      : []),
-    ...(!worker.isActive && actions?.onActivate
-      ? [{ label: "Activate", icon: UserCheck, disabled: busy, onSelect: () => actions.onActivate!(worker) }]
-      : []),
-    ...(actions?.onDelete ? [{ label: "Delete", icon: Trash2, danger: true, disabled: busy, onSelect: () => actions.onDelete!(worker) }] : []),
-  ];
+  const menuItems = workerMenuItems(worker, actions, onPrint, busy);
   const place = [worker.department, worker.workLocation]
     .filter(Boolean)
     .join(" · ");

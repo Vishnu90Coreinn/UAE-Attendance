@@ -175,7 +175,7 @@ export default function App() {
               path="progress"
               element={
                 <RequireRole roles={SITE_PROGRESS_ROLES}>
-                  <SiteProgressPage />
+                  <SiteProgressPage guardNavigation />
                 </RequireRole>
               }
             />

@@ -24,7 +24,12 @@ import {
   SuccessRegion,
 } from "../workers/WorkersFeedback";
 import { saveBlob } from "../payroll/downloadPdf";
+import { AttendanceList } from "./AttendanceList";
 import { AttendanceCards } from "./AttendanceCards";
+import { PhoneToast } from "../../components/PhoneToast";
+import { PAGE_GAP, phoneButton } from "../../components/phoneUi";
+import { PhoneHeader, PhoneSaveBar, PhoneSummary } from "./AttendancePhoneChrome";
+import type { AttendanceFilter } from "./attendanceFilter";
 import { AttendanceRangeExport } from "./AttendanceRangeExport";
 import { AttendanceTable } from "./AttendanceTable";
 import { RejectDialog } from "./RejectDialog";
@@ -85,6 +90,9 @@ export function AttendancePage({
   const [nextDate, setNextDate] = useState<string | null>(null);
   const [exporting, setExporting] = useState<"pdf" | "excel" | null>(null);
   const [rejecting, setRejecting] = useState<AttendanceRow | null>(null);
+  // Phone only: narrow the list to one state, and remember what "mark all present" overwrote so it can be undone.
+  const [filter, setFilter] = useState<AttendanceFilter>("all");
+  const [undo, setUndo] = useState<{ forms: AttendanceForm[]; label: string } | null>(null);
   const summary = useAttendanceSummary(!!user);
   const isManager = isManagement(user?.role);
   const showPay = canViewAll(user?.role);
@@ -103,12 +111,12 @@ export function AttendancePage({
           0,
         )
       : null;
-  const canMarkAll =
-    editable &&
-    !!day &&
-    day.rows.some(
-      (row, index) => forms[index]?.status === null && (isManager || row.record?.approvalStatus !== "Approved"),
-    );
+  const markableCount = day
+    ? day.rows.filter(
+        (row, index) => forms[index]?.status === null && (isManager || row.record?.approvalStatus !== "Approved"),
+      ).length
+    : 0;
+  const canMarkAll = editable && markableCount > 0;
   const isDesktop = useIsDesktop();
   const List = isDesktop ? AttendanceTable : AttendanceCards;
 
@@ -118,6 +126,8 @@ export function AttendancePage({
     setLoadError(null);
     setError(null);
     setSuccess(null);
+    setFilter("all");
+    setUndo(null);
     Promise.all([getAttendance(date), getPayrollSettings()])
       .then(([result, config]) => {
         if (!cancelled) {
@@ -138,6 +148,13 @@ export function AttendancePage({
     };
   }, [date, attempt]);
 
+  // The undo offer is a passing toast, not a permanent fixture of the bar.
+  useEffect(() => {
+    if (!undo) return;
+    const timer = window.setTimeout(() => setUndo(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [undo]);
+
   useEffect(() => {
     if (!dirty) return;
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -156,20 +173,28 @@ export function AttendancePage({
     );
     setSuccess(null);
     setError(null);
+    setUndo(null);
   }
-  /** Sets every worker who has no status yet to Present on the standard shift; recorded workers are left alone. */
-  function markAllPresent() {
+  /** Sets every worker who has no status yet to Present (on the standard shift) or Absent; recorded workers are left alone. */
+  function markRemaining(status: "Present" | "Absent") {
     if (!day || !settings) return;
+    setUndo({ forms, label: `Marked ${markableCount} ${status === "Present" ? "present" : "absent"}` });
     setForms((current) =>
       current.map((form, index) =>
         form.status === null && (isManager || day.rows[index].record?.approvalStatus !== "Approved")
-          ? { ...form, status: "Present", basicHours: String(settings.maxBasicHoursPerDay), overtimeHours: "0" }
+          ? {
+              ...form,
+              status,
+              basicHours: status === "Present" ? String(settings.maxBasicHoursPerDay) : "0",
+              overtimeHours: "0",
+            }
           : form,
       ),
     );
     setSuccess(null);
     setError(null);
   }
+  const markAllPresent = () => markRemaining("Present");
   function changeDate(value: string) {
     if (!value || value === date) return;
     if (value > today()) {
@@ -185,6 +210,7 @@ export function AttendancePage({
     setPending(true);
     setError(null);
     setSuccess(null);
+    setUndo(null);
     try {
       const previous = await getAttendance(shiftDate(date, -1));
       const byWorker = new Map(previous.rows.map((r) => [r.worker.id, r.record]));
@@ -229,6 +255,7 @@ export function AttendancePage({
     setPending(true);
     setError(null);
     setSuccess(null);
+    setUndo(null);
     try {
       const saved = await saveAttendance(
         date,
@@ -340,6 +367,185 @@ export function AttendancePage({
   const attention = isManager
     ? { label: "Waiting for approval", days: summary?.submitted ?? [] }
     : { label: "Sent back for correction", days: summary?.rejected ?? [] };
+
+  const dialogs = (
+    <>
+      <RejectDialog
+        open={rejecting !== null}
+        workerName={rejecting?.worker.fullName ?? ""}
+        pending={pending}
+        onCancel={() => setRejecting(null)}
+        onConfirm={sendBack}
+      />
+      <ConfirmDialog
+        open={nextDate !== null}
+        title="Discard unsaved changes?"
+        message="Your attendance edits have not been saved. Changing the date will discard them."
+        confirmLabel="Discard changes"
+        onCancel={() => setNextDate(null)}
+        onConfirm={() => {
+          if (nextDate) setDate(nextDate);
+          setNextDate(null);
+        }}
+      />
+    </>
+  );
+
+  if (!isDesktop) {
+    const todayValue = today();
+    const shiftLine = settings
+      ? `Shift ${settings.shiftDescription}${showPay && settings.overtimeRatePerHour !== null ? ` · OT ${settings.overtimeRatePerHour.toFixed(2)} AED/hr` : ""}`
+      : undefined;
+    const counts = { total: forms.length, present, absent, leave: onLeave };
+    const hasRows = !!day && day.rows.length > 0;
+    // The day on screen is already shown by the banner below, so the list offers only the other days.
+    const otherDays = attention.days.filter((item) => item.date !== date);
+    // Supervisors get the plain people list; Managers and HR need pay and approval detail per worker, so they keep rows.
+    const useList = !isManager && !showPay;
+
+    return (
+      <section className="min-w-0 space-y-4">
+        {guardNavigation && <AttendanceNavigationGuard dirty={dirty} pending={pending} />}
+        <PhoneHeader
+          date={date}
+          today={todayValue}
+          subtitle={shiftLine}
+          pending={pending}
+          onPick={changeDate}
+          menu={
+            <RowMenu
+              label="More actions"
+              disabled={exporting !== null || pending}
+              className="shrink-0"
+              items={[
+                ...(editable
+                  ? [{ label: "Copy from yesterday", icon: Copy, onSelect: () => void copyFromYesterday() }]
+                  : []),
+                { label: "Print PDF", icon: FileText, disabled: dirty, disabledReason: "Save your changes first; the export contains saved attendance.", onSelect: () => void exportDay("pdf") },
+                { label: "Excel", icon: FileSpreadsheet, disabled: dirty, disabledReason: "Save your changes first; the export contains saved attendance.", onSelect: () => void exportDay("excel") },
+              ]}
+            />
+          }
+        />
+
+        {error && <ActionFailure message={error} />}
+        {loading ? (
+          <LoadingState label="Loading attendance..." rows={8} />
+        ) : loadError ? (
+          <LoadError message={loadError} onRetry={() => setAttempt((value) => value + 1)} />
+        ) : (
+          day &&
+          settings && (
+            <>
+              {day.isFinalised && (
+                <p role="status" className="rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                  This month is finalised. Attendance is locked.
+                </p>
+              )}
+              {(otherDays.length > 0 || (isManager && !day.isFinalised && day.pendingCount > 0)) && (
+                <section aria-label="Needs attention" className="space-y-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                  {isManager && !day.isFinalised && day.pendingCount > 0 && (
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="min-w-0 flex-1 font-semibold">
+                        {day.pendingCount} {day.pendingCount === 1 ? "entry is" : "entries are"} waiting for approval.
+                        {dirty && <span className="mt-0.5 block font-normal">Save your changes before approving.</span>}
+                      </p>
+                      <button type="button" onClick={approveAll} disabled={pending || dirty} className={phoneButton("primary", "sm", "shrink-0")}>
+                        <Check aria-hidden="true" size={16} strokeWidth={3} />
+                        Approve all
+                        <span className="sr-only"> ({day.pendingCount})</span>
+                      </button>
+                    </div>
+                  )}
+                  {otherDays.length > 0 && (
+                    <div>
+                      <p className="font-semibold">{isManager ? "Also waiting for approval" : attention.label}</p>
+                      <ul className="mt-2 flex flex-wrap gap-2">
+                        {otherDays.map((item) => (
+                          <li key={item.date}>
+                            <button type="button" onClick={() => changeDate(item.date)} className={phoneButton("secondary", "sm", "text-amber-900")}>
+                              {item.date} ({item.count})
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </section>
+              )}
+              {hasRows ? (
+                <>
+                  <PhoneSummary
+                    {...counts}
+                    pay={totalPay}
+                    filter={filter}
+                    onFilter={setFilter}
+                    markable={canMarkAll ? markableCount : 0}
+                    onMarkRest={markRemaining}
+                  />
+                  {useList ? (
+                    <AttendanceList
+                      rows={day.rows}
+                      forms={forms}
+                      editable={editable}
+                      pending={pending}
+                      maximum={settings.maxBasicHoursPerDay}
+                      isManager={isManager}
+                      canDecide={editable && !dirty}
+                      filter={filter}
+                      onChange={change}
+                      onApprove={approveOne}
+                      onReject={setRejecting}
+                      onResubmit={resubmit}
+                    />
+                  ) : (
+                    <AttendanceCards
+                      rows={day.rows}
+                      forms={forms}
+                      editable={editable}
+                      pending={pending}
+                      maximum={settings.maxBasicHoursPerDay}
+                      showPay={showPay}
+                      companyRate={settings.overtimeRatePerHour}
+                      isManager={isManager}
+                      canDecide={editable && !dirty}
+                      filter={filter}
+                      onChange={change}
+                      onApprove={approveOne}
+                      onReject={setRejecting}
+                      onResubmit={resubmit}
+                    />
+                  )}
+                  {editable && (
+                    <p className="px-1 text-center text-[0.8125rem] text-ink-600">
+                      {showPay ? "Workers left unmarked are not paid for the day." : "Workers left unmarked get no hours for the day."}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="rounded-2xl border border-line bg-white px-4 py-10 text-center text-ink-600">No workers for this date.</p>
+              )}
+            </>
+          )
+        )}
+        <AttendanceRangeExport initialDate={todayValue} />
+        {showSave && (
+          <PhoneSaveBar
+            unsaved={unsaved}
+            pending={pending}
+            undoLabel={undo?.label ?? null}
+            onUndo={() => {
+              if (undo) setForms(undo.forms);
+              setUndo(null);
+            }}
+            onSave={save}
+          />
+        )}
+        <PhoneToast message={success} lift={unsaved > 0 || undo !== null} onDone={() => setSuccess(null)} />
+        {dialogs}
+      </section>
+    );
+  }
 
   return (
     <section className="min-w-0 space-y-4">
@@ -555,24 +761,7 @@ export function AttendancePage({
           {renderSave(isDesktop ? "" : "min-h-12 px-6 text-base")}
         </div>
       )}
-      <RejectDialog
-        open={rejecting !== null}
-        workerName={rejecting?.worker.fullName ?? ""}
-        pending={pending}
-        onCancel={() => setRejecting(null)}
-        onConfirm={sendBack}
-      />
-      <ConfirmDialog
-        open={nextDate !== null}
-        title="Discard unsaved changes?"
-        message="Your attendance edits have not been saved. Changing the date will discard them."
-        confirmLabel="Discard changes"
-        onCancel={() => setNextDate(null)}
-        onConfirm={() => {
-          if (nextDate) setDate(nextDate);
-          setNextDate(null);
-        }}
-      />
+      {dialogs}
     </section>
   );
 }

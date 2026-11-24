@@ -19,21 +19,14 @@ import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedb
 import { fieldErrorsOf, messageOf, usePdfDownload } from "./letterUi";
 import { LetterSheet } from "./LetterSheet";
 import { PrepareLetter } from "./PrepareLetter";
+import { mayPrepare, openLabel, type RequestRoles } from "./requestRoles";
+import { ChipRow, chipOf, NewRequestSheet, RequestList, type RequestChip } from "./LettersPhone";
+import { Fab, PAGE_GAP } from "../../components/phoneUi";
+import { PhoneToast } from "../../components/PhoneToast";
+import { useIsDesktop } from "../../utils/useIsDesktop";
+import { useAuth } from "../../contexts/AuthContext";
 
-export interface RequestRoles {
-  /** Supervisors, Managers and the Administrator raise requests. */
-  canRaise: boolean;
-  /** HR and the Administrator add and update the details and send for approval. */
-  canPrepare: boolean;
-  /** A Manager prepares only the requests they raised themselves; this is their own username. */
-  prepareOwnAs?: string;
-  /** Managers and the Administrator prepare requests raised by office employees; HR never does. */
-  prepareEmployeeRequests?: boolean;
-  /** Managers and the Administrator approve or send back. */
-  canApprove: boolean;
-  /** HR, Managers and the Administrator open requests and download approved certificates. */
-  canOpen: boolean;
-}
+export type { RequestRoles };
 
 export function RequestStatus({ status }: { status: CertificateStatus }) {
   const label = STATUS_LABELS[status];
@@ -47,12 +40,6 @@ export function RequestStatus({ status }: { status: CertificateStatus }) {
     default:
       return <StatusBadge tone="info" icon={FileText}>{label}</StatusBadge>;
   }
-}
-
-/** Whether the signed-in user may prepare a request raised by <paramref name="requestedBy" />. */
-function mayPrepare(roles: RequestRoles, requestedBy: string, category?: string): boolean {
-  if (category === "Employee") return roles.prepareEmployeeRequests === true;
-  return roles.canPrepare || (roles.prepareOwnAs !== undefined && roles.prepareOwnAs === requestedBy);
 }
 
 function when(iso: string): string {
@@ -180,6 +167,7 @@ function RequestDetailView({ id, roles, onBack, onNotice }: { id: number; roles:
   const [approving, setApproving] = useState(false);
   const [sendingBack, setSendingBack] = useState(false);
   const { pending, error: pdfError, download } = usePdfDownload();
+  const desktop = useIsDesktop();
 
   const load = useCallback(() => {
     setError(null);
@@ -269,38 +257,60 @@ function RequestDetailView({ id, roles, onBack, onNotice }: { id: number; roles:
           }}
         />
       ) : detail.document ? (
-        <>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-ink-700">
-              {request.status === "Approved"
-                ? `Approved by ${request.reviewedBy}. Reference ${request.refNo}.`
-                : `Prepared by ${request.preparedBy ?? "HR"}. Check it, then approve or send it back.`}
-            </p>
-            <div className="flex flex-wrap gap-2">
+        (() => {
+          const actions = (
+            <>
               {request.status === "Approved" && request.letterId !== null && roles.canOpen && (
                 <Button
                   icon={pending === request.letterId ? Loader2 : Download}
                   disabled={pending === request.letterId}
                   aria-busy={pending === request.letterId}
                   onClick={() => void download(request.letterId!, request.refNo ?? "certificate")}
+                  className={desktop ? undefined : "min-h-12 flex-1"}
                 >
                   Download PDF
                 </Button>
               )}
               {request.status === "PendingApproval" && roles.canApprove && (
                 <>
-                  <Button variant="secondary" icon={XCircle} onClick={() => setSendingBack(true)} disabled={approving}>
+                  <Button variant="secondary" icon={XCircle} onClick={() => setSendingBack(true)} disabled={approving} className={desktop ? undefined : "min-h-12 flex-1"}>
                     Send back
                   </Button>
-                  <Button icon={approving ? Loader2 : CheckCircle2} onClick={() => void approve()} disabled={approving} aria-busy={approving}>
+                  <Button icon={approving ? Loader2 : CheckCircle2} onClick={() => void approve()} disabled={approving} aria-busy={approving} className={desktop ? undefined : "min-h-12 flex-1"}>
                     {approving ? "Approving..." : "Approve"}
                   </Button>
                 </>
               )}
-            </div>
-          </div>
-          <LetterSheet document={detail.document} />
-        </>
+            </>
+          );
+          const hasActions =
+            (request.status === "Approved" && request.letterId !== null && roles.canOpen) || (request.status === "PendingApproval" && roles.canApprove);
+          const summary = (
+            <p className="text-sm text-ink-700">
+              {request.status === "Approved"
+                ? `Approved by ${request.reviewedBy}. Reference ${request.refNo}.`
+                : `Prepared by ${request.preparedBy ?? "HR"}. Check it, then approve or send it back.`}
+            </p>
+          );
+          // On a phone the decision stays in the thumb zone while the letter scrolls; on desktop it sits above the letter.
+          return desktop ? (
+            <>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                {summary}
+                <div className="flex flex-wrap gap-2">{actions}</div>
+              </div>
+              <LetterSheet document={detail.document} />
+            </>
+          ) : (
+            <>
+              <div className="mb-4">{summary}</div>
+              <LetterSheet document={detail.document} />
+              {hasActions && (
+                <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-20 mt-5 flex gap-2 rounded-2xl border border-line bg-white p-2 shadow-pop">{actions}</div>
+              )}
+            </>
+          );
+        })()
       ) : (
         <Card>
           <EmptyState
@@ -325,6 +335,12 @@ function RequestDetailView({ id, roles, onBack, onNotice }: { id: number; roles:
 // --- the list ----------------------------------------------------------------------------------------------
 
 export function RequestsPanel({ roles, defaultStatus }: { roles: RequestRoles; defaultStatus: CertificateStatus | "" }) {
+  const desktop = useIsDesktop();
+  const { user } = useAuth();
+  /** Phone only: which chip is chosen; null until the person picks one, so the default can follow what needs them. */
+  const [phoneChip, setPhoneChip] = useState<RequestChip | null>(null);
+  const [phoneWorkers, setPhoneWorkers] = useState<Worker[] | null>(null);
+  const [phoneWorkersError, setPhoneWorkersError] = useState<string | null>(null);
   const [status, setStatus] = useState<CertificateStatus | "">(defaultStatus);
   const [rows, setRows] = useState<CertificateRequest[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -352,11 +368,87 @@ export function RequestsPanel({ roles, defaultStatus }: { roles: RequestRoles; d
     };
   }, [attempt, openId]);
 
+  useEffect(() => {
+    if (desktop || !raising || phoneWorkers !== null) return;
+    let cancelled = false;
+    listWorkers(false)
+      .then((list) => !cancelled && setPhoneWorkers(list))
+      .catch((e: unknown) => !cancelled && setPhoneWorkersError(messageOf(e)));
+    return () => {
+      cancelled = true;
+    };
+  }, [desktop, raising, phoneWorkers]);
+
   const counts = (rows ?? []).reduce<Record<string, number>>((acc, r) => ({ ...acc, [r.status]: (acc[r.status] ?? 0) + 1 }), {});
   const shown = status ? (rows ?? []).filter((r) => r.status === status) : rows;
 
   if (openId !== null) {
     return <RequestDetailView id={openId} roles={roles} onBack={() => setOpenId(null)} onNotice={setNotice} />;
+  }
+
+  if (!desktop) {
+    const all = rows ?? [];
+    const hasNeeds = roles.canPrepare || roles.prepareOwnAs !== undefined || roles.prepareEmployeeRequests === true || roles.canApprove;
+    const n = (kind: RequestChip) => all.filter((r) => chipOf(r, roles) === kind).length;
+    const chosen: RequestChip = phoneChip ?? (hasNeeds && n("needs") > 0 ? "needs" : "all");
+    // What needs you first, then what is waiting on others, then what is finished; newest first within each.
+    const order = { needs: 0, waiting: 1, done: 2 } as const;
+    const shownRows = (chosen === "all" ? all : all.filter((r) => chipOf(r, roles) === chosen))
+      .slice()
+      .sort((x, y) => order[chipOf(x, roles)] - order[chipOf(y, roles)] || y.requestedUtc.localeCompare(x.requestedUtc));
+    const chips: { key: RequestChip; label: string; count: number }[] = [
+      { key: "all", label: "All", count: all.length },
+      ...(hasNeeds ? [{ key: "needs" as const, label: "Needs me", count: n("needs") }] : []),
+      { key: "waiting", label: hasNeeds ? "Waiting on others" : "In progress", count: n("waiting") },
+      { key: "done", label: "Approved", count: n("done") },
+    ];
+    return (
+      <div className={`${PAGE_GAP} pb-20`}>
+        {pdfError && <ActionFailure message={pdfError} />}
+        {rows !== null && rows.length > 0 && (
+          <ChipRow label="Filter requests" chips={chips.map((c) => ({ key: c.key, label: c.label, count: c.count, on: chosen === c.key, onClick: () => setPhoneChip(c.key) }))} />
+        )}
+        {error ? (
+          <LoadError message={error} onRetry={() => setAttempt((v) => v + 1)} />
+        ) : rows === null ? (
+          <LoadingState label="Loading requests..." rows={4} />
+        ) : shownRows.length === 0 ? (
+          <p className="rounded-3xl border border-line bg-white px-5 py-10 text-center text-ink-600 shadow-card">
+            {chosen === "needs"
+              ? "Nothing needs you right now."
+              : all.length === 0
+                ? roles.canRaise
+                  ? "No requests yet. Tap Request letter to ask HR for a certificate."
+                  : "Requests raised by supervisors appear here."
+                : "No requests in this view."}
+          </p>
+        ) : (
+          <RequestList
+            rows={shownRows}
+            roles={roles}
+            username={user?.username}
+            downloading={pending}
+            onOpen={setOpenId}
+            onDownload={(letterId, refNo) => void download(letterId, refNo)}
+          />
+        )}
+        {roles.canRaise && <Fab label="Request letter" icon={Plus} onClick={() => setRaising(true)} />}
+        <PhoneToast message={notice} onDone={() => setNotice(null)} />
+        {raising && (
+          <NewRequestSheet
+            workers={phoneWorkers ?? []}
+            loading={phoneWorkers === null && phoneWorkersError === null}
+            loadFailure={phoneWorkersError}
+            onClose={() => setRaising(false)}
+            onDone={(request) => {
+              setRaising(false);
+              setNotice(`Request sent to HR for ${request.workerName}.`);
+              setAttempt((v) => v + 1);
+            }}
+          />
+        )}
+      </div>
+    );
   }
 
   return (
@@ -435,11 +527,7 @@ export function RequestsPanel({ roles, defaultStatus }: { roles: RequestRoles; d
                       <div className="flex justify-end gap-2">
                         {roles.canOpen && (
                           <Button size="sm" variant="secondary" aria-label={`Open request for ${row.workerName}`} onClick={() => setOpenId(row.id)}>
-                            {mayPrepare(roles, row.requestedBy, row.workerCategory) && (row.status === "Requested" || row.status === "Returned")
-                              ? "Prepare"
-                              : roles.canApprove && row.status === "PendingApproval"
-                                ? "Review"
-                                : "Open"}
+                            {openLabel(row, roles)}
                           </Button>
                         )}
                         {roles.canOpen && row.status === "Approved" && row.letterId !== null && (

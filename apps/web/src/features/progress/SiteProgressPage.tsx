@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileDown, FileSpreadsheet, HardHat, Pencil, Plus, Save, Search, SlidersHorizontal, Undo2 } from "lucide-react";
+import { Clock, FileDown, FileSpreadsheet, HardHat, Pencil, Plus, Save, Search, SlidersHorizontal, Undo2 } from "lucide-react";
 import { ApiError } from "../../api/client";
 import {
   computeKpis,
@@ -14,14 +14,18 @@ import {
 } from "../../api/siteProgress";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
-import { LoadingState, Button, Card, EmptyState, PageHeader, Select, cx } from "../../ui";
+import { LoadingState, Button, Card, EmptyState, PageHeader, RowMenu, Select, cx } from "../../ui";
 import { useIsDesktop } from "../../utils/useIsDesktop";
 import { saveBlob } from "../payroll/downloadPdf";
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { FloorDialog } from "./FloorDialog";
 import { FloorList, type FloorRow } from "./FloorList";
 import { ProjectDialog } from "./ProjectDialog";
+import { FloorAccordion, HandoverCard, ProgressSaveBar } from "./SiteProgressPhone";
+import { Chip, ChipRow, PAGE_GAP, phoneButton, PhoneTitle } from "../../components/phoneUi";
 import { SummaryBar } from "./SummaryBar";
+import { PhoneToast } from "../../components/PhoneToast";
+import { AttendanceNavigationGuard } from "../attendance/AttendanceNavigationGuard";
 
 type WirFilter = "all" | "approved" | "approvedComments" | "pending" | "rejected";
 type CompletionFilter = "all" | "Completed" | "InProgress" | "NotStarted";
@@ -45,7 +49,7 @@ function lastUpdated(report: SiteReport): string {
 
 const WARN_UNSAVED = "You have unsaved changes to this report. Leave without saving?";
 
-export function SiteProgressPage() {
+export function SiteProgressPage({ guardNavigation = false }: { guardNavigation?: boolean } = {}) {
   const { user } = useAuth();
   const desktop = useIsDesktop();
   /** Supervisors, Managers and the Administrator enter progress; HR reads, prints and exports. */
@@ -69,12 +73,25 @@ export function SiteProgressPage() {
   const activeFilters = [wirFilter, alignmentFilter, completionFilter].filter((v) => v !== "all").length;
   const [editing, setEditing] = useState<{ index: number | null } | null>(null);
   const [projectDialog, setProjectDialog] = useState<{ project?: SiteProject } | null>(null);
+  /** The floor just deleted from the draft, so the phone can offer Undo. */
+  const [removed, setRemoved] = useState<{ floor: SiteFloor; index: number } | null>(null);
+  /** True while a site note is being typed, so the floating save bar stays clear of the keyboard. */
+  const [noting, setNoting] = useState(false);
 
   const project = projects?.find((p) => p.id === projectId) ?? null;
   const dirty = useMemo(() => {
     if (!report) return false;
     if (!report.exists) return floors.length > 0;
     return JSON.stringify(floors) !== JSON.stringify(report.floors);
+  }, [floors, report]);
+
+  /** How many floors differ from the saved report: edited, added or removed. */
+  const changedFloors = useMemo(() => {
+    if (!report) return 0;
+    const saved = new Map(report.floors.map((f) => [f.floor, JSON.stringify(f)]));
+    const edited = floors.filter((f) => saved.get(f.floor) !== JSON.stringify(f)).length;
+    const gone = report.floors.filter((b) => !floors.some((f) => f.floor === b.floor)).length;
+    return edited + gone;
   }, [floors, report]);
 
   const loadProjects = useCallback(async () => {
@@ -273,6 +290,231 @@ export function SiteProgressPage() {
   if (projects === null && !loadError) {
     return (
       <LoadingState label="Loading..." withCards />
+    );
+  }
+
+  if (!desktop) {
+    const staleDays = report?.exists && report.updatedUtc ? Math.floor((Date.now() - Date.parse(report.updatedUtc)) / 86_400_000) : 0;
+    const count = (test: (floor: SiteFloor) => boolean) => floors.filter(test).length;
+    const wirOpen = (floor: SiteFloor) => floor.wirStatus !== "Approved" && floor.wirStatus !== "ApprovedWithComments";
+    const chips: { label: string; on: boolean; n: number; toggle: () => void }[] = [
+      {
+        label: "All",
+        on: completionFilter === "all" && wirFilter === "all",
+        n: floors.length,
+        toggle: () => {
+          setCompletionFilter("all");
+          setWirFilter("all");
+        },
+      },
+      { label: "Not started", on: completionFilter === "NotStarted", n: count((f) => f.completion === "NotStarted"), toggle: () => setCompletionFilter(completionFilter === "NotStarted" ? "all" : "NotStarted") },
+      { label: "In progress", on: completionFilter === "InProgress", n: count((f) => f.completion === "InProgress"), toggle: () => setCompletionFilter(completionFilter === "InProgress" ? "all" : "InProgress") },
+      { label: "Completed", on: completionFilter === "Completed", n: count((f) => f.completion === "Completed"), toggle: () => setCompletionFilter(completionFilter === "Completed" ? "all" : "Completed") },
+      { label: "WIR open", on: wirFilter === "pending", n: count(wirOpen), toggle: () => setWirFilter(wirFilter === "pending" ? "all" : "pending") },
+    ];
+    const menuItems = [
+      ...(report?.exists
+        ? [
+            { label: "Download PDF", icon: FileDown, onSelect: () => void download("pdf") },
+            { label: "Download CSV", icon: FileSpreadsheet, onSelect: () => void download("csv") },
+          ]
+        : []),
+      ...(canManage
+        ? [
+            { label: "New project", icon: Plus, onSelect: () => setProjectDialog({}) },
+            ...(project ? [{ label: "Edit project", icon: Pencil, onSelect: () => setProjectDialog({ project }) }] : []),
+          ]
+        : []),
+    ];
+
+    return (
+      <section className={`min-w-0 ${PAGE_GAP}`}>
+        {guardNavigation && <AttendanceNavigationGuard dirty={dirty} pending={saving} subject="site progress changes" />}
+        <div className="space-y-2">
+          <PhoneTitle
+            title="Site Progress"
+            actions={menuItems.length > 0 ? <RowMenu label="More actions" items={menuItems} className="shrink-0" /> : undefined}
+          />
+          {report && (
+            <p role="status" className="text-[0.8125rem] leading-snug text-ink-600">
+              {report.exists ? `Last updated by ${report.updatedBy} on ${lastUpdated(report)}` : "Nothing saved for this project yet."}
+              {staleDays >= 2 && (
+                <span className="ml-2 inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
+                  <Clock aria-hidden="true" size={12} />
+                  {staleDays} days ago
+                </span>
+              )}
+            </p>
+          )}
+        </div>
+
+        {loadError && <LoadError message={loadError} onRetry={() => void (projects ? load() : loadProjects())} />}
+        {projects && projects.length === 0 && !loadError && (
+          <Card>
+            <EmptyState
+              icon={HardHat}
+              title="No projects yet"
+              description={canManage ? "Create the first project to start recording progress." : "A manager needs to create a project first."}
+              action={canManage ? <Button icon={Plus} onClick={() => setProjectDialog({})}>New project</Button> : undefined}
+            />
+          </Card>
+        )}
+
+        {projects && projects.length > 0 && (
+          <>
+            {projects.length === 1 ? (
+              <p className="flex min-h-12 items-center gap-2 rounded-2xl border border-line bg-white px-4 text-base font-semibold text-ink-900 shadow-card">
+                <HardHat aria-hidden="true" size={18} className="shrink-0 text-brand-700" />
+                <span className="sr-only">Project: </span>
+                {projects[0].name}
+              </p>
+            ) : (
+              <div>
+                <label htmlFor="project-select" className="sr-only">
+                  Project
+                </label>
+                <select
+                  id="project-select"
+                  value={projectId ?? ""}
+                  onChange={(e) => guarded(() => setProjectId(Number(e.target.value)))}
+                  className="block min-h-12 w-full rounded-2xl border border-line bg-white px-4 text-base font-semibold text-ink-900 shadow-card focus-visible:outline-2 focus-visible:outline-brand-500/40"
+                >
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                      {p.isActive ? "" : " (inactive)"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {failure && <ActionFailure message={failure} />}
+            {loading && !report && <LoadingState label="Loading report..." rows={5} />}
+
+            {report && (
+              <>
+                <HandoverCard kpis={kpis} floorCount={floors.length} />
+
+                {floors.length > 8 && (
+                  <div className="relative">
+                    <label htmlFor="floor-search" className="sr-only">
+                      Search floors
+                    </label>
+                    <Search aria-hidden="true" size={20} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-500" />
+                    <input
+                      id="floor-search"
+                      type="search"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search floors"
+                      className="block min-h-12 w-full rounded-2xl border border-line bg-white pl-11 pr-4 text-base text-ink-900 shadow-card placeholder:text-ink-500 focus-visible:outline-2 focus-visible:outline-brand-500/30"
+                    />
+                  </div>
+                )}
+                {floors.length > 0 && (
+                  <ChipRow label="Filter floors">
+                    {chips.map((item) => (
+                      <Chip key={item.label} on={item.on} count={item.n} onClick={item.toggle}>
+                        {item.label}
+                      </Chip>
+                    ))}
+                  </ChipRow>
+                )}
+
+                {rows.length === 0 ? (
+                  <div className="rounded-3xl border border-line bg-white shadow-card">
+                    <EmptyState
+                      icon={HardHat}
+                      title={floors.length === 0 ? "No floors in this report" : "No matching floors"}
+                      description={floors.length === 0 ? (canEdit ? "Add a floor to start the report." : "Nothing has been recorded yet.") : "Change the search or the filters."}
+                      action={
+                        canEdit && floors.length === 0 ? (
+                          <Button icon={Plus} onClick={() => setEditing({ index: null })}>
+                            Add floor
+                          </Button>
+                        ) : undefined
+                      }
+                    />
+                  </div>
+                ) : (
+                  <FloorAccordion
+                    rows={rows}
+                    canEdit={canEdit}
+                    canLock={canManage}
+                    onChange={changeFloor}
+                    onEdit={(index) => setEditing({ index })}
+                    onNoteFocus={setNoting}
+                    onDelete={(index) => {
+                      setRemoved({ floor: floors[index], index });
+                      setFloors((current) => current.filter((_, i) => i !== index));
+                      setSuccess(null);
+                    }}
+                  />
+                )}
+
+                {canEdit && floors.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setEditing({ index: null })}
+                    className={phoneButton("secondary", "md", "w-full")}
+                  >
+                    <Plus aria-hidden="true" size={18} />
+                    Add floor
+                  </button>
+                )}
+
+                {canEdit && dirty && !noting && (
+                  <ProgressSaveBar
+                    changed={changedFloors}
+                    saving={saving}
+                    canSave={floors.length > 0}
+                    onDiscard={() => {
+                      setFloors(report.floors);
+                      setRemoved(null);
+                    }}
+                    onSave={() => void save()}
+                  />
+                )}
+                <PhoneToast
+                  message={removed ? `Deleted ${removed.floor.floor}` : success}
+                  lift={canEdit && dirty && !noting}
+                  action={
+                    removed
+                      ? {
+                          label: "Undo",
+                          onClick: () =>
+                            setFloors((current) => {
+                              const next = [...current];
+                              next.splice(Math.min(removed.index, next.length), 0, removed.floor);
+                              return next;
+                            }),
+                        }
+                      : undefined
+                  }
+                  onDone={() => {
+                    setRemoved(null);
+                    setSuccess(null);
+                  }}
+                />
+              </>
+            )}
+          </>
+        )}
+
+        <FloorDialog open={editing !== null} floor={editing?.index != null ? floors[editing.index] : undefined} takenNames={takenNames} onSave={applyFloor} onClose={() => setEditing(null)} />
+        <ProjectDialog
+          open={projectDialog !== null}
+          project={projectDialog?.project}
+          onClose={() => setProjectDialog(null)}
+          onDone={(saved) => {
+            setProjectDialog(null);
+            setSuccess("Project saved.");
+            setProjectId(saved.id);
+            void loadProjects();
+          }}
+        />
+      </section>
     );
   }
 

@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
-import { Download, FileText, Loader2 } from "lucide-react";
+import { Download, FileText, Loader2, Search } from "lucide-react";
 import { letterTypeLabel, LETTER_TYPES, getLetter, listLetters, type LetterRecord, type LetterSummary, type LetterType } from "../../api/letters";
 import { useAuth } from "../../contexts/AuthContext";
 import { LoadingState, Button, Card, EmptyState, Input, PageHeader, Select, Table, TableScroll, Td, Th, THead, TRow, cx } from "../../ui";
 import { ActionFailure, LoadError } from "../workers/WorkersFeedback";
 import { messageOf, usePdfDownload } from "./letterUi";
 import { LetterSheet } from "./LetterSheet";
-import { RequestsPanel, type RequestRoles } from "./RequestsPanel";
+import { RequestsPanel } from "./RequestsPanel";
+import type { RequestRoles } from "./requestRoles";
+import { ChipRow, LetterCards } from "./LettersPhone";
+import { useIsDesktop } from "../../utils/useIsDesktop";
+import { PAGE_GAP, PhoneTitle } from "../../components/phoneUi";
 
 type Tab = "requests" | "issued";
 
@@ -52,6 +56,8 @@ function IssuedLog({ onOpen }: { onOpen: (id: number) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const { pending, error: pdfError, download } = usePdfDownload();
+  const desktop = useIsDesktop();
+  const [datesOpen, setDatesOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +78,74 @@ function IssuedLog({ onOpen }: { onOpen: (id: number) => void }) {
       window.clearTimeout(timer);
     };
   }, [search, type, from, to, attempt]);
+
+  if (!desktop) {
+    const dateInput = "mt-1.5 block min-h-12 w-full rounded-xl border border-ink-300 bg-white px-3 text-base text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500";
+    return (
+      <div className={`${PAGE_GAP} pb-4`}>
+        <div className="relative">
+          <label htmlFor="letters-search" className="sr-only">
+            Search
+          </label>
+          <Search aria-hidden="true" size={20} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-500" />
+          <input
+            id="letters-search"
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Worker, reference or addressee"
+            autoComplete="off"
+            className="block min-h-12 w-full rounded-2xl border border-line bg-white pl-11 pr-4 text-base text-ink-900 shadow-card placeholder:text-ink-500 focus-visible:outline-2 focus-visible:outline-brand-500/30"
+          />
+        </div>
+        <ChipRow
+          label="Filter by type"
+          chips={[
+            { key: "all", label: "All types", on: type === "", onClick: () => setType("") },
+            ...LETTER_TYPES.map((t) => ({ key: t.value, label: t.label, on: type === t.value, onClick: () => setType(type === t.value ? "" : t.value) })),
+          ]}
+        />
+        <div>
+          <button
+            type="button"
+            aria-expanded={datesOpen}
+            onClick={() => setDatesOpen((v) => !v)}
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl px-1 text-sm font-bold text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+          >
+            Date range{from || to ? " (on)" : ""}
+          </button>
+          {datesOpen && (
+            <div className="mt-2 grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="letters-from" className="text-sm font-bold text-ink-800">
+                  From
+                </label>
+                <input id="letters-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={dateInput} />
+              </div>
+              <div>
+                <label htmlFor="letters-to" className="text-sm font-bold text-ink-800">
+                  To
+                </label>
+                <input id="letters-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} className={dateInput} />
+              </div>
+            </div>
+          )}
+        </div>
+        {pdfError && <ActionFailure message={pdfError} />}
+        {error ? (
+          <LoadError message={error} onRetry={() => setAttempt((n) => n + 1)} />
+        ) : rows === null ? (
+          <LoadingState label="Loading letters..." rows={4} />
+        ) : rows.length === 0 ? (
+          <p className="rounded-3xl border border-line bg-white px-5 py-10 text-center text-ink-600 shadow-card">
+            No letters found. Issued certificates and letters appear here.
+          </p>
+        ) : (
+          <LetterCards rows={rows} downloading={pending} onOpen={onOpen} onDownload={(id, refNo) => void download(id, refNo)} />
+        )}
+      </div>
+    );
+  }
 
   return (
     <Card>
@@ -159,6 +233,7 @@ function IssuedLog({ onOpen }: { onOpen: (id: number) => void }) {
 /** Certificate requests (supervisor raises, HR prepares, manager approves) and the approved letters. */
 export function LettersPage() {
   const { user } = useAuth();
+  const desktop = useIsDesktop();
   const role = user?.role;
   const roles: RequestRoles = {
     canRaise: role === "Supervisor" || role === "Manager" || role === "Administrator",
@@ -188,7 +263,7 @@ export function LettersPage() {
   if (opened) {
     return (
       <div className="letters-page">
-        <PageHeader title="HR Letters" description="Approved certificates and letters." />
+        {desktop ? <PageHeader title="HR Letters" description="Approved certificates and letters." /> : <div className="mb-5"><PhoneTitle title="HR Letters" /></div>}
         <LetterDetail record={opened} onBack={() => setOpened(null)} backLabel="Back to letters" />
       </div>
     );
@@ -199,16 +274,26 @@ export function LettersPage() {
 
   return (
     <div className="letters-page">
-      <PageHeader
-        title="HR Letters"
-        description={
-          role === "Supervisor"
-            ? "Ask HR for a certificate and follow its progress."
-            : "A supervisor requests a certificate, HR prepares it, and a manager approves it before it can be downloaded."
-        }
-      />
+      {desktop ? (
+        <PageHeader
+          title="HR Letters"
+          description={
+            role === "Supervisor"
+              ? "Ask HR for a certificate and follow its progress."
+              : "A supervisor requests a certificate, HR prepares it, and a manager approves it before it can be downloaded."
+          }
+        />
+      ) : (
+        <div className="mb-5">
+          <PhoneTitle title="HR Letters" />
+        </div>
+      )}
       {tabs.length > 1 && (
-        <div role="tablist" aria-label="Certificates" className="mb-5 inline-flex rounded-lg border border-ink-300 bg-white p-1">
+        <div
+          role="tablist"
+          aria-label="Certificates"
+          className={desktop ? "mb-5 inline-flex rounded-lg border border-ink-300 bg-white p-1" : "mb-5 grid grid-cols-2 gap-1 rounded-2xl bg-ink-100 p-1"}
+        >
           {tabs.map(([key, label]) => (
             <button
               key={key}
@@ -219,8 +304,9 @@ export function LettersPage() {
               aria-controls={`letters-panel-${key}`}
               onClick={() => setTab(key)}
               className={cx(
-                "min-h-11 rounded-md px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 md:min-h-9",
-                tab === key ? "bg-brand-600 text-white" : "text-ink-700 hover:bg-ink-100",
+                "min-h-11 px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 md:min-h-9",
+                desktop ? "rounded-md" : "min-h-12 rounded-xl font-bold",
+                tab === key ? (desktop ? "bg-brand-600 text-white" : "bg-white text-ink-900 shadow-card") : "text-ink-700 hover:bg-ink-100",
               )}
             >
               {label}

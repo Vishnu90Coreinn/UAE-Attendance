@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { clearNewParam, hasNewParam } from "../../utils/startParam";
-import { LoadingState, PageHeader, StatCard } from "../../ui";
-import { CalendarCheck, CalendarPlus, CalendarX, Hourglass } from "lucide-react";
+import { LoadingState, PageHeader, RowMenu, StatCard } from "../../ui";
+import { CalendarCheck, CalendarPlus, CalendarX, FileText, Hourglass, Plus } from "lucide-react";
 import {
   approveLeave,
   createLeave,
@@ -16,6 +16,9 @@ import { listWorkers, type Worker } from "../../api/workers";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
 import { formatDisplayDate } from "../../utils/date";
+import { useIsDesktop } from "../../utils/useIsDesktop";
+import { Dialog } from "../../components/Dialog";
+import { PhoneToast } from "../../components/PhoneToast";
 import { LeaveBalances } from "./LeaveBalances";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import {
@@ -28,6 +31,9 @@ import { LeaveFormDialog } from "./LeaveFormDialog";
 import { LeaveTable } from "./LeaveTable";
 import { LeavePhotoDialog } from "./LeavePhotoDialog";
 import { LeaveReport } from "./LeaveReport";
+import { LeaveFormSheet } from "./LeaveFormSheet";
+import { Chip, ChipRow, chipClass, Fab, PAGE_GAP, PhoneTitle } from "../../components/phoneUi";
+import { LeaveList } from "./LeavePhone";
 
 function message(error: unknown) {
   return error instanceof ApiError
@@ -38,6 +44,10 @@ const selectClass =
   "mt-1 min-h-11 max-w-full rounded-lg border border-ink-300 bg-white px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-60";
 export function LeavePage() {
   const { user } = useAuth();
+  const desktop = useIsDesktop();
+  /** Phone only: which status the chips are showing; the list is filtered here so every chip keeps its count. */
+  const [chip, setChip] = useState<LeaveStatus | "">("");
+  const [reportOpen, setReportOpen] = useState(false);
   const [rows, setRows] = useState<LeaveRequest[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [workersReady, setWorkersReady] = useState(false);
@@ -167,6 +177,146 @@ export function LeavePage() {
     }
   }
   const busy = pending || formOpen || !!confirmation || !!photoRow;
+  if (!desktop) {
+    const canCreate = !!user && user.role !== "HR" && user.role !== "Viewer";
+    const count = (kind: LeaveStatus) => rows.filter((r) => r.status === kind).length;
+    const shown = chip ? rows.filter((r) => r.status === chip) : rows;
+    const chosenWorker = workers.find((w) => String(w.id) === workerId);
+    const canRequest = workersReady && workers.some((w) => w.isActive);
+    return (
+      <section className={`min-w-0 ${PAGE_GAP} pb-20`}>
+        <PhoneTitle
+          title="Leave"
+          actions={<RowMenu label="More actions" className="shrink-0" items={[{ label: "Monthly report", icon: FileText, onSelect: () => setReportOpen(true) }]} />}
+        />
+
+        {(rows.length > 0 || chip !== "" || workerId !== "") && (
+          <ChipRow label="Filter leave">
+            <Chip on={chip === ""} count={rows.length} onClick={() => setChip("")}>
+              All
+            </Chip>
+            {(["Pending", "Approved", "Rejected"] as const).map((kind) => (
+              <Chip key={kind} on={chip === kind} count={count(kind)} onClick={() => setChip(chip === kind ? "" : kind)}>
+                {kind}
+              </Chip>
+            ))}
+            <label htmlFor="leave-worker-filter" className="sr-only">
+              Filter by worker
+            </label>
+            <select
+              id="leave-worker-filter"
+              value={workerId}
+              disabled={busy || !workersReady}
+              onChange={(e) => setWorkerId(e.target.value)}
+              className={chipClass(workerId !== "", "max-w-44 appearance-auto pr-2")}
+            >
+              <option value="">All workers</option>
+              {workers.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.fullName} ({w.workerCode}){!w.isActive && " · Inactive"}
+                </option>
+              ))}
+            </select>
+          </ChipRow>
+        )}
+
+        {workersError && <LoadError message={`Worker options could not be loaded. ${workersError}`} onRetry={() => setWorkersAttempt((n) => n + 1)} />}
+        {user && workersReady && !workers.some((w) => w.isActive) && (
+          <p className="text-sm text-ink-600">Add an active worker before requesting leave.</p>
+        )}
+        {error && <ActionFailure message={error} />}
+        {loading ? (
+          <LoadingState label="Loading leave requests..." />
+        ) : loadError ? (
+          <LoadError message={loadError} onRetry={() => setAttempt((n) => n + 1)} />
+        ) : shown.length ? (
+          <LeaveList
+            rows={shown}
+            role={user?.role}
+            username={user?.username}
+            busy={busy}
+            onApprove={(row) => act("approve", row)}
+            onReject={(row) => act("reject", row)}
+            onViewPhoto={setPhotoRow}
+            onDelete={(row) => {
+              setError(null);
+              setSuccess(null);
+              setConfirmation(row);
+            }}
+          />
+        ) : (
+          <p className="rounded-3xl border border-line bg-white px-4 py-10 text-center text-ink-600 shadow-card">
+            {rows.length === 0 && !chip && !workerId ? "No leave requests yet." : "No leave requests match these filters."}
+          </p>
+        )}
+
+        <LeaveBalances compact refreshKey={attempt} />
+
+        {canCreate && (
+          <Fab
+            label="New request"
+            icon={Plus}
+            disabled={busy || !canRequest}
+            onClick={() => {
+              setFormError(null);
+              setFieldErrors(undefined);
+              setError(null);
+              setSuccess(null);
+              setFormOpen(true);
+            }}
+          />
+        )}
+
+        <PhoneToast message={success} onDone={() => setSuccess(null)} />
+
+        <Dialog open={reportOpen} onClose={() => setReportOpen(false)} title="Monthly leave report" variant="sheet">
+          <div className="mt-2 space-y-3">
+            <p className="text-sm text-ink-600">
+              Download the leave requests of a month for {chosenWorker ? chosenWorker.fullName : "all workers"}.
+              {!chosenWorker && " Pick a worker in the filter to get one person."}
+            </p>
+            <LeaveReport
+              bare
+              workers={workers}
+              workerId={workerId}
+              disabled={busy || !workersReady}
+              onDone={(message) => {
+                setReportOpen(false);
+                setError(null);
+                setSuccess(message);
+              }}
+              onError={(message) => {
+                setSuccess(null);
+                setError(message);
+                setReportOpen(false);
+              }}
+            />
+          </div>
+        </Dialog>
+
+        {user && formOpen && (
+          <LeaveFormSheet workers={workers} pending={pending} error={formError} fieldErrors={fieldErrors} onSubmit={submit} onClose={() => setFormOpen(false)} />
+        )}
+        {photoRow && <LeavePhotoDialog row={photoRow} onClose={() => setPhotoRow(null)} />}
+        <ConfirmDialog
+          open={!!confirmation}
+          title="Delete leave request"
+          message={
+            confirmation
+              ? `Delete ${confirmation.leaveType} for ${confirmation.workerName} (${formatDisplayDate(confirmation.startDate)} to ${formatDisplayDate(confirmation.endDate)}) permanently? This cannot be undone.`
+              : ""
+          }
+          confirmLabel="Delete"
+          pending={pending}
+          onConfirm={() => {
+            if (confirmation) void act("delete", confirmation);
+          }}
+          onCancel={() => setConfirmation(null)}
+        />
+      </section>
+    );
+  }
+
   return (
     <section className="min-w-0 space-y-4">
       <PageHeader

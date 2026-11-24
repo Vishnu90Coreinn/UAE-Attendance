@@ -12,6 +12,8 @@ interface Props {
   disabled: boolean;
   onDone: (message: string) => void;
   onError: (message: string) => void;
+  /** Only the month and the download buttons, with no collapsible header: for use inside a sheet. */
+  bare?: boolean;
 }
 
 function currentMonth() {
@@ -25,7 +27,7 @@ const buttonClass =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-ink-300 bg-white px-4 text-sm font-medium text-ink-800 hover:bg-ink-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-60 max-sm:flex-1";
 
 /** Downloads the leave requests of one month, for everyone or a single worker. */
-export function LeaveReport({ workers, workerId, disabled, onDone, onError }: Props) {
+export function LeaveReport({ workers, workerId, disabled, onDone, onError, bare = false }: Props) {
   const [month, setMonth] = useState(currentMonth);
   const [exporting, setExporting] = useState<"pdf" | "excel" | null>(null);
   // Closed until asked for, so the leave list is the first thing seen.
@@ -48,6 +50,36 @@ export function LeaveReport({ workers, workerId, disabled, onDone, onError }: Pr
     } finally {
       setExporting(null);
     }
+  }
+
+  if (bare) {
+    return (
+      <div className="space-y-3">
+        <div>
+          <label htmlFor={monthId} className="text-sm font-medium text-ink-800">
+            Month
+          </label>
+          <input
+            id={monthId}
+            type="month"
+            value={month}
+            disabled={disabled || exporting !== null}
+            onChange={(e) => setMonth(e.target.value)}
+            className={fieldClass}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" disabled={disabled || !month || exporting !== null} aria-busy={exporting === "pdf"} onClick={() => void download("pdf")} className={buttonClass}>
+            <Printer aria-hidden="true" size={16} />
+            {exporting === "pdf" ? "Preparing..." : "Print PDF"}
+          </button>
+          <button type="button" disabled={disabled || !month || exporting !== null} aria-busy={exporting === "excel"} onClick={() => void download("excel")} className={buttonClass}>
+            <FileSpreadsheet aria-hidden="true" size={16} />
+            {exporting === "excel" ? "Preparing..." : "Excel"}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (

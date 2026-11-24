@@ -8,11 +8,15 @@ import { NAV_ICONS as ICONS } from "./navIcons";
 import { phoneNavFor, type NavItem } from "./navItems";
 import { usePushToggle } from "../usePushToggle";
 
-/** One slot of the bottom bar: icon over a short label, at least 64px tall so it is easy to hit with a thumb. */
+/**
+ * One slot of the bottom bar: an icon with its label under it, at least 64px tall so it is easy to hit with a thumb. The
+ * current screen is marked by a soft pill behind its icon and a bolder label, so it reads at a glance without colour alone.
+ */
 const slotClass =
-  "relative flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 text-xs font-medium before:absolute before:top-0 before:h-0.5 before:w-8 before:rounded-full focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-300";
-const slotState = (active: boolean) =>
-  active ? "text-brand-300 before:bg-brand-300" : "text-ink-300 before:bg-transparent hover:text-white";
+  "relative flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 text-xs focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-500";
+const pillClass = (active: boolean) =>
+  `grid h-8 w-16 place-items-center rounded-full transition-colors duration-150 ${active ? "bg-brand-100 text-brand-800" : "text-ink-600"}`;
+const labelClass = (active: boolean) => `max-w-full truncate ${active ? "font-bold text-ink-900" : "font-medium text-ink-600"}`;
 
 const sheetRowClass =
   "flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-base font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500";
@@ -40,23 +44,23 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
   const { tabs, more } = user ? phoneNavFor(user.role, user.employeeId) : { tabs: [], more: [] };
   const moreActive = more.some((item) => item.path && pathname.startsWith(item.path));
 
-  function tabContent(item: NavItem) {
+  function tabContent(item: NavItem, active: boolean) {
     const Icon = ICONS[item.key] ?? Ellipsis;
     const badge = item.key === "attendance" && attendanceAttention > 0;
     return (
       <>
-        <span className="relative">
-          <Icon aria-hidden="true" size={22} />
+        <span className={`relative ${pillClass(active)}`}>
+          <Icon aria-hidden="true" size={22} strokeWidth={active ? 2.5 : 2} />
           {badge && (
             <span
               aria-hidden="true"
-              className="absolute -right-3 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1 text-xs font-bold text-ink-900"
+              className="absolute right-0 top-0 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1 text-xs font-bold text-ink-900 ring-2 ring-white"
             >
               {attendanceAttention}
             </span>
           )}
         </span>
-        <span aria-hidden="true" className="max-w-full truncate">
+        <span aria-hidden="true" className={labelClass(active)}>
           {item.shortLabel}
         </span>
         <span className="sr-only">
@@ -76,17 +80,17 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
         Skip to main content
       </a>
 
-      <header className="sticky top-0 z-30 bg-ink-900 pt-[env(safe-area-inset-top)] text-white shadow-md">
+      <header className="sticky top-0 z-30 border-b border-line bg-white pt-[env(safe-area-inset-top)] text-ink-900">
         <div className="flex min-h-14 items-center gap-3 px-4 py-2">
-          <img src="/icons/favicon-48.png" alt="" width={32} height={32} className="size-8 shrink-0 rounded-md bg-white p-0.5" />
-          <h1 className="min-w-0 flex-1 truncate text-sm font-bold leading-tight" title={companyName}>{companyName}</h1>
+          <img src="/icons/favicon-48.png" alt="" width={32} height={32} className="size-8 shrink-0 rounded-lg border border-line bg-white p-0.5" />
+          <h1 className="min-w-0 flex-1 truncate text-sm font-bold leading-tight text-ink-900" title={companyName}>{companyName}</h1>
           {user && (
             <button
               type="button"
               onClick={() => setAccountOpen(true)}
               aria-label="Account menu"
               aria-haspopup="dialog"
-              className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-ink-100 hover:bg-ink-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
+              className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-ink-700 hover:bg-ink-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
             >
               <CircleUserRound aria-hidden="true" size={26} />
             </button>
@@ -100,16 +104,16 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
 
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-700 bg-ink-900 pb-[env(safe-area-inset-bottom)] text-white"
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgb(19_38_42/0.06)]"
       >
         <div className="flex">
           {tabs.map((item) => (
             <NavLink
               key={item.key}
               to={item.path!}
-              className={({ isActive }) => `${slotClass} ${slotState(isActive)}`}
+              className={slotClass}
             >
-              {tabContent(item)}
+              {({ isActive }) => tabContent(item, isActive)}
             </NavLink>
           ))}
           {more.length > 0 && (
@@ -118,10 +122,12 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
               onClick={() => setMoreOpen(true)}
               aria-haspopup="dialog"
               aria-current={moreActive ? "page" : undefined}
-              className={`${slotClass} ${slotState(moreActive)}`}
+              className={slotClass}
             >
-              <Ellipsis aria-hidden="true" size={22} />
-              <span>More</span>
+              <span className={pillClass(moreActive)}>
+                <Ellipsis aria-hidden="true" size={22} strokeWidth={moreActive ? 2.5 : 2} />
+              </span>
+              <span className={labelClass(moreActive)}>More</span>
             </button>
           )}
         </div>

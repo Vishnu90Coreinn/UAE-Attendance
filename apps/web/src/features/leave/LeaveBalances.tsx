@@ -1,5 +1,6 @@
 import { formatDisplayDate } from "../../utils/date";
 import { useEffect, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { getLeaveBalances, type LeaveTypeBalance, type WorkerLeaveBalance } from "../../api/leave";
 
 const TYPES = ["Annual Leave", "Sick Leave", "Emergency Leave"] as const;
@@ -21,9 +22,10 @@ function Balance({ balance }: { balance: LeaveTypeBalance | undefined }) {
 }
 
 /** Paid-leave allowances (30 annual after 10 months, 15 sick, 5 emergency) per active worker, counted from attendance. */
-export function LeaveBalances({ refreshKey }: { refreshKey?: number }) {
+export function LeaveBalances({ refreshKey, compact = false }: { refreshKey?: number; compact?: boolean }) {
   const [rows, setRows] = useState<WorkerLeaveBalance[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,6 +44,54 @@ export function LeaveBalances({ refreshKey }: { refreshKey?: number }) {
 
   if (failed) return <p className="text-sm text-ink-600">Leave balances could not be loaded.</p>;
   if (!rows || rows.length === 0) return null;
+
+  if (compact) {
+    return (
+      <section aria-labelledby="leave-balances-heading" className="overflow-hidden rounded-3xl border border-line bg-white shadow-card">
+        <h3 id="leave-balances-heading">
+          <button
+            type="button"
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+            className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-500"
+          >
+            <span>
+              <span className="block text-base font-semibold text-ink-900">Leave balances</span>
+              <span className="block text-sm font-normal text-ink-600">Paid days left this year, per worker</span>
+            </span>
+            <ChevronDown aria-hidden="true" size={20} className={`shrink-0 text-ink-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+          </button>
+        </h3>
+        {open && (
+          <ul className="divide-y divide-ink-100 border-t border-ink-100">
+            {rows.map((row) => (
+              <li key={row.workerId} aria-label={row.workerName} className="px-4 py-3">
+                <p className="text-base font-semibold text-ink-900">{row.workerName}</p>
+                <dl className="mt-2 grid grid-cols-3 gap-2">
+                  {TYPES.map((type) => {
+                    const balance = row.balances.find((b) => b.leaveType === type);
+                    return (
+                      <div key={type} className="flex flex-col-reverse items-center rounded-2xl bg-ink-50 px-1 py-2 text-center">
+                        <dt className="text-xs font-medium text-ink-700">{type.replace(" Leave", "")}</dt>
+                        <dd className="text-lg font-bold leading-tight tabular-nums text-ink-900">
+                          {balance?.available ? balance.remaining : "–"}
+                          {balance?.available ? (
+                            <span className="block text-[0.6875rem] font-normal text-ink-600">of {balance.allowance}</span>
+                          ) : (
+                            <span className="block text-[0.6875rem] font-normal text-ink-600">{balance?.eligibleFrom ? `from ${balance.eligibleFrom}` : "no join date"}</span>
+                          )}
+                        </dd>
+                      </div>
+                    );
+                  })}
+                </dl>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section aria-labelledby="leave-balances-heading" className="space-y-2">
