@@ -1,4 +1,5 @@
 using HrPayroll.Api.Auth;
+using HrPayroll.Api.Data.Entities;
 using HrPayroll.Api.Dtos;
 using HrPayroll.Api.Services.Finance;
 using Microsoft.AspNetCore.Authorization;
@@ -9,7 +10,7 @@ namespace HrPayroll.Api.Controllers;
 /// <summary>Expense and income tracking: bank and cash accounts, categories and transfers. Managers and Administrators edit; the Partner reads.</summary>
 [ApiController]
 [Route("api/finance")]
-public sealed class FinanceController(FinanceAccountService accounts, FinanceCategoryService categories, FinanceTransferService transfers) : ControllerBase
+public sealed class FinanceController(FinanceAccountService accounts, FinanceCategoryService categories, FinanceTransferService transfers, FinanceEntryService entries) : ControllerBase
 {
     private IActionResult Map<T>(FinResult<T> result) => result.Status switch
     {
@@ -60,6 +61,40 @@ public sealed class FinanceController(FinanceAccountService accounts, FinanceCat
     [Authorize(Policy = Policies.Finance)]
     public async Task<IActionResult> UpdateCategory(int id, [FromBody] FinCategoryRequest? request, CancellationToken ct) =>
         Map(await categories.UpdateAsync(id, request ?? new(), ct));
+
+    // --- expenses ---------------------------------------------------------------------------------------------
+
+    [HttpGet("expenses")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> Expenses(
+        [FromQuery] string? from, [FromQuery] string? to, [FromQuery] int? categoryId, [FromQuery] int? accountId,
+        [FromQuery] decimal? min, [FromQuery] decimal? max, [FromQuery] string? q, [FromQuery] bool includeVoided, CancellationToken ct) =>
+        Ok(await entries.ListAsync(FinEntryKinds.Expense, new FinEntryFilter(from, to, categoryId, accountId, min, max, q, includeVoided), ct));
+
+    [HttpGet("expenses/{id:int}")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> Expense(int id, CancellationToken ct) => Map(await entries.GetAsync(FinEntryKinds.Expense, id, ct));
+
+    [HttpPost("expenses")]
+    [Authorize(Policy = Policies.Finance)]
+    [RequestSizeLimit(30_000_000)]
+    public async Task<IActionResult> CreateExpense([FromForm] FinExpenseForm? form, CancellationToken ct) =>
+        Map(await entries.CreateAsync(FinEntryKinds.Expense, form ?? new(), ct));
+
+    [HttpGet("expenses/parties")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> ExpenseParties(CancellationToken ct) => Ok(await entries.PartiesAsync(FinEntryKinds.Expense, ct));
+
+    [HttpGet("attachments/{id:int}")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> Attachment(int id, CancellationToken ct)
+    {
+        var found = await entries.OpenAttachmentAsync(id, ct);
+        if (found is null) return Problem(statusCode: 404, title: "The file was not found.");
+        Response.Headers.XContentTypeOptions = "nosniff";
+        Response.Headers.ContentDisposition = $"inline; filename=\"receipt{Path.GetExtension(found.Value.Attachment.StoredName)}\"";
+        return File(found.Value.Content, found.Value.Attachment.ContentType);
+    }
 
     // --- transfers -------------------------------------------------------------------------------------------
 

@@ -87,6 +87,23 @@ public sealed class FinEntry
     public string? ExternalId { get; set; }
 }
 
+/// <summary>A receipt or supplier invoice kept with an entry. The file lives in the receipts folder; only its details are here.</summary>
+public sealed class FinAttachment
+{
+    public int Id { get; set; }
+    public int EntryId { get; set; }
+    public FinEntry Entry { get; set; } = null!;
+    public string FileName { get; set; } = "";
+    public string ContentType { get; set; } = "";
+    public long SizeBytes { get; set; }
+
+    /// <summary>The random name the file has in the receipts folder.</summary>
+    public string StoredName { get; set; } = "";
+    public string Sha256 { get; set; } = "";
+    public string UploadedBy { get; set; } = "";
+    public DateTime UploadedUtc { get; set; }
+}
+
 /// <summary>Money moved between two of the company's own accounts. Not an expense and not income.</summary>
 public sealed class FinTransfer
 {

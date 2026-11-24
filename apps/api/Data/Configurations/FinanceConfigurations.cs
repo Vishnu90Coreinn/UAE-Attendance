@@ -116,3 +116,19 @@ public sealed class FinTransferConfiguration : IEntityTypeConfiguration<FinTrans
         builder.HasIndex(x => x.ToAccountId);
     }
 }
+
+public sealed class FinAttachmentConfiguration : IEntityTypeConfiguration<FinAttachment>
+{
+    public void Configure(EntityTypeBuilder<FinAttachment> builder)
+    {
+        builder.Property(a => a.FileName).HasMaxLength(120).IsRequired();
+        builder.Property(a => a.ContentType).HasMaxLength(40).IsRequired();
+        builder.Property(a => a.StoredName).HasMaxLength(80).IsRequired();
+        builder.Property(a => a.Sha256).HasMaxLength(64).IsRequired();
+        builder.Property(a => a.UploadedBy).HasMaxLength(50).IsRequired();
+        builder.Property(a => a.UploadedUtc).HasColumnType("datetime2");
+        builder.HasOne(a => a.Entry).WithMany().HasForeignKey(a => a.EntryId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(a => a.EntryId);
+        builder.HasIndex(a => a.StoredName).IsUnique();
+    }
+}

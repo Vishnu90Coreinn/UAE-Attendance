@@ -42,3 +42,26 @@ public sealed class FinTransferRequest
     public string? Reference { get; init; }
     public string? Notes { get; init; }
 }
+
+public sealed record FinAttachmentResponse(int Id, string FileName, string ContentType, long SizeBytes);
+
+public sealed record FinEntryResponse(
+    int Id, string Kind, string EntryNo, string EntryDate, int CategoryId, string CategoryName, string Party, int AccountId, string AccountName,
+    decimal Amount, string? Reference, string? Notes, string Status, string? VoidReason, string CreatedBy, DateTime CreatedUtc,
+    IReadOnlyList<FinAttachmentResponse> Attachments);
+
+/// <summary>The filtered expenses, newest first, with their total. Voided rows are listed only when asked for and never counted in the total.</summary>
+public sealed record FinEntryList(IReadOnlyList<FinEntryResponse> Items, decimal Total, int Count, bool Truncated);
+
+/// <summary>Multipart form: the fields plus the receipt files.</summary>
+public sealed class FinExpenseForm
+{
+    public string? EntryDate { get; init; }
+    public int? CategoryId { get; init; }
+    public string? Party { get; init; }
+    public int? AccountId { get; init; }
+    public decimal? Amount { get; init; }
+    public string? Reference { get; init; }
+    public string? Notes { get; init; }
+    public IFormFileCollection? Files { get; init; }
+}

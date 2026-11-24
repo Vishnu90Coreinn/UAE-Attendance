@@ -22,6 +22,10 @@ namespace HrPayroll.Api.Data.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.HasSequence<int>("FinExpenseNo");
+
+            modelBuilder.HasSequence<int>("FinIncomeNo");
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.Attendance", b =>
                 {
                     b.Property<int>("Id")
@@ -460,6 +464,58 @@ namespace HrPayroll.Api.Data.Migrations
                         {
                             t.HasCheckConstraint("CK_FinAccounts_Kind", "[Kind] IN ('Bank', 'Cash')");
                         });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinAttachment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int>("EntryId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StoredName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("UploadedBy")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UploadedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntryId");
+
+                    b.HasIndex("StoredName")
+                        .IsUnique();
+
+                    b.ToTable("FinAttachments");
                 });
 
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinCategory", b =>
@@ -2259,6 +2315,17 @@ namespace HrPayroll.Api.Data.Migrations
                     b.Navigation("IssuedLetter");
 
                     b.Navigation("Worker");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinAttachment", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinEntry", "Entry")
+                        .WithMany()
+                        .HasForeignKey("EntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Entry");
                 });
 
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinEntry", b =>

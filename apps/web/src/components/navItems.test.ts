@@ -11,6 +11,7 @@ const MODULES = [
   "Deductions",
   "Leave Management",
   "Accounts",
+  "Expenses",
   "Tax Invoices",
   "HR Letters",
   "Site Progress",
@@ -68,6 +69,7 @@ describe("navItemsForRole", () => {
       "Deductions": "/deductions",
       "Leave Management": "/leave",
       Accounts: "/finance/accounts",
+      Expenses: "/finance/expenses",
       "Staff Attendance": "/staff",
       "Staff Payroll Summary": "/staff-payroll",
       "Staff Leave": "/staff-leave",
@@ -102,6 +104,7 @@ describe("phoneNavFor", () => {
     expect(labels(more)).toEqual([
       "Leave Management",
       "Accounts",
+      "Expenses",
       "Deductions",
       "Staff Attendance",
       "Staff Payroll Summary",

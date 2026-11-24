@@ -17,6 +17,10 @@ public class FinanceAuthorizationTests(ApiFixture api) : IClassFixture<ApiFixtur
         ["GET", "/api/finance/accounts"],
         ["GET", "/api/finance/categories"],
         ["GET", "/api/finance/transfers"],
+        ["GET", "/api/finance/expenses"],
+        ["GET", $"/api/finance/expenses/{Missing}"],
+        ["GET", "/api/finance/expenses/parties"],
+        ["GET", $"/api/finance/attachments/{Missing}"],
     ];
 
     public static IEnumerable<object[]> Writes() =>
@@ -28,6 +32,7 @@ public class FinanceAuthorizationTests(ApiFixture api) : IClassFixture<ApiFixtur
         ["POST", "/api/finance/categories"],
         ["PUT", $"/api/finance/categories/{Missing}"],
         ["POST", "/api/finance/transfers"],
+        ["POST", "/api/finance/expenses"],
     ];
 
     private Task<HttpResponseMessage> Send(string verb, string url, string? token) =>

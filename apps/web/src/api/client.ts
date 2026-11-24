@@ -95,7 +95,8 @@ async function send<T>(
 ): Promise<T> {
   const headers: Record<string, string> = {
     Accept: pdf ? (typeof pdf === "string" ? pdf : "application/pdf") : "application/json",
-    ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
+    // A FormData body gets its multipart content type (with the boundary) from the browser.
+    ...(init.body !== undefined && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
     ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
   };
 
@@ -192,4 +193,25 @@ export function apiDelete(
 /** DELETE with a required JSON payload and a JSON result, using the same auth/problem handling. */
 export function apiDeleteJson<T>(path: string, body: unknown): Promise<T> {
   return send<T>(path, { method: "DELETE", body: JSON.stringify(body) });
+}
+
+/** POST a multipart form (fields and files), with the same auth and problem handling as JSON requests. */
+export function apiPostForm<T>(path: string, form: FormData, signal?: AbortSignal): Promise<T> {
+  return send<T>(path, { method: "POST", body: form, signal });
+}
+
+/** Authenticated download of any file type (for example a receipt that may be a PDF or an image). */
+export async function apiGetAnyFile(path: string, signal?: AbortSignal): Promise<Blob> {
+  let response: Response;
+  try {
+    response = await fetch(path, { method: "GET", signal, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw new ApiError(0, "Unable to reach the server.");
+  }
+  if (!response.ok) {
+    if (response.status === 401) unauthorizedHandler?.();
+    throw toApiError(response, await readJson(response));
+  }
+  return response.blob();
 }
