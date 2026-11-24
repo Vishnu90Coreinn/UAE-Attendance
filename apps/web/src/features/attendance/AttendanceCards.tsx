@@ -182,8 +182,10 @@ export function AttendanceCards({
         const rowEditable = editable && !row.approvedLeave && (isManager || row.record?.approvalStatus !== "Approved");
         const pay = showPay ? previewPay(row, form, maximum, companyRate) : null;
         const open = rowEditable && openId === row.worker.id;
-        // A Manager looks at a submitted entry to approve it, not to fill it in, so it loses its tick and cross.
+        // A Manager looks at a submitted entry to approve it, not to fill it in, and an approved one is settled: neither shows
+        // the tick and cross, so a stray tap cannot clear it and the filled tick is not mistaken for "approved".
         const reviewing = isManager && row.record?.approvalStatus === "Submitted";
+        const entrySettled = isManager && (reviewing || row.record?.approvalStatus === "Approved");
         const panelId = `attendance-more-${row.worker.id}`;
 
         /** Tapping the chosen status again clears it back to "not recorded". A present worker starts on the standard shift. */
@@ -219,8 +221,8 @@ export function AttendanceCards({
               </div>
 
               {rowEditable ? (
-                <div role={reviewing ? undefined : "group"} aria-label={reviewing ? undefined : `Status for ${name}`} className="flex shrink-0 items-center gap-2">
-                  {!reviewing && (
+                <div role={entrySettled ? undefined : "group"} aria-label={entrySettled ? undefined : `Status for ${name}`} className="flex shrink-0 items-center gap-2">
+                  {!entrySettled && (
                     <>
                   <button
                     type="button"
@@ -284,7 +286,7 @@ export function AttendanceCards({
 
             {open && (
               <div id={panelId} className="mt-3 space-y-3 border-t border-black/5 pt-3">
-                {reviewing && (
+                {entrySettled && (
                   <div role="group" aria-label={`Status for ${name}`}>
                     <span className={labelClass}>Change the entry</span>
                     <div className="mt-1 grid grid-cols-2 gap-2">

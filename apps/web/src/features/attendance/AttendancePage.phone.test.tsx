@@ -263,6 +263,23 @@ describe("Daily Attendance on a phone", () => {
     expect(within(card("Bilal Raza")).getByRole("button", { name: "Present" })).toBeInTheDocument();
   });
 
+  it("settles an approved entry for a Manager: no tick or cross to tap by accident, changed only from its menu", async () => {
+    vi.mocked(api.getAttendance).mockResolvedValue({
+      ...day,
+      rows: [{ ...day.rows[0], record: record("Present", "Approved") }, day.rows[1]],
+    });
+    const user = await loaded();
+    const first = card("Ahmed Khan");
+
+    expect(within(first).getByText("Approved")).toBeInTheDocument();
+    expect(within(first).queryByRole("button", { name: "Present" })).not.toBeInTheDocument();
+    expect(within(first).queryByRole("button", { name: "Absent" })).not.toBeInTheDocument();
+    expect(within(first).queryByRole("button", { name: /^Approve / })).not.toBeInTheDocument();
+
+    await openMore(user, "Ahmed Khan");
+    expect(within(within(first).getByRole("group", { name: "Status for Ahmed Khan" })).getByRole("button", { name: "Present" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("lets a Manager change a submitted entry from its menu, which holds the approval until it is saved", async () => {
     vi.mocked(api.getAttendance).mockResolvedValue({
       ...day,
