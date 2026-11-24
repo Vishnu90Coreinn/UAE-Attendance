@@ -79,3 +79,12 @@ const MONEY = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximum
 export function formatMoney(value: number): string {
   return MONEY.format(value);
 }
+
+/** "3 calendar days" for the chosen range; the server works out the working days that count. */
+export function calendarDays(start: string, end: string): string {
+  const a = Date.parse(start);
+  const b = Date.parse(end);
+  if (Number.isNaN(a) || Number.isNaN(b) || b < a) return "Choose valid dates";
+  const days = Math.round((b - a) / 86400000) + 1;
+  return `${days} calendar day${days === 1 ? "" : "s"}`;
+}

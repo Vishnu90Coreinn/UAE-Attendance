@@ -1,59 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Camera, CalendarOff, LogIn, LogOut, MapPinOff } from "lucide-react";
+import { Camera, CalendarOff, LogIn, LogOut } from "lucide-react";
 import { ApiError } from "../../api/client";
 import { getMyDays, getMyStaff, punch, type Punch, type StaffDay, type StaffMe } from "../../api/staff";
 import { Dialog } from "../../components/Dialog";
+import { PhoneToast } from "../../components/PhoneToast";
+import { phoneButton } from "../../components/phoneUi";
+import { useIsDesktop } from "../../utils/useIsDesktop";
 import { Button, Card, CardHeader, LoadingState, PageHeader } from "../../ui";
 import { LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { SelfieDialog } from "./SelfieDialog";
+import { MyAttendancePhone } from "./MyAttendancePhone";
+import { Timeline } from "./MyAttendanceTimeline";
 import type { PlaceResult } from "./selfie";
 import { DayStrip, greeting, LiveDot, ShiftBar, uaeClock, useUaeNow } from "./staffKit";
 import { addDays, DayFlags, errorText, hoursText, longDate, StaffStatusBadge, todayInUae } from "./staffUi";
-
-/** Sign-in and sign-out pairs as a vertical timeline, with the time spent between them. */
-function Timeline({ punches }: { punches: Punch[] }) {
-  if (punches.length === 0) {
-    return <p className="px-5 py-6 text-sm text-ink-600">Nothing yet. Your first sign-in will appear here.</p>;
-  }
-  return (
-    <ol className="px-5 py-4">
-      {punches.map((p, index) => {
-        const next = punches[index + 1];
-        const gap = next && p.kind === "In" ? minutesBetween(p.time, next.time) : null;
-        const isIn = p.kind === "In";
-        return (
-          <li key={p.id} className="relative flex gap-4 pb-5 last:pb-0">
-            {index < punches.length - 1 && <span aria-hidden="true" className="absolute left-[15px] top-8 h-[calc(100%-1.5rem)] w-px bg-ink-200" />}
-            <span
-              aria-hidden="true"
-              className={`relative z-10 inline-flex size-8 shrink-0 items-center justify-center rounded-full ${isIn ? "bg-brand-600 text-white" : "bg-ink-200 text-ink-800"}`}
-            >
-              {isIn ? <LogIn size={15} /> : <LogOut size={15} />}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="flex flex-wrap items-baseline gap-x-3">
-                <span className="font-semibold text-ink-900">{isIn ? "Signed in" : "Signed out"}</span>
-                <span className="font-mono text-sm tabular-nums text-ink-700">{p.time.slice(0, 5)}</span>
-              </p>
-              {gap !== null && <p className="text-sm text-ink-600">{hoursText(gap / 60)} at work</p>}
-              {p.outsideOffice && (
-                <p className="mt-0.5 flex items-center gap-1.5 text-sm text-amber-800">
-                  <MapPinOff aria-hidden="true" size={14} /> Outside the office area. Your manager will see this.
-                </p>
-              )}
-            </div>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-function minutesBetween(a: string, b: string): number {
-  const [ah, am] = a.split(":").map(Number);
-  const [bh, bm] = b.split(":").map(Number);
-  return bh * 60 + bm - (ah * 60 + am);
-}
 
 function Figure({ label, value }: { label: string; value: string }) {
   return (
@@ -65,6 +25,7 @@ function Figure({ label, value }: { label: string; value: string }) {
 }
 
 export function MyAttendancePage() {
+  const desktop = useIsDesktop();
   const [me, setMe] = useState<StaffMe | null>(null);
   const [days, setDays] = useState<StaffDay[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -102,10 +63,11 @@ export function MyAttendancePage() {
       });
       setMe(updated);
       setCapturing(false);
-      setSuccess(updated.nextKind === "Out" ? "You are signed in. Have a good day." : "You are signed out. See you next time.");
+      const done = updated.nextKind === "Out" ? "You are signed in. Have a good day." : "You are signed out. See you next time.";
+      setSuccess(updated.today.outsideOffice ? `${done} This was outside the office area; your manager will see it.` : done);
       void loadDays().catch(() => undefined);
     } catch (e) {
-      throw new Error(errorText(e));
+      throw new Error(e instanceof ApiError && e.status === 0 ? "No signal. Your photo is kept: move to better reception and send it again." : errorText(e));
     }
   }
 
@@ -123,7 +85,66 @@ export function MyAttendancePage() {
   if (!me) return <LoadingState label="Loading..." />;
 
   const signingIn = me.nextKind === "In";
+  function startPunch() {
+    setSuccess(null);
+    // A first sign-in on a weekly off or a public holiday asks first; they may still carry on.
+    if (signingIn && me!.dayType && me!.punches.length === 0) setDayOffWarning(true);
+    else setCapturing(true);
+  }
   const first = me.name.split(" ")[0];
+  const continueAnyway = () => {
+    setDayOffWarning(false);
+    setCapturing(true);
+  };
+  const dialogs = (
+    <>
+      <Dialog
+        open={dayOffWarning}
+        title="Today is not a working day"
+        onClose={() => setDayOffWarning(false)}
+        variant={desktop ? "center" : "sheet"}
+      >
+        <div className="mt-3 flex gap-3">
+          <CalendarOff aria-hidden="true" size={22} className="mt-0.5 shrink-0 text-amber-700" />
+          <div className="space-y-2 text-base text-ink-800">
+            <p>
+              {me.dayType === "Weekly off" ? "Today is your weekly off." : `Today is a public holiday: ${me.dayType}.`} You are not expected to work.
+            </p>
+            <p>Do you still want to sign in? Your sign-in will be recorded for your manager to see.</p>
+          </div>
+        </div>
+        {desktop ? (
+          <div className="mt-6 flex flex-wrap justify-end gap-3">
+            <Button variant="secondary" onClick={() => setDayOffWarning(false)}>
+              Cancel
+            </Button>
+            <Button onClick={continueAnyway}>Sign in anyway</Button>
+          </div>
+        ) : (
+          <div className="mt-6 space-y-3">
+            <button type="button" onClick={continueAnyway} className={phoneButton("primary", "lg", "w-full")}>
+              Sign in anyway
+            </button>
+            <button type="button" onClick={() => setDayOffWarning(false)} className={phoneButton("secondary", "md", "w-full")}>
+              Cancel
+            </button>
+          </div>
+        )}
+      </Dialog>
+
+      {capturing && <SelfieDialog kind={me.nextKind} onCancel={() => setCapturing(false)} onConfirm={confirm} />}
+    </>
+  );
+  if (!desktop) {
+    return (
+      <>
+        <MyAttendancePhone me={me} days={days} totals={totals} clock={clock} onAction={startPunch} />
+        {dialogs}
+        <PhoneToast message={success} lift onDone={() => setSuccess(null)} />
+      </>
+    );
+  }
+
   return (
     <section>
       <PageHeader title="My Attendance" description={`${me.name} · ${me.code}${me.department ? ` · ${me.department}` : ""}`} />
@@ -169,12 +190,7 @@ export function MyAttendancePage() {
             <div className="border-t border-white/10 bg-black/15 p-4">
               <button
                 type="button"
-                onClick={() => {
-                  setSuccess(null);
-                  // A first sign-in on a weekly off or a public holiday asks first; they may still carry on.
-                  if (signingIn && me.dayType && me.punches.length === 0) setDayOffWarning(true);
-                  else setCapturing(true);
-                }}
+                onClick={startPunch}
                 className={`group flex min-h-16 w-full items-center justify-center gap-3 rounded-lg text-lg font-semibold transition-transform duration-150 active:scale-[0.99] motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
                   signingIn ? "bg-white text-brand-800 hover:bg-brand-50" : "bg-brand-500 text-white hover:bg-brand-400"
                 }`}
@@ -241,32 +257,7 @@ export function MyAttendancePage() {
         </Card>
       </div>
 
-      <Dialog open={dayOffWarning} title="Today is not a working day" onClose={() => setDayOffWarning(false)}>
-        <div className="mt-3 flex gap-3">
-          <CalendarOff aria-hidden="true" size={22} className="mt-0.5 shrink-0 text-amber-700" />
-          <div className="space-y-2 text-base text-ink-800">
-            <p>
-              {me.dayType === "Weekly off" ? "Today is your weekly off." : `Today is a public holiday: ${me.dayType}.`} You are not expected to work.
-            </p>
-            <p>Do you still want to sign in? Your sign-in will be recorded for your manager to see.</p>
-          </div>
-        </div>
-        <div className="mt-6 flex flex-wrap justify-end gap-3">
-          <Button variant="secondary" onClick={() => setDayOffWarning(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => {
-              setDayOffWarning(false);
-              setCapturing(true);
-            }}
-          >
-            Sign in anyway
-          </Button>
-        </div>
-      </Dialog>
-
-      {capturing && <SelfieDialog kind={me.nextKind} onCancel={() => setCapturing(false)} onConfirm={confirm} />}
+      {dialogs}
     </section>
   );
 }

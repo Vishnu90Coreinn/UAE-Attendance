@@ -6,9 +6,12 @@ import { ConfirmDialog } from "../../components/ConfirmDialog";
 export function AttendanceNavigationGuard({
   dirty,
   pending,
+  subject = "attendance edits",
 }: {
   dirty: boolean;
   pending: boolean;
+  /** What would be lost, in the sentence "Your ... have not been saved." */
+  subject?: string;
 }) {
   const blocker = useBlocker(dirty);
   useEffect(() => {
@@ -18,7 +21,7 @@ export function AttendanceNavigationGuard({
     <ConfirmDialog
       open={blocker.state === "blocked"}
       title="Discard unsaved changes?"
-      message="Your attendance edits have not been saved. Leaving this page will discard them."
+      message={`Your ${subject} have not been saved. Leaving this page will discard them.`}
       confirmLabel="Discard changes"
       pending={pending}
       onCancel={() => blocker.state === "blocked" && blocker.reset()}

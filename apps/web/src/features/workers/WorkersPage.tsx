@@ -8,10 +8,13 @@ import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { canViewAll, isManagement, isReadOnly } from "../../permissions";
 import { useAuth } from "../../contexts/AuthContext";
 import { saveBlob } from "../payroll/downloadPdf";
+import { useIsDesktop } from "../../utils/useIsDesktop";
+import { Chip, ChipRow, chipClass, PAGE_GAP, phoneButton, PhoneTitle } from "../../components/phoneUi";
 import { useWorkerList } from "./useWorkerList";
 import { WorkerFormDialog } from "./WorkerFormDialog";
 import { ActionFailure, EmptyState, LoadError, LoadingNotice, primaryButtonClass, SuccessRegion } from "./WorkersFeedback";
 import { onboardingProgress, WorkersTable } from "./WorkersTable";
+import { WorkersPhoneList } from "./WorkersPhoneList";
 import { EmployeeLoginDialog } from "../staff/EmployeeLoginDialog";
 
 type Confirmation = { kind: "deactivate" | "delete"; worker: Worker };
@@ -51,6 +54,7 @@ export function WorkersPage() {
   // A new worker needs a salary and rates, which HR may not set, so only management adds workers.
   const canAdd = canManage;
 
+  const isDesktop = useIsDesktop();
   const [includeInactive, setIncludeInactive] = useState(false);
   const list = useWorkerList(includeInactive);
 
@@ -169,6 +173,176 @@ export function WorkersPage() {
   </label>
   );
   const showEmpty = list.status === "ready" && list.workers.length === 0;
+
+  const dialogs = (
+    <>
+      {loginFor && (
+        <EmployeeLoginDialog
+          worker={loginFor}
+          canCreate={canManage}
+          canRemove={canManage}
+          onClose={() => setLoginFor(null)}
+          onDone={(message) => {
+            setLoginFor(null);
+            setSuccess(message);
+            list.refresh();
+          }}
+        />
+      )}
+
+      {canEdit && (
+        <>
+          <WorkerFormDialog open={formOpen} worker={editing} hidePay={!canManage} onClose={() => setFormOpen(false)} onSaved={handleSaved} />
+          <ConfirmDialog
+            open={confirmation !== null}
+            title={copy.title}
+            message={confirmation ? copy.message(confirmation.worker) : ""}
+            confirmLabel={copy.label}
+            confirmIcon={copy.icon}
+            pending={confirmPending}
+            onConfirm={runConfirmed}
+            onCancel={() => setConfirmation(null)}
+          />
+        </>
+      )}
+    </>
+  );
+
+  if (!isDesktop) {
+    const siteCount = list.workers.filter((w) => (w.category ?? "Worker") === "Worker").length;
+    const officeCount = list.workers.length - siteCount;
+    const hasOffice = officeCount > 0;
+    const hasWorkers = list.status === "ready" && list.workers.length > 0;
+    const inactiveChip = (
+      <Chip on={includeInactive} onClick={() => setIncludeInactive((value) => !value)}>
+        Show inactive<span className="sr-only"> workers</span>
+      </Chip>
+    );
+    return (
+      <section className={`min-w-0 ${PAGE_GAP}`}>
+        <PhoneTitle
+          title="Workers"
+          subtitle={
+            hasWorkers
+              ? `${list.workers.length} ${list.workers.length === 1 ? "person" : "people"}${canViewAll(user?.role) && onboardingOpen > 0 ? ` · ${onboardingOpen} onboarding open` : ""}`
+              : undefined
+          }
+          actions={
+            canAdd && !showEmpty ? (
+              <button type="button" onClick={() => openForm(null)} className={phoneButton("primary", "sm")}>
+                <UserPlus aria-hidden="true" size={18} />
+                Add
+              </button>
+            ) : undefined
+          }
+        />
+
+        {hasWorkers ? (
+          <div className="space-y-3">
+            <div className="relative">
+              <label htmlFor="worker-search" className="sr-only">
+                Search workers
+              </label>
+              <Search aria-hidden="true" size={20} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-500" />
+              <input
+                id="worker-search"
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search name, role or phone"
+                autoComplete="off"
+                enterKeyHint="search"
+                className="block min-h-12 w-full rounded-2xl border border-line bg-white pl-11 pr-4 text-base text-ink-900 shadow-card placeholder:text-ink-500 focus-visible:border-brand-500 focus-visible:outline-2 focus-visible:outline-brand-500/30"
+              />
+            </div>
+            <ChipRow label="Filter workers">
+              {hasOffice && (
+                <>
+                  <Chip on={category === ""} count={list.workers.length} onClick={() => setCategory("")}>
+                    All
+                  </Chip>
+                  <Chip on={category === "Worker"} count={siteCount} onClick={() => setCategory(category === "Worker" ? "" : "Worker")}>
+                    Site
+                  </Chip>
+                  <Chip on={category === "Employee"} count={officeCount} onClick={() => setCategory(category === "Employee" ? "" : "Employee")}>
+                    Office
+                  </Chip>
+                </>
+              )}
+              {departments.length > 0 && (
+                <>
+                  <label htmlFor="worker-department" className="sr-only">
+                    Department
+                  </label>
+                  <select
+                    id="worker-department"
+                    value={department}
+                    onChange={(event) => setDepartment(event.target.value)}
+                    className={chipClass(department !== "", "appearance-auto pr-2")}
+                  >
+                    <option value="">All departments</option>
+                    {departments.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+              {inactiveChip}
+            </ChipRow>
+          </div>
+        ) : (
+          <div>{inactiveChip}</div>
+        )}
+
+        <SuccessRegion message={success} />
+        {failure && <ActionFailure message={failure} />}
+
+        {list.status === "loading" && <LoadingNotice />}
+        {list.status === "error" && <LoadError message={list.error} onRetry={list.retry} />}
+        {showEmpty && <EmptyState onAdd={canAdd ? () => openForm(null) : undefined} />}
+        {hasWorkers && visible.length === 0 && (
+          <p role="status" className="rounded-3xl border border-line bg-white px-4 py-10 text-center text-ink-600 shadow-card">
+            No workers match{filtering ? " your search or filter" : ""}.{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                setDepartment("");
+                setCategory("");
+              }}
+              className="font-semibold text-brand-700 underline focus-visible:outline-2 focus-visible:outline-brand-500"
+            >
+              Clear search
+            </button>
+          </p>
+        )}
+        {list.status === "ready" && visible.length > 0 && (
+          <WorkersPhoneList
+            workers={visible}
+            showOnboarding={canViewAll(user?.role)}
+            onPrint={canViewAll(user?.role) ? printProfile : undefined}
+            busyId={busyId}
+            actions={
+              canEdit
+                ? {
+                    onEdit: openForm,
+                    onLogin: setLoginFor,
+                    ...(canManage && {
+                      onDeactivate: (worker: Worker) => ask("deactivate", worker),
+                      onActivate: activate,
+                      onDelete: (worker: Worker) => ask("delete", worker),
+                    }),
+                  }
+                : undefined
+            }
+          />
+        )}
+        {dialogs}
+      </section>
+    );
+  }
 
   return (
     <section>
@@ -306,35 +480,7 @@ export function WorkersPage() {
         />
       )}
 
-      {loginFor && (
-        <EmployeeLoginDialog
-          worker={loginFor}
-          canCreate={canManage}
-          canRemove={canManage}
-          onClose={() => setLoginFor(null)}
-          onDone={(message) => {
-            setLoginFor(null);
-            setSuccess(message);
-            list.refresh();
-          }}
-        />
-      )}
-
-      {canEdit && (
-        <>
-          <WorkerFormDialog open={formOpen} worker={editing} hidePay={!canManage} onClose={() => setFormOpen(false)} onSaved={handleSaved} />
-          <ConfirmDialog
-            open={confirmation !== null}
-            title={copy.title}
-            message={confirmation ? copy.message(confirmation.worker) : ""}
-            confirmLabel={copy.label}
-            confirmIcon={copy.icon}
-            pending={confirmPending}
-            onConfirm={runConfirmed}
-            onCancel={() => setConfirmation(null)}
-          />
-        </>
-      )}
+      {dialogs}
     </section>
   );
 }

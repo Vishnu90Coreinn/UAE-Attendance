@@ -16,6 +16,10 @@ interface Props {
   onDelete: (row: LeaveRequest) => void;
   onViewPhoto: (row: LeaveRequest) => void;
 }
+/** Managers may delete any request; a Supervisor may delete only their own request that is still pending. */
+export function canDeleteLeave(row: LeaveRequest, role: Role | undefined, username: string | undefined): boolean {
+  return isManagement(role) || (role === "Supervisor" && row.status === "Pending" && !!username && row.createdBy === username);
+}
 const actionClass =
   "inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-ink-300 px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-60 max-md:flex-1";
 const statusTone = { Pending: "warning", Approved: "success", Rejected: "danger" } as const;
@@ -34,12 +38,7 @@ export function LeaveTable({
   onViewPhoto,
 }: Props) {
   const manage = isManagement(role);
-  const canDelete = (row: LeaveRequest) =>
-    manage ||
-    (role === "Supervisor" &&
-      row.status === "Pending" &&
-      !!username &&
-      row.createdBy === username);
+  const canDelete = (row: LeaveRequest) => canDeleteLeave(row, role, username);
   const showActions = manage || rows.some(canDelete);
   const menuFor = (row: LeaveRequest): RowMenuItem[] => [
     ...(manage && row.status === "Approved"

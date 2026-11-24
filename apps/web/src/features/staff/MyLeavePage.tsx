@@ -3,9 +3,12 @@ import { CalendarPlus, Loader2 } from "lucide-react";
 import { cancelMyLeave, getMyLeave, requestLeave, type StaffLeave, type StaffMyLeave } from "../../api/staff";
 import { Button, Card, CardHeader, Input, LoadingState, PageHeader, Select, StatusBadge, Textarea, type StatusTone } from "../../ui";
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
+import { PhoneToast } from "../../components/PhoneToast";
+import { useIsDesktop } from "../../utils/useIsDesktop";
+import { MyLeavePhone } from "./MyLeavePhone";
 import { BalanceBar } from "./staffKit";
 import { DocumentButton, DocumentPicker, type PickedDocument } from "./LeaveDocument";
-import { errorText, shortDate, todayInUae } from "./staffUi";
+import { calendarDays, errorText, shortDate, todayInUae } from "./staffUi";
 
 const STATUS_TONE: Record<StaffLeave["status"], StatusTone> = {
   Pending: "warning",
@@ -14,16 +17,8 @@ const STATUS_TONE: Record<StaffLeave["status"], StatusTone> = {
   Cancelled: "neutral",
 };
 
-/** "3 calendar days" for the chosen range; the server works out the working days that count. */
-function calendarDays(start: string, end: string): string {
-  const a = Date.parse(start);
-  const b = Date.parse(end);
-  if (Number.isNaN(a) || Number.isNaN(b) || b < a) return "Choose valid dates";
-  const days = Math.round((b - a) / 86400000) + 1;
-  return `${days} calendar day${days === 1 ? "" : "s"}`;
-}
-
 export function MyLeavePage() {
+  const desktop = useIsDesktop();
   const [data, setData] = useState<StaffMyLeave | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [typeId, setTypeId] = useState("");
@@ -80,11 +75,42 @@ export function MyLeavePage() {
     }
   }
 
+  async function sendFromPhone(input: Parameters<typeof requestLeave>[0]) {
+    setFailure(null);
+    try {
+      await requestLeave(input);
+    } catch (e) {
+      throw new Error(errorText(e));
+    }
+    setSuccess("Leave request sent to your manager.");
+    await load();
+  }
+
+  async function cancelFromPhone(request: StaffLeave) {
+    setFailure(null);
+    try {
+      await cancelMyLeave(request.id);
+      setSuccess("Leave request cancelled.");
+      await load();
+    } catch (e) {
+      setFailure(errorText(e));
+    }
+  }
+
   const selectedType = data?.types.find((t) => String(t.id) === typeId);
   const needsDocument = selectedType?.requiresDocument === true;
 
   if (error) return <LoadError message={error} onRetry={() => void load()} />;
   if (!data) return <LoadingState label="Loading..." />;
+
+  if (!desktop) {
+    return (
+      <>
+        <MyLeavePhone data={data} onSend={sendFromPhone} onCancel={cancelFromPhone} />
+        <PhoneToast message={failure ?? success} error={failure !== null} onDone={() => (failure ? setFailure(null) : setSuccess(null))} />
+      </>
+    );
+  }
 
   return (
     <section>

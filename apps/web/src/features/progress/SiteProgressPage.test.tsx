@@ -217,8 +217,8 @@ describe("Site Progress page", () => {
     await user.click(screen.getByRole("button", { name: "Add floor" }));
     const dialog = await screen.findByRole("dialog", { name: "Add floor" });
     await user.type(within(dialog).getByLabelText("Floor designation / ID"), "6th Floor (L06)");
-    await user.clear(within(dialog).getByLabelText("Aluminium frames"));
-    await user.type(within(dialog).getByLabelText("Aluminium frames"), "5");
+    await user.clear(within(dialog).getByLabelText("Frames"));
+    await user.type(within(dialog).getByLabelText("Frames"), "5");
     await user.click(within(dialog).getByRole("button", { name: "Add floor" }));
 
     expect(metric("Installed", "Frames")).toHaveTextContent("81");
@@ -407,16 +407,202 @@ describe("roles", () => {
 
 describe("on a phone", () => {
   beforeEach(() => mockViewport("phone"));
+  const row = (name: string) => screen.getByRole("listitem", { name });
+  const openFloor = (user: ReturnType<typeof userEvent.setup>, name: string) =>
+    user.click(within(row(name)).getByRole("button", { name }));
 
-  it("shows each floor as a card instead of a table", async () => {
+  it("shows each floor as a row with its three statuses instead of a table", async () => {
     await open();
 
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
-    const cards = screen.getAllByRole("listitem");
-    expect(cards).toHaveLength(6);
-    expect(within(cards[2]).getByText("2nd Floor (L02)")).toBeInTheDocument();
-    expect(within(cards[2]).getByRole("combobox", { name: "2nd Floor (L02) WIR status" })).toHaveDisplayValue("Inspection Submitted");
-    expect(within(cards[2]).getByRole("combobox", { name: "2nd Floor (L02) completion" })).toHaveDisplayValue("In Progress");
-    expect(within(cards[2]).getByRole("button", { name: "Edit 2nd Floor (L02)" })).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(6);
+    const second = row("2nd Floor (L02)");
+    expect(within(second).getByText("In progress")).toBeInTheDocument();
+    expect(within(second).getByText("WIR submitted")).toBeInTheDocument();
+    expect(within(second).queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Installed" })).toBeInTheDocument();
+    expect(handover()).toBe(33);
+  });
+
+  it("opens a floor in place and edits counts and statuses with one tap each", async () => {
+    const user = await open();
+    await openFloor(user, "2nd Floor (L02)");
+
+    await user.click(screen.getByRole("button", { name: "Increase 2nd Floor (L02) frames" }));
+    expect(screen.getByRole("textbox", { name: "2nd Floor (L02) frames" })).toHaveValue("17");
+    await user.click(within(screen.getByRole("group", { name: "2nd Floor (L02) completion" })).getByRole("button", { name: "Completed" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "2nd Floor (L02) WIR status" }), "Approved");
+
+    expect(handover()).toBe(50);
+    expect(screen.getByText("1 floor changed")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save report" }));
+
+    await waitFor(() => expect(api.saveReport).toHaveBeenCalled());
+    const saved = vi.mocked(api.saveReport).mock.calls[0][1];
+    expect(saved[2]).toMatchObject({ floor: "2nd Floor (L02)", frames: 17, completion: "Completed", wirStatus: "Approved" });
+    expect(await screen.findByText("Report saved.")).toBeInTheDocument();
+  });
+
+  it("has no save bar until something changes, and Discard restores the floors", async () => {
+    const user = await open();
+    expect(screen.queryByRole("button", { name: "Save report" })).not.toBeInTheDocument();
+    await openFloor(user, "5th Floor (L05)");
+
+    await user.click(screen.getByRole("button", { name: "Increase 5th Floor (L05) frames" }));
+    expect(screen.getByRole("button", { name: "Save report" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+
+    expect(screen.queryByRole("button", { name: "Save report" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "5th Floor (L05) frames" })).toHaveValue("0");
+  });
+
+  it("narrows the floors with the status chips", async () => {
+    const user = await open();
+
+    await user.click(screen.getByRole("button", { name: /^Not started/ }));
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    expect(row("5th Floor (L05)")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^Not started/ }));
+    await user.click(screen.getByRole("button", { name: /^WIR open/ }));
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+  });
+
+  it("deletes a floor from its panel into the draft, which Discard brings back", async () => {
+    const user = await open();
+    await openFloor(user, "5th Floor (L05)");
+
+    await user.click(screen.getByRole("button", { name: "More actions for 5th Floor (L05)" }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete floor" }));
+    expect(screen.queryByRole("listitem", { name: "5th Floor (L05)" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(row("5th Floor (L05)")).toBeInTheDocument();
+  });
+
+  it("offers Undo for a deleted floor and puts it back where it was", async () => {
+    const user = await open();
+    await openFloor(user, "2nd Floor (L02)");
+
+    await user.click(screen.getByRole("button", { name: "More actions for 2nd Floor (L02)" }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete floor" }));
+    expect(screen.getByText("Deleted 2nd Floor (L02)")).toBeInTheDocument();
+    expect(screen.queryByRole("listitem", { name: "2nd Floor (L02)" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    const names = screen.getAllByRole("listitem").map((item) => item.getAttribute("aria-label"));
+    expect(names[2]).toBe("2nd Floor (L02)");
+    expect(screen.queryByRole("button", { name: "Save report" })).not.toBeInTheDocument();
+  });
+
+  it("puts Add floor at the end of the list, not in the header", async () => {
+    const user = await open();
+
+    const add = screen.getByRole("button", { name: "Add floor" });
+    const list = screen.getByRole("list", { name: "Floors" });
+    expect(list.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.click(add);
+    expect(await screen.findByRole("dialog", { name: "Add floor" })).toBeInTheDocument();
+  });
+
+  it("edits the site note in the open floor, with no second form", async () => {
+    const user = await open();
+    await openFloor(user, "2nd Floor (L02)");
+
+    const note = screen.getByRole("textbox", { name: "2nd Floor (L02) site note" });
+    expect(note).toHaveValue("4 panels pending.");
+    await user.clear(note);
+    await user.type(note, "East panels done");
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByText("1 floor changed")).toBeInTheDocument();
+    expect(screen.getByText("East panels done")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Save report" }));
+    await waitFor(() => expect(api.saveReport).toHaveBeenCalled());
+    expect(vi.mocked(api.saveReport).mock.calls[0][1][2]).toMatchObject({ floor: "2nd Floor (L02)", remarks: "East panels done" });
+  });
+
+  it("keeps the save bar out of the way while a note is being typed", async () => {
+    const user = await open();
+    await openFloor(user, "5th Floor (L05)");
+    await user.click(screen.getByRole("button", { name: "Increase 5th Floor (L05) frames" }));
+    expect(screen.getByRole("button", { name: "Save report" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("textbox", { name: "5th Floor (L05) site note" }));
+    expect(screen.queryByRole("button", { name: "Save report" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByRole("button", { name: "Save report" })).toBeInTheDocument();
+  });
+
+  it("renames a floor from the panel's menu", async () => {
+    const user = await open();
+    await openFloor(user, "5th Floor (L05)");
+
+    await user.click(screen.getByRole("button", { name: "More actions for 5th Floor (L05)" }));
+    await user.click(screen.getByRole("menuitem", { name: "Rename floor" }));
+
+    expect(await screen.findByRole("dialog", { name: "Edit floor" })).toBeInTheDocument();
+  });
+
+  describe("a locked floor", () => {
+    const withLocked = () =>
+      vi.mocked(api.getReport).mockResolvedValue(report(PROTOTYPE.map((f, i) => (i === 2 ? { ...f, isLocked: true } : f))));
+
+    it("is read-only for a Supervisor, who is told who can unlock it", async () => {
+      withLocked();
+      const user = await open();
+      const second = row("2nd Floor (L02)");
+
+      expect(within(second).getByRole("button", { name: "2nd Floor (L02) (locked)" })).toBeInTheDocument();
+      await user.click(within(second).getByRole("button", { name: "2nd Floor (L02) (locked)" }));
+
+      expect(screen.getByText("A manager locked this floor. Ask them to unlock it to make changes.")).toBeInTheDocument();
+      expect(screen.queryByRole("textbox", { name: /frames|site note/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Unlock/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^More actions for/ })).not.toBeInTheDocument();
+      expect(screen.getByText("4 panels pending.")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Save report" })).not.toBeInTheDocument();
+    });
+
+    it("lets a Manager unlock it in one tap and then edit it", async () => {
+      signIn("Manager");
+      withLocked();
+      const user = await open();
+      await user.click(within(row("2nd Floor (L02)")).getByRole("button", { name: "2nd Floor (L02) (locked)" }));
+      expect(screen.getByText("This floor is locked. Unlock it to make changes.")).toBeInTheDocument();
+      expect(screen.queryByRole("textbox", { name: /frames/ })).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Unlock 2nd Floor (L02)" }));
+
+      expect(screen.getByRole("textbox", { name: "2nd Floor (L02) frames" })).toBeInTheDocument();
+      expect(screen.getByText("1 floor changed")).toBeInTheDocument();
+    });
+
+    it("lets a Manager lock an open floor from its menu, which makes it read-only at once", async () => {
+      signIn("Manager");
+      const user = await open();
+      await openFloor(user, "5th Floor (L05)");
+
+      await user.click(screen.getByRole("button", { name: "More actions for 5th Floor (L05)" }));
+      await user.click(screen.getByRole("menuitem", { name: "Lock floor" }));
+
+      expect(screen.getByText("This floor is locked. Unlock it to make changes.")).toBeInTheDocument();
+      expect(screen.queryByRole("textbox", { name: /frames/ })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Unlock 5th Floor (L05)" })).toBeInTheDocument();
+    });
+  });
+
+  it("shows a read-only floor to HR with counts and no controls", async () => {
+    signIn("HR");
+    const user = await open();
+    await openFloor(user, "2nd Floor (L02)");
+
+    expect(screen.queryByRole("textbox", { name: /frames/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^More actions for/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /site note/ })).not.toBeInTheDocument();
+    expect(screen.getByText("4 panels pending.")).toBeInTheDocument();
   });
 });

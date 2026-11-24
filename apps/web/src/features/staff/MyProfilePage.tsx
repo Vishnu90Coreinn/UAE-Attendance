@@ -5,6 +5,8 @@ import { Button, Card, CardHeader, LoadingState, PageHeader } from "../../ui";
 import { roleLabel } from "../../permissions";
 import { ChangePasswordDialog } from "../auth/ChangePasswordDialog";
 import { LoadError } from "../workers/WorkersFeedback";
+import { useIsDesktop } from "../../utils/useIsDesktop";
+import { MyProfilePhone } from "./MyProfilePhone";
 import { Avatar } from "./staffKit";
 import { errorText, shortDate } from "./staffUi";
 
@@ -33,6 +35,7 @@ function Detail({ label, value, mono = false }: { label: string; value: string |
 
 /** The employee's own record. Read-only: HR keeps these details in the Worker Directory. */
 export function MyProfilePage() {
+  const desktop = useIsDesktop();
   const [profile, setProfile] = useState<StaffProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
@@ -49,6 +52,15 @@ export function MyProfilePage() {
 
   if (error) return <LoadError message={error} onRetry={() => window.location.reload()} />;
   if (!profile) return <LoadingState label="Loading..." />;
+
+  if (!desktop) {
+    return (
+      <>
+        <MyProfilePhone profile={profile} tenure={profile.joinDate ? tenure(profile.joinDate) : null} onChangePassword={() => setPasswordOpen(true)} />
+        <ChangePasswordDialog open={passwordOpen} onClose={() => setPasswordOpen(false)} />
+      </>
+    );
+  }
 
   return (
     <section>

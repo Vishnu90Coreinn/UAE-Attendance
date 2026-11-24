@@ -111,6 +111,16 @@ describe("LoginPage", () => {
     expect(screen.queryByText("home page")).not.toBeInTheDocument();
   });
 
+  it("explains a server error in plain words instead of 'Request failed (502)'", async () => {
+    login.mockRejectedValue(new ApiError(502, "Request failed (502)"));
+    renderLogin();
+
+    await fillAndSubmit();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The server is not responding right now.");
+    expect(screen.queryByText(/Request failed/)).not.toBeInTheDocument();
+  });
+
   it("moves focus back to the username field after a failure", async () => {
     login.mockRejectedValue(new ApiError(401, "Invalid username or password."));
     renderLogin();

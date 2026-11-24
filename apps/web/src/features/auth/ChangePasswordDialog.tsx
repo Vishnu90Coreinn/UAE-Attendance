@@ -4,6 +4,8 @@ import { CheckCircle2, KeyRound, Loader2 } from "lucide-react";
 import { changePassword } from "../../api/auth";
 import { ApiError } from "../../api/client";
 import { Dialog } from "../../components/Dialog";
+import { phoneButton } from "../../components/phoneUi";
+import { useIsDesktop } from "../../utils/useIsDesktop";
 
 const MIN_LENGTH = 10;
 const MAX_LENGTH = 128;
@@ -47,6 +49,7 @@ interface FormProps {
 
 /** Mounted only while the dialog is open, so every opening starts with empty fields and no errors. */
 function ChangePasswordForm({ firstFieldRef, onClose }: FormProps) {
+  const desktop = useIsDesktop();
   const idPrefix = useId();
   const nextRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLInputElement>(null);
@@ -146,7 +149,7 @@ function ChangePasswordForm({ firstFieldRef, onClose }: FormProps) {
           Your password has been changed.
         </p>
         <div className="flex justify-end">
-          <button ref={closeRef} type="button" onClick={onClose} className={secondaryButtonClass}>
+          <button ref={closeRef} type="button" onClick={onClose} className={desktop ? secondaryButtonClass : phoneButton("secondary", "md", "w-full")}>
             Close
           </button>
         </div>
@@ -229,15 +232,15 @@ function ChangePasswordForm({ firstFieldRef, onClose }: FormProps) {
         </div>
       )}
 
-      <div className="flex flex-wrap justify-end gap-3">
-        <button type="button" onClick={onClose} className={secondaryButtonClass}>
+      <div className={desktop ? "flex flex-wrap justify-end gap-3" : "flex flex-col-reverse gap-3"}>
+        <button type="button" onClick={onClose} className={desktop ? secondaryButtonClass : phoneButton("quiet", "md", "w-full")}>
           Cancel
         </button>
         <button
           type="submit"
           disabled={pending}
           aria-busy={pending}
-          className={buttonClass("primary", "md")}
+          className={desktop ? buttonClass("primary", "md") : phoneButton("primary", "lg", "w-full")}
         >
           {pending ? (
             <>
@@ -264,9 +267,10 @@ interface ChangePasswordDialogProps {
 /** The parent owns `open`; Cancel, Close and Esc all call onClose. */
 export function ChangePasswordDialog({ open, onClose }: ChangePasswordDialogProps) {
   const firstFieldRef = useRef<HTMLInputElement>(null);
+  const desktop = useIsDesktop();
 
   return (
-    <Dialog open={open} onClose={onClose} title="Change password" initialFocusRef={firstFieldRef}>
+    <Dialog open={open} onClose={onClose} title="Change password" initialFocusRef={firstFieldRef} variant={desktop ? "center" : "sheet"}>
       <ChangePasswordForm firstFieldRef={firstFieldRef} onClose={onClose} />
     </Dialog>
   );

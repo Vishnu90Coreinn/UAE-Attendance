@@ -6,6 +6,9 @@ import { LETTER_TYPES, letterTypeLabel } from "../../api/letters";
 import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, Select, StatusBadge, Textarea, type StatusTone } from "../../ui";
 import { saveBlob } from "../payroll/downloadPdf";
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
+import { PhoneToast } from "../../components/PhoneToast";
+import { useIsDesktop } from "../../utils/useIsDesktop";
+import { MyLettersPhone } from "./MyLettersPhone";
 import { Stepper } from "./staffKit";
 import { errorText, shortDate } from "./staffUi";
 
@@ -23,6 +26,7 @@ const PROGRESS: Record<CertificateStatus, string> = {
 };
 
 export function MyLettersPage() {
+  const desktop = useIsDesktop();
   const [requests, setRequests] = useState<CertificateRequest[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [type, setType] = useState<string>(LETTER_TYPES[0].value);
@@ -74,8 +78,28 @@ export function MyLettersPage() {
     }
   }
 
+  async function sendFromPhone(letterType: string, why: string) {
+    setFailure(null);
+    try {
+      await requestMyLetter(letterType, why);
+    } catch (e) {
+      throw new Error(errorText(e));
+    }
+    setSuccess("Request sent. Your manager will prepare the letter.");
+    await load();
+  }
+
   if (error) return <LoadError message={error} onRetry={() => void load()} />;
   if (!requests) return <LoadingState label="Loading..." />;
+
+  if (!desktop) {
+    return (
+      <>
+        <MyLettersPhone requests={requests} busyId={busyId} onSend={sendFromPhone} onDownload={(r) => void download(r)} />
+        <PhoneToast message={failure ?? success} error={failure !== null} onDone={() => (failure ? setFailure(null) : setSuccess(null))} />
+      </>
+    );
+  }
 
   return (
     <section>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { StaffDay, StaffStatus } from "../../api/staff";
 import { cx } from "../../ui";
 import { longDate } from "./staffUi";
@@ -26,6 +26,22 @@ export function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md"
     <span aria-hidden="true" className={cx("inline-flex shrink-0 items-center justify-center rounded-full font-semibold", dimension, tint)}>
       {initials}
     </span>
+  );
+}
+
+/** False while the phone has no connection. Sign-in needs the server, so the page says so before the employee tries. */
+export function useOnline(): boolean {
+  return useSyncExternalStore(
+    (onChange) => {
+      window.addEventListener("online", onChange);
+      window.addEventListener("offline", onChange);
+      return () => {
+        window.removeEventListener("online", onChange);
+        window.removeEventListener("offline", onChange);
+      };
+    },
+    () => navigator.onLine,
+    () => true,
   );
 }
 

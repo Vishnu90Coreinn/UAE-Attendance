@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
 import { Button, Select, Textarea } from "../../ui";
+import { useIsDesktop } from "../../utils/useIsDesktop";
 import {
   ALIGNMENT_OPTIONS,
   COMPLETION_OPTIONS,
@@ -26,8 +27,9 @@ interface FloorDialogProps {
 
 /** Adds or edits one floor of the report. Nothing is stored until the whole report is saved. */
 export function FloorDialog({ open, floor, takenNames, onSave, onClose }: FloorDialogProps) {
+  const desktop = useIsDesktop();
   return (
-    <Dialog open={open} onClose={onClose} title={floor ? "Edit floor" : "Add floor"}>
+    <Dialog open={open} onClose={onClose} title={floor ? "Edit floor" : "Add floor"} variant={desktop ? "center" : "sheet"}>
       <FloorForm floor={floor} takenNames={takenNames} onSave={onSave} onClose={onClose} />
     </Dialog>
   );
@@ -92,7 +94,7 @@ function FloorForm({ floor, takenNames, onSave, onClose }: Omit<FloorDialogProps
         autoFocus
       />
       <div className="grid grid-cols-3 gap-3">
-        <TextField label="Aluminium frames" inputMode="numeric" value={frames} onChange={(e) => setFrames(e.target.value)} error={errors.frames} />
+        <TextField label="Frames" inputMode="numeric" value={frames} onChange={(e) => setFrames(e.target.value)} error={errors.frames} />
         <TextField label="Fixed glass" inputMode="numeric" value={glass} onChange={(e) => setGlass(e.target.value)} error={errors.glass} />
         <TextField label="Shutters" inputMode="numeric" value={shutters} onChange={(e) => setShutters(e.target.value)} error={errors.shutters} />
       </div>
