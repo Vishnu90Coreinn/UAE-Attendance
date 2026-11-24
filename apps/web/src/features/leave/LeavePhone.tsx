@@ -35,7 +35,7 @@ const STATUS: Record<LeaveStatus, { tone: string; icon: LucideIcon }> = {
 };
 
 /** The status as an icon, a word and a tint, never colour alone. */
-function StatusPill({ status }: { status: LeaveStatus }) {
+export function StatusPill({ status }: { status: LeaveStatus }) {
   const { tone, icon: Icon } = STATUS[status];
   return (
     <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${tone}`}>

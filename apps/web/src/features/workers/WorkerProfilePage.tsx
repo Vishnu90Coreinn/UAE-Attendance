@@ -16,6 +16,8 @@ import { LoadError } from "./WorkersFeedback";
 import { WorkerFormDialog } from "./WorkerFormDialog";
 import { WorkerStatusBadge } from "./WorkerStatusBadge";
 import { onboardingProgress } from "./WorkersTable";
+import { WorkerProfilePhone } from "./WorkerProfilePhone";
+import { useIsDesktop } from "../../utils/useIsDesktop";
 
 type TabKey = "overview" | "pay" | "onboarding" | "leave";
 
@@ -62,7 +64,7 @@ function money(value: number | null | undefined): string | null {
   return value == null ? null : `AED ${formatRate(value)}`;
 }
 
-function Photo({ worker }: { worker: Worker }) {
+function Photo({ worker, small = false }: { worker: Worker; small?: boolean }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!worker.hasPhoto) return;
@@ -81,10 +83,10 @@ function Photo({ worker }: { worker: Worker }) {
     };
   }, [worker.id, worker.hasPhoto]);
   return url ? (
-    <img src={url} alt={worker.fullName} className="size-24 rounded-xl border-4 border-white object-cover shadow-card" />
+    <img src={url} alt={worker.fullName} className={small ? "size-20 rounded-2xl border border-line object-cover" : "size-24 rounded-xl border-4 border-white object-cover shadow-card"} />
   ) : (
-    <span aria-hidden="true" className="inline-flex size-24 items-center justify-center rounded-xl border-4 border-white bg-brand-100 text-brand-700 shadow-card">
-      <UserRound size={44} />
+    <span aria-hidden="true" className={small ? "inline-flex size-20 items-center justify-center rounded-2xl bg-brand-100 text-brand-700" : "inline-flex size-24 items-center justify-center rounded-xl border-4 border-white bg-brand-100 text-brand-700 shadow-card"}>
+      <UserRound size={small ? 36 : 44} />
     </span>
   );
 }
@@ -154,6 +156,7 @@ export function WorkerProfilePage() {
   const showPay = canViewAll(user?.role);
   const canEdit = showPay && !isReadOnly(user?.role);
   const workerId = Number(id);
+  const desktop = useIsDesktop();
 
   const [worker, setWorker] = useState<Worker | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -202,6 +205,44 @@ export function WorkerProfilePage() {
       <section>
         {back}
         <Loading what="worker" />
+      </section>
+    );
+  }
+
+  if (!desktop) {
+    return (
+      <section className="min-w-0">
+        {downloadError && (
+          <p role="alert" className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {downloadError}
+          </p>
+        )}
+        <WorkerProfilePhone
+          worker={worker}
+          photo={<Photo worker={worker} small />}
+          tab={tab}
+          onTab={setTab}
+          showPay={showPay}
+          showRates={isManagement(user?.role)}
+          canEdit={canEdit}
+          onEdit={() => setEditing(true)}
+          onDownload={() => void download(worker)}
+          tenure={tenure(worker.joinDate)}
+          money={money}
+          formatDate={formatDisplayDate}
+        />
+        {canEdit && (
+          <WorkerFormDialog
+            open={editing}
+            worker={worker}
+            hidePay={!isManagement(user?.role)}
+            onClose={() => setEditing(false)}
+            onSaved={() => {
+              setEditing(false);
+              load();
+            }}
+          />
+        )}
       </section>
     );
   }
