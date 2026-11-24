@@ -243,6 +243,44 @@ describe("Daily Attendance on a phone", () => {
     expect(api.approveAttendance).toHaveBeenCalledWith(expect.any(String), [1]);
   });
 
+  it("shows a submitted entry for review: no tick or cross, pay beside the status, text-only Approve and Send back", async () => {
+    vi.mocked(api.getAttendance).mockResolvedValue({
+      ...day,
+      pendingCount: 1,
+      rows: [{ ...day.rows[0], record: record("Present", "Submitted") }, day.rows[1]],
+    });
+    await loaded();
+    const first = card("Ahmed Khan");
+
+    expect(within(first).queryByRole("button", { name: "Present" })).not.toBeInTheDocument();
+    expect(within(first).queryByRole("button", { name: "Absent" })).not.toBeInTheDocument();
+    expect(within(first).getByRole("button", { name: "Leave and overtime for Ahmed Khan" })).toBeInTheDocument();
+    expect(within(first).getByText("Waiting for approval")).toBeInTheDocument();
+    expect(within(first).getByText("Total pay (AED)")).toBeInTheDocument();
+    expect(within(first).getByRole("button", { name: "Approve Ahmed Khan" })).toHaveTextContent(/^Approve$/);
+    expect(within(first).getByRole("button", { name: "Send back Ahmed Khan" })).toHaveTextContent(/^Send back$/);
+    // The unrecorded worker next to it still has the ordinary tick and cross.
+    expect(within(card("Bilal Raza")).getByRole("button", { name: "Present" })).toBeInTheDocument();
+  });
+
+  it("lets a Manager change a submitted entry from its menu, which holds the approval until it is saved", async () => {
+    vi.mocked(api.getAttendance).mockResolvedValue({
+      ...day,
+      pendingCount: 1,
+      rows: [{ ...day.rows[0], record: record("Present", "Submitted") }, day.rows[1]],
+    });
+    const user = await loaded();
+    const first = card("Ahmed Khan");
+
+    await openMore(user, "Ahmed Khan");
+    const entry = within(first).getByRole("group", { name: "Status for Ahmed Khan" });
+    expect(within(entry).getByRole("button", { name: "Present" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(within(entry).getByRole("button", { name: "Absent" }));
+
+    expect(within(first).queryByRole("button", { name: "Approve Ahmed Khan" })).not.toBeInTheDocument();
+    expect(screen.getByText("1 unsaved change")).toBeInTheDocument();
+  });
+
   it("shows a Supervisor why an entry was sent back and lets them resubmit it", async () => {
     signIn("Supervisor");
     vi.mocked(api.getAttendance).mockResolvedValue({

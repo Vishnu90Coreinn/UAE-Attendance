@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { CalendarDays, Check, Ellipsis, Minus, Plus, X } from "lucide-react";
+import { CalendarDays, Check, Clock, Ellipsis, Minus, Plus, X } from "lucide-react";
 import type { AttendanceRow } from "../../api/attendance";
 import { isLeaveStatus, LEAVE_STATUSES, type LeaveStatusValue } from "../../utils/leaveStatuses";
 import { ApprovalContent } from "./ApprovalCell";
+import { phoneButton } from "../../components/phoneUi";
 import { filterGroup, type AttendanceFilter } from "./attendanceFilter";
 import { changed, previewPay, stepHours, type AttendanceForm } from "./attendanceForm";
 
@@ -181,6 +182,8 @@ export function AttendanceCards({
         const rowEditable = editable && !row.approvedLeave && (isManager || row.record?.approvalStatus !== "Approved");
         const pay = showPay ? previewPay(row, form, maximum, companyRate) : null;
         const open = rowEditable && openId === row.worker.id;
+        // A Manager looks at a submitted entry to approve it, not to fill it in, so it loses its tick and cross.
+        const reviewing = isManager && row.record?.approvalStatus === "Submitted";
         const panelId = `attendance-more-${row.worker.id}`;
 
         /** Tapping the chosen status again clears it back to "not recorded". A present worker starts on the standard shift. */
@@ -206,24 +209,19 @@ export function AttendanceCards({
                     </>
                   )}
                 </p>
-                {/* One line under the name: who they are until they are recorded, then what they are recorded as. */}
-                {form.status === null && rowEditable ? (
+                {/* Until they are recorded the line under the name says who they are; after that the status has a line of its own. */}
+                {form.status === null && rowEditable && (
                   <p className="mt-0.5 break-words text-sm text-ink-600">
                     {row.worker.workerCode} · {row.worker.designation}
                     {!row.worker.isActive && " · Inactive"}
                   </p>
-                ) : (
-                  <div className="mt-1">
-                    <StatusLine form={form} />
-                    {row.approvedLeave && (
-                      <span className="mt-1 block text-xs text-ink-600">Approved leave. Change it in Leave Management.</span>
-                    )}
-                  </div>
                 )}
               </div>
 
               {rowEditable ? (
-                <div role="group" aria-label={`Status for ${name}`} className="flex shrink-0 items-center gap-2">
+                <div role={reviewing ? undefined : "group"} aria-label={reviewing ? undefined : `Status for ${name}`} className="flex shrink-0 items-center gap-2">
+                  {!reviewing && (
+                    <>
                   <button
                     type="button"
                     aria-label="Present"
@@ -252,6 +250,8 @@ export function AttendanceCards({
                   >
                     <X aria-hidden="true" size={26} strokeWidth={3} />
                   </button>
+                    </>
+                  )}
                   <button
                     type="button"
                     aria-label={`Leave and overtime for ${name}`}
@@ -266,8 +266,49 @@ export function AttendanceCards({
               ) : null}
             </div>
 
+            {(form.status !== null || !rowEditable || (showPay && pay !== null)) && (
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <StatusLine form={form} />
+                  {row.approvedLeave && <span className="mt-1 block text-xs text-ink-600">Approved leave. Change it in Leave Management.</span>}
+                </div>
+                {showPay && form.status !== null && (
+                  <p className="shrink-0 text-right">
+                    <span className="sr-only">Total pay (AED)</span>
+                    <span className="text-lg font-bold tabular-nums text-ink-900">{pay === null ? "—" : pay.toFixed(2)}</span>
+                    <span aria-hidden="true" className="ml-1 text-xs font-semibold text-ink-600">AED</span>
+                  </p>
+                )}
+              </div>
+            )}
+
             {open && (
               <div id={panelId} className="mt-3 space-y-3 border-t border-black/5 pt-3">
+                {reviewing && (
+                  <div role="group" aria-label={`Status for ${name}`}>
+                    <span className={labelClass}>Change the entry</span>
+                    <div className="mt-1 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        aria-pressed={form.status === "Present"}
+                        disabled={pending}
+                        onClick={() => choose("Present")}
+                        className={`min-h-12 rounded-xl border text-sm font-bold ${focusRing} ${form.status === "Present" ? "border-brand-700 bg-brand-700 text-white" : "border-ink-300 bg-white text-ink-900"}`}
+                      >
+                        Present
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={form.status === "Absent"}
+                        disabled={pending}
+                        onClick={() => choose("Absent")}
+                        className={`min-h-12 rounded-xl border text-sm font-bold ${focusRing} ${form.status === "Absent" ? "border-red-700 bg-red-700 text-white" : "border-ink-300 bg-white text-ink-900"}`}
+                      >
+                        Absent
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div role="group" aria-label={`Leave for ${name}`}>
                   <span className={labelClass}>Leave</span>
                   <div className="mt-1 grid grid-cols-3 gap-2">
@@ -314,14 +355,24 @@ export function AttendanceCards({
               </p>
             )}
 
-            {showPay && form.status !== null && (
-              <p className="mt-2 flex items-center justify-between gap-3 border-t border-black/5 pt-2">
-                <span className={labelClass}>Total pay (AED)</span>
-                <span className="text-lg font-bold tabular-nums text-ink-800">{pay === null ? "—" : pay.toFixed(2)}</span>
-              </p>
+            {reviewing && canDecide && (
+              <div className="mt-3 border-t border-black/5 pt-3">
+                <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-amber-900">
+                  <Clock aria-hidden="true" size={14} />
+                  Waiting for approval
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" disabled={pending} aria-label={`Approve ${name}`} onClick={() => onApprove(row)} className={phoneButton("primary", "sm")}>
+                    Approve
+                  </button>
+                  <button type="button" disabled={pending} aria-label={`Send back ${name}`} onClick={() => onReject(row)} className={phoneButton("secondary", "sm")}>
+                    Send back
+                  </button>
+                </div>
+              </div>
             )}
 
-            {row.record && (
+            {row.record && !(reviewing && canDecide) && (
               <div className="mt-2 border-t border-black/5 pt-2 text-sm">
                 <ApprovalContent
                   row={row}
