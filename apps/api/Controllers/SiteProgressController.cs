@@ -1,6 +1,7 @@
 using HrPayroll.Api.Auth;
 using HrPayroll.Api.Dtos;
 using HrPayroll.Api.Services;
+using HrPayroll.Api.Services.Push;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -30,7 +31,7 @@ public sealed class SiteProjectsController(SiteProgressService progress) : Contr
 /// <summary>Daily progress reports. Supervisors and above enter them; HR and the rest read, print and export.</summary>
 [ApiController]
 [Route("api/site-progress")]
-public sealed class SiteProgressController(SiteProgressService progress, SiteProgressPdf pdf) : ControllerBase
+public sealed class SiteProgressController(SiteProgressService progress, SiteProgressPdf pdf, IPushNotifier push) : ControllerBase
 {
     [HttpGet("{projectId:int}/dates")]
     [Authorize(Policy = Policies.SiteProgressAccess)]
@@ -45,12 +46,24 @@ public sealed class SiteProgressController(SiteProgressService progress, SitePro
     [HttpPut("{projectId:int}")]
     [Authorize(Policy = Policies.SupervisorOrAbove)]
     public async Task<IActionResult> SaveLive(int projectId, [FromBody] SiteProgressSaveRequest? request, CancellationToken ct) =>
-        Map(this, await progress.SaveAsync(projectId, null, request ?? new(null), ct));
+        await SaveAndNotify(await progress.SaveAsync(projectId, null, request ?? new(null), ct), ct);
 
     [HttpPut("{projectId:int}/{date}")]
     [Authorize(Policy = Policies.SupervisorOrAbove)]
     public async Task<IActionResult> Save(int projectId, string date, [FromBody] SiteProgressSaveRequest? request, CancellationToken ct) =>
-        Map(this, await progress.SaveAsync(projectId, date, request ?? new(null), ct));
+        await SaveAndNotify(await progress.SaveAsync(projectId, date, request ?? new(null), ct), ct);
+
+    /// <summary>A supervisor updating a daily report tells the managers there is a new update to look at.</summary>
+    private async Task<IActionResult> SaveAndNotify(SiteProgressResult result, CancellationToken ct)
+    {
+        if (result is { StatusCode: 200, Body: SiteProgressResponse report } && User.IsInRole(Roles.Supervisor))
+        {
+            var id = int.TryParse(User.FindFirst("sub")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var n) ? n : (int?)null;
+            await push.NotifyRolesAsync([Roles.Manager, Roles.Administrator],
+                new("Site progress updated", $"{User.Identity?.Name} updated the daily progress for {report.ProjectName} ({report.Date}).", "/progress"), id, ct);
+        }
+        return Map(this, result);
+    }
 
     [HttpDelete("{projectId:int}/{date}")]
     [Authorize(Policy = Policies.ManagerOrAdmin)]

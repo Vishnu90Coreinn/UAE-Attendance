@@ -151,4 +151,25 @@ public class PushNotificationTests(PushApiFixture api) : IClassFixture<PushApiFi
         await api.SendAsync(HttpMethod.Put, "/api/attendance/2025-03-12", new[] { new { workerId = other.Id, status = "Present", basicHours = 8m, overtimeHours = 0m } }, managerToken);
         Assert.Single(SentTo(manager.Endpoint));
     }
+
+    [Fact]
+    public async Task SupervisorUpdatingSiteProgress_NotifiesManagers_ButAManagersOwnUpdateDoesNot()
+    {
+        var manager = await SubscribedAsync(Roles.Manager);
+        var hr = await SubscribedAsync(Roles.HR);
+        var supervisor = await SubscribedAsync(Roles.Supervisor);
+        var created = await api.PostAsync("/api/site-projects", new { name = "Push Tower " + Guid.NewGuid().ToString("N")[..8] }, manager.Token);
+        var project = (await TestWorkers.ReadJsonAsync(created)).GetProperty("id").GetInt32();
+        var floors = new[] { new { floor = "L1", frames = 4, glass = 2, shutters = 0, alignment = "NotComplete", completion = "InProgress", wirStatus = "Submitted", remarks = "" } };
+
+        Assert.Equal(HttpStatusCode.OK, (await api.SendAsync(HttpMethod.Put, $"/api/site-progress/{project}", new { floors }, supervisor.Token)).StatusCode);
+        var told = Assert.Single(SentTo(manager.Endpoint));
+        Assert.Equal("Site progress updated", told.Title);
+        Assert.Equal("/progress", told.Url);
+        Assert.Empty(SentTo(hr.Endpoint));
+        Assert.Empty(SentTo(supervisor.Endpoint));
+
+        Assert.Equal(HttpStatusCode.OK, (await api.SendAsync(HttpMethod.Put, $"/api/site-progress/{project}", new { floors }, manager.Token)).StatusCode);
+        Assert.Single(SentTo(manager.Endpoint));
+    }
 }
