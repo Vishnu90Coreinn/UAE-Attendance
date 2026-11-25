@@ -13,6 +13,7 @@ namespace HrPayroll.Api.Controllers;
 /// and nothing counts until a Manager approves it.
 /// </summary>
 [ApiController]
+[ServiceFilter(typeof(LedgerSyncFilter))]
 [Route("api/finance/my")]
 public sealed class FinanceSubmitController(FinanceEntryService entries, FinanceAccountService accounts, FinanceCategoryService categories, FinancePayeeService payees, IHttpContextAccessor http) : ControllerBase
 {

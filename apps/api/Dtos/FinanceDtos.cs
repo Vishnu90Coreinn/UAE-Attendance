@@ -245,3 +245,27 @@ public sealed record FinImportRow(
 
 /// <summary>The checked file. Nothing is saved until the import is confirmed; <c>Imported</c> is 0 for a preview.</summary>
 public sealed record FinImportResult(IReadOnlyList<FinImportRow> Rows, int Ready, int Duplicates, int Errors, decimal ReadyTotal, int Imported);
+
+// ---- Ledger (Phase 4) -----------------------------------------------------------------------------------------
+
+public sealed record LedgerAccountResponse(int Id, string Code, string Name, string Type, bool IsActive, bool IsSystem, decimal Debit, decimal Credit, decimal Balance);
+
+/// <summary>Balance is positive in the account's normal direction (a debit for assets and expenses, a credit for the rest).</summary>
+public sealed record LedgerTrialBalance(string AsOf, IReadOnlyList<LedgerAccountResponse> Accounts, decimal TotalDebit, decimal TotalCredit, bool Balanced);
+
+public sealed record LedgerLineResponse(string Date, string JournalNumber, string Description, string? Memo, decimal Debit, decimal Credit, decimal Balance, string Part);
+
+public sealed record LedgerAccountStatement(LedgerAccountResponse Account, string From, string To, decimal Opening, IReadOnlyList<LedgerLineResponse> Lines, decimal Closing);
+
+public sealed record JournalLineResponse(string AccountCode, string AccountName, decimal Debit, decimal Credit, string? Memo);
+
+public sealed record JournalResponse(int Id, string Number, string Date, string SourceType, int SourceId, string Part, string Description, IReadOnlyList<JournalLineResponse> Lines);
+
+public sealed record JournalList(IReadOnlyList<JournalResponse> Items, int Count, bool Truncated);
+
+/// <summary>One of the safety checks: what the ledger says, what the finance screens say, and whether they agree.</summary>
+public sealed record LedgerCheck(string Name, string Subject, decimal Ledger, decimal Screens, bool Agrees);
+
+public sealed record LedgerCheckResult(bool AllAgree, IReadOnlyList<LedgerCheck> Checks, int Journals, decimal TotalDebit, decimal TotalCredit);
+
+public sealed record LedgerSyncResult(int Posted, int Reversed);

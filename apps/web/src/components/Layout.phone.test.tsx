@@ -130,6 +130,7 @@ describe("Layout on a phone", () => {
       ["Cheques", "/finance/cheques"],
       ["Payees", "/finance/payees"],
       ["Partners", "/finance/partners"],
+      ["Books", "/finance/books"],
       ["Finance Reports", "/finance/reports"],
       ["Deductions", "/deductions"],
       ["Staff Attendance", "/staff"],

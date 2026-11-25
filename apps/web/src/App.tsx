@@ -70,6 +70,9 @@ const StaffPayrollPage = lazy(() =>
 const FinanceDashboardPage = lazy(() =>
   import("./features/finance/FinanceDashboardPage").then((m) => ({ default: m.FinanceDashboardPage })),
 );
+const BooksPage = lazy(() =>
+  import("./features/finance/BooksPage").then((m) => ({ default: m.BooksPage })),
+);
 const PettyCashPage = lazy(() =>
   import("./features/finance/PettyCashPage").then((m) => ({ default: m.PettyCashPage })),
 );
@@ -205,6 +208,14 @@ export default function App() {
               element={
                 <RequireRole roles={FINANCE_ROLES}>
                   <FinanceDashboardPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/books"
+              element={
+                <RequireRole roles={FINANCE_ROLES}>
+                  <BooksPage />
                 </RequireRole>
               }
             />

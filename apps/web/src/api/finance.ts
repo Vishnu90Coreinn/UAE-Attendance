@@ -681,3 +681,91 @@ export function runFinImport(kind: FinEntryKind, file: File, commit: boolean): P
 export function getFinImportTemplate(kind: FinEntryKind): Promise<Blob> {
   return apiGetFile(`${importPath(kind)}/template`, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 }
+
+// ---- Ledger (the books) ----
+export interface LedgerAccount {
+  id: number;
+  code: string;
+  name: string;
+  type: "Asset" | "Liability" | "Equity" | "Revenue" | "Expense";
+  isActive: boolean;
+  isSystem: boolean;
+  debit: number;
+  credit: number;
+  /** Positive in the account's normal direction: a debit for assets and expenses, a credit for the rest. */
+  balance: number;
+}
+export interface LedgerTrialBalance {
+  asOf: string;
+  accounts: LedgerAccount[];
+  totalDebit: number;
+  totalCredit: number;
+  balanced: boolean;
+}
+export interface LedgerLine {
+  date: string;
+  journalNumber: string;
+  description: string;
+  memo: string | null;
+  debit: number;
+  credit: number;
+  balance: number;
+  part: "Post" | "Reversal";
+}
+export interface LedgerStatement {
+  account: LedgerAccount;
+  from: string;
+  to: string;
+  opening: number;
+  lines: LedgerLine[];
+  closing: number;
+}
+export interface Journal {
+  id: number;
+  number: string;
+  date: string;
+  sourceType: string;
+  sourceId: number;
+  part: "Post" | "Reversal";
+  description: string;
+  lines: { accountCode: string; accountName: string; debit: number; credit: number; memo: string | null }[];
+}
+export interface JournalList {
+  items: Journal[];
+  count: number;
+  truncated: boolean;
+}
+export interface LedgerCheck {
+  name: string;
+  subject: string;
+  ledger: number;
+  screens: number;
+  agrees: boolean;
+}
+export interface LedgerCheckResult {
+  allAgree: boolean;
+  checks: LedgerCheck[];
+  journals: number;
+  totalDebit: number;
+  totalCredit: number;
+}
+
+export function getLedgerTrialBalance(asOf?: string): Promise<LedgerTrialBalance> {
+  return apiGet(`/api/finance/ledger/trial-balance${asOf ? `?asOf=${asOf}` : ""}`);
+}
+export function getLedgerChart(): Promise<LedgerAccount[]> {
+  return apiGet("/api/finance/ledger/accounts");
+}
+export function getLedgerStatement(id: number, from: string, to: string): Promise<LedgerStatement> {
+  return apiGet(`/api/finance/ledger/accounts/${id}/statement?from=${from}&to=${to}`);
+}
+export function listJournals(from?: string, to?: string): Promise<JournalList> {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const text = params.toString();
+  return apiGet(`/api/finance/ledger/journals${text ? `?${text}` : ""}`);
+}
+export function getLedgerCheck(): Promise<LedgerCheckResult> {
+  return apiGet("/api/finance/ledger/check");
+}

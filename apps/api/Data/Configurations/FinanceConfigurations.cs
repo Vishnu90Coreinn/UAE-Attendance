@@ -24,6 +24,7 @@ public sealed class FinAccountConfiguration : IEntityTypeConfiguration<FinAccoun
         builder.HasOne<HrPayroll.Api.Data.Entities.User>().WithMany().HasForeignKey(a => a.HolderUserId).OnDelete(DeleteBehavior.Restrict);
         // One petty-cash account per person.
         builder.HasIndex(a => a.HolderUserId).IsUnique().HasFilter("[HolderUserId] IS NOT NULL");
+        builder.HasOne<LedgerAccount>().WithMany().HasForeignKey(a => a.LedgerAccountId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -36,6 +37,7 @@ public sealed class FinCategoryConfiguration : IEntityTypeConfiguration<FinCateg
         builder.Property(c => c.Name).HasMaxLength(80).UseCollation(UserConfiguration.CaseInsensitiveCollation).IsRequired();
         builder.Property(c => c.IsActive).HasDefaultValue(true);
         builder.HasIndex(c => new { c.Kind, c.Name }).IsUnique();
+        builder.HasOne<LedgerAccount>().WithMany().HasForeignKey(c => c.LedgerAccountId).OnDelete(DeleteBehavior.Restrict);
 
         // The starting lists, from the accountant's Daftra account. The client renames or switches them off in Settings.
         builder.HasData(
@@ -144,6 +146,54 @@ public sealed class FinChequeConfiguration : IEntityTypeConfiguration<FinCheque>
     }
 }
 
+public sealed class LedgerAccountConfiguration : IEntityTypeConfiguration<LedgerAccount>
+{
+    public void Configure(EntityTypeBuilder<LedgerAccount> builder)
+    {
+        builder.ToTable(t => t.HasCheckConstraint("CK_LedgerAccounts_Type", "[Type] IN ('Asset', 'Liability', 'Equity', 'Revenue', 'Expense')"));
+        builder.Property(a => a.Code).HasMaxLength(20).UseCollation(UserConfiguration.CaseInsensitiveCollation).IsRequired();
+        builder.Property(a => a.Name).HasMaxLength(120).IsRequired();
+        builder.Property(a => a.Type).HasMaxLength(10).IsRequired();
+        builder.Property(a => a.IsActive).HasDefaultValue(true);
+        builder.Property(a => a.CreatedUtc).HasColumnType("datetime2");
+        builder.HasIndex(a => a.Code).IsUnique();
+    }
+}
+
+public sealed class JournalConfiguration : IEntityTypeConfiguration<Journal>
+{
+    public void Configure(EntityTypeBuilder<Journal> builder)
+    {
+        builder.ToTable(t => t.HasCheckConstraint("CK_Journals_Part", "[Part] IN ('Post', 'Reversal')"));
+        builder.Property(j => j.Number).HasMaxLength(20).IsRequired();
+        builder.Property(j => j.Date).HasColumnType("date");
+        builder.Property(j => j.SourceType).HasMaxLength(12).IsRequired();
+        builder.Property(j => j.Part).HasMaxLength(10).IsRequired();
+        builder.Property(j => j.Description).HasMaxLength(300).IsRequired();
+        builder.Property(j => j.CreatedUtc).HasColumnType("datetime2");
+        builder.HasOne<Journal>().WithMany().HasForeignKey(j => j.ReversesJournalId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(j => j.Number).IsUnique();
+        // A source is posted once per revision, and reversed once: the backstop against two syncs racing.
+        builder.HasIndex(j => new { j.SourceType, j.SourceId, j.Revision, j.Part }).IsUnique();
+        builder.HasIndex(j => j.Date);
+    }
+}
+
+public sealed class JournalLineConfiguration : IEntityTypeConfiguration<JournalLine>
+{
+    public void Configure(EntityTypeBuilder<JournalLine> builder)
+    {
+        builder.ToTable(t => t.HasCheckConstraint("CK_JournalLines_Side", "([Debit] > 0 AND [Credit] = 0) OR ([Credit] > 0 AND [Debit] = 0)"));
+        builder.Property(l => l.Debit).HasPrecision(12, 2);
+        builder.Property(l => l.Credit).HasPrecision(12, 2);
+        builder.Property(l => l.Memo).HasMaxLength(200);
+        builder.HasOne(l => l.Journal).WithMany(j => j.Lines).HasForeignKey(l => l.JournalId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(l => l.LedgerAccount).WithMany().HasForeignKey(l => l.LedgerAccountId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(l => l.JournalId);
+        builder.HasIndex(l => l.LedgerAccountId);
+    }
+}
+
 public sealed class FinPayeeConfiguration : IEntityTypeConfiguration<FinPayee>
 {
     public void Configure(EntityTypeBuilder<FinPayee> builder)
@@ -168,6 +218,7 @@ public sealed class FinPartnerConfiguration : IEntityTypeConfiguration<FinPartne
         builder.ToTable(t => t.HasCheckConstraint("CK_FinPartners_OpeningCapital", "[OpeningCapital] >= 0"));
         builder.Property(p => p.Name).HasMaxLength(120).UseCollation(UserConfiguration.CaseInsensitiveCollation).IsRequired();
         builder.Property(p => p.OpeningCapital).HasPrecision(12, 2);
+        builder.HasOne<LedgerAccount>().WithMany().HasForeignKey(p => p.LedgerAccountId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(p => p.IsActive).HasDefaultValue(true);
         builder.Property(p => p.CreatedUtc).HasColumnType("datetime2");
         builder.Property(p => p.UpdatedUtc).HasColumnType("datetime2");

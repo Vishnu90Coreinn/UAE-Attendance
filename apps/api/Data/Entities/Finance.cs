@@ -37,6 +37,9 @@ public sealed class FinPartner
 
     /// <summary>Capital already put in before the first entry here; it is part of the accounts' opening balances, not an extra deposit.</summary>
     public decimal OpeningCapital { get; set; }
+
+    /// <summary>The partner's capital account in the ledger.</summary>
+    public int? LedgerAccountId { get; set; }
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }
     public DateTime CreatedUtc { get; set; }
@@ -70,6 +73,9 @@ public sealed class FinAccount
     /// <summary>For a Custody account: the staff login that holds the cash. Null for every other account.</summary>
     public int? HolderUserId { get; set; }
 
+    /// <summary>The ledger account this account posts to. Made when first posted; the accountant may point it elsewhere.</summary>
+    public int? LedgerAccountId { get; set; }
+
     /// <summary>The balance holds on this date; no entry or transfer may be dated before it.</summary>
     public DateOnly OpeningDate { get; set; }
     public bool IsActive { get; set; } = true;
@@ -85,6 +91,9 @@ public sealed class FinCategory
     public string Kind { get; set; } = FinEntryKinds.Expense;
     public string Name { get; set; } = "";
     public bool IsActive { get; set; } = true;
+
+    /// <summary>The ledger account this category posts to (an expense or revenue account, unless the accountant chooses otherwise).</summary>
+    public int? LedgerAccountId { get; set; }
 }
 
 /// <summary>

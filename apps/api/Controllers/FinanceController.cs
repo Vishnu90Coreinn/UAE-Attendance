@@ -10,6 +10,7 @@ namespace HrPayroll.Api.Controllers;
 
 /// <summary>Expense and income tracking: bank and cash accounts, categories and transfers. Managers and Administrators edit; the Partner reads.</summary>
 [ApiController]
+[ServiceFilter(typeof(LedgerSyncFilter))]
 [Route("api/finance")]
 public sealed class FinanceController(FinanceAccountService accounts, FinanceCategoryService categories, FinanceTransferService transfers, FinanceEntryService entries, FinancePeriodService periods, FinanceDashboardService dashboard, FinanceReportService reports, FinanceReportExportService reportExports, FinancePartnerService partners, FinancePayeeService payees, FinanceChequeService cheques, FinanceSubmitterService submitters, FinanceImportService imports) : ControllerBase
 {

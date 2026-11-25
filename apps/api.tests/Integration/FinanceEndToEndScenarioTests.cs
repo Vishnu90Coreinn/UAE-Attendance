@@ -291,6 +291,18 @@ public class FinanceEndToEndScenarioTests(ReceiptsFixture api) : IClassFixture<R
         Assert.Contains(closingTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), csv);
         Assert.Equal(new byte[] { 0x25, 0x50, 0x44, 0x46 }, (await Download("pdf"))[..4]);
 
+        // ---- 11b. The books: the ledger agrees with every screen, and the accounting equation holds --------------------------
+        var check = (await SendAsync(HttpMethod.Get, "/api/finance/ledger/check", partnerToken)).Body;
+        Assert.True(check.GetProperty("allAgree").GetBoolean(), string.Join("; ", check.GetProperty("checks").EnumerateArray().Where(c => !c.GetProperty("agrees").GetBoolean()).Select(c => c.GetProperty("subject").GetString())));
+        Assert.True((await SendAsync(HttpMethod.Get, "/api/finance/ledger/trial-balance", partnerToken)).Body.GetProperty("balanced").GetBoolean());
+        var chart = (await SendAsync(HttpMethod.Get, "/api/finance/ledger/accounts", partnerToken)).Body.EnumerateArray().ToList();
+        decimal ByType(string type) => chart.Where(a => a.GetProperty("type").GetString() == type).Sum(a => Dec(a, "balance"));
+        Assert.Equal(closingTotal, ByType("Asset"));                               // what the company holds
+        Assert.Equal(incomeTotal, ByType("Revenue"));
+        Assert.Equal(expenseTotal, ByType("Expense"));                             // the voided dinner and rejected pharmacy net to nothing or never posted
+        Assert.Equal(capitalIn + openingTotal, ByType("Equity"));                 // the partners: 10,162 opening capital plus 176,960.11 put in; opening balance equity nets to zero
+        Assert.Equal(ByType("Asset"), ByType("Liability") + ByType("Equity") + ByType("Revenue") - ByType("Expense"));   // assets = liabilities + equity + profit
+
         // ---- 12. Who can do what -------------------------------------------------------------------------------------------
         Assert.Equal(HttpStatusCode.Forbidden, (await SendAsync(HttpMethod.Get, "/api/finance/dashboard", jesus)).Status);
         Assert.Equal(HttpStatusCode.Forbidden, (await SendAsync(HttpMethod.Post, "/api/finance/expenses/1/approve", jesus)).Status);
