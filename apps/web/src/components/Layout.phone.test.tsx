@@ -126,6 +126,7 @@ describe("Layout on a phone", () => {
       ["Accounts", "/finance/accounts"],
       ["Expenses", "/finance/expenses"],
       ["Income", "/finance/income"],
+      ["Finance Reports", "/finance/reports"],
       ["Deductions", "/deductions"],
       ["Staff Attendance", "/staff"],
       ["Staff Payroll Summary", "/staff-payroll"],

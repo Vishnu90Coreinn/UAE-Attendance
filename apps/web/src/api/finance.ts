@@ -1,4 +1,4 @@
-import { apiGet, apiGetAnyFile, apiPost, apiPostForm, apiPut, apiPutForm } from "./client";
+import { apiGet, apiGetAnyFile, apiGetBlob, apiGetFile, apiPost, apiPostForm, apiPut, apiPutForm } from "./client";
 
 export type FinAccountKind = "Bank" | "Cash";
 export type FinEntryKind = "Expense" | "Income";
@@ -250,4 +250,54 @@ export interface FinDashboard {
 }
 export function getFinDashboard(days: FinWindow): Promise<FinDashboard> {
   return apiGet(`/api/finance/dashboard?days=${days}`);
+}
+
+export interface FinReportAccount {
+  accountId: number;
+  name: string;
+  kind: FinAccountKind;
+  isActive: boolean;
+  /** The balance at the start of the period. */
+  opening: number;
+  income: number;
+  expense: number;
+  transfersIn: number;
+  transfersOut: number;
+  /** The balance at the end of the period: opening + income - expenses + transfers in - transfers out. */
+  closing: number;
+}
+export interface FinReportTotals {
+  opening: number;
+  income: number;
+  expense: number;
+  transfersIn: number;
+  transfersOut: number;
+  closing: number;
+}
+export interface FinReportCategory {
+  categoryId: number;
+  name: string;
+  amount: number;
+  count: number;
+  share: number;
+}
+export interface FinReport {
+  from: string;
+  to: string;
+  accounts: FinReportAccount[];
+  totals: FinReportTotals;
+  period: FinPeriodTotals;
+  incomeCategories: FinReportCategory[];
+  expenseCategories: FinReportCategory[];
+  entryCount: number;
+}
+export type FinReportFormat = "xlsx" | "pdf" | "csv";
+
+export function getFinReport(from: string, to: string): Promise<FinReport> {
+  return apiGet(`/api/finance/reports/summary?from=${from}&to=${to}`);
+}
+export function getFinReportFile(format: FinReportFormat, from: string, to: string): Promise<Blob> {
+  const path = `/api/finance/reports/summary?from=${from}&to=${to}&format=${format}`;
+  if (format === "pdf") return apiGetBlob(path);
+  return apiGetFile(path, format === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 }

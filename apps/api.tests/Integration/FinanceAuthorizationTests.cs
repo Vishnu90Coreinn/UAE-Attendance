@@ -25,6 +25,7 @@ public class FinanceAuthorizationTests(ApiFixture api) : IClassFixture<ApiFixtur
         ["GET", "/api/finance/income/parties"],
         ["GET", "/api/finance/month-locks"],
         ["GET", "/api/finance/dashboard"],
+        ["GET", "/api/finance/reports/summary"],
         ["GET", $"/api/finance/attachments/{Missing}"],
     ];
 

@@ -85,10 +85,16 @@ public sealed class StaffExportService(
         return await BuildAsync(table, detail, format, ct);
     }
 
-    private async Task<LeaveExportResult> BuildAsync(Table main, Table detail, AttendanceExportFormat format, CancellationToken ct)
+    /// <summary>The letterhead details every export prints.</summary>
+    public async Task<PayrollCompany> CompanyAsync(CancellationToken ct)
     {
         var s = await db.PayrollSettings.AsNoTracking().SingleAsync(x => x.Id == PayrollSettings.SingletonId, ct);
-        var company = new PayrollCompany(s.CompanyName, s.Tagline, s.ContactEmail, s.PreparedByLabel, s.ApprovedByLabel);
+        return new PayrollCompany(s.CompanyName, s.Tagline, s.ContactEmail, s.PreparedByLabel, s.ApprovedByLabel);
+    }
+
+    private async Task<LeaveExportResult> BuildAsync(Table main, Table detail, AttendanceExportFormat format, CancellationToken ct)
+    {
+        var company = await CompanyAsync(ct);
         return format == AttendanceExportFormat.Pdf
             ? new(200, BuildPdf(main, company), main.FileStem + ".pdf", AttendanceExportService.PdfType)
             : new(200, BuildExcel(main, detail, company), main.FileStem + ".xlsx", AttendanceExportService.ExcelType);
@@ -100,11 +106,14 @@ public sealed class StaffExportService(
 
     // --- Excel -------------------------------------------------------------------------------------------------
 
-    private static byte[] BuildExcel(Table main, Table detail, PayrollCompany company)
+    private static byte[] BuildExcel(Table main, Table detail, PayrollCompany company) =>
+        Workbook([("Summary", main), ("Detail", detail)], company);
+
+    /// <summary>One styled sheet per table, in the company's letterhead colours.</summary>
+    public static byte[] Workbook(IReadOnlyList<(string Name, Table Table)> sheets, PayrollCompany company)
     {
         using var book = new XLWorkbook();
-        Sheet(book.AddWorksheet("Summary"), main, company);
-        Sheet(book.AddWorksheet("Detail"), detail, company);
+        foreach (var (name, table) in sheets) Sheet(book.AddWorksheet(name), table, company);
         using var stream = new MemoryStream();
         book.SaveAs(stream);
         return stream.ToArray();
@@ -132,7 +141,11 @@ public sealed class StaffExportService(
             {
                 var text = t.Rows[i][c];
                 var cell = sheet.Cell(headerRow + 1 + i, c + 1);
-                if (t.Columns[c].Right && decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var number)) cell.Value = number;
+                if (t.Columns[c].Right && decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var number))
+                {
+                    cell.Value = number;
+                    if (text.Contains('.')) cell.Style.NumberFormat.Format = "#,##0.00";
+                }
                 else cell.Value = text;
                 if (t.Columns[c].Right) cell.Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Right);
             }
@@ -155,9 +168,14 @@ public sealed class StaffExportService(
     private const double RowHeight = 21;
     private const double BottomMargin = 72;
 
-    private byte[] BuildPdf(Table t, PayrollCompany company)
+    private const string StaffFooter = "Confidential: staff record for internal company use only.";
+
+    private byte[] BuildPdf(Table t, PayrollCompany company) => BuildPdf([t], company, StaffFooter);
+
+    /// <summary>A letterhead page with each table in turn; the first table's title and subtitle head the document, later tables get a section heading.</summary>
+    public byte[] BuildPdf(IReadOnlyList<Table> tables, PayrollCompany company, string footer)
     {
-        foreach (var row in t.Rows) foreach (var cell in row) PdfText.EnsurePrintable(cell);
+        foreach (var table in tables) foreach (var row in table.Rows) foreach (var cell in row) PdfText.EnsurePrintable(cell);
         try
         {
             using var document = new PdfDocumentBuilder();
@@ -166,8 +184,6 @@ public sealed class StaffExportService(
             var logo = PdfText.Asset("logo.png");
             var details = PdfText.Letterhead(configuration, company.ContactEmail);
 
-            var totalWeight = t.Columns.Sum(c => c.Weight);
-            var widths = t.Columns.Select(c => (Right - Left) * c.Weight / totalWeight).ToArray();
             var pages = new List<PdfCanvas>();
             PdfCanvas NewPage()
             {
@@ -176,7 +192,7 @@ public sealed class StaffExportService(
                 return cv;
             }
 
-            void Header(PdfCanvas cv, double y)
+            static void Header(PdfCanvas cv, double y, Table t, double[] widths)
             {
                 cv.Fill(Left, y - 22, Right - Left, 22, PdfStyle.Teal);
                 var x = Left;
@@ -190,47 +206,62 @@ public sealed class StaffExportService(
             }
 
             var page = NewPage();
-            var rule = PdfLetterhead.Draw(page, logo, company, details, t.Title, t.Subtitle, null);
+            var rule = PdfLetterhead.Draw(page, logo, company, details, tables[0].Title, tables[0].Subtitle, null);
             var yPos = rule - 16;
-            Header(page, yPos);
-            yPos -= 22;
-            if (t.Rows.Count == 0) page.Text("No records for this period.", Left + 6, yPos - 20, 9, false, PdfStyle.Muted);
 
-            for (var i = 0; i < t.Rows.Count; i++)
+            for (var n = 0; n < tables.Count; n++)
             {
-                if (yPos - RowHeight < BottomMargin)
+                var t = tables[n];
+                var totalWeight = t.Columns.Sum(c => c.Weight);
+                var widths = t.Columns.Select(c => (Right - Left) * c.Weight / totalWeight).ToArray();
+                if (n > 0)
                 {
-                    page = NewPage();
-                    yPos = 800;
-                    Header(page, yPos);
-                    yPos -= 22;
+                    if (yPos - 90 < BottomMargin) { page = NewPage(); yPos = 800; }
+                    else yPos -= 14;
+                    page.Text(t.Title, Left, yPos - 12, 9, true);
+                    yPos -= 20;
                 }
 
-                if (i % 2 == 1) page.Fill(Left, yPos - RowHeight, Right - Left, RowHeight, PdfStyle.Stripe);
-                var x = Left;
-                for (var c = 0; c < t.Columns.Length; c++)
+                Header(page, yPos, t, widths);
+                yPos -= 22;
+                if (t.Rows.Count == 0) { page.Text("No records for this period.", Left + 6, yPos - 20, 9, false, PdfStyle.Muted); yPos -= 28; }
+
+                for (var i = 0; i < t.Rows.Count; i++)
                 {
-                    var text = page.Fit(t.Rows[i][c], widths[c] - 8, 8);
-                    if (t.Columns[c].Right) page.RightText(text, x + widths[c] - 4, yPos - 14, 8);
-                    else page.Text(text, x + 4, yPos - 14, 8, c == 1);
-                    x += widths[c];
+                    if (yPos - RowHeight < BottomMargin)
+                    {
+                        page = NewPage();
+                        yPos = 800;
+                        Header(page, yPos, t, widths);
+                        yPos -= 22;
+                    }
+
+                    if (i % 2 == 1) page.Fill(Left, yPos - RowHeight, Right - Left, RowHeight, PdfStyle.Stripe);
+                    var x = Left;
+                    for (var c = 0; c < t.Columns.Length; c++)
+                    {
+                        var text = page.Fit(t.Rows[i][c], widths[c] - 8, 8);
+                        if (t.Columns[c].Right) page.RightText(text, x + widths[c] - 4, yPos - 14, 8);
+                        else page.Text(text, x + 4, yPos - 14, 8, c == 1);
+                        x += widths[c];
+                    }
+
+                    page.Rule(Left, Right, yPos - RowHeight, 0.4, PdfStyle.Hairline);
+                    yPos -= RowHeight;
                 }
 
-                page.Rule(Left, Right, yPos - RowHeight, 0.4, PdfStyle.Hairline);
-                yPos -= RowHeight;
-            }
-
-            foreach (var note in t.Notes)
-            {
-                if (yPos - 16 < BottomMargin) { page = NewPage(); yPos = 800; }
-                page.Text(note, Left, yPos - 16, 7.2, false, PdfStyle.Muted);
-                yPos -= 12;
+                foreach (var note in t.Notes)
+                {
+                    if (yPos - 16 < BottomMargin) { page = NewPage(); yPos = 800; }
+                    page.Text(note, Left, yPos - 16, 7.2, false, PdfStyle.Muted);
+                    yPos -= 12;
+                }
             }
 
             for (var i = 0; i < pages.Count; i++)
             {
                 pages[i].Rule(Left, Right, 58, 0.5, PdfStyle.Hairline);
-                pages[i].Text("Confidential: staff record for internal company use only.", Left, 44, 7, false, PdfStyle.Muted);
+                pages[i].Text(footer, Left, 44, 7, false, PdfStyle.Muted);
                 pages[i].RightText($"Page {i + 1}", Right, 44, 7, false, PdfStyle.Muted);
             }
 

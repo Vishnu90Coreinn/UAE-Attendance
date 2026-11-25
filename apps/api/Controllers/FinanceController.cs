@@ -1,6 +1,7 @@
 using HrPayroll.Api.Auth;
 using HrPayroll.Api.Data.Entities;
 using HrPayroll.Api.Dtos;
+using HrPayroll.Api.Services;
 using HrPayroll.Api.Services.Finance;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,7 +11,7 @@ namespace HrPayroll.Api.Controllers;
 /// <summary>Expense and income tracking: bank and cash accounts, categories and transfers. Managers and Administrators edit; the Partner reads.</summary>
 [ApiController]
 [Route("api/finance")]
-public sealed class FinanceController(FinanceAccountService accounts, FinanceCategoryService categories, FinanceTransferService transfers, FinanceEntryService entries, FinancePeriodService periods, FinanceDashboardService dashboard) : ControllerBase
+public sealed class FinanceController(FinanceAccountService accounts, FinanceCategoryService categories, FinanceTransferService transfers, FinanceEntryService entries, FinancePeriodService periods, FinanceDashboardService dashboard, FinanceReportService reports, FinanceReportExportService reportExports) : ControllerBase
 {
     private IActionResult Map<T>(FinResult<T> result) => result.Status switch
     {
@@ -24,6 +25,32 @@ public sealed class FinanceController(FinanceAccountService accounts, FinanceCat
     [HttpGet("dashboard")]
     [Authorize(Policy = Policies.Finance)]
     public async Task<IActionResult> Dashboard([FromQuery] int? days, CancellationToken ct) => Ok(await dashboard.GetAsync(days, ct));
+
+    // --- reports ----------------------------------------------------------------------------------------------
+
+    /// <summary>The period statement as JSON, or as a download when <c>format</c> is xlsx, pdf or csv.</summary>
+    [HttpGet("reports/summary")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> ReportSummary([FromQuery] string? from, [FromQuery] string? to, [FromQuery] string? format, CancellationToken ct)
+    {
+        var kind = (format ?? "json").ToLowerInvariant() switch
+        {
+            "json" => FinReportFormat.Json, "xlsx" => FinReportFormat.Excel, "pdf" => FinReportFormat.Pdf, "csv" => FinReportFormat.Csv, _ => (FinReportFormat?)null,
+        };
+        if (kind is null) return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { ["format"] = ["Use json, xlsx, pdf or csv."] }));
+        if (kind == FinReportFormat.Json) return Map(await reports.BuildAsync(from, to, ct));
+
+        Response.Headers.CacheControl = "no-store";
+        try
+        {
+            var file = await reportExports.ExportAsync(from, to, kind.Value, ct);
+            return file.Status == 200 ? File(file.Value!.Content, file.Value.ContentType, file.Value.FileName) : Map(file);
+        }
+        catch (PdfTextNotSupportedException)
+        {
+            return Problem(statusCode: 422, title: "The PDF supports English text. Use the Excel or CSV file for names in other scripts.");
+        }
+    }
 
     // --- accounts --------------------------------------------------------------------------------------------
 

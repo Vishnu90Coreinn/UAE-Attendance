@@ -91,3 +91,18 @@ public sealed record FinDashboardResponse(
     int Days, string From, string To, decimal TotalBalance, IReadOnlyList<FinAccountResponse> Accounts,
     FinPeriodTotals Current, FinPeriodTotals Previous, string Granularity, IReadOnlyList<FinDashboardBucket> Buckets,
     IReadOnlyList<FinDashboardCategory> Spending, IReadOnlyList<FinDashboardEntry> Latest);
+
+/// <summary>One account's statement for a period: where it started, what moved, where it ended.</summary>
+public sealed record FinReportAccount(
+    int AccountId, string Name, string Kind, bool IsActive, decimal Opening, decimal Income, decimal Expense, decimal TransfersIn, decimal TransfersOut, decimal Closing);
+
+public sealed record FinReportTotals(decimal Opening, decimal Income, decimal Expense, decimal TransfersIn, decimal TransfersOut, decimal Closing);
+
+public sealed record FinReportCategory(int CategoryId, string Name, decimal Amount, int Count, int Share);
+
+public sealed record FinReportEntry(string Date, string EntryNo, string Kind, string Category, string Party, string Account, string? Reference, decimal Amount);
+
+/// <summary>The period report. Identical figures go into the screen, the Excel file, the PDF and the CSV.</summary>
+public sealed record FinReport(
+    string From, string To, IReadOnlyList<FinReportAccount> Accounts, FinReportTotals Totals, FinPeriodTotals Period,
+    IReadOnlyList<FinReportCategory> IncomeCategories, IReadOnlyList<FinReportCategory> ExpenseCategories, int EntryCount);
