@@ -303,3 +303,22 @@ public sealed class LedgerMappingRequest
 {
     public int? LedgerAccountId { get; init; }
 }
+
+// ---- Statements from the ledger (Phase 4, L4) ---------------------------------------------------------------------
+
+public sealed record StatementLine(string Code, string Name, decimal Amount);
+
+/// <summary>
+/// Revenue less expenses for a period, taken from the journals. <c>ManualJournals</c> is how many journals posted by hand fall in the period and are included,
+/// so the figure can differ from the finance report by exactly the accountant's adjustments.
+/// </summary>
+public sealed record ProfitAndLoss(
+    string From, string To, IReadOnlyList<StatementLine> Revenue, decimal TotalRevenue, IReadOnlyList<StatementLine> Expenses, decimal TotalExpenses, decimal NetProfit, int ManualJournals);
+
+/// <summary>
+/// Assets, liabilities and equity as at a date. There is no year-end closing yet, so <c>RetainedProfit</c> is every revenue less every expense up to the date;
+/// the sheet balances when total assets equal total liabilities plus equity.
+/// </summary>
+public sealed record BalanceSheet(
+    string AsOf, IReadOnlyList<StatementLine> Assets, decimal TotalAssets, IReadOnlyList<StatementLine> Liabilities, decimal TotalLiabilities,
+    IReadOnlyList<StatementLine> Equity, decimal RetainedProfit, decimal TotalEquity, decimal TotalLiabilitiesAndEquity, bool Balanced);

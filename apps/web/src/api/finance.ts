@@ -824,3 +824,41 @@ function ledgerDownload(path: string, format: LedgerFile): Promise<Blob> {
 export const downloadTrialBalance = (format: LedgerFile) => ledgerDownload("/api/finance/ledger/trial-balance", format);
 export const downloadLedger = (id: number, from: string, to: string, format: LedgerFile) => ledgerDownload(`/api/finance/ledger/accounts/${id}/statement?from=${from}&to=${to}`, format);
 export const downloadJournals = (format: LedgerFile) => ledgerDownload("/api/finance/ledger/journals", format);
+
+export interface StatementLine {
+  code: string;
+  name: string;
+  amount: number;
+}
+export interface ProfitAndLoss {
+  from: string;
+  to: string;
+  revenue: StatementLine[];
+  totalRevenue: number;
+  expenses: StatementLine[];
+  totalExpenses: number;
+  netProfit: number;
+  /** Journals posted by hand in the period, included in the figures. */
+  manualJournals: number;
+}
+export interface BalanceSheet {
+  asOf: string;
+  assets: StatementLine[];
+  totalAssets: number;
+  liabilities: StatementLine[];
+  totalLiabilities: number;
+  equity: StatementLine[];
+  /** Every revenue less every expense up to the date; there is no year-end closing yet. */
+  retainedProfit: number;
+  totalEquity: number;
+  totalLiabilitiesAndEquity: number;
+  balanced: boolean;
+}
+export function getProfitAndLoss(from: string, to: string): Promise<ProfitAndLoss> {
+  return apiGet(`/api/finance/ledger/profit-and-loss?from=${from}&to=${to}`);
+}
+export function getBalanceSheet(asOf: string): Promise<BalanceSheet> {
+  return apiGet(`/api/finance/ledger/balance-sheet?asOf=${asOf}`);
+}
+export const downloadProfitAndLoss = (from: string, to: string, format: LedgerFile) => ledgerDownload(`/api/finance/ledger/profit-and-loss?from=${from}&to=${to}`, format);
+export const downloadBalanceSheet = (asOf: string, format: LedgerFile) => ledgerDownload(`/api/finance/ledger/balance-sheet?asOf=${asOf}`, format);

@@ -67,6 +67,49 @@ public sealed class FinanceLedgerExportService(FinanceLedgerService ledger, Staf
         return FinResult<FinReportFile>.Ok(await FileAsync(table, csv, stem, "Ledger", format, ct));
     }
 
+    private static void Section(List<string[]> rows, List<string[]> csv, string title, IReadOnlyList<StatementLine> lines, string totalLabel, decimal total)
+    {
+        rows.Add([title.ToUpperInvariant(), "", ""]);
+        csv.Add([title, "", ""]);
+        foreach (var l in lines) { rows.Add([l.Code, l.Name, Money(l.Amount)]); csv.Add([l.Code, l.Name, Plain(l.Amount)]); }
+        rows.Add(["", totalLabel, Money(total)]);
+        csv.Add(["", totalLabel, Plain(total)]);
+    }
+
+    public async Task<FinResult<FinReportFile>> ProfitAndLossAsync(string? from, string? to, FinReportFormat format, CancellationToken ct)
+    {
+        var result = await ledger.ProfitAndLossAsync(from, to, ct);
+        if (result.Status != 200) return new(result.Status, Errors: result.Errors, Title: result.Title);
+        var p = result.Value!;
+        var stem = $"Profit_and_Loss_{p.From}_{p.To}";
+        var rows = new List<string[]>();
+        var csv = new List<string[]> { new[] { "Profit and loss", p.From, p.To, "AED" }, new[] { "Code", "Account", "Amount" } };
+        Section(rows, csv, "Revenue", p.Revenue, "Total revenue", p.TotalRevenue);
+        Section(rows, csv, "Expenses", p.Expenses, "Total expenses", p.TotalExpenses);
+        rows.Add(["", p.NetProfit >= 0 ? "Net profit" : "Net loss", Money(p.NetProfit)]);
+        csv.Add(["", "Net profit", Plain(p.NetProfit)]);
+        var table = new StaffExportService.Table("PROFIT AND LOSS", $"{Day(p.From)} to {Day(p.To)}  |  AED", stem, [("CODE", 0.8, false), ("ACCOUNT", 3, false), ("AMOUNT", 1.4, true)], rows,
+            p.ManualJournals > 0 ? [$"Includes {p.ManualJournals} journal{(p.ManualJournals == 1 ? "" : "s")} posted by hand in this period."] : []);
+        return FinResult<FinReportFile>.Ok(await FileAsync(table, csv, stem, "Profit and loss", format, ct));
+    }
+
+    public async Task<FinReportFile> BalanceSheetAsync(string? asOf, FinReportFormat format, CancellationToken ct)
+    {
+        var b = await ledger.BalanceSheetAsync(asOf, ct);
+        var stem = $"Balance_Sheet_{b.AsOf}";
+        var rows = new List<string[]>();
+        var csv = new List<string[]> { new[] { "Balance sheet", b.AsOf, "AED" }, new[] { "Code", "Account", "Amount" } };
+        Section(rows, csv, "Assets", b.Assets, "Total assets", b.TotalAssets);
+        Section(rows, csv, "Liabilities", b.Liabilities, "Total liabilities", b.TotalLiabilities);
+        var equity = b.Equity.Append(new StatementLine("", "Profit retained to date", b.RetainedProfit)).ToList();
+        Section(rows, csv, "Equity", equity, "Total equity", b.TotalEquity);
+        rows.Add(["", "Total liabilities and equity", Money(b.TotalLiabilitiesAndEquity)]);
+        csv.Add(["", "Total liabilities and equity", Plain(b.TotalLiabilitiesAndEquity)]);
+        var table = new StaffExportService.Table("BALANCE SHEET", $"As at {Day(b.AsOf)}  |  AED", stem, [("CODE", 0.8, false), ("ACCOUNT", 3, false), ("AMOUNT", 1.4, true)], rows,
+            [b.Balanced ? "Assets equal liabilities plus equity." : "Assets and liabilities plus equity differ: the books need attention.", "Profit retained to date is every revenue less every expense; there is no year-end closing yet."]);
+        return await FileAsync(table, csv, stem, "Balance sheet", format, ct);
+    }
+
     public async Task<FinReportFile> JournalsAsync(string? from, string? to, FinReportFormat format, CancellationToken ct)
     {
         var list = await ledger.JournalsAsync(from, to, null, null, ct);

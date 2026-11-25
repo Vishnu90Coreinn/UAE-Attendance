@@ -303,6 +303,15 @@ public class FinanceEndToEndScenarioTests(ReceiptsFixture api) : IClassFixture<R
         Assert.Equal(capitalIn + openingTotal, ByType("Equity"));                 // the partners: 10,162 opening capital plus 176,960.11 put in; opening balance equity nets to zero
         Assert.Equal(ByType("Asset"), ByType("Liability") + ByType("Equity") + ByType("Revenue") - ByType("Expense"));   // assets = liabilities + equity + profit
 
+        var profit = (await SendAsync(HttpMethod.Get, $"/api/finance/ledger/profit-and-loss?from={from}&to={to}", partnerToken)).Body;
+        Assert.Equal(incomeTotal, Dec(profit, "totalRevenue"));
+        Assert.Equal(expenseTotal, Dec(profit, "totalExpenses"));
+        Assert.Equal(Dec(report.GetProperty("period"), "net"), Dec(profit, "netProfit"));      // the statement signed by the accountant equals the finance report
+        var balanceSheet = (await SendAsync(HttpMethod.Get, $"/api/finance/ledger/balance-sheet?asOf={to}", partnerToken)).Body;
+        Assert.True(balanceSheet.GetProperty("balanced").GetBoolean());
+        Assert.Equal(closingTotal, Dec(balanceSheet, "totalAssets"));                                // equal to the balances on the Accounts page, added up
+        Assert.Equal(incomeTotal - expenseTotal, Dec(balanceSheet, "retainedProfit"));
+
         // ---- 12. Who can do what -------------------------------------------------------------------------------------------
         Assert.Equal(HttpStatusCode.Forbidden, (await SendAsync(HttpMethod.Get, "/api/finance/dashboard", jesus)).Status);
         Assert.Equal(HttpStatusCode.Forbidden, (await SendAsync(HttpMethod.Post, "/api/finance/expenses/1/approve", jesus)).Status);

@@ -62,6 +62,18 @@ public sealed class LedgerController(FinanceLedgerService ledger, FinanceLedgerE
             ? await Download(async () => FinResult<FinReportFile>.Ok(await exports.TrialBalanceAsync(asOf, f, ct)))
             : Ok(await ledger.TrialBalanceAsync(Date(asOf), ct));
 
+    [HttpGet("profit-and-loss")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> ProfitAndLoss([FromQuery] string? from, [FromQuery] string? to, [FromQuery] string? format, CancellationToken ct) =>
+        Format(format) is { } f ? await Download(() => exports.ProfitAndLossAsync(from, to, f, ct)) : Map(await ledger.ProfitAndLossAsync(from, to, ct));
+
+    [HttpGet("balance-sheet")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> BalanceSheet([FromQuery] string? asOf, [FromQuery] string? format, CancellationToken ct) =>
+        Format(format) is { } f
+            ? await Download(async () => FinResult<FinReportFile>.Ok(await exports.BalanceSheetAsync(asOf, f, ct)))
+            : Ok(await ledger.BalanceSheetAsync(asOf, ct));
+
     [HttpGet("accounts/{id:int}/statement")]
     [Authorize(Policy = Policies.Finance)]
     public async Task<IActionResult> Statement(int id, [FromQuery] string? from, [FromQuery] string? to, [FromQuery] string? format, CancellationToken ct) =>
