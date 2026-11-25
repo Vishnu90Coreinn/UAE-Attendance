@@ -157,6 +157,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         if (await db.FinEntries.AnyAsync(e => e.ReplacesEntryId == id, ct)) return FinResult<FinEntryResponse>.Conflict($"{original.EntryNo} has already been corrected.");
         if (await LinkedChequeMessageAsync(original.Id, original.EntryNo, ct) is { } linked) return FinResult<FinEntryResponse>.Conflict(linked);
         if (original.InvoiceId is not null) return FinResult<FinEntryResponse>.Conflict($"{original.EntryNo} is a payment on a tax invoice. Remove the payment on the invoice and record it again.");
+        if (original.BillId is not null) return FinResult<FinEntryResponse>.Conflict($"{original.EntryNo} is a payment on a supplier bill. Take the payment back on the bill and pay it again.");
         return await SaveAsync(kind, form, original, ct);
     }
 
@@ -179,6 +180,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         if (await periods.LockedMessageAsync(entry.EntryDate, ct) is { } locked) return FinResult<FinEntryResponse>.Conflict(locked);
         if (await LinkedChequeMessageAsync(entry.Id, entry.EntryNo, ct) is { } linked) return FinResult<FinEntryResponse>.Conflict(linked);
         if (entry.InvoiceId is not null) return FinResult<FinEntryResponse>.Conflict($"{entry.EntryNo} is a payment on a tax invoice. Remove the payment on the invoice instead.");
+        if (entry.BillId is not null) return FinResult<FinEntryResponse>.Conflict($"{entry.EntryNo} is a payment on a supplier bill. Take the payment back on the bill instead.");
 
         entry.Status = FinStatuses.Voided;
         entry.VoidReason = text;

@@ -984,3 +984,95 @@ export interface ReceivablesReport {
 export function getReceivables(asOf?: string): Promise<ReceivablesReport> {
   return apiGet<ReceivablesReport>(`/api/finance/ledger/receivables${asOf ? `?asOf=${asOf}` : ""}`);
 }
+
+// ---- Supplier bills (payables) ----
+export type FinBillDisplay = "Open" | "PartPaid" | "Paid" | "Overdue" | "Voided";
+export interface FinBillLine {
+  categoryId: number;
+  category: string;
+  amount: number;
+  note: string | null;
+}
+export interface FinBillPayment {
+  entryId: number;
+  entryNo: string;
+  date: string;
+  amount: number;
+  account: string;
+  reference: string | null;
+}
+export interface FinBill {
+  id: number;
+  billNo: string;
+  supplierName: string;
+  payeeId: number | null;
+  supplierRef: string | null;
+  billDate: string;
+  dueDate: string;
+  notes: string | null;
+  status: "Open" | "Voided";
+  display: FinBillDisplay;
+  taxTypeId: number | null;
+  taxType: string | null;
+  taxAmount: number;
+  net: number;
+  total: number;
+  paid: number;
+  balance: number;
+  lines: FinBillLine[];
+  payments: FinBillPayment[];
+  voidReason: string | null;
+  createdBy: string;
+}
+export interface FinBillInput {
+  supplierName: string;
+  payeeId: number | null;
+  supplierRef: string;
+  billDate: string;
+  dueDate: string;
+  notes: string;
+  /** 0 or null records no VAT. Line amounts are before VAT. */
+  taxTypeId: number | null;
+  lines: { categoryId: number; amount: number; note: string }[];
+}
+export type FinBillFilter = "all" | "unpaid" | "overdue" | "paid" | "voided";
+export function listFinBills(status: FinBillFilter = "all", q = ""): Promise<FinBill[]> {
+  const params = new URLSearchParams({ status });
+  if (q.trim()) params.set("q", q.trim());
+  return apiGet<FinBill[]>(`/api/finance/bills?${params.toString()}`);
+}
+export function createFinBill(input: FinBillInput): Promise<FinBill> {
+  return apiPost<FinBill>("/api/finance/bills", input);
+}
+export function payFinBill(id: number, input: { date: string; amount: number; accountId: number; reference: string }): Promise<FinBill> {
+  return apiPost<FinBill>(`/api/finance/bills/${id}/pay`, input);
+}
+export function removeFinBillPayment(id: number, entryId: number, reason: string): Promise<FinBill> {
+  return apiPost<FinBill>(`/api/finance/bills/${id}/payments/${entryId}/remove`, { reason });
+}
+export function voidFinBill(id: number, reason: string): Promise<FinBill> {
+  return apiPost<FinBill>(`/api/finance/bills/${id}/void`, { reason });
+}
+
+export interface PayableRow {
+  billId: number;
+  billNo: string;
+  supplier: string;
+  supplierRef: string | null;
+  billDate: string;
+  dueDate: string;
+  total: number;
+  paid: number;
+  balance: number;
+  daysOverdue: number;
+  bucket: string;
+}
+export interface PayablesReport {
+  asOf: string;
+  rows: PayableRow[];
+  buckets: ReceivableBucket[];
+  totalOwed: number;
+}
+export function getPayables(asOf?: string): Promise<PayablesReport> {
+  return apiGet<PayablesReport>(`/api/finance/ledger/payables${asOf ? `?asOf=${asOf}` : ""}`);
+}

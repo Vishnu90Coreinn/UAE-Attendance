@@ -35,6 +35,9 @@ public static class JournalSources
 
     /// <summary>An issued tax invoice (SourceId is the invoice): receivable, sales and VAT.</summary>
     public const string Invoice = "Invoice";
+
+    /// <summary>A supplier bill (SourceId is the bill): cost, VAT and what we owe.</summary>
+    public const string Bill = "Bill";
 }
 
 /// <summary>One account in the chart of accounts. Never deleted, only switched off.</summary>

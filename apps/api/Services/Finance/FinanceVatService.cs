@@ -26,13 +26,16 @@ public sealed class FinanceVatService(AppDbContext db, TimeProvider time)
         if (errors.Count > 0) return FinResult<FinVatReport>.Invalid(errors);
 
         var entries = await db.FinEntries.AsNoTracking()
-            .Where(e => e.Status == FinStatuses.Active && e.InvoiceId == null && (e.Kind == FinEntryKinds.Expense || e.Kind == FinEntryKinds.Income) && e.EntryDate >= start && e.EntryDate <= end)
+            .Where(e => e.Status == FinStatuses.Active && e.InvoiceId == null && e.BillId == null && (e.Kind == FinEntryKinds.Expense || e.Kind == FinEntryKinds.Income) && e.EntryDate >= start && e.EntryDate <= end)
             .Select(e => new { e.Kind, e.TaxTypeId, e.Amount, e.TaxAmount }).ToListAsync(ct);
         var list = entries.Select(e => new { e.Kind, e.TaxTypeId, e.Amount, e.TaxAmount }).ToList();
         // Tax invoices carry their VAT from the day they are issued (the tax point), whether or not they have been paid. A payment on one adds nothing here.
         var standard = await db.FinTaxTypes.AsNoTracking().Where(t => t.Treatment == FinTaxTreatments.Standard).OrderBy(t => t.SortOrder).Select(t => (int?)t.Id).FirstOrDefaultAsync(ct);
         foreach (var i in await db.Invoices.AsNoTracking().Where(i => i.Status == InvoiceStatuses.Issued && i.InvoiceDate >= start && i.InvoiceDate <= end).Select(i => new { i.Total, i.VatTotal }).ToListAsync(ct))
             list.Add(new { Kind = FinEntryKinds.Income, TaxTypeId = i.VatTotal > 0m ? standard : null, Amount = i.Total, TaxAmount = i.VatTotal });
+        // Supplier bills carry their VAT from the bill date, whether or not they have been paid. A payment on one adds nothing here.
+        foreach (var b in await db.FinBills.AsNoTracking().Where(b => b.Status == FinBillStatuses.Open && b.BillDate >= start && b.BillDate <= end).Select(b => new { b.TaxTypeId, b.Total, b.TaxAmount }).ToListAsync(ct))
+            list.Add(new { Kind = FinEntryKinds.Expense, b.TaxTypeId, Amount = b.Total, b.TaxAmount });
         entries = list;
         var types = await db.FinTaxTypes.AsNoTracking().OrderBy(t => t.SortOrder).ToListAsync(ct);
 

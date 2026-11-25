@@ -129,6 +129,11 @@ public sealed class LedgerController(FinanceLedgerService ledger, FinanceLedgerE
     [Authorize(Policy = Policies.Finance)]
     public async Task<IActionResult> Receivables([FromQuery] string? asOf, CancellationToken ct) => Ok(await ledger.ReceivablesAsync(asOf, ct));
 
+    /// <summary>What the company owes suppliers at a date: unpaid bills by how late they are.</summary>
+    [HttpGet("payables")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> Payables([FromQuery] string? asOf, CancellationToken ct) => Ok(await ledger.PayablesAsync(asOf, ct));
+
     [HttpPost("sync")]
     [Authorize(Policy = Policies.Finance)]
     public async Task<IActionResult> Sync(CancellationToken ct) => Ok(await ledger.SyncAsync(ct));

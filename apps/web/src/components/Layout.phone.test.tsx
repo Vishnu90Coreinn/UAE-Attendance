@@ -125,6 +125,7 @@ describe("Layout on a phone", () => {
       ["Finance Overview", "/finance"],
       ["Accounts", "/finance/accounts"],
       ["Expenses", "/finance/expenses"],
+      ["Bills", "/finance/bills"],
       ["Income", "/finance/income"],
       ["Petty Cash", "/finance/petty-cash"],
       ["Cheques", "/finance/cheques"],

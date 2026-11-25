@@ -32,3 +32,28 @@ public sealed partial class FinanceLedgerService
         return new(FinanceRules.Format(date), rows, buckets, rows.Sum(r => r.Balance), unrecorded);
     }
 }
+
+// Payables aging: the supplier bills still unpaid at a date, grouped by how late they are.
+public sealed partial class FinanceLedgerService
+{
+    public async Task<PayablesReport> PayablesAsync(string? asOf, CancellationToken ct)
+    {
+        await SyncAsync(ct);
+        var date = FinanceRules.TryParseDate(asOf, out var d) ? d : FinanceRules.Today(time);
+        var bills = await db.FinBills.AsNoTracking().Where(b => b.Status == FinBillStatuses.Open && b.BillDate <= date).ToListAsync(ct);
+        var ids = bills.Select(b => b.Id).ToList();
+        var paidBy = (await db.FinEntries.AsNoTracking().Where(e => e.BillId != null && ids.Contains(e.BillId.Value) && e.Status == FinStatuses.Active && e.EntryDate <= date)
+            .GroupBy(e => e.BillId!.Value).Select(g => new { Id = g.Key, Paid = g.Sum(e => e.Amount) }).ToListAsync(ct)).ToDictionary(x => x.Id, x => x.Paid);
+        var rows = bills
+            .Select(b => (Bill: b, Paid: paidBy.GetValueOrDefault(b.Id)))
+            .Where(x => x.Bill.Total - x.Paid > 0m)
+            .Select(x =>
+            {
+                var late = Math.Max(0, date.DayNumber - x.Bill.DueDate.DayNumber);
+                return new PayableRow(x.Bill.Id, x.Bill.BillNo, x.Bill.SupplierName, x.Bill.SupplierRef, FinanceRules.Format(x.Bill.BillDate), FinanceRules.Format(x.Bill.DueDate), x.Bill.Total, x.Paid, x.Bill.Total - x.Paid, late, BucketOf(late));
+            })
+            .OrderBy(r => r.Supplier, StringComparer.OrdinalIgnoreCase).ThenBy(r => r.DueDate).ThenBy(r => r.BillNo, StringComparer.Ordinal).ToList();
+        var buckets = BucketNames.Select(n => new ReceivableBucket(n, rows.Count(r => r.Bucket == n), rows.Where(r => r.Bucket == n).Sum(r => r.Balance))).ToList();
+        return new(FinanceRules.Format(date), rows, buckets, rows.Sum(r => r.Balance));
+    }
+}

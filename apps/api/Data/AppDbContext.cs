@@ -51,6 +51,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<FinPartner> FinPartners => Set<FinPartner>();
     public DbSet<FinPayee> FinPayees => Set<FinPayee>();
     public DbSet<FinCheque> FinCheques => Set<FinCheque>();
+    public DbSet<FinBill> FinBills => Set<FinBill>();
+    public DbSet<FinBillLine> FinBillLines => Set<FinBillLine>();
     public DbSet<FinTaxType> FinTaxTypes => Set<FinTaxType>();
     public DbSet<LedgerAccount> LedgerAccounts => Set<LedgerAccount>();
     public DbSet<Journal> Journals => Set<Journal>();

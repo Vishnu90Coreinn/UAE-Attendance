@@ -366,3 +366,48 @@ public sealed record ReceivableBucket(string Name, int Count, decimal Amount);
 
 /// <summary>Who owes the company money at a date, oldest first. <c>UnrecordedPayments</c> counts payments entered before invoices were tied to the books: they reduce an invoice here but not the ledger.</summary>
 public sealed record ReceivablesReport(string AsOf, IReadOnlyList<ReceivableRow> Rows, IReadOnlyList<ReceivableBucket> Buckets, decimal TotalOwed, int UnrecordedPayments);
+
+// ---- supplier bills (payables) ----
+public sealed class FinBillLineRequest
+{
+    public int? CategoryId { get; set; }
+    public decimal? Amount { get; set; }
+    public string? Note { get; set; }
+}
+
+public sealed class FinBillRequest
+{
+    public string? SupplierName { get; set; }
+    public int? PayeeId { get; set; }
+    public string? SupplierRef { get; set; }
+    public string? BillDate { get; set; }
+    public string? DueDate { get; set; }
+    public string? Notes { get; set; }
+
+    /// <summary>The VAT type; omitted or 0 records no VAT. Line amounts are before VAT.</summary>
+    public int? TaxTypeId { get; set; }
+    public List<FinBillLineRequest>? Lines { get; set; }
+}
+
+public sealed class FinBillPayRequest
+{
+    public string? Date { get; set; }
+    public decimal? Amount { get; set; }
+    public int? AccountId { get; set; }
+    public string? Reference { get; set; }
+}
+
+public sealed record FinBillLineResponse(int CategoryId, string Category, decimal Amount, string? Note);
+
+public sealed record FinBillPaymentResponse(int EntryId, string EntryNo, string Date, decimal Amount, string Account, string? Reference);
+
+/// <summary><c>Display</c> is Open, PartPaid, Paid, Overdue or Voided.</summary>
+public sealed record FinBillResponse(
+    int Id, string BillNo, string SupplierName, int? PayeeId, string? SupplierRef, string BillDate, string DueDate, string? Notes, string Status, string Display,
+    int? TaxTypeId, string? TaxType, decimal TaxAmount, decimal Net, decimal Total, decimal Paid, decimal Balance, IReadOnlyList<FinBillLineResponse> Lines,
+    IReadOnlyList<FinBillPaymentResponse> Payments, string? VoidReason, string CreatedBy);
+
+public sealed record PayableRow(int BillId, string BillNo, string Supplier, string? SupplierRef, string BillDate, string DueDate, decimal Total, decimal Paid, decimal Balance, int DaysOverdue, string Bucket);
+
+/// <summary>What the company owes suppliers at a date, oldest first.</summary>
+public sealed record PayablesReport(string AsOf, IReadOnlyList<PayableRow> Rows, IReadOnlyList<ReceivableBucket> Buckets, decimal TotalOwed);

@@ -104,6 +104,7 @@ public sealed class FinEntryConfiguration : IEntityTypeConfiguration<FinEntry>
         builder.HasIndex(e => e.CategoryId);
         builder.HasIndex(e => new { e.ExternalSource, e.ExternalId }).IsUnique().HasFilter("[ExternalId] IS NOT NULL");
         builder.HasIndex(e => e.InvoiceId).HasFilter("[InvoiceId] IS NOT NULL");
+        builder.HasIndex(e => e.BillId).HasFilter("[BillId] IS NOT NULL");
     }
 }
 
@@ -320,5 +321,49 @@ public sealed class FinMonthLockConfiguration : IEntityTypeConfiguration<FinMont
         builder.Property(l => l.UnlockedUtc).HasColumnType("datetime2");
         builder.Property(l => l.UnlockReason).HasMaxLength(300);
         builder.HasIndex(l => new { l.Year, l.Month }).IsUnique();
+    }
+}
+
+public sealed class FinBillConfiguration : IEntityTypeConfiguration<FinBill>
+{
+    public void Configure(EntityTypeBuilder<FinBill> builder)
+    {
+        builder.ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_FinBills_Status", "[Status] IN ('Open', 'Voided')");
+            t.HasCheckConstraint("CK_FinBills_Amounts", "[Net] > 0 AND [Total] >= [Net] AND [TaxAmount] >= 0");
+        });
+        builder.Property(b => b.BillNo).HasMaxLength(20).IsRequired();
+        builder.HasIndex(b => b.BillNo).IsUnique();
+        builder.Property(b => b.SupplierName).HasMaxLength(120).IsRequired();
+        builder.Property(b => b.SupplierRef).HasMaxLength(60);
+        builder.Property(b => b.BillDate).HasColumnType("date");
+        builder.Property(b => b.DueDate).HasColumnType("date");
+        builder.Property(b => b.Notes).HasMaxLength(2000);
+        builder.Property(b => b.Status).HasMaxLength(10).IsRequired();
+        builder.Property(b => b.TaxRate).HasPrecision(5, 2);
+        builder.Property(b => b.TaxAmount).HasPrecision(12, 2);
+        builder.Property(b => b.Net).HasPrecision(12, 2);
+        builder.Property(b => b.Total).HasPrecision(12, 2);
+        builder.Property(b => b.VoidReason).HasMaxLength(300);
+        builder.Property(b => b.VoidedBy).HasMaxLength(50);
+        builder.Property(b => b.VoidedUtc).HasColumnType("datetime2");
+        builder.Property(b => b.CreatedBy).HasMaxLength(50).IsRequired();
+        builder.Property(b => b.CreatedUtc).HasColumnType("datetime2");
+        builder.HasOne<FinPayee>().WithMany().HasForeignKey(b => b.PayeeId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasMany(b => b.Lines).WithOne(l => l.Bill).HasForeignKey(l => l.BillId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(b => b.BillDate);
+        builder.HasIndex(b => b.Status);
+    }
+}
+
+public sealed class FinBillLineConfiguration : IEntityTypeConfiguration<FinBillLine>
+{
+    public void Configure(EntityTypeBuilder<FinBillLine> builder)
+    {
+        builder.ToTable(t => t.HasCheckConstraint("CK_FinBillLines_Amount", "[Amount] > 0"));
+        builder.Property(l => l.Amount).HasPrecision(12, 2);
+        builder.Property(l => l.Note).HasMaxLength(200);
+        builder.HasOne(l => l.Category).WithMany().HasForeignKey(l => l.CategoryId).OnDelete(DeleteBehavior.Restrict);
     }
 }

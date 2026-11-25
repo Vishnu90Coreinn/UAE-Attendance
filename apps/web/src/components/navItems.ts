@@ -39,6 +39,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "finance-overview", label: "Finance Overview", shortLabel: "Finance", roles: FINANCE_ROLES, path: "/finance" },
   { key: "finance-accounts", label: "Accounts", shortLabel: "Accounts", roles: FINANCE_ROLES, path: "/finance/accounts" },
   { key: "finance-expenses", label: "Expenses", shortLabel: "Expenses", roles: FINANCE_ROLES, path: "/finance/expenses" },
+  { key: "finance-bills", label: "Bills", shortLabel: "Bills", roles: FINANCE_ROLES, path: "/finance/bills" },
   { key: "finance-income", label: "Income", shortLabel: "Income", roles: FINANCE_ROLES, path: "/finance/income" },
   { key: "finance-petty-cash", label: "Petty Cash", shortLabel: "Petty cash", roles: FINANCE_ROLES, path: "/finance/petty-cash" },
   { key: "finance-cheques", label: "Cheques", shortLabel: "Cheques", roles: FINANCE_ROLES, path: "/finance/cheques" },
@@ -59,7 +60,7 @@ export function navItemsForRole(role: Role, employeeId?: number | null, canSubmi
 }
 
 /** Most to least used on a phone: the first screens get bottom-bar slots, the rest go behind "More". */
-const PHONE_ORDER = ["my-attendance", "my-leave", "my-letters", "my-expenses", "my-profile", "dashboard", "attendance", "workers", "payroll", "leave", "finance-overview", "finance-accounts", "finance-expenses", "finance-income", "finance-petty-cash", "finance-cheques", "finance-payees", "finance-partners", "finance-vat", "finance-books", "finance-reports", "deductions", "staff", "staff-payroll", "staff-leave", "progress", "invoices", "letters", "users", "settings"];
+const PHONE_ORDER = ["my-attendance", "my-leave", "my-letters", "my-expenses", "my-profile", "dashboard", "attendance", "workers", "payroll", "leave", "finance-overview", "finance-accounts", "finance-expenses", "finance-bills", "finance-income", "finance-petty-cash", "finance-cheques", "finance-payees", "finance-partners", "finance-vat", "finance-books", "finance-reports", "deductions", "staff", "staff-payroll", "staff-leave", "progress", "invoices", "letters", "users", "settings"];
 /** A bottom bar holds five slots at most; when "More" is needed it takes the last one. */
 const PHONE_SLOTS = 5;
 

@@ -114,6 +114,9 @@ public sealed class FinEntry
 
     /// <summary>Set when this income is a payment received against a tax invoice: it clears the receivable instead of earning revenue.</summary>
     public int? InvoiceId { get; set; }
+
+    /// <summary>Set when this expense pays a supplier bill: it clears what we owe instead of being a new cost (the cost was booked when the bill was entered).</summary>
+    public int? BillId { get; set; }
     public int CategoryId { get; set; }
     public FinCategory Category { get; set; } = null!;
 
@@ -338,4 +341,59 @@ public sealed class FinTransfer
     public int? ReplacesTransferId { get; set; }
     public string CreatedBy { get; set; } = "";
     public DateTime CreatedUtc { get; set; }
+}
+
+public static class FinBillStatuses
+{
+    public const string Open = "Open";
+    public const string Voided = "Voided";
+}
+
+/// <summary>
+/// A bill from a supplier that has not been paid yet. Entering it books the cost and any VAT and records that we owe the supplier; paying it (an expense entry
+/// with <see cref="FinEntry.BillId"/>) clears the debt. Never deleted: voided, with a reason. It moves no bank balance until it is paid.
+/// </summary>
+public sealed class FinBill
+{
+    public int Id { get; set; }
+
+    /// <summary>BILL-000001.</summary>
+    public string BillNo { get; set; } = "";
+    public string SupplierName { get; set; } = "";
+    public int? PayeeId { get; set; }
+
+    /// <summary>The supplier's own invoice number.</summary>
+    public string? SupplierRef { get; set; }
+    public DateOnly BillDate { get; set; }
+    public DateOnly DueDate { get; set; }
+    public string? Notes { get; set; }
+    public string Status { get; set; } = FinBillStatuses.Open;
+
+    /// <summary>The VAT type; null when no VAT is recorded.</summary>
+    public int? TaxTypeId { get; set; }
+    public decimal TaxRate { get; set; }
+    public decimal TaxAmount { get; set; }
+
+    /// <summary>Sum of the lines, before VAT.</summary>
+    public decimal Net { get; set; }
+
+    /// <summary>What the supplier is owed: the net plus standard VAT (reverse charge VAT is not owed to the supplier).</summary>
+    public decimal Total { get; set; }
+    public string? VoidReason { get; set; }
+    public string? VoidedBy { get; set; }
+    public DateTime? VoidedUtc { get; set; }
+    public string CreatedBy { get; set; } = "";
+    public DateTime CreatedUtc { get; set; }
+    public List<FinBillLine> Lines { get; set; } = [];
+}
+
+public sealed class FinBillLine
+{
+    public int Id { get; set; }
+    public int BillId { get; set; }
+    public FinBill Bill { get; set; } = null!;
+    public int CategoryId { get; set; }
+    public FinCategory Category { get; set; } = null!;
+    public decimal Amount { get; set; }
+    public string? Note { get; set; }
 }
