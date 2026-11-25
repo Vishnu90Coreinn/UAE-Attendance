@@ -49,7 +49,7 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
 
     private static StaffExportService.Table CategoryTable(string title, IReadOnlyList<FinReportCategory> rows, decimal total, string stem, string subtitle) => new(
         title, subtitle, stem, [("CATEGORY", 3, false), ("ENTRIES", 0.8, true), ("AMOUNT", 1.3, true), ("SHARE", 0.7, true)],
-        rows.Select(c => new[] { c.Name, c.Count.ToString(CultureInfo.InvariantCulture), Money(c.Amount), c.Share + "%" })
+        rows.Select(c => new[] { c.Name, c.Count.ToString(CultureInfo.InvariantCulture), Money(c.Amount), c.Share.ToString("0.0", CultureInfo.InvariantCulture) + "%" })
             .Append(["Total", rows.Sum(c => c.Count).ToString(CultureInfo.InvariantCulture), Money(total), rows.Count > 0 ? "100%" : ""]).ToList(), []);
 
     public async Task<FinResult<FinReportFile>> ExportAsync(string? from, string? to, FinReportFormat format, CancellationToken ct)

@@ -12,7 +12,7 @@ import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedb
 import { AccountDialog } from "./AccountDialog";
 import { TransferDialog } from "./TransferDialog";
 import { VoidDialog } from "./VoidDialog";
-import { formatDay, formatMoney, sharePercent, sumMoney } from "./financeFormat";
+import { formatDay, formatMoney, formatShare, splitShares, sumMoney } from "./financeFormat";
 
 type Load = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; accounts: FinAccount[]; transfers: FinTransfer[] };
 
@@ -27,10 +27,11 @@ function failure(error: unknown): string {
 function TotalPanel({ accounts }: { accounts: FinAccount[] }) {
   const active = accounts.filter((a) => a.isActive);
   const total = sumMoney(active.map((a) => a.balance));
-  const positive = sumMoney(active.filter((a) => a.balance > 0).map((a) => a.balance));
   const bank = sumMoney(active.filter((a) => a.kind === "Bank").map((a) => a.balance));
   const cash = sumMoney(active.filter((a) => a.kind === "Cash").map((a) => a.balance));
-  const split = active.filter((a) => a.balance > 0).map((a, index) => ({ account: a, percent: sharePercent(a.balance, positive), color: SEGMENTS[index % SEGMENTS.length] }));
+  const holders = active.filter((a) => a.balance > 0);
+  const percents = splitShares(holders.map((a) => a.balance), 1);
+  const split = holders.map((a, index) => ({ account: a, percent: percents[index], color: SEGMENTS[index % SEGMENTS.length] }));
 
   return (
     <section aria-labelledby="total-balance" className="fade-up overflow-hidden rounded-card bg-sidebar text-white shadow-card">
@@ -64,7 +65,7 @@ function TotalPanel({ accounts }: { accounts: FinAccount[] }) {
               <p className="text-sm font-medium text-white/75">Where the money sits</p>
               <div
                 role="img"
-                aria-label={`Share of the total by account: ${split.map((s) => `${s.account.name} ${s.percent}%`).join(", ")}`}
+                aria-label={`Share of the total by account: ${split.map((s) => `${s.account.name} ${formatShare(s.percent)}`).join(", ")}`}
                 className="mt-3 flex h-3 gap-0.5 overflow-hidden rounded-full"
               >
                 {split.map((s) => (
@@ -76,7 +77,7 @@ function TotalPanel({ accounts }: { accounts: FinAccount[] }) {
                   <li key={s.account.id} className="flex items-center gap-2">
                     <span aria-hidden="true" className={cx("size-2.5 shrink-0 rounded-sm", s.color)} />
                     <span className="min-w-0 flex-1 truncate">{s.account.name}</span>
-                    <span className="font-semibold tabular-nums">{s.percent}%</span>
+                    <span className="font-semibold tabular-nums">{formatShare(s.percent)}</span>
                   </li>
                 ))}
               </ul>
@@ -125,7 +126,7 @@ function AccountCard({ account, share, canEdit, onEdit, onTransfer, onSwitch }: 
           </div>
         </div>
       )}
-      {account.isActive && share > 0 && <p className="mt-1 text-xs text-ink-600">{share}% of the total</p>}
+      {account.isActive && share > 0 && <p className="mt-1 text-xs text-ink-600">{formatShare(share)} of the total</p>}
 
       <dl className="mb-4 mt-4 grid gap-1.5 border-t border-line pt-4 text-sm">
         {account.accountNumber && (
@@ -245,7 +246,7 @@ export function AccountsPage() {
   const ready = load.status === "ready" ? load : null;
   const active = useMemo(() => ready?.accounts.filter((a) => a.isActive) ?? [], [ready]);
   const off = useMemo(() => ready?.accounts.filter((a) => !a.isActive) ?? [], [ready]);
-  const positive = sumMoney(active.filter((a) => a.balance > 0).map((a) => a.balance));
+  const cardShares = splitShares(active.map((a) => a.balance), 1);
   const variant = desktop ? "center" : "sheet";
 
   async function confirmSwitch() {
@@ -310,7 +311,7 @@ export function AccountsPage() {
               <AccountCard
                 key={account.id}
                 account={account}
-                share={sharePercent(account.balance, positive)}
+                share={cardShares[active.indexOf(account)]}
                 canEdit={canEdit}
                 onEdit={() => setEditing(account)}
                 onTransfer={() => setTransferFrom(account.id)}

@@ -247,8 +247,12 @@ export interface FinDashboard {
   previous: FinPeriodTotals;
   granularity: "day" | "month";
   buckets: { start: string; label: string; income: number; expense: number }[];
+  /** share is a percentage with one decimal; the shares of the list add up to exactly 100.0. */
   spending: { categoryId: number | null; name: string; amount: number; share: number }[];
-  latest: { id: number; kind: FinEntryKind; entryNo: string; entryDate: string; categoryName: string; party: string; accountName: string; amount: number }[];
+  /** Capital entries are listed too, so a change in a balance can be explained. */
+  latest: { id: number; kind: FinEntryKind | FinCapitalKind; entryNo: string; entryDate: string; categoryName: string; party: string; accountName: string; amount: number }[];
+  /** Present once there is a partner holding capital. */
+  capital?: { total: number; partners: { id: number; name: string; netCapital: number; share: number }[] } | null;
 }
 export function getFinDashboard(days: FinWindow): Promise<FinDashboard> {
   return apiGet(`/api/finance/dashboard?days=${days}`);

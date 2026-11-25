@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDay, formatMoney, parseMoneyInput, sharePercent, sumMoney } from "./financeFormat";
+import { formatDay, formatMoney, formatShare, parseMoneyInput, sharePercent, splitShares, sumMoney } from "./financeFormat";
 
 describe("financeFormat", () => {
   it("formats AED with two decimals and thousands separators", () => {
@@ -36,5 +36,22 @@ describe("financeFormat", () => {
     expect(formatDay("2026-08-05")).toBe("5 Aug 2026");
     expect(formatDay("2026-12-31")).toBe("31 Dec 2026");
     expect(formatDay("nonsense")).toBe("nonsense");
+  });
+});
+
+describe("shares", () => {
+  it("formats a share to one decimal", () => expect(formatShare(52.7)).toBe("52.7%"));
+
+  it("adds up to exactly 100 where whole numbers would give 101", () => {
+    const amounts = [26995, 12000, 5000, 4500, 1818.9, 475.65, 420];
+    const shares = splitShares(amounts, 1);
+    expect(shares).toEqual([52.7, 23.4, 9.8, 8.8, 3.6, 0.9, 0.8]);
+    expect(Math.round(shares.reduce((a, b) => a + b, 0) * 10) / 10).toBe(100);
+  });
+
+  it("gives the spare unit to the largest remainder, and thirds add up", () => expect(splitShares([1, 1, 1], 1)).toEqual([33.4, 33.3, 33.3]));
+  it("gives nothing to a zero or negative amount, and nothing at all when there is nothing to share", () => {
+    expect(splitShares([100, -50, 100], 1)).toEqual([50, 0, 50]);
+    expect(splitShares([0, 0], 1)).toEqual([0, 0]);
   });
 });

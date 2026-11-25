@@ -9,7 +9,7 @@ import { useIsDesktop } from "../../utils/useIsDesktop";
 import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, cx } from "../../ui";
 import { LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { EntryDialog } from "./EntryDialog";
-import { changeWords, formatCompact, formatDay, formatMoney, sharePercent, sumMoney } from "./financeFormat";
+import { changeWords, formatCompact, formatDay, formatMoney, formatShare, splitShares, sumMoney } from "./financeFormat";
 
 const WINDOWS: { days: FinWindow; label: string; long: string }[] = [
   { days: 7, label: "7 days", long: "last 7 days" },
@@ -18,6 +18,9 @@ const WINDOWS: { days: FinWindow; label: string; long: string }[] = [
 ];
 
 type Load = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; data: FinDashboard };
+
+const KIND_WORDS: Record<string, string> = { Income: "Income", Expense: "Expense", Capital: "Capital added", CapitalOut: "Capital returned" };
+const moneyIn = (kind: string) => kind === "Income" || kind === "Capital";
 
 function Aed({ value, className }: { value: number; className?: string }) {
   return (
@@ -82,7 +85,12 @@ function ResultPanel({ data }: { data: FinDashboard }) {
           </p>
           <p className="mt-3 text-sm text-white/70">{comparison(data)}</p>
           <p className="mt-1 text-xs text-white/60">
-            {formatDay(data.from)} to {formatDay(data.to)} · transfers between accounts are not counted
+            {formatDay(data.from)} to {formatDay(data.to)} · transfers between accounts and partners' capital are not counted
+          </p>
+          <p className="mt-4 border-t border-white/15 pt-3 text-sm text-white/70">
+            In the accounts today{" "}
+            <span className="font-display text-base font-semibold tabular-nums text-white">AED {formatMoney(data.totalBalance)}</span>
+            <span className="text-white/60"> · {data.accounts.length === 1 ? "1 account" : `${data.accounts.length} accounts`}</span>
           </p>
         </div>
         <ul className="grid content-end gap-4">
@@ -165,7 +173,7 @@ function TrendCard({ data }: { data: FinDashboard }) {
 }
 
 function BalancesCard({ data }: { data: FinDashboard }) {
-  const positive = sumMoney(data.accounts.filter((a) => a.balance > 0).map((a) => a.balance));
+  const shares = splitShares(data.accounts.map((a) => a.balance), 1);
   return (
     <Card>
       <CardHeader title="Balances today" description={`AED ${formatMoney(data.totalBalance)} across ${data.accounts.length} ${data.accounts.length === 1 ? "account" : "accounts"}`} />
@@ -173,7 +181,7 @@ function BalancesCard({ data }: { data: FinDashboard }) {
         <EmptyState icon={Landmark} title="No accounts yet" description="Accounts and their balances appear here." />
       ) : (
         <ul className="divide-y divide-line">
-          {data.accounts.map((a) => {
+          {data.accounts.map((a, index) => {
             const Icon = a.kind === "Cash" ? Wallet : Landmark;
             return (
               <li key={a.id} className="px-5 py-3.5">
@@ -185,7 +193,7 @@ function BalancesCard({ data }: { data: FinDashboard }) {
                   </span>
                 </div>
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-100" aria-hidden="true">
-                  <div className="h-full rounded-full bg-brand-500" style={{ width: `${sharePercent(a.balance, positive)}%` }} />
+                  <div className="h-full rounded-full bg-brand-500" style={{ width: `${shares[index]}%` }} />
                 </div>
               </li>
             );
@@ -202,11 +210,10 @@ function BalancesCard({ data }: { data: FinDashboard }) {
 }
 
 function SpendingCard({ data }: { data: FinDashboard }) {
-  const top = Math.max(...data.spending.map((s) => s.amount), 1);
   const label = WINDOWS.find((w) => w.days === data.days)?.long ?? "";
   return (
     <Card>
-      <CardHeader title="Where the money went" description={`Expenses by category, ${label}`} />
+      <CardHeader title="Where the money went" description={`Expenses by category, ${label}. A bar is that category's share of all spending.`} />
       {data.spending.length === 0 ? (
         <EmptyState icon={ReceiptText} title="No expenses in this period" description="Spending appears here, biggest category first." />
       ) : (
@@ -216,10 +223,10 @@ function SpendingCard({ data }: { data: FinDashboard }) {
               <div className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="min-w-0 flex-1 truncate font-medium text-ink-900">{s.name}</span>
                 <span className="font-semibold tabular-nums text-ink-900">AED {formatMoney(s.amount)}</span>
-                <span className="w-10 text-right tabular-nums text-ink-600">{s.share}%</span>
+                <span className="w-14 text-right tabular-nums text-ink-600">{formatShare(s.share)}</span>
               </div>
               <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-ink-100" aria-hidden="true">
-                <div className="h-full rounded-full bg-amber-400" style={{ width: `${(s.amount / top) * 100}%` }} />
+                <div className="h-full rounded-full bg-amber-400" style={{ width: `${Math.max(s.share, 1)}%` }} />
               </div>
             </li>
           ))}
@@ -229,10 +236,53 @@ function SpendingCard({ data }: { data: FinDashboard }) {
   );
 }
 
+const CAPITAL_COLORS = ["bg-brand-500", "bg-amber-400", "bg-sky-500", "bg-rose-400", "bg-ink-400"];
+
+/** Whose money it is: the partners' capital and each one's exact share, apart from what the business earned. */
+function CapitalCard({ capital }: { capital: NonNullable<FinDashboard["capital"]> }) {
+  return (
+    <Card>
+      <CardHeader title="Partners' capital" description="Money the partners put in, less anything paid back. It is part of the balances but is not income." />
+      <div className="grid gap-5 px-5 pb-5 md:grid-cols-[auto_minmax(0,1fr)] md:items-center md:gap-8">
+        <p className="font-display text-3xl font-bold tracking-tight tabular-nums text-ink-900">
+          <span className="mr-1 text-sm font-medium text-ink-500">AED</span>
+          {formatMoney(capital.total)}
+        </p>
+        <div>
+          <div
+            role="img"
+            aria-label={`Share of the capital: ${capital.partners.map((p) => `${p.name} ${formatShare(p.share)}`).join(", ")}`}
+            className="flex h-3 gap-0.5 overflow-hidden rounded-full"
+          >
+            {capital.partners.map((p, i) => (
+              <span key={p.id} style={{ width: `${Math.max(p.share, 1.5)}%` }} className={cx("block h-full", CAPITAL_COLORS[i % CAPITAL_COLORS.length])} />
+            ))}
+          </div>
+          <ul className="mt-3 grid gap-1.5 text-sm">
+            {capital.partners.map((p, i) => (
+              <li key={p.id} className="flex items-center gap-2">
+                <span aria-hidden="true" className={cx("size-2.5 shrink-0 rounded-sm", CAPITAL_COLORS[i % CAPITAL_COLORS.length])} />
+                <span className="min-w-0 flex-1 truncate text-ink-800">{p.name}</span>
+                <span className="tabular-nums text-ink-600">AED {formatMoney(p.netCapital)}</span>
+                <span className="w-16 text-right font-semibold tabular-nums text-ink-900">{formatShare(p.share)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+      <div className="border-t border-line px-5 py-3">
+        <Link to="/finance/partners" className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-brand-700 hover:underline sm:min-h-0">
+          Partners and capital movements <ArrowRight aria-hidden="true" size={14} />
+        </Link>
+      </div>
+    </Card>
+  );
+}
+
 function LatestCard({ data }: { data: FinDashboard }) {
   return (
     <Card>
-      <CardHeader title="Latest entries" description="The eight most recent expenses and income." />
+      <CardHeader title="Latest entries" description="The eight most recent entries: expenses, income and partners' capital." />
       {data.latest.length === 0 ? (
         <EmptyState icon={ReceiptText} title="Nothing recorded yet" description="New expenses and income are listed here." />
       ) : (
@@ -245,11 +295,11 @@ function LatestCard({ data }: { data: FinDashboard }) {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-ink-900">{e.party}</p>
-                <p className="truncate text-xs text-ink-600">{e.categoryName} · {e.accountName}</p>
+                <p className="truncate text-xs text-ink-600">{e.kind === "Capital" || e.kind === "CapitalOut" ? `${KIND_WORDS[e.kind]} · ` : `${e.categoryName} · `}{e.accountName}</p>
               </div>
-              <p className={cx("text-right text-sm font-semibold tabular-nums", e.kind === "Income" ? "text-brand-700" : "text-ink-900")}>
-                <span className="sr-only">{e.kind === "Income" ? "Income " : "Expense "}</span>
-                <span aria-hidden="true">{e.kind === "Income" ? "+" : "−"}</span> {formatMoney(e.amount)}
+              <p className={cx("text-right text-sm font-semibold tabular-nums", moneyIn(e.kind) ? "text-brand-700" : "text-ink-900")}>
+                <span className="sr-only">{KIND_WORDS[e.kind]} </span>
+                <span aria-hidden="true">{moneyIn(e.kind) ? "+" : "−"}</span> {formatMoney(e.amount)}
               </p>
             </li>
           ))}
@@ -326,6 +376,11 @@ export function FinanceDashboardPage() {
             <BalancesCard data={load.data} />
             <LatestCard data={load.data} />
           </div>
+          {load.data.capital && (
+            <div style={{ "--i": 3 } as React.CSSProperties} className="fade-up">
+              <CapitalCard capital={load.data.capital} />
+            </div>
+          )}
           {adding && (
             <EntryDialog
               kind={adding}

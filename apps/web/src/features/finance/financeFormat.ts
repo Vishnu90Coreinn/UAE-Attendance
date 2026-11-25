@@ -56,3 +56,32 @@ export function changeWords(current: number, previous: number): string | null {
   if (Math.abs(percent) < 0.05) return "no change";
   return `${percent > 0 ? "up" : "down"} ${Math.abs(percent).toFixed(1)}%`;
 }
+
+/** "52.7%": a share to one decimal, as the server worked it out. */
+export function formatShare(value: number): string {
+  return `${value.toFixed(1)}%`;
+}
+
+/**
+ * Splits 100 between the positive amounts to the given decimals so the shares add up to exactly 100 (the largest remainders get the
+ * spare units). Matches the server's rule; used where the browser only has balances to share, such as the account cards.
+ */
+export function splitShares(amounts: number[], decimals = 1): number[] {
+  const cents = amounts.map((a) => (a > 0 ? Math.round(a * 100) : 0));
+  const whole = cents.reduce((sum, c) => sum + c, 0);
+  if (whole <= 0) return amounts.map(() => 0);
+  const unit = 10 ** decimals;
+  const scale = 100 * unit;
+  const exact = cents.map((c) => (c * scale) / whole);
+  const floors = exact.map(Math.floor);
+  let spare = scale - floors.reduce((sum, f) => sum + f, 0);
+  [...exact.keys()]
+    .sort((a, b) => exact[b] - floors[b] - (exact[a] - floors[a]) || a - b)
+    .forEach((i) => {
+      if (spare > 0) {
+        floors[i] += 1;
+        spare -= 1;
+      }
+    });
+  return floors.map((f) => f / unit);
+}

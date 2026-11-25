@@ -103,7 +103,7 @@ function PartnerCard({ partner, canEdit, onEdit, onAdd }: { partner: FinPartner;
           <dd className="tabular-nums text-ink-900">AED {formatMoney(partner.openingCapital)}</dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt className="text-ink-600">Added since</dt>
+          <dt className="text-ink-600">Added since opening</dt>
           <dd className="tabular-nums text-ink-900">+ AED {formatMoney(partner.added)}</dd>
         </div>
         <div className="flex justify-between gap-3">

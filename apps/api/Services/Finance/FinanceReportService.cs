@@ -69,8 +69,8 @@ public sealed class FinanceReportService(AppDbContext db, TimeProvider time)
         List<FinReportCategory> Categories(string kind)
         {
             var rows = categoryRows.Where(r => r.Kind == kind).OrderByDescending(r => r.Sum).ThenBy(r => r.Name).ToList();
-            var whole = rows.Sum(r => r.Sum);
-            return rows.Select(r => new FinReportCategory(r.CategoryId, r.Name, r.Sum, r.Count, whole > 0 ? (int)Math.Round(r.Sum / whole * 100, MidpointRounding.AwayFromZero) : 0)).ToList();
+            var shares = FinanceCalculator.Shares(rows.Select(r => r.Sum).ToList(), 1);
+            return rows.Select((r, i) => new FinReportCategory(r.CategoryId, r.Name, r.Sum, r.Count, shares[i])).ToList();
         }
 
         return FinResult<FinReport>.Ok(new FinReport(

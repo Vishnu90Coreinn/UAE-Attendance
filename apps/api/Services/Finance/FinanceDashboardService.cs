@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace HrPayroll.Api.Services.Finance;
 
 /// <summary>The finance overview: balances now, income and expense for the last 7, 30 or 365 days against the days before, spending by category and the latest entries.</summary>
-public sealed class FinanceDashboardService(AppDbContext db, TimeProvider time, FinanceAccountService accounts)
+public sealed class FinanceDashboardService(AppDbContext db, TimeProvider time, FinanceAccountService accounts, FinancePartnerService partners)
 {
     public static readonly int[] Windows = [7, 30, 365];
     private const int TopCategories = 6;
@@ -36,28 +36,28 @@ public sealed class FinanceDashboardService(AppDbContext db, TimeProvider time, 
             .GroupBy(r => (r.CategoryId, r.Category))
             .Select(g => (g.Key.CategoryId, Name: g.Key.Category, Amount: g.Sum(r => r.Amount)))
             .OrderByDescending(x => x.Amount).ThenBy(x => x.Name).ToList();
-        var spendTotal = spend.Sum(x => x.Amount);
-        var spending = spend.Take(TopCategories)
-            .Select(x => new FinDashboardCategory(x.CategoryId, x.Name, x.Amount, Share(x.Amount, spendTotal))).ToList();
+        // The rows on screen are the top categories plus one "other" row; their shares are worked out together so they add up to exactly 100.0.
+        var shown = spend.Take(TopCategories).Select(x => (Id: (int?)x.CategoryId, x.Name, x.Amount)).ToList();
         if (spend.Count > TopCategories)
-        {
-            var rest = spend.Skip(TopCategories).Sum(x => x.Amount);
-            spending.Add(new FinDashboardCategory(null, spend.Count - TopCategories == 1 ? "1 other category" : $"{spend.Count - TopCategories} other categories", rest, Share(rest, spendTotal)));
-        }
+            shown.Add((null, spend.Count - TopCategories == 1 ? "1 other category" : $"{spend.Count - TopCategories} other categories", spend.Skip(TopCategories).Sum(x => x.Amount)));
+        var shares = FinanceCalculator.Shares(shown.Select(r => r.Amount).ToList(), 1);
+        var spending = shown.Select((r, i) => new FinDashboardCategory(r.Id, r.Name, r.Amount, shares[i])).ToList();
 
         var latest = await db.FinEntries.AsNoTracking()
-            .Where(e => e.Status == FinStatuses.Active && (e.Kind == FinEntryKinds.Income || e.Kind == FinEntryKinds.Expense))
+            .Where(e => e.Status == FinStatuses.Active)
             .OrderByDescending(e => e.EntryDate).ThenByDescending(e => e.Id).Take(8)
             .Select(e => new { e.Id, e.Kind, e.EntryNo, e.EntryDate, Category = e.Category.Name, e.Party, Account = e.Account.Name, e.Amount })
             .ToListAsync(ct);
 
+        var capital = await partners.ListAsync(ct);
+        var holders = capital.Partners.Where(p => p.NetCapital > 0).ToList();
+
         return new FinDashboardResponse(
             days, FinanceRules.Format(from), FinanceRules.Format(to), total, accountList, Totals(current), Totals(previous),
             days <= 30 ? "day" : "month", Buckets(current, from, to, days <= 30), spending,
-            latest.Select(e => new FinDashboardEntry(e.Id, e.Kind, e.EntryNo, FinanceRules.Format(e.EntryDate), e.Category, e.Party, e.Account, e.Amount)).ToList());
+            latest.Select(e => new FinDashboardEntry(e.Id, e.Kind, e.EntryNo, FinanceRules.Format(e.EntryDate), e.Category, e.Party, e.Account, e.Amount)).ToList(),
+            holders.Count == 0 ? null : new FinDashboardCapital(capital.TotalCapital, holders.Select(p => new FinDashboardPartner(p.Id, p.Name, p.NetCapital, p.Share)).ToList()));
     }
-
-    private static int Share(decimal part, decimal whole) => whole > 0 ? (int)Math.Round(part / whole * 100, MidpointRounding.AwayFromZero) : 0;
 
     private static FinPeriodTotals Totals(IEnumerable<Row> rows)
     {

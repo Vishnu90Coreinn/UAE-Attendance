@@ -25,7 +25,7 @@ function data(overrides: Partial<FinDashboard> = {}): FinDashboard {
     ],
     current: { income: 5000, expense: 1800.5, net: 3199.5 }, previous: { income: 2000, expense: 1500, net: 500 },
     granularity: "day", buckets: [{ start: "2026-11-24", label: "24 Nov", income: 5000, expense: 0 }, { start: "2026-11-25", label: "25 Nov", income: 0, expense: 1800.5 }],
-    spending: [{ categoryId: 1, name: "Rent", amount: 1200, share: 67 }, { categoryId: 2, name: "Fuel", amount: 600.5, share: 33 }],
+    spending: [{ categoryId: 1, name: "Rent", amount: 1200, share: 66.6 }, { categoryId: 2, name: "Fuel", amount: 600.5, share: 33.4 }],
     latest: [{ id: 9, kind: "Income", entryNo: "INC-000009", entryDate: "2026-11-24", categoryName: "Other income", party: "One by Binghatti", accountName: "RAKBANK Current", amount: 5000 }],
     ...overrides,
   };
@@ -56,7 +56,8 @@ it("shows balances, spending by category with shares, and the latest entries wit
   await screen.findByText("Where the money went");
   expect(screen.getByText("RAKBANK Current")).toBeInTheDocument();
   expect(screen.getByText("Rent")).toBeInTheDocument();
-  expect(screen.getByText("67%")).toBeInTheDocument();
+  expect(screen.getByText("66.6%")).toBeInTheDocument();
+  expect(screen.getByText("33.4%")).toBeInTheDocument();
   const row = screen.getByText("One by Binghatti").closest("li")!;
   expect(within(row).getByText("Income")).toBeInTheDocument();
   expect(within(row).getByText("+")).toBeInTheDocument();
@@ -127,3 +128,35 @@ it("gives a Partner (Viewer) no buttons that add anything", async () => {
   expect(screen.queryByRole("button", { name: /add (income|expense)/i })).not.toBeInTheDocument();
   expect(financeApi.listFinCategories).not.toHaveBeenCalled();
 });
+
+it("explains the balances: the money in the accounts today, the partners' capital with exact shares, and capital in the latest list", async () => {
+  vi.mocked(financeApi.getFinDashboard).mockResolvedValue(
+    data({
+      capital: { total: 270000.5, partners: [{ id: 1, name: "Partner A", netCapital: 145000, share: 53.7 }, { id: 2, name: "Partner B", netCapital: 125000.5, share: 46.3 }] },
+      latest: [
+        { id: 9, kind: "Capital", entryNo: "CAP-000001", entryDate: "2026-11-24", categoryName: "Capital contribution", party: "Partner A", accountName: "RAKBANK Current", amount: 25000 },
+        { id: 8, kind: "CapitalOut", entryNo: "RTN-000001", entryDate: "2026-11-23", categoryName: "Capital returned", party: "Partner B", accountName: "RAKBANK Current", amount: 5000 },
+      ],
+    }),
+  );
+  view();
+  const panel = await screen.findByRole("region", { name: /net result/i });
+  expect(within(panel).getByText(/In the accounts today/)).toHaveTextContent("AED 1,500.00");
+  expect(screen.getByText("Partners' capital")).toBeInTheDocument();
+  expect(screen.getByText("53.7%")).toBeInTheDocument();
+  expect(screen.getByText("46.3%")).toBeInTheDocument();
+  expect(screen.getByText("270,000.50")).toBeInTheDocument();
+  expect(screen.getByRole("img", { name: /Partner A 53.7%, Partner B 46.3%/ })).toBeInTheDocument();
+  const added = screen.getByText("CAP-000001").closest("li")!;
+  expect(within(added).getByText("Capital added")).toBeInTheDocument();
+  expect(within(added).getByText("+")).toBeInTheDocument();
+  const returned = screen.getByText("RTN-000001").closest("li")!;
+  expect(within(returned).getByText("−")).toBeInTheDocument();
+});
+
+it("shows no capital card when no partner holds capital", async () => {
+  view();
+  await screen.findByRole("region", { name: /net result/i });
+  expect(screen.queryByText("Partners' capital")).not.toBeInTheDocument();
+});
+

@@ -53,23 +53,25 @@ public static class FinanceCalculator
     }
 
     /// <summary>
-    /// Each amount's share of the total as a percentage with two decimals, adding up to exactly 100.00 (the largest remainders get the
-    /// spare hundredths). An amount of zero or less has no share; with nothing to share every share is 0.
+    /// Each amount's share of the total as a percentage with <paramref name="decimals"/> decimals (two by default), adding up to exactly 100
+    /// (the largest remainders get the spare units). An amount of zero or less has no share; with nothing to share every share is 0.
     /// </summary>
-    public static decimal[] Shares(IReadOnlyList<decimal> amounts)
+    public static decimal[] Shares(IReadOnlyList<decimal> amounts, int decimals = 2)
     {
         var positive = amounts.Select(a => a > 0 ? a : 0m).ToArray();
         var whole = positive.Sum();
         var result = new decimal[amounts.Count];
         if (whole <= 0) return result;
 
-        // Work in hundredths of a percent so the arithmetic is exact.
-        var exact = positive.Select(a => a * 10000m / whole).ToArray();
+        // Work in whole units of the last decimal (hundredths of a percent for two decimals) so the arithmetic is exact.
+        var unit = (decimal)Math.Pow(10, decimals);
+        var scale = 100m * unit;
+        var exact = positive.Select(a => a * scale / whole).ToArray();
         var floors = exact.Select(Math.Floor).ToArray();
-        var spare = 10000m - floors.Sum();
+        var spare = scale - floors.Sum();
         foreach (var i in Enumerable.Range(0, exact.Length).OrderByDescending(i => exact[i] - floors[i]).ThenBy(i => i).Take((int)spare))
             floors[i] += 1;
-        for (var i = 0; i < result.Length; i++) result[i] = floors[i] / 100m;
+        for (var i = 0; i < result.Length; i++) result[i] = floors[i] / unit;
         return result;
     }
 

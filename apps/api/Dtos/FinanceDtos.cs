@@ -85,7 +85,13 @@ public sealed record FinPeriodTotals(decimal Income, decimal Expense, decimal Ne
 
 public sealed record FinDashboardBucket(string Start, string Label, decimal Income, decimal Expense);
 
-public sealed record FinDashboardCategory(int? CategoryId, string Name, decimal Amount, int Share);
+/// <summary>Share is a percentage with one decimal; the shares of the list add up to exactly 100.0.</summary>
+public sealed record FinDashboardCategory(int? CategoryId, string Name, decimal Amount, decimal Share);
+
+public sealed record FinDashboardPartner(int Id, string Name, decimal NetCapital, decimal Share);
+
+/// <summary>The partners' capital as it stands today, so the money in the accounts can be told apart from the money partners put in.</summary>
+public sealed record FinDashboardCapital(decimal Total, IReadOnlyList<FinDashboardPartner> Partners);
 
 public sealed record FinDashboardEntry(int Id, string Kind, string EntryNo, string EntryDate, string CategoryName, string Party, string AccountName, decimal Amount);
 
@@ -93,7 +99,7 @@ public sealed record FinDashboardEntry(int Id, string Kind, string EntryNo, stri
 public sealed record FinDashboardResponse(
     int Days, string From, string To, decimal TotalBalance, IReadOnlyList<FinAccountResponse> Accounts,
     FinPeriodTotals Current, FinPeriodTotals Previous, string Granularity, IReadOnlyList<FinDashboardBucket> Buckets,
-    IReadOnlyList<FinDashboardCategory> Spending, IReadOnlyList<FinDashboardEntry> Latest);
+    IReadOnlyList<FinDashboardCategory> Spending, IReadOnlyList<FinDashboardEntry> Latest, FinDashboardCapital? Capital = null);
 
 /// <summary>One account's statement for a period: where it started, what moved, where it ended.</summary>
 public sealed record FinReportAccount(
@@ -105,7 +111,8 @@ public sealed record FinReportTotals(decimal Opening, decimal Income, decimal Ex
 /// <summary>A partner's capital over the period: at the start, added, returned, at the end, and the share of everyone's capital at the end.</summary>
 public sealed record FinReportPartner(int PartnerId, string Name, decimal Opening, decimal Added, decimal Returned, decimal Closing, decimal Share);
 
-public sealed record FinReportCategory(int CategoryId, string Name, decimal Amount, int Count, int Share);
+/// <summary>Share is a percentage with one decimal; the shares of the list add up to exactly 100.0.</summary>
+public sealed record FinReportCategory(int CategoryId, string Name, decimal Amount, int Count, decimal Share);
 
 public sealed record FinReportEntry(string Date, string EntryNo, string Kind, string Category, string Party, string Account, string? Reference, decimal Amount);
 

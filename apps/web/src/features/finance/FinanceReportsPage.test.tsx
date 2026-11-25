@@ -74,7 +74,7 @@ it("lists income and expenses by category with shares", async () => {
   render(<FinanceReportsPage />);
   await screen.findByText("Expenses by category");
   expect(screen.getByText("Rent")).toBeInTheDocument();
-  expect(screen.getByText("80%")).toBeInTheDocument();
+  expect(screen.getByText("80.0%")).toBeInTheDocument();
   expect(screen.getByText("Other income")).toBeInTheDocument();
 });
 

@@ -141,7 +141,10 @@ public class FinancePartnerTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(before.GetProperty("current").GetProperty("income").GetDecimal(), after.GetProperty("current").GetProperty("income").GetDecimal());
         Assert.Equal(before.GetProperty("current").GetProperty("expense").GetDecimal(), after.GetProperty("current").GetProperty("expense").GetDecimal());
         Assert.Equal(before.GetProperty("totalBalance").GetDecimal() + 8600m, after.GetProperty("totalBalance").GetDecimal());
-        Assert.DoesNotContain(after.GetProperty("latest").EnumerateArray(), e => e.GetProperty("kind").GetString() is "Capital" or "CapitalOut");
+        // The latest list does show the capital, labelled by its kind, so the change in the balance can be explained.
+        Assert.Contains(after.GetProperty("latest").EnumerateArray(), e => e.GetProperty("kind").GetString() == "Capital" && e.GetProperty("amount").GetDecimal() == 9000m);
+        Assert.Contains(after.GetProperty("latest").EnumerateArray(), e => e.GetProperty("kind").GetString() == "CapitalOut");
+        Assert.True(after.GetProperty("capital").GetProperty("total").GetDecimal() >= 0m);
     }
 
     [Fact]

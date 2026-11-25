@@ -85,7 +85,7 @@ public class FinanceDashboardTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.NotEmpty(spending);
         var amounts = spending.Take(6).Select(x => x.GetProperty("amount").GetDecimal()).ToList();
         Assert.Equal(amounts.OrderByDescending(x => x), amounts);
-        Assert.InRange(spending.Sum(x => x.GetProperty("share").GetInt32()), 97, 103);
+        Assert.Equal(100.0m, spending.Sum(x => x.GetProperty("share").GetDecimal()));   // shown to one decimal and still adding up
     }
 
     [Fact]
@@ -105,5 +105,17 @@ public class FinanceDashboardTests(ApiFixture api) : IClassFixture<ApiFixture>
     public async Task Partner_CanReadIt()
     {
         Assert.Equal(30, (await GetAsync(null, Roles.Viewer)).GetProperty("days").GetInt32());
+    }
+
+    [Fact]
+    public async Task Capital_ListsThePartnersWithTheirShares_AddingUpToOneHundred()
+    {
+        var partner = await TestFinance.AddPartnerAsync(api.ConnectionString, opening: 12345m);
+        var dash = await GetAsync(30);
+        var capital = dash.GetProperty("capital");
+        var partners = capital.GetProperty("partners").EnumerateArray().ToList();
+        Assert.Contains(partners, p => p.GetProperty("id").GetInt32() == partner.Id);
+        Assert.Equal(100.00m, partners.Sum(p => p.GetProperty("share").GetDecimal()));
+        Assert.Equal(partners.Sum(p => p.GetProperty("netCapital").GetDecimal()), capital.GetProperty("total").GetDecimal());
     }
 }

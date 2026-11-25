@@ -61,9 +61,10 @@ public class FinanceCalculatorTests
         var v = Vectors.GetProperty("shares").EnumerateArray().Single(x => x.GetProperty("name").GetString() == name);
         var amounts = v.GetProperty("amounts").EnumerateArray().Select(x => x.GetDecimal()).ToList();
         var expected = v.GetProperty("shares").EnumerateArray().Select(x => x.GetDecimal()).ToList();
-        var shares = FinanceCalculator.Shares(amounts);
+        var decimals = v.TryGetProperty("decimals", out var d) ? d.GetInt32() : 2;
+        var shares = FinanceCalculator.Shares(amounts, decimals);
         Assert.Equal(expected, shares);
-        if (shares.Any(s => s > 0)) Assert.Equal(100.00m, shares.Sum());
+        if (shares.Any(s => s > 0)) Assert.Equal(100m, shares.Sum());
     }
 
     [Theory]

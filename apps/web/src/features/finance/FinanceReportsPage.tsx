@@ -7,7 +7,7 @@ import { useIsDesktop } from "../../utils/useIsDesktop";
 import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, Table, TableScroll, THead, Th, Td, TRow, cx } from "../../ui";
 import { saveBlob } from "../payroll/downloadPdf";
 import { ActionFailure, LoadError } from "../workers/WorkersFeedback";
-import { formatDay, formatMoney, formatPercent, todayInUae } from "./financeFormat";
+import { formatDay, formatMoney, formatPercent, formatShare, todayInUae } from "./financeFormat";
 import { presetRange, rangeProblem, type ReportPreset } from "./reportPeriods";
 
 const PRESETS: { key: ReportPreset; label: string }[] = [
@@ -162,10 +162,10 @@ function CategoryCard({ title, rows, total, bar }: { title: string; rows: FinRep
               <div className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="min-w-0 flex-1 truncate font-medium text-ink-900">{c.name} <span className="font-normal text-ink-500">· {c.count}</span></span>
                 <span className="font-semibold tabular-nums text-ink-900">AED {formatMoney(c.amount)}</span>
-                <span className="w-10 text-right tabular-nums text-ink-600">{c.share}%</span>
+                <span className="w-14 text-right tabular-nums text-ink-600">{formatShare(c.share)}</span>
               </div>
               <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-ink-100" aria-hidden="true">
-                <div className={cx("h-full rounded-full", bar)} style={{ width: `${c.share}%` }} />
+                <div className={cx("h-full rounded-full", bar)} style={{ width: `${Math.max(c.share, 1)}%` }} />
               </div>
             </li>
           ))}
