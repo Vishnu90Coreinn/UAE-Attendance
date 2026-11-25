@@ -227,3 +227,27 @@ export function unlockFinMonth(month: string, reason: string): Promise<FinMonthL
 export function getFinReceipt(id: number): Promise<Blob> {
   return apiGetAnyFile(`/api/finance/attachments/${id}`);
 }
+
+export type FinWindow = 7 | 30 | 365;
+export interface FinPeriodTotals {
+  income: number;
+  expense: number;
+  net: number;
+}
+export interface FinDashboard {
+  days: FinWindow;
+  from: string;
+  to: string;
+  totalBalance: number;
+  accounts: FinAccount[];
+  current: FinPeriodTotals;
+  /** The same number of days immediately before `from`, for comparison. */
+  previous: FinPeriodTotals;
+  granularity: "day" | "month";
+  buckets: { start: string; label: string; income: number; expense: number }[];
+  spending: { categoryId: number | null; name: string; amount: number; share: number }[];
+  latest: { id: number; kind: FinEntryKind; entryNo: string; entryDate: string; categoryName: string; party: string; accountName: string; amount: number }[];
+}
+export function getFinDashboard(days: FinWindow): Promise<FinDashboard> {
+  return apiGet(`/api/finance/dashboard?days=${days}`);
+}

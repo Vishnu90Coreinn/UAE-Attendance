@@ -10,6 +10,7 @@ const MODULES = [
   "Staff Payroll Summary",
   "Deductions",
   "Leave Management",
+  "Finance",
   "Accounts",
   "Expenses",
   "Income",
@@ -69,6 +70,7 @@ describe("navItemsForRole", () => {
       "Payroll Summary": "/payroll",
       "Deductions": "/deductions",
       "Leave Management": "/leave",
+      Finance: "/finance",
       Accounts: "/finance/accounts",
       Expenses: "/finance/expenses",
       Income: "/finance/income",
@@ -105,7 +107,8 @@ describe("phoneNavFor", () => {
     expect(labels(tabs)).toEqual(["Dashboard", "Daily Attendance", "Worker Directory", "Payroll Summary"]);
     expect(labels(more)).toEqual([
       "Leave Management",
-      "Accounts",
+      "Finance",
+  "Accounts",
       "Expenses",
       "Income",
       "Deductions",

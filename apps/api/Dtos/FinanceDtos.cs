@@ -76,3 +76,18 @@ public sealed class FinVoidRequest
 {
     public string? Reason { get; init; }
 }
+
+/// <summary>Income and expense over a stretch of days, plus the net. Transfers and voided rows are left out.</summary>
+public sealed record FinPeriodTotals(decimal Income, decimal Expense, decimal Net);
+
+public sealed record FinDashboardBucket(string Start, string Label, decimal Income, decimal Expense);
+
+public sealed record FinDashboardCategory(int? CategoryId, string Name, decimal Amount, int Share);
+
+public sealed record FinDashboardEntry(int Id, string Kind, string EntryNo, string EntryDate, string CategoryName, string Party, string AccountName, decimal Amount);
+
+/// <summary>Everything the finance overview shows, worked out by the server for one period ending today.</summary>
+public sealed record FinDashboardResponse(
+    int Days, string From, string To, decimal TotalBalance, IReadOnlyList<FinAccountResponse> Accounts,
+    FinPeriodTotals Current, FinPeriodTotals Previous, string Granularity, IReadOnlyList<FinDashboardBucket> Buckets,
+    IReadOnlyList<FinDashboardCategory> Spending, IReadOnlyList<FinDashboardEntry> Latest);

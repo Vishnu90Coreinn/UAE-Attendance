@@ -10,7 +10,7 @@ namespace HrPayroll.Api.Controllers;
 /// <summary>Expense and income tracking: bank and cash accounts, categories and transfers. Managers and Administrators edit; the Partner reads.</summary>
 [ApiController]
 [Route("api/finance")]
-public sealed class FinanceController(FinanceAccountService accounts, FinanceCategoryService categories, FinanceTransferService transfers, FinanceEntryService entries, FinancePeriodService periods) : ControllerBase
+public sealed class FinanceController(FinanceAccountService accounts, FinanceCategoryService categories, FinanceTransferService transfers, FinanceEntryService entries, FinancePeriodService periods, FinanceDashboardService dashboard) : ControllerBase
 {
     private IActionResult Map<T>(FinResult<T> result) => result.Status switch
     {
@@ -20,6 +20,10 @@ public sealed class FinanceController(FinanceAccountService accounts, FinanceCat
         404 => Problem(statusCode: 404, title: result.Title ?? "Not found."),
         _ => Problem(statusCode: result.Status, title: result.Title),
     };
+
+    [HttpGet("dashboard")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> Dashboard([FromQuery] int? days, CancellationToken ct) => Ok(await dashboard.GetAsync(days, ct));
 
     // --- accounts --------------------------------------------------------------------------------------------
 

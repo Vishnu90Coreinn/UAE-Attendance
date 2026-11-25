@@ -122,6 +122,7 @@ describe("Layout on a phone", () => {
     const sheet = await screen.findByRole("dialog", { name: "More" });
     expect(within(sheet).getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
       ["Leave Management", "/leave"],
+      ["Finance", "/finance"],
       ["Accounts", "/finance/accounts"],
       ["Expenses", "/finance/expenses"],
       ["Income", "/finance/income"],
