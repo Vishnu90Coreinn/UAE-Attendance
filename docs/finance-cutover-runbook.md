@@ -44,16 +44,18 @@ Do this in a **test copy first** (section 5), then again in production. Order ma
    - VAT payable or recoverable (2200 or 1500), from item 6.
    - Retained earnings brought forward (3800), from item 7.
    - Anything in item 8 (supplier balances, prepaid items, loans), on accounts the accountant adds under Books > Chart of accounts.
-   - **Do not** post to *Accounts receivable (1550)* by hand: that account must equal the unpaid invoices in the app, and a safety check fails otherwise.
+   - **Do not** post to *Accounts receivable (1550)* or *Accounts payable (2300)* by hand: they must equal the unpaid invoices and unpaid bills in the app, and a safety check fails otherwise. Enter unpaid supplier bills under Finance > Bills instead (section 4).
    - Bank, cash and partner capital are **not** in this journal; steps 1 and 2 already post them.
 6. **Check the opening position.** Books > Trial balance as at the cut-over date must agree with the Daftra trial balance, line by line. *Opening balance equity (3900)* should come to **zero**. If it does not, something is missing or entered twice: fix it before going on.
 7. **Cheques.** Finance > Cheques: enter each uncleared cheque from item 4. Leave them **not linked to an entry**: the expense was already in Daftra, and the opening bank balance is already net of it. They then track when the bank pays them and change nothing in the books. (The "bank statement" line on the account will show the book balance, not the statement, until they clear. That is expected.)
 8. **Staff expense entry and petty cash**, if used: tick the staff allowed to enter expenses, and hand out petty cash as a transfer.
 9. **Excel import** of earlier history is optional and not needed for the cut-over.
 
-## 4. If customer invoices are unpaid at cut-over
+## 4. If customer invoices or supplier bills are unpaid at cut-over
 
-Issue them in the app with their **original dates** and numbers (the invoice screen accepts a typed number), then record payments as they arrive. Their sale is then booked once, here. Do not also put them in the opening journal. The date must fall in a month that is not locked.
+**Supplier bills:** enter each unpaid bill under Finance > Bills with its original date and the supplier's invoice number; it books the cost, VAT and the debt. Do not also put it in the opening journal, and do not enter its cost again as an expense. The bill date must fall in a month that is not locked.
+
+**Customer invoices:** issue them in the app with their **original dates** and numbers (the invoice screen accepts a typed number), then record payments as they arrive. Their sale is then booked once, here. Do not also put them in the opening journal. The date must fall in a month that is not locked.
 
 ## 5. Dry run on a copy (do this before production)
 
