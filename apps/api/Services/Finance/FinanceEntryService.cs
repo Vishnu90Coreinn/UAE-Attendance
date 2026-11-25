@@ -7,20 +7,32 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace HrPayroll.Api.Services.Finance;
 
-public sealed record FinEntryFilter(string? From, string? To, int? CategoryId, int? AccountId, decimal? Min, decimal? Max, string? Search, bool IncludeVoided);
+public sealed record FinEntryFilter(string? From, string? To, int? CategoryId, int? AccountId, decimal? Min, decimal? Max, string? Search, bool IncludeVoided, int? PartnerId = null);
 
 /// <summary>Expenses and income (one table, two kinds): recording them with their receipts, and listing them with filters.</summary>
 public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHttpContextAccessor http, TimeProvider time, IReceiptStore store, FinancePeriodService periods)
 {
     private const int ListCap = 500;
 
-    private static string KindWord(string kind) => kind == FinEntryKinds.Income ? "income" : "expense";
+    private static string KindWord(string kind) => kind switch
+    {
+        FinEntryKinds.Income => "income", FinEntryKinds.Capital => "capital contribution", FinEntryKinds.CapitalOut => "capital return", _ => "expense",
+    };
+
+    /// <summary>"FinIncomeVoided", "FinCapitalCreated" and so on: the audit action for one kind and one verb.</summary>
+    private static string AuditName(string kind, string verb) =>
+        "Fin" + (kind switch { FinEntryKinds.Income => "Income", FinEntryKinds.Capital => "Capital", FinEntryKinds.CapitalOut => "CapitalReturn", _ => "Expense" }) + verb;
+
+    private static (string Sequence, string Prefix) Numbering(string kind) => kind switch
+    {
+        FinEntryKinds.Income => ("FinIncomeNo", "INC-"), FinEntryKinds.Capital => ("FinCapitalNo", "CAP-"), FinEntryKinds.CapitalOut => ("FinCapitalOutNo", "RTN-"), _ => ("FinExpenseNo", "EXP-"),
+    };
 
     private static FinEntryResponse ToResponse(FinEntry e, IEnumerable<FinAttachment> files, string? replacesNo = null, string? replacedByNo = null) => new(
         e.Id, e.Kind, e.EntryNo, FinanceRules.Format(e.EntryDate), e.CategoryId, e.Category.Name, e.Party, e.AccountId, e.Account.Name,
         e.Amount, e.Reference, e.Notes, e.Status, e.VoidReason, e.CreatedBy, e.CreatedUtc,
         files.Select(f => new FinAttachmentResponse(f.Id, f.FileName, f.ContentType, f.SizeBytes)).ToList(),
-        e.VoidedBy, e.VoidedUtc, e.ReplacesEntryId, replacesNo, replacedByNo);
+        e.VoidedBy, e.VoidedUtc, e.ReplacesEntryId, replacesNo, replacedByNo, e.PartnerId);
 
     /// <summary>EntryNo of the entry each given entry replaces, and of the entry that replaced it.</summary>
     private async Task<(Dictionary<int, string> Replaces, Dictionary<int, string> ReplacedBy)> ChainAsync(IReadOnlyCollection<FinEntry> rows, CancellationToken ct)
@@ -33,9 +45,13 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         return (replaces, replacedBy);
     }
 
-    public async Task<FinEntryList> ListAsync(string kind, FinEntryFilter f, CancellationToken ct)
+    public Task<FinEntryList> ListAsync(string kind, FinEntryFilter f, CancellationToken ct) => ListAsync([kind], f, ct);
+
+    /// <summary>Capital in and capital out are listed together; the total is then what is left: put in, less paid back.</summary>
+    public async Task<FinEntryList> ListAsync(IReadOnlyCollection<string> kinds, FinEntryFilter f, CancellationToken ct)
     {
-        var query = db.FinEntries.AsNoTracking().Include(e => e.Category).Include(e => e.Account).Where(e => e.Kind == kind);
+        var query = db.FinEntries.AsNoTracking().Include(e => e.Category).Include(e => e.Account).Where(e => kinds.Contains(e.Kind));
+        if (f.PartnerId is { } partner) query = query.Where(e => e.PartnerId == partner);
         if (FinanceRules.TryParseDate(f.From, out var from)) query = query.Where(e => e.EntryDate >= from);
         if (FinanceRules.TryParseDate(f.To, out var to)) query = query.Where(e => e.EntryDate <= to);
         if (f.CategoryId is { } c) query = query.Where(e => e.CategoryId == c);
@@ -46,7 +62,8 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
             query = query.Where(e => e.Party.Contains(q) || (e.Reference != null && e.Reference.Contains(q)) || (e.Notes != null && e.Notes.Contains(q)) || e.EntryNo.Contains(q));
 
         var active = query.Where(e => e.Status == FinStatuses.Active);
-        var total = await active.SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
+        var total = (await active.Where(e => e.Kind != FinEntryKinds.CapitalOut).SumAsync(e => (decimal?)e.Amount, ct) ?? 0m)
+            - (await active.Where(e => e.Kind == FinEntryKinds.CapitalOut).SumAsync(e => (decimal?)e.Amount, ct) ?? 0m);
         var count = await active.CountAsync(ct);
         var shown = f.IncludeVoided ? query : active;
         var rows = await shown.OrderByDescending(e => e.EntryDate).ThenByDescending(e => e.Id).Take(ListCap + 1).ToListAsync(ct);
@@ -67,6 +84,10 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         var (replaces, replacedBy) = await ChainAsync([entry], ct);
         return FinResult<FinEntryResponse>.Ok(ToResponse(entry, files, entry.ReplacesEntryId is { } o ? replaces.GetValueOrDefault(o) : null, replacedBy.GetValueOrDefault(id)));
     }
+
+    /// <summary>Which kind an entry is, or null when there is no such entry.</summary>
+    public async Task<string?> KindOfAsync(int id, CancellationToken ct) =>
+        await db.FinEntries.AsNoTracking().Where(e => e.Id == id).Select(e => e.Kind).SingleOrDefaultAsync(ct);
 
     /// <summary>The names people have typed before, newest first, to suggest while typing "paid to" or "received from".</summary>
     public async Task<List<string>> PartiesAsync(string kind, CancellationToken ct) =>
@@ -100,7 +121,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         entry.VoidReason = text;
         entry.VoidedBy = FinanceRules.Actor(http);
         entry.VoidedUtc = DateTime.UtcNow;
-        audit.Write(kind == FinEntryKinds.Income ? "FinIncomeVoided" : "FinExpenseVoided", entityType: nameof(FinEntry), entityId: entry.Id.ToString(),
+        audit.Write(AuditName(kind, "Voided"), entityType: nameof(FinEntry), entityId: entry.Id.ToString(),
             details: new { entry.EntryNo, entry.Amount, reason = text });
         await db.SaveChangesAsync(ct);
         return await GetAsync(kind, id, ct);
@@ -110,10 +131,26 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
     {
         var errors = new Dictionary<string, string[]>();
         if (FinanceRules.AmountError(form.Amount) is { } amountError) errors["amount"] = [amountError];
+        var capital = FinEntryKinds.IsCapital(kind);
         var party = FinanceRules.Clean(form.Party);
-        var partyLabel = kind == FinEntryKinds.Income ? "who it was received from" : "who was paid";
-        if (party is null) errors["party"] = [$"Enter {partyLabel}."];
-        else if (party.Length > 120) errors["party"] = ["Use 120 characters or fewer."];
+        FinPartner? partner = null;
+        if (capital)
+        {
+            if (form.PartnerId is null) errors["partnerId"] = ["Choose the partner."];
+            else
+            {
+                partner = await db.FinPartners.SingleOrDefaultAsync(p => p.Id == form.PartnerId, ct);
+                if (partner is null || !partner.IsActive) errors["partnerId"] = ["Choose an active partner."];
+            }
+
+            party = partner?.Name;
+        }
+        else
+        {
+            var partyLabel = kind == FinEntryKinds.Income ? "who it was received from" : "who was paid";
+            if (party is null) errors["party"] = [$"Enter {partyLabel}."];
+            else if (party.Length > 120) errors["party"] = ["Use 120 characters or fewer."];
+        }
         if (FinanceRules.Clean(form.Reference)?.Length > 60) errors["reference"] = ["Use 60 characters or fewer."];
         if (FinanceRules.Clean(form.Notes)?.Length > 2000) errors["notes"] = ["Use 2,000 characters or fewer."];
 
@@ -122,7 +159,8 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         else if (date > FinanceRules.Today(time)) errors["entryDate"] = ["The date cannot be in the future."];
 
         FinCategory? category = null;
-        if (form.CategoryId is null) errors["categoryId"] = ["Choose a category."];
+        if (capital) category = await db.FinCategories.SingleAsync(c => c.Kind == kind, ct);
+        else if (form.CategoryId is null) errors["categoryId"] = ["Choose a category."];
         else
         {
             category = await db.FinCategories.SingleOrDefaultAsync(c => c.Id == form.CategoryId && c.Kind == kind, ct);
@@ -206,16 +244,16 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
             {
                 Kind = kind, EntryNo = "PENDING", EntryDate = date, CategoryId = category!.Id, Party = party!, AccountId = account!.Id,
                 Amount = form.Amount!.Value, Reference = FinanceRules.Clean(form.Reference), Notes = FinanceRules.Clean(form.Notes),
-                CreatedBy = actor, CreatedUtc = now, ReplacesEntryId = replaces?.Id,
+                CreatedBy = actor, CreatedUtc = now, ReplacesEntryId = replaces?.Id, PartnerId = partner?.Id,
             };
 
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
-            var sequence = kind == FinEntryKinds.Income ? "FinIncomeNo" : "FinExpenseNo";
+            var (sequence, prefix) = Numbering(kind);
             await using var command = db.Database.GetDbConnection().CreateCommand();
             command.Transaction = transaction.GetDbTransaction();
             command.CommandText = $"SELECT NEXT VALUE FOR {sequence}";   // the sequence name is one of two constants above
             var number = Convert.ToInt32(await command.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
-            entry.EntryNo = (kind == FinEntryKinds.Income ? "INC-" : "EXP-") + number.ToString("000000");
+            entry.EntryNo = prefix + number.ToString("000000");
             if (replaces is not null)
             {
                 // Claim the original inside the transaction: of two simultaneous corrections only one finds it still Active.
@@ -239,11 +277,11 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
                 replaces.VoidReason = $"Corrected: replaced by {entry.EntryNo}";
                 replaces.VoidedBy = actor;
                 replaces.VoidedUtc = now;
-                audit.Write(kind == FinEntryKinds.Income ? "FinIncomeCorrected" : "FinExpenseCorrected", entityType: nameof(FinEntry), entityId: replaces.Id.ToString(),
+                audit.Write(AuditName(kind, "Corrected"), entityType: nameof(FinEntry), entityId: replaces.Id.ToString(),
                     details: new { original = replaces.EntryNo, replacement = entry.EntryNo, before = new { replaces.Amount, date = FinanceRules.Format(replaces.EntryDate), replaces.Party }, after = new { entry.Amount, date = FinanceRules.Format(date), entry.Party } });
             }
 
-            audit.Write(kind == FinEntryKinds.Income ? "FinIncomeCreated" : "FinExpenseCreated", entityType: nameof(FinEntry), entityId: entry.Id.ToString(),
+            audit.Write(AuditName(kind, "Created"), entityType: nameof(FinEntry), entityId: entry.Id.ToString(),
                 details: new { entry.EntryNo, category = category.Name, account = account.Name, entry.Amount, date = FinanceRules.Format(date), receipts = attachments.Count, replaces = replaces?.EntryNo });
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);

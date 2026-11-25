@@ -12,7 +12,7 @@ public sealed class FinanceCategoryService(AppDbContext db, IAuditLogger audit)
 
     public async Task<List<FinCategoryResponse>> ListAsync(string? kind, bool includeInactive, CancellationToken ct)
     {
-        var query = db.FinCategories.AsNoTracking();
+        var query = db.FinCategories.AsNoTracking().Where(c => !FinEntryKinds.CapitalKinds.Contains(c.Kind));
         if (kind is not null) query = query.Where(c => c.Kind == kind);
         if (!includeInactive) query = query.Where(c => c.IsActive);
         return await query

@@ -63,6 +63,35 @@ public static class TestFinance
         return transfer;
     }
 
+    public static async Task<FinPartner> AddPartnerAsync(string connectionString, string? name = null, decimal opening = 0m, bool isActive = true)
+    {
+        var now = DateTime.UtcNow;
+        var partner = new FinPartner { Name = name ?? Unique("Partner"), OpeningCapital = opening, IsActive = isActive, CreatedUtc = now, UpdatedUtc = now };
+        await using var db = TestUsers.NewContext(connectionString);
+        db.FinPartners.Add(partner);
+        await db.SaveChangesAsync();
+        return partner;
+    }
+
+    /// <summary>Capital put in (<see cref="FinEntryKinds.Capital"/>) or paid back (<see cref="FinEntryKinds.CapitalOut"/>) by a partner.</summary>
+    public static async Task<FinEntry> AddCapitalAsync(
+        string connectionString, int accountId, int partnerId, decimal amount, DateOnly? date = null, string kind = FinEntryKinds.Capital, string status = FinStatuses.Active)
+    {
+        var now = DateTime.UtcNow;
+        await using var db = TestUsers.NewContext(connectionString);
+        var partner = await db.FinPartners.AsNoTracking().SingleAsync(p => p.Id == partnerId);
+        var entry = new FinEntry
+        {
+            Kind = kind, EntryNo = (kind == FinEntryKinds.Capital ? "CAP-" : "RTN-") + Guid.NewGuid().ToString("N")[..12],
+            EntryDate = date ?? Today.AddDays(-5), CategoryId = kind == FinEntryKinds.Capital ? 11 : 12, Party = partner.Name, PartnerId = partnerId,
+            AccountId = accountId, Amount = amount, Status = status,
+            VoidedUtc = status == FinStatuses.Voided ? now : null, VoidedBy = status == FinStatuses.Voided ? "tester" : null, CreatedBy = "tester", CreatedUtc = now,
+        };
+        db.FinEntries.Add(entry);
+        await db.SaveChangesAsync();
+        return entry;
+    }
+
     public static async Task<List<AuditLog>> AuditAsync(string connectionString, string action, string? entityId = null)
     {
         await using var db = TestUsers.NewContext(connectionString);

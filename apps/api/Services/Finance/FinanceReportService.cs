@@ -43,21 +43,25 @@ public sealed class FinanceReportService(AppDbContext db, TimeProvider time)
         var lines = new List<FinReportAccount>();
         foreach (var a in accounts)
         {
-            var opening = FinanceCalculator.Balance(a.OpeningBalance, Of(entriesBefore, a.Id, FinEntryKinds.Income), Of(entriesBefore, a.Id, FinEntryKinds.Expense), Of2(inBefore, a.Id), Of2(outBefore, a.Id));
+            var opening = FinanceCalculator.Balance(a.OpeningBalance, Of(entriesBefore, a.Id, FinEntryKinds.Income), Of(entriesBefore, a.Id, FinEntryKinds.Expense), Of2(inBefore, a.Id), Of2(outBefore, a.Id),
+                Of(entriesBefore, a.Id, FinEntryKinds.Capital) - Of(entriesBefore, a.Id, FinEntryKinds.CapitalOut));
             var income = Of(entriesIn, a.Id, FinEntryKinds.Income);
+            var capital = Of(entriesIn, a.Id, FinEntryKinds.Capital) - Of(entriesIn, a.Id, FinEntryKinds.CapitalOut);
             var expense = Of(entriesIn, a.Id, FinEntryKinds.Expense);
             var tin = Of2(inDuring, a.Id);
             var tout = Of2(outDuring, a.Id);
-            var closing = FinanceCalculator.Balance(opening, income, expense, tin, tout);
+            var closing = FinanceCalculator.Balance(opening, income, expense, tin, tout, capital);
             // A switched-off account with nothing in it and nothing in the period is only noise.
-            if (!a.IsActive && opening == 0m && closing == 0m && income == 0m && expense == 0m && tin == 0m && tout == 0m) continue;
-            lines.Add(new FinReportAccount(a.Id, a.Name, a.Kind, a.IsActive, opening, income, expense, tin, tout, closing));
+            if (!a.IsActive && opening == 0m && closing == 0m && income == 0m && expense == 0m && tin == 0m && tout == 0m && capital == 0m) continue;
+            lines.Add(new FinReportAccount(a.Id, a.Name, a.Kind, a.IsActive, opening, income, expense, tin, tout, closing, capital));
         }
 
-        var totals = new FinReportTotals(lines.Sum(l => l.Opening), lines.Sum(l => l.Income), lines.Sum(l => l.Expense), lines.Sum(l => l.TransfersIn), lines.Sum(l => l.TransfersOut), lines.Sum(l => l.Closing));
+        var totals = new FinReportTotals(lines.Sum(l => l.Opening), lines.Sum(l => l.Income), lines.Sum(l => l.Expense), lines.Sum(l => l.TransfersIn), lines.Sum(l => l.TransfersOut), lines.Sum(l => l.Closing), lines.Sum(l => l.Capital));
         var period = FinanceCalculator.Period([new FinMovement(FinMovementType.Income, totals.Income), new FinMovement(FinMovementType.Expense, totals.Expense)]);
 
-        var categoryRows = await activeEntries.Where(e => e.EntryDate >= start && e.EntryDate <= end)
+        var partnerRows = await PartnersAsync(start, end, ct);
+
+        var categoryRows = await activeEntries.Where(e => e.EntryDate >= start && e.EntryDate <= end && (e.Kind == FinEntryKinds.Income || e.Kind == FinEntryKinds.Expense))
             .GroupBy(e => new { e.Kind, e.CategoryId, e.Category.Name })
             .Select(g => new { g.Key.Kind, g.Key.CategoryId, g.Key.Name, Sum = g.Sum(e => e.Amount), Count = g.Count() }).ToListAsync(ct);
 
@@ -70,7 +74,28 @@ public sealed class FinanceReportService(AppDbContext db, TimeProvider time)
 
         return FinResult<FinReport>.Ok(new FinReport(
             FinanceRules.Format(start), FinanceRules.Format(end), lines, totals, new FinPeriodTotals(period.Income, period.Expense, period.Net),
-            Categories(FinEntryKinds.Income), Categories(FinEntryKinds.Expense), categoryRows.Sum(r => r.Count)));
+            Categories(FinEntryKinds.Income), Categories(FinEntryKinds.Expense), categoryRows.Sum(r => r.Count), partnerRows));
+    }
+
+    private async Task<List<FinReportPartner>> PartnersAsync(DateOnly start, DateOnly end, CancellationToken ct)
+    {
+        var partners = await db.FinPartners.AsNoTracking().OrderBy(p => p.SortOrder).ThenBy(p => p.Name).ToListAsync(ct);
+        var rows = await db.FinEntries.AsNoTracking()
+            .Where(e => e.Status == FinStatuses.Active && e.PartnerId != null && e.EntryDate <= end)
+            .Select(e => new { PartnerId = e.PartnerId!.Value, e.Kind, e.Amount, Before = e.EntryDate < start }).ToListAsync(ct);
+
+        decimal Sum(int id, string kind, bool before) => rows.Where(r => r.PartnerId == id && r.Kind == kind && r.Before == before).Sum(r => r.Amount);
+        var lines = partners.Select(p =>
+        {
+            var opening = p.OpeningCapital + Sum(p.Id, FinEntryKinds.Capital, true) - Sum(p.Id, FinEntryKinds.CapitalOut, true);
+            var added = Sum(p.Id, FinEntryKinds.Capital, false);
+            var returned = Sum(p.Id, FinEntryKinds.CapitalOut, false);
+            return (p, opening, added, returned, closing: opening + added - returned);
+        }).ToList();
+        var shares = FinanceCalculator.Shares(lines.Select(l => l.closing).ToList());
+        // A partner with no capital and no movement in the period is only noise.
+        return lines.Select((l, i) => new FinReportPartner(l.p.Id, l.p.Name, l.opening, l.added, l.returned, l.closing, shares[i]))
+            .Where(l => l.Opening != 0m || l.Added != 0m || l.Returned != 0m || l.Closing != 0m).ToList();
     }
 
     /// <summary>Every active entry of the period, oldest first: the detail behind the statement.</summary>
@@ -78,7 +103,7 @@ public sealed class FinanceReportService(AppDbContext db, TimeProvider time)
     {
         FinanceRules.TryParseDate(from, out var start);
         FinanceRules.TryParseDate(to, out var end);
-        var rows = await db.FinEntries.AsNoTracking().Where(e => e.Status == FinStatuses.Active && e.EntryDate >= start && e.EntryDate <= end)
+        var rows = await db.FinEntries.AsNoTracking().Where(e => e.Status == FinStatuses.Active && (e.Kind == FinEntryKinds.Income || e.Kind == FinEntryKinds.Expense) && e.EntryDate >= start && e.EntryDate <= end)
             .OrderBy(e => e.EntryDate).ThenBy(e => e.Id)
             .Select(e => new { e.EntryDate, e.EntryNo, e.Kind, Category = e.Category.Name, e.Party, Account = e.Account.Name, e.Reference, e.Amount }).ToListAsync(ct);
         return rows.Select(r => new FinReportEntry(FinanceRules.Format(r.EntryDate), r.EntryNo, r.Kind, r.Category, r.Party, r.Account, r.Reference, r.Amount)).ToList();

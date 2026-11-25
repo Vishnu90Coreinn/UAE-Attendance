@@ -26,6 +26,9 @@ public class FinanceAuthorizationTests(ApiFixture api) : IClassFixture<ApiFixtur
         ["GET", "/api/finance/month-locks"],
         ["GET", "/api/finance/dashboard"],
         ["GET", "/api/finance/reports/summary"],
+        ["GET", "/api/finance/partners"],
+        ["GET", "/api/finance/capital"],
+        ["GET", $"/api/finance/capital/{Missing}"],
         ["GET", $"/api/finance/attachments/{Missing}"],
     ];
 
@@ -46,6 +49,12 @@ public class FinanceAuthorizationTests(ApiFixture api) : IClassFixture<ApiFixtur
         ["POST", $"/api/finance/income/{Missing}/void"],
         ["PUT", $"/api/finance/transfers/{Missing}"],
         ["POST", $"/api/finance/transfers/{Missing}/void"],
+        ["POST", "/api/finance/partners"],
+        ["PUT", $"/api/finance/partners/{Missing}"],
+        ["POST", "/api/finance/capital/contributions"],
+        ["POST", "/api/finance/capital/returns"],
+        ["PUT", $"/api/finance/capital/{Missing}"],
+        ["POST", $"/api/finance/capital/{Missing}/void"],
         ["POST", "/api/finance/month-locks/2026-01/lock"],
         ["POST", "/api/finance/month-locks/2026-01/unlock"],
     ];

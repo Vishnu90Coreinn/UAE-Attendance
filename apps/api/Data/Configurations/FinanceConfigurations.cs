@@ -27,7 +27,7 @@ public sealed class FinCategoryConfiguration : IEntityTypeConfiguration<FinCateg
 {
     public void Configure(EntityTypeBuilder<FinCategory> builder)
     {
-        builder.ToTable(t => t.HasCheckConstraint("CK_FinCategories_Kind", "[Kind] IN ('Expense', 'Income')"));
+        builder.ToTable(t => t.HasCheckConstraint("CK_FinCategories_Kind", "[Kind] IN ('Expense', 'Income', 'Capital', 'CapitalOut')"));
         builder.Property(c => c.Kind).HasMaxLength(10).IsRequired();
         builder.Property(c => c.Name).HasMaxLength(80).UseCollation(UserConfiguration.CaseInsensitiveCollation).IsRequired();
         builder.Property(c => c.IsActive).HasDefaultValue(true);
@@ -44,7 +44,10 @@ public sealed class FinCategoryConfiguration : IEntityTypeConfiguration<FinCateg
             new FinCategory { Id = 7, Kind = FinEntryKinds.Expense, Name = "Office Rent" },
             new FinCategory { Id = 8, Kind = FinEntryKinds.Expense, Name = "Dubai Insurance" },
             new FinCategory { Id = 9, Kind = FinEntryKinds.Expense, Name = "Commission for Labor" },
-            new FinCategory { Id = 10, Kind = FinEntryKinds.Income, Name = "Other income" });
+            new FinCategory { Id = 10, Kind = FinEntryKinds.Income, Name = "Other income" },
+            // Capital entries need a category row like every entry; these two are fixed and never offered in Settings or on the entry forms.
+            new FinCategory { Id = 11, Kind = FinEntryKinds.Capital, Name = "Capital contribution" },
+            new FinCategory { Id = 12, Kind = FinEntryKinds.CapitalOut, Name = "Capital returned" });
     }
 }
 
@@ -54,7 +57,8 @@ public sealed class FinEntryConfiguration : IEntityTypeConfiguration<FinEntry>
     {
         builder.ToTable(t =>
         {
-            t.HasCheckConstraint("CK_FinEntries_Kind", "[Kind] IN ('Expense', 'Income')");
+            t.HasCheckConstraint("CK_FinEntries_Kind", "[Kind] IN ('Expense', 'Income', 'Capital', 'CapitalOut')");
+            t.HasCheckConstraint("CK_FinEntries_Partner", "([Kind] IN ('Capital', 'CapitalOut') AND [PartnerId] IS NOT NULL) OR ([Kind] IN ('Expense', 'Income') AND [PartnerId] IS NULL)");
             t.HasCheckConstraint("CK_FinEntries_Status", "[Status] IN ('Active', 'Voided')");
             t.HasCheckConstraint("CK_FinEntries_Amount", "[Amount] > 0");
             t.HasCheckConstraint("CK_FinEntries_Voided", "[Status] = 'Active' OR [VoidedUtc] IS NOT NULL");
@@ -77,11 +81,27 @@ public sealed class FinEntryConfiguration : IEntityTypeConfiguration<FinEntry>
         builder.HasOne(e => e.Category).WithMany().HasForeignKey(e => e.CategoryId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(e => e.Account).WithMany().HasForeignKey(e => e.AccountId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<FinEntry>().WithMany().HasForeignKey(e => e.ReplacesEntryId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<FinPartner>().WithMany().HasForeignKey(e => e.PartnerId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(e => e.PartnerId);
         builder.HasIndex(e => e.EntryNo).IsUnique();
         builder.HasIndex(e => new { e.AccountId, e.EntryDate });
         builder.HasIndex(e => e.EntryDate);
         builder.HasIndex(e => e.CategoryId);
         builder.HasIndex(e => new { e.ExternalSource, e.ExternalId }).IsUnique().HasFilter("[ExternalId] IS NOT NULL");
+    }
+}
+
+public sealed class FinPartnerConfiguration : IEntityTypeConfiguration<FinPartner>
+{
+    public void Configure(EntityTypeBuilder<FinPartner> builder)
+    {
+        builder.ToTable(t => t.HasCheckConstraint("CK_FinPartners_OpeningCapital", "[OpeningCapital] >= 0"));
+        builder.Property(p => p.Name).HasMaxLength(120).UseCollation(UserConfiguration.CaseInsensitiveCollation).IsRequired();
+        builder.Property(p => p.OpeningCapital).HasPrecision(12, 2);
+        builder.Property(p => p.IsActive).HasDefaultValue(true);
+        builder.Property(p => p.CreatedUtc).HasColumnType("datetime2");
+        builder.Property(p => p.UpdatedUtc).HasColumnType("datetime2");
+        builder.HasIndex(p => p.Name).IsUnique();
     }
 }
 

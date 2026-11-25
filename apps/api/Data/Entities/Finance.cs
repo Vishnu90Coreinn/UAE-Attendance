@@ -13,8 +13,33 @@ public static class FinEntryKinds
 {
     public const string Expense = "Expense";
     public const string Income = "Income";
+
+    /// <summary>Capital a partner put into the company. Raises an account's balance; never income.</summary>
+    public const string Capital = "Capital";
+
+    /// <summary>Capital paid back to a partner. Lowers an account's balance; never an expense.</summary>
+    public const string CapitalOut = "CapitalOut";
+
+    /// <summary>The kinds with their own category list and screens.</summary>
     public static readonly string[] All = [Expense, Income];
+    public static readonly string[] CapitalKinds = [Capital, CapitalOut];
+    public static bool IsCapital(string kind) => kind is Capital or CapitalOut;
 }
+
+/// <summary>A partner of the company. Capital is tracked per partner; the partner's opening capital is what they put in before this app was used.</summary>
+public sealed class FinPartner
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+
+    /// <summary>Capital already put in before the first entry here; it is part of the accounts' opening balances, not an extra deposit.</summary>
+    public decimal OpeningCapital { get; set; }
+    public bool IsActive { get; set; } = true;
+    public int SortOrder { get; set; }
+    public DateTime CreatedUtc { get; set; }
+    public DateTime UpdatedUtc { get; set; }
+}
+
 
 public static class FinStatuses
 {
@@ -79,6 +104,9 @@ public sealed class FinEntry
     public string? VoidedBy { get; set; }
     public DateTime? VoidedUtc { get; set; }
     public int? ReplacesEntryId { get; set; }
+
+    /// <summary>The partner, for capital put in or paid back. Null for expenses and income.</summary>
+    public int? PartnerId { get; set; }
     public string CreatedBy { get; set; } = "";
     public DateTime CreatedUtc { get; set; }
 

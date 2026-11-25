@@ -1,5 +1,5 @@
 {
-  "description": "Shared by the xUnit FinanceCalculatorTests (and later the web finance tests) so the browser and the server cannot drift. Money is AED with 2 decimals. Balance = opening + income - expense + transfers in - transfers out; voided rows count nowhere; a transfer is never income or expense.",
+  "description": "Shared by the xUnit FinanceCalculatorTests (and later the web finance tests) so the browser and the server cannot drift. Money is AED with 2 decimals. Balance = opening + income - expense + transfers in - transfers out + capital in - capital out; voided rows count nowhere; a transfer and capital are never income or expense. Shares are percentages with two decimals that add up to exactly 100.00.",
   "balances": [
     { "name": "opening only", "opening": 1000.00, "movements": [], "balance": 1000.00 },
     { "name": "income and expense", "opening": 1000.00, "movements": [
@@ -13,6 +13,12 @@
         { "type": "transferOut", "amount": 10.00, "voided": true }, { "type": "expense", "amount": 5.00 } ], "balance": 95.00 },
     { "name": "overdrawn account goes negative", "opening": 100.00, "movements": [
         { "type": "expense", "amount": 150.75 } ], "balance": -50.75 },
+    { "name": "capital put in raises the balance", "opening": 0.00, "movements": [
+        { "type": "capital", "amount": 5000.00 } ], "balance": 5000.00 },
+    { "name": "capital returned lowers the balance", "opening": 1000.00, "movements": [
+        { "type": "capital", "amount": 5000.00 }, { "type": "capitalOut", "amount": 1500.50 } ], "balance": 4499.50 },
+    { "name": "voided capital counts nowhere", "opening": 100.00, "movements": [
+        { "type": "capital", "amount": 900.00, "voided": true }, { "type": "capitalOut", "amount": 50.00, "voided": true } ], "balance": 100.00 },
     { "name": "many small amounts add exactly", "opening": 0.00, "movements": [
         { "type": "income", "amount": 0.10 }, { "type": "income", "amount": 0.20 }, { "type": "expense", "amount": 0.30 } ], "balance": 0.00 }
   ],
@@ -25,9 +31,19 @@
         { "type": "income", "amount": 300.00 }, { "type": "income", "amount": 700.00, "voided": true },
         { "type": "expense", "amount": 50.00, "voided": true } ],
       "income": 300.00, "expense": 0.00, "net": 300.00 },
+    { "name": "capital is not income or expense", "movements": [
+        { "type": "income", "amount": 100.00 }, { "type": "capital", "amount": 9000.00 }, { "type": "capitalOut", "amount": 400.00 } ],
+      "income": 100.00, "expense": 0.00, "net": 100.00 },
     { "name": "spending beats income", "movements": [
         { "type": "income", "amount": 10.00 }, { "type": "expense", "amount": 25.40 } ],
       "income": 10.00, "expense": 25.40, "net": -15.40 }
+  ],
+  "shares": [
+    { "name": "round split", "amounts": [600000.00, 300000.00, 100000.00], "shares": [60.00, 30.00, 10.00] },
+    { "name": "thirds add up to exactly 100", "amounts": [1.00, 1.00, 1.00], "shares": [33.34, 33.33, 33.33] },
+    { "name": "no capital means no share", "amounts": [0.00, 0.00], "shares": [0.00, 0.00] },
+    { "name": "a negative amount has no share", "amounts": [100.00, -50.00, 100.00], "shares": [50.00, 0.00, 50.00] },
+    { "name": "two decimals", "amounts": [1000.00, 250.00, 3.00], "shares": [79.81, 19.95, 0.24] }
   ],
   "money": [
     { "value": 12.5, "valid": true },

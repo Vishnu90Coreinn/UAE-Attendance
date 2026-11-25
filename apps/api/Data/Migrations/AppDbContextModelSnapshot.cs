@@ -22,6 +22,10 @@ namespace HrPayroll.Api.Data.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.HasSequence<int>("FinCapitalNo");
+
+            modelBuilder.HasSequence<int>("FinCapitalOutNo");
+
             modelBuilder.HasSequence<int>("FinExpenseNo");
 
             modelBuilder.HasSequence<int>("FinIncomeNo");
@@ -548,7 +552,7 @@ namespace HrPayroll.Api.Data.Migrations
 
                     b.ToTable("FinCategories", t =>
                         {
-                            t.HasCheckConstraint("CK_FinCategories_Kind", "[Kind] IN ('Expense', 'Income')");
+                            t.HasCheckConstraint("CK_FinCategories_Kind", "[Kind] IN ('Expense', 'Income', 'Capital', 'CapitalOut')");
                         });
 
                     b.HasData(
@@ -621,6 +625,20 @@ namespace HrPayroll.Api.Data.Migrations
                             IsActive = true,
                             Kind = "Income",
                             Name = "Other income"
+                        },
+                        new
+                        {
+                            Id = 11,
+                            IsActive = true,
+                            Kind = "Capital",
+                            Name = "Capital contribution"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            IsActive = true,
+                            Kind = "CapitalOut",
+                            Name = "Capital returned"
                         });
                 });
 
@@ -675,6 +693,9 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<int?>("PartnerId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Party")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -712,6 +733,8 @@ namespace HrPayroll.Api.Data.Migrations
                     b.HasIndex("EntryNo")
                         .IsUnique();
 
+                    b.HasIndex("PartnerId");
+
                     b.HasIndex("ReplacesEntryId");
 
                     b.HasIndex("AccountId", "EntryDate");
@@ -724,7 +747,9 @@ namespace HrPayroll.Api.Data.Migrations
                         {
                             t.HasCheckConstraint("CK_FinEntries_Amount", "[Amount] > 0");
 
-                            t.HasCheckConstraint("CK_FinEntries_Kind", "[Kind] IN ('Expense', 'Income')");
+                            t.HasCheckConstraint("CK_FinEntries_Kind", "[Kind] IN ('Expense', 'Income', 'Capital', 'CapitalOut')");
+
+                            t.HasCheckConstraint("CK_FinEntries_Partner", "([Kind] IN ('Capital', 'CapitalOut') AND [PartnerId] IS NOT NULL) OR ([Kind] IN ('Expense', 'Income') AND [PartnerId] IS NULL)");
 
                             t.HasCheckConstraint("CK_FinEntries_Status", "[Status] IN ('Active', 'Voided')");
 
@@ -776,6 +801,49 @@ namespace HrPayroll.Api.Data.Migrations
                     b.ToTable("FinMonthLocks", t =>
                         {
                             t.HasCheckConstraint("CK_FinMonthLocks_Month", "[Month] BETWEEN 1 AND 12");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinPartner", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)")
+                        .UseCollation("SQL_Latin1_General_CP1_CI_AS");
+
+                    b.Property<decimal>("OpeningCapital")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("FinPartners", t =>
+                        {
+                            t.HasCheckConstraint("CK_FinPartners_OpeningCapital", "[OpeningCapital] >= 0");
                         });
                 });
 
@@ -2387,6 +2455,11 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinPartner", null)
+                        .WithMany()
+                        .HasForeignKey("PartnerId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("HrPayroll.Api.Data.Entities.FinEntry", null)
                         .WithMany()

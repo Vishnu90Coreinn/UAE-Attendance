@@ -26,6 +26,8 @@ public class FinanceCalculatorTests
                 "expense" => FinMovementType.Expense,
                 "transferIn" => FinMovementType.TransferIn,
                 "transferOut" => FinMovementType.TransferOut,
+                "capital" => FinMovementType.Capital,
+                "capitalOut" => FinMovementType.CapitalOut,
                 var other => throw new InvalidOperationException($"Unknown movement type {other}"),
             },
             m.GetProperty("amount").GetDecimal(),
@@ -48,6 +50,20 @@ public class FinanceCalculatorTests
         Assert.Equal(v.GetProperty("income").GetDecimal(), income);
         Assert.Equal(v.GetProperty("expense").GetDecimal(), expense);
         Assert.Equal(v.GetProperty("net").GetDecimal(), net);
+    }
+
+    public static IEnumerable<object[]> ShareCases() => Vectors.GetProperty("shares").EnumerateArray().Select(v => new object[] { v.GetProperty("name").GetString()! });
+
+    [Theory]
+    [MemberData(nameof(ShareCases))]
+    public void Shares_MatchSharedVector(string name)
+    {
+        var v = Vectors.GetProperty("shares").EnumerateArray().Single(x => x.GetProperty("name").GetString() == name);
+        var amounts = v.GetProperty("amounts").EnumerateArray().Select(x => x.GetDecimal()).ToList();
+        var expected = v.GetProperty("shares").EnumerateArray().Select(x => x.GetDecimal()).ToList();
+        var shares = FinanceCalculator.Shares(amounts);
+        Assert.Equal(expected, shares);
+        if (shares.Any(s => s > 0)) Assert.Equal(100.00m, shares.Sum());
     }
 
     [Theory]

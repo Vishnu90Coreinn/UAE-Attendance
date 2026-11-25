@@ -11,7 +11,7 @@ namespace HrPayroll.Api.Controllers;
 /// <summary>Expense and income tracking: bank and cash accounts, categories and transfers. Managers and Administrators edit; the Partner reads.</summary>
 [ApiController]
 [Route("api/finance")]
-public sealed class FinanceController(FinanceAccountService accounts, FinanceCategoryService categories, FinanceTransferService transfers, FinanceEntryService entries, FinancePeriodService periods, FinanceDashboardService dashboard, FinanceReportService reports, FinanceReportExportService reportExports) : ControllerBase
+public sealed class FinanceController(FinanceAccountService accounts, FinanceCategoryService categories, FinanceTransferService transfers, FinanceEntryService entries, FinancePeriodService periods, FinanceDashboardService dashboard, FinanceReportService reports, FinanceReportExportService reportExports, FinancePartnerService partners) : ControllerBase
 {
     private IActionResult Map<T>(FinResult<T> result) => result.Status switch
     {
@@ -25,6 +25,58 @@ public sealed class FinanceController(FinanceAccountService accounts, FinanceCat
     [HttpGet("dashboard")]
     [Authorize(Policy = Policies.Finance)]
     public async Task<IActionResult> Dashboard([FromQuery] int? days, CancellationToken ct) => Ok(await dashboard.GetAsync(days, ct));
+
+    // --- partners and their capital ---------------------------------------------------------------------------
+
+    [HttpGet("partners")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> Partners(CancellationToken ct) => Ok(await partners.ListAsync(ct));
+
+    [HttpPost("partners")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> CreatePartner([FromBody] FinPartnerRequest? request, CancellationToken ct) => Map(await partners.CreateAsync(request ?? new(), ct));
+
+    [HttpPut("partners/{id:int}")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> UpdatePartner(int id, [FromBody] FinPartnerRequest? request, CancellationToken ct) => Map(await partners.UpdateAsync(id, request ?? new(), ct));
+
+    /// <summary>Capital put in and paid back, newest first; the total is what is left.</summary>
+    [HttpGet("capital")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> Capital(
+        [FromQuery] string? from, [FromQuery] string? to, [FromQuery] int? partnerId, [FromQuery] int? accountId, [FromQuery] bool includeVoided, CancellationToken ct) =>
+        Ok(await entries.ListAsync(FinEntryKinds.CapitalKinds, new FinEntryFilter(from, to, null, accountId, null, null, null, includeVoided, partnerId), ct));
+
+    [HttpPost("capital/contributions")]
+    [Authorize(Policy = Policies.Finance)]
+    [RequestSizeLimit(30_000_000)]
+    public async Task<IActionResult> AddCapital([FromForm] FinExpenseForm? form, CancellationToken ct) =>
+        Map(await entries.CreateAsync(FinEntryKinds.Capital, form ?? new(), ct));
+
+    [HttpPost("capital/returns")]
+    [Authorize(Policy = Policies.Finance)]
+    [RequestSizeLimit(30_000_000)]
+    public async Task<IActionResult> ReturnCapital([FromForm] FinExpenseForm? form, CancellationToken ct) =>
+        Map(await entries.CreateAsync(FinEntryKinds.CapitalOut, form ?? new(), ct));
+
+    [HttpGet("capital/{id:int}")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> CapitalEntry(int id, CancellationToken ct) =>
+        await entries.KindOfAsync(id, ct) is { } kind && FinEntryKinds.IsCapital(kind)
+            ? Map(await entries.GetAsync(kind, id, ct)) : Problem(statusCode: 404, title: "The capital entry was not found.");
+
+    [HttpPut("capital/{id:int}")]
+    [Authorize(Policy = Policies.Finance)]
+    [RequestSizeLimit(30_000_000)]
+    public async Task<IActionResult> CorrectCapital(int id, [FromForm] FinExpenseForm? form, CancellationToken ct) =>
+        await entries.KindOfAsync(id, ct) is { } kind && FinEntryKinds.IsCapital(kind)
+            ? Map(await entries.CorrectAsync(kind, id, form ?? new(), ct)) : Problem(statusCode: 404, title: "The capital entry was not found.");
+
+    [HttpPost("capital/{id:int}/void")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> VoidCapital(int id, [FromBody] FinVoidRequest? request, CancellationToken ct) =>
+        await entries.KindOfAsync(id, ct) is { } kind && FinEntryKinds.IsCapital(kind)
+            ? Map(await entries.VoidAsync(kind, id, request?.Reason, ct)) : Problem(statusCode: 404, title: "The capital entry was not found.");
 
     // --- reports ----------------------------------------------------------------------------------------------
 

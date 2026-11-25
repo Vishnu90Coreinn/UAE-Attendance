@@ -7,7 +7,7 @@ import { useIsDesktop } from "../../utils/useIsDesktop";
 import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, Table, TableScroll, THead, Th, Td, TRow, cx } from "../../ui";
 import { saveBlob } from "../payroll/downloadPdf";
 import { ActionFailure, LoadError } from "../workers/WorkersFeedback";
-import { formatDay, formatMoney, todayInUae } from "./financeFormat";
+import { formatDay, formatMoney, formatPercent, todayInUae } from "./financeFormat";
 import { presetRange, rangeProblem, type ReportPreset } from "./reportPeriods";
 
 const PRESETS: { key: ReportPreset; label: string }[] = [
@@ -38,6 +38,7 @@ function BridgePanel({ report }: { report: FinReport }) {
     { label: "Opening balance", value: totals.opening, sign: "" },
     { label: "Income", value: totals.income, sign: "+" },
     { label: "Expenses", value: totals.expense, sign: "−" },
+    ...(totals.capital !== 0 ? [{ label: "Capital", value: Math.abs(totals.capital), sign: totals.capital < 0 ? "−" : "+" }] : []),
   ];
   return (
     <section aria-labelledby="closing" className="overflow-hidden rounded-card bg-sidebar text-white shadow-card">
@@ -50,7 +51,7 @@ function BridgePanel({ report }: { report: FinReport }) {
           <span className="mr-2 text-lg font-medium text-white/70">AED</span>
           {formatMoney(Math.abs(totals.closing))}
         </p>
-        <dl className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <dl className={cx("mt-6 grid grid-cols-1 gap-3", steps.length > 3 ? "sm:grid-cols-4" : "sm:grid-cols-3")}>
           {steps.map((s) => (
             <div key={s.label} className="rounded-lg bg-white/10 px-4 py-3">
               <dt className="text-xs font-medium uppercase tracking-wide text-white/70">{s.label}</dt>
@@ -85,6 +86,7 @@ function AccountsTable({ report }: { report: FinReport }) {
             <Th align="right">Expenses</Th>
             <Th align="right">Transfers in</Th>
             <Th align="right">Transfers out</Th>
+            <Th align="right">Capital</Th>
             <Th align="right">Closing</Th>
           </tr>
         </THead>
@@ -97,6 +99,7 @@ function AccountsTable({ report }: { report: FinReport }) {
               <Td numeric>{formatMoney(a.expense)}</Td>
               <Td numeric>{formatMoney(a.transfersIn)}</Td>
               <Td numeric>{formatMoney(a.transfersOut)}</Td>
+              <Td numeric>{signed(a.capital)}</Td>
               <Td numeric className="font-semibold text-ink-900">{signed(a.closing)}</Td>
             </TRow>
           ))}
@@ -107,6 +110,7 @@ function AccountsTable({ report }: { report: FinReport }) {
             <Td numeric>{formatMoney(totals.expense)}</Td>
             <Td numeric>{formatMoney(totals.transfersIn)}</Td>
             <Td numeric>{formatMoney(totals.transfersOut)}</Td>
+            <Td numeric>{signed(totals.capital)}</Td>
             <Td numeric>{signed(totals.closing)}</Td>
           </tr>
         </tbody>
@@ -126,6 +130,11 @@ function AccountStatements({ accounts }: { accounts: FinReportAccount[] }) {
             <dt className="text-ink-600">Opening</dt><dd className="text-right">{formatMoney(a.opening)}</dd>
             <dt className="text-ink-600">Income</dt><dd className="text-right">+ {formatMoney(a.income)}</dd>
             <dt className="text-ink-600">Expenses</dt><dd className="text-right">− {formatMoney(a.expense)}</dd>
+            {a.capital !== 0 && (
+              <>
+                <dt className="text-ink-600">Capital</dt><dd className="text-right">{a.capital < 0 ? "−" : "+"} {formatMoney(Math.abs(a.capital))}</dd>
+              </>
+            )}
             {(a.transfersIn > 0 || a.transfersOut > 0) && (
               <>
                 <dt className="text-ink-600">Transfers in / out</dt><dd className="text-right">{formatMoney(a.transfersIn)} / {formatMoney(a.transfersOut)}</dd>
@@ -161,6 +170,34 @@ function CategoryCard({ title, rows, total, bar }: { title: string; rows: FinRep
             </li>
           ))}
         </ol>
+      )}
+    </Card>
+  );
+}
+
+/** What each partner had at the start of the period, put in, took back and holds at the end, with the exact share. */
+function PartnersCard({ report }: { report: FinReport }) {
+  const rows = report.partners ?? [];
+  return (
+    <Card>
+      <CardHeader title="Partners' capital" description="Each partner's capital over the period, and their share of all capital at the end of it" />
+      {rows.length === 0 ? (
+        <p className="px-5 pb-6 text-sm text-ink-600">No partner capital is recorded for this period.</p>
+      ) : (
+        <ul className="divide-y divide-line border-t border-line">
+          {rows.map((p) => (
+            <li key={p.partnerId} className="px-5 py-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0 flex-1 truncate font-medium text-ink-900">{p.name}</span>
+                <span className="font-semibold tabular-nums text-ink-900">AED {formatMoney(p.closing)}</span>
+                <span className="w-20 text-right font-semibold tabular-nums text-brand-700">{formatPercent(p.share)}</span>
+              </div>
+              <p className="mt-1 text-sm tabular-nums text-ink-600">
+                Opening {formatMoney(p.opening)} · added {formatMoney(p.added)} · returned {formatMoney(p.returned)}
+              </p>
+            </li>
+          ))}
+        </ul>
       )}
     </Card>
   );
@@ -273,6 +310,7 @@ export function FinanceReportsPage() {
             <CategoryCard title="Income by category" rows={ready.incomeCategories} total={ready.period.income} bar="bg-brand-500" />
             <CategoryCard title="Expenses by category" rows={ready.expenseCategories} total={ready.period.expense} bar="bg-amber-400" />
           </div>
+          <PartnersCard report={ready} />
         </>
       )}
     </section>

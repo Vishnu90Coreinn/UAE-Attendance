@@ -35,3 +35,8 @@ export function parseMoneyInput(text: string): number | null {
   if (!/^-?\d+(\.\d{1,2})?$/.test(cleaned)) return null;
   return Number(cleaned);
 }
+
+/** "40.00%": a share with its two decimals, exactly as the server worked it out. */
+export function formatPercent(value: number): string {
+  return `${value.toFixed(2)}%`;
+}

@@ -21,10 +21,19 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
 
     private static StaffExportService.Table AccountsTable(FinReport r, string stem) => new(
         "FINANCE STATEMENT", $"{Day(r.From)} to {Day(r.To)}  |  AED", stem,
-        [("ACCOUNT", 2.4, false), ("OPENING", 1.2, true), ("INCOME", 1.1, true), ("EXPENSES", 1.1, true), ("TRANSFERS IN", 1.1, true), ("TRANSFERS OUT", 1.1, true), ("CLOSING", 1.2, true)],
-        r.Accounts.Select(a => new[] { a.Name, Money(a.Opening), Money(a.Income), Money(a.Expense), Money(a.TransfersIn), Money(a.TransfersOut), Money(a.Closing) })
-            .Append(["Total", Money(r.Totals.Opening), Money(r.Totals.Income), Money(r.Totals.Expense), Money(r.Totals.TransfersIn), Money(r.Totals.TransfersOut), Money(r.Totals.Closing)]).ToList(),
-        [$"Net result for the period: AED {Money(r.Period.Net)} (income less expenses). Transfers between the company's own accounts are not income or expense.", "Voided entries are not counted."]);
+        [("ACCOUNT", 2.2, false), ("OPENING", 1.15, true), ("INCOME", 1.05, true), ("EXPENSES", 1.05, true), ("TRANSFERS IN", 1.05, true), ("TRANSFERS OUT", 1.05, true), ("CAPITAL", 1.05, true), ("CLOSING", 1.15, true)],
+        r.Accounts.Select(a => new[] { a.Name, Money(a.Opening), Money(a.Income), Money(a.Expense), Money(a.TransfersIn), Money(a.TransfersOut), Money(a.Capital), Money(a.Closing) })
+            .Append(["Total", Money(r.Totals.Opening), Money(r.Totals.Income), Money(r.Totals.Expense), Money(r.Totals.TransfersIn), Money(r.Totals.TransfersOut), Money(r.Totals.Capital), Money(r.Totals.Closing)]).ToList(),
+        [$"Net result for the period: AED {Money(r.Period.Net)} (income less expenses). Transfers between the company's own accounts and partners' capital are not income or expense.", "Capital is what partners put in, less what was paid back. Voided entries are not counted."]);
+
+    private static StaffExportService.Table PartnersTable(FinReport r, string stem, string subtitle)
+    {
+        var partners = r.Partners ?? [];
+        return new("PARTNERS' CAPITAL", subtitle, stem, [("PARTNER", 2.6, false), ("OPENING", 1.2, true), ("ADDED", 1.2, true), ("RETURNED", 1.2, true), ("CLOSING", 1.3, true), ("SHARE", 0.8, true)],
+            partners.Select(p => new[] { p.Name, Money(p.Opening), Money(p.Added), Money(p.Returned), Money(p.Closing), p.Share.ToString("0.00", CultureInfo.InvariantCulture) + "%" })
+                .Append(["Total", Money(partners.Sum(p => p.Opening)), Money(partners.Sum(p => p.Added)), Money(partners.Sum(p => p.Returned)), Money(partners.Sum(p => p.Closing)), partners.Count > 0 ? "100.00%" : ""]).ToList(),
+            ["Share is each partner's capital at the end of the period as a percentage of all partners' capital."]);
+    }
 
     private static StaffExportService.Table CategoryTable(string title, IReadOnlyList<FinReportCategory> rows, decimal total, string stem, string subtitle) => new(
         title, subtitle, stem, [("CATEGORY", 3, false), ("ENTRIES", 0.8, true), ("AMOUNT", 1.3, true), ("SHARE", 0.7, true)],
@@ -41,18 +50,19 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
         var accounts = AccountsTable(r, stem);
         var income = CategoryTable("INCOME BY CATEGORY", r.IncomeCategories, r.Period.Income, stem, subtitle);
         var expenses = CategoryTable("EXPENSES BY CATEGORY", r.ExpenseCategories, r.Period.Expense, stem, subtitle);
+        var partnersTable = PartnersTable(r, stem, subtitle);
 
         if (format == FinReportFormat.Csv) return FinResult<FinReportFile>.Ok(new(Csv(r), stem + ".csv", "text/csv; charset=utf-8"));
 
         var company = await staffExports.CompanyAsync(ct);
         if (format == FinReportFormat.Pdf)
-            return FinResult<FinReportFile>.Ok(new(staffExports.BuildPdf([accounts, income, expenses], company, Footer), stem + ".pdf", AttendanceExportService.PdfType));
+            return FinResult<FinReportFile>.Ok(new(staffExports.BuildPdf([accounts, income, expenses, partnersTable], company, Footer), stem + ".pdf", AttendanceExportService.PdfType));
 
         var entries = await reports.EntriesAsync(r.From, r.To, ct);
         var detail = new StaffExportService.Table("ENTRIES", subtitle, stem,
             [("DATE", 1, false), ("NO.", 1.1, false), ("TYPE", 0.8, false), ("CATEGORY", 2, false), ("PARTY", 2, false), ("ACCOUNT", 1.6, false), ("REFERENCE", 1.2, false), ("AMOUNT", 1, true)],
             entries.Select(e => new[] { Day(e.Date), e.EntryNo, e.Kind, e.Category, e.Party, e.Account, e.Reference ?? "", Money(e.Amount) }).ToList(), []);
-        var book = StaffExportService.Workbook([("Statement", accounts), ("Income", income), ("Expenses", expenses), ("Entries", detail)], company);
+        var book = StaffExportService.Workbook([("Statement", accounts), ("Income", income), ("Expenses", expenses), ("Partners", partnersTable), ("Entries", detail)], company);
         return FinResult<FinReportFile>.Ok(new(book, stem + ".xlsx", AttendanceExportService.ExcelType));
     }
 
@@ -72,9 +82,9 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
         void Line(params string?[] cells) => sb.Append(string.Join(',', cells.Select(Cell))).Append("\r\n");
         Line("Finance report", r.From, r.To, "AED");
         Line();
-        Line("Account", "Opening", "Income", "Expenses", "Transfers in", "Transfers out", "Closing");
-        foreach (var a in r.Accounts) Line(a.Name, Plain(a.Opening), Plain(a.Income), Plain(a.Expense), Plain(a.TransfersIn), Plain(a.TransfersOut), Plain(a.Closing));
-        Line("Total", Plain(r.Totals.Opening), Plain(r.Totals.Income), Plain(r.Totals.Expense), Plain(r.Totals.TransfersIn), Plain(r.Totals.TransfersOut), Plain(r.Totals.Closing));
+        Line("Account", "Opening", "Income", "Expenses", "Transfers in", "Transfers out", "Capital", "Closing");
+        foreach (var a in r.Accounts) Line(a.Name, Plain(a.Opening), Plain(a.Income), Plain(a.Expense), Plain(a.TransfersIn), Plain(a.TransfersOut), Plain(a.Capital), Plain(a.Closing));
+        Line("Total", Plain(r.Totals.Opening), Plain(r.Totals.Income), Plain(r.Totals.Expense), Plain(r.Totals.TransfersIn), Plain(r.Totals.TransfersOut), Plain(r.Totals.Capital), Plain(r.Totals.Closing));
         Line();
         Line("Income by category", "Entries", "Amount", "Share %");
         foreach (var c in r.IncomeCategories) Line(c.Name, c.Count.ToString(CultureInfo.InvariantCulture), Plain(c.Amount), c.Share.ToString(CultureInfo.InvariantCulture));
@@ -85,6 +95,9 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
         Line("Total", r.ExpenseCategories.Sum(c => c.Count).ToString(CultureInfo.InvariantCulture), Plain(r.Period.Expense), "");
         Line();
         Line("Net result", Plain(r.Period.Net));
+        Line();
+        Line("Partners' capital", "Opening", "Added", "Returned", "Closing", "Share %");
+        foreach (var p in r.Partners ?? []) Line(p.Name, Plain(p.Opening), Plain(p.Added), Plain(p.Returned), Plain(p.Closing), Plain(p.Share));
         return [.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(sb.ToString())];
     }
 }

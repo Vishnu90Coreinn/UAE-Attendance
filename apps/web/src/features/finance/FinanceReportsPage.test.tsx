@@ -16,10 +16,11 @@ function report(overrides: Partial<FinReport> = {}): FinReport {
   return {
     from: "2026-11-01", to: "2026-11-25",
     accounts: [
-      { accountId: 1, name: "RAKBANK Current", kind: "Bank", isActive: true, opening: 1500, income: 300, expense: 200, transfersIn: 0, transfersOut: 100, closing: 1500 },
-      { accountId: 2, name: "Main cash", kind: "Cash", isActive: true, opening: 0, income: 0, expense: 50, transfersIn: 100, transfersOut: 0, closing: 50 },
+      { accountId: 1, name: "RAKBANK Current", kind: "Bank", isActive: true, opening: 1500, income: 300, expense: 200, transfersIn: 0, transfersOut: 100, capital: 0, closing: 1500 },
+      { accountId: 2, name: "Main cash", kind: "Cash", isActive: true, opening: 0, income: 0, expense: 50, transfersIn: 100, transfersOut: 0, capital: 0, closing: 50 },
     ],
-    totals: { opening: 1500, income: 300, expense: 250, transfersIn: 100, transfersOut: 100, closing: 1550 },
+    totals: { opening: 1500, income: 300, expense: 250, transfersIn: 100, transfersOut: 100, capital: 0, closing: 1550 },
+    partners: [{ partnerId: 1, name: "Anil Kumar", opening: 6000, added: 2000, returned: 500, closing: 7500, share: 62.5 }, { partnerId: 2, name: "Rafi Khan", opening: 4500, added: 0, returned: 0, closing: 4500, share: 37.5 }],
     period: { income: 300, expense: 250, net: 50 },
     incomeCategories: [{ categoryId: 10, name: "Other income", amount: 300, count: 1, share: 100 }],
     expenseCategories: [{ categoryId: 1, name: "Rent", amount: 200, count: 1, share: 80 }, { categoryId: 2, name: "Fuel", amount: 50, count: 2, share: 20 }],
@@ -40,8 +41,17 @@ it("opens on this month and shows the closing balance, the bridge and the accoun
   expect(within(panel).getByText(/AED 50.00/)).toBeInTheDocument(); // net result
   const table = screen.getByRole("table", { name: /statement by account/i });
   const rak = within(table).getByText("RAKBANK Current").closest("tr")!;
-  expect(within(rak).getAllByRole("cell").map((c) => c.textContent)).toEqual(["RAKBANK Current", "1,500.00", "300.00", "200.00", "0.00", "100.00", "1,500.00"]);
+  expect(within(rak).getAllByRole("cell").map((c) => c.textContent)).toEqual(["RAKBANK Current", "1,500.00", "300.00", "200.00", "0.00", "100.00", "0.00", "1,500.00"]);
   expect(within(table).getByText("Total").closest("tr")).toHaveTextContent("1,550.00");
+});
+
+it("shows each partner's capital with the exact share to two decimals", async () => {
+  render(<FinanceReportsPage />);
+  await screen.findByText("Partners' capital");
+  const anil = screen.getByText("Anil Kumar").closest("li")!;
+  expect(within(anil).getByText("62.50%")).toBeInTheDocument();
+  expect(within(anil).getByText(/Opening 6,000.00 · added 2,000.00 · returned 500.00/)).toBeInTheDocument();
+  expect(screen.getByText("37.50%")).toBeInTheDocument();
 });
 
 it("lists income and expenses by category with shares", async () => {

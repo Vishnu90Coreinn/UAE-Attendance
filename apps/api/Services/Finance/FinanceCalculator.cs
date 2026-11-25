@@ -1,6 +1,6 @@
 namespace HrPayroll.Api.Services.Finance;
 
-public enum FinMovementType { Income, Expense, TransferIn, TransferOut }
+public enum FinMovementType { Income, Expense, TransferIn, TransferOut, Capital, CapitalOut }
 
 /// <summary>One recorded amount against an account. A voided movement counts nowhere.</summary>
 public readonly record struct FinMovement(FinMovementType Type, decimal Amount, bool Voided = false);
@@ -11,18 +11,23 @@ public readonly record struct FinMovement(FinMovementType Type, decimal Amount, 
 /// </summary>
 public static class FinanceCalculator
 {
-    /// <summary>Opening balance + income - expense + transfers in - transfers out. A transfer is never income or expense.</summary>
-    public static decimal Balance(decimal opening, decimal income, decimal expense, decimal transfersIn, decimal transfersOut) =>
-        opening + income - expense + transfersIn - transfersOut;
+    /// <summary>
+    /// Opening balance + income - expense + transfers in - transfers out + capital put in less capital paid back (<paramref name="capital"/> is that net figure).
+    /// A transfer is never income or expense, and capital is never income or expense either.
+    /// </summary>
+    public static decimal Balance(decimal opening, decimal income, decimal expense, decimal transfersIn, decimal transfersOut, decimal capital = 0m) =>
+        opening + income - expense + transfersIn - transfersOut + capital;
 
     public static decimal Balance(decimal opening, IEnumerable<FinMovement> movements)
     {
-        decimal income = 0, expense = 0, transfersIn = 0, transfersOut = 0;
+        decimal income = 0, expense = 0, transfersIn = 0, transfersOut = 0, capital = 0;
         foreach (var m in movements)
         {
             if (m.Voided) continue;
             switch (m.Type)
             {
+                case FinMovementType.Capital: capital += m.Amount; break;
+                case FinMovementType.CapitalOut: capital -= m.Amount; break;
                 case FinMovementType.Income: income += m.Amount; break;
                 case FinMovementType.Expense: expense += m.Amount; break;
                 case FinMovementType.TransferIn: transfersIn += m.Amount; break;
@@ -30,7 +35,7 @@ public static class FinanceCalculator
             }
         }
 
-        return Balance(opening, income, expense, transfersIn, transfersOut);
+        return Balance(opening, income, expense, transfersIn, transfersOut, capital);
     }
 
     /// <summary>Income, expense and the net result of a period. Transfers and voided rows are left out.</summary>
@@ -45,6 +50,27 @@ public static class FinanceCalculator
         }
 
         return (income, expense, income - expense);
+    }
+
+    /// <summary>
+    /// Each amount's share of the total as a percentage with two decimals, adding up to exactly 100.00 (the largest remainders get the
+    /// spare hundredths). An amount of zero or less has no share; with nothing to share every share is 0.
+    /// </summary>
+    public static decimal[] Shares(IReadOnlyList<decimal> amounts)
+    {
+        var positive = amounts.Select(a => a > 0 ? a : 0m).ToArray();
+        var whole = positive.Sum();
+        var result = new decimal[amounts.Count];
+        if (whole <= 0) return result;
+
+        // Work in hundredths of a percent so the arithmetic is exact.
+        var exact = positive.Select(a => a * 10000m / whole).ToArray();
+        var floors = exact.Select(Math.Floor).ToArray();
+        var spare = 10000m - floors.Sum();
+        foreach (var i in Enumerable.Range(0, exact.Length).OrderByDescending(i => exact[i] - floors[i]).ThenBy(i => i).Take((int)spare))
+            floors[i] += 1;
+        for (var i = 0; i < result.Length; i++) result[i] = floors[i] / 100m;
+        return result;
     }
 
     /// <summary>True for an amount of AED with at most two decimals.</summary>

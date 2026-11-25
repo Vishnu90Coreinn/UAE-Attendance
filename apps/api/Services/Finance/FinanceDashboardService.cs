@@ -22,7 +22,7 @@ public sealed class FinanceDashboardService(AppDbContext db, TimeProvider time, 
         var previousFrom = from.AddDays(-days);
 
         var rows = await db.FinEntries.AsNoTracking()
-            .Where(e => e.Status == FinStatuses.Active && e.EntryDate >= previousFrom && e.EntryDate <= to)
+            .Where(e => e.Status == FinStatuses.Active && (e.Kind == FinEntryKinds.Income || e.Kind == FinEntryKinds.Expense) && e.EntryDate >= previousFrom && e.EntryDate <= to)
             .Select(e => new Row(e.EntryDate, e.Kind, e.Amount, e.CategoryId, e.Category.Name))
             .ToListAsync(ct);
 
@@ -46,7 +46,7 @@ public sealed class FinanceDashboardService(AppDbContext db, TimeProvider time, 
         }
 
         var latest = await db.FinEntries.AsNoTracking()
-            .Where(e => e.Status == FinStatuses.Active)
+            .Where(e => e.Status == FinStatuses.Active && (e.Kind == FinEntryKinds.Income || e.Kind == FinEntryKinds.Expense))
             .OrderByDescending(e => e.EntryDate).ThenByDescending(e => e.Id).Take(8)
             .Select(e => new { e.Id, e.Kind, e.EntryNo, e.EntryDate, Category = e.Category.Name, e.Party, Account = e.Account.Name, e.Amount })
             .ToListAsync(ct);

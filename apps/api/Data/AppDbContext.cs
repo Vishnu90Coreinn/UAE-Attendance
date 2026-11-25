@@ -48,6 +48,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<FinTransfer> FinTransfers => Set<FinTransfer>();
     public DbSet<FinAttachment> FinAttachments => Set<FinAttachment>();
     public DbSet<FinMonthLock> FinMonthLocks => Set<FinMonthLock>();
+    public DbSet<FinPartner> FinPartners => Set<FinPartner>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -56,5 +57,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         // Gap-free-per-kind numbers for EXP-000001 and INC-000001.
         modelBuilder.HasSequence<int>("FinExpenseNo");
         modelBuilder.HasSequence<int>("FinIncomeNo");
+        modelBuilder.HasSequence<int>("FinCapitalNo");
+        modelBuilder.HasSequence<int>("FinCapitalOutNo");
     }
 }

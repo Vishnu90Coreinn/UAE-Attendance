@@ -1,5 +1,6 @@
 import {
   Banknote,
+  Handshake,
   FileBarChart,
   ChartNoAxesCombined,
   Building2,
@@ -43,6 +44,7 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   "finance-accounts": Landmark,
   "finance-expenses": ReceiptText,
   "finance-income": HandCoins,
+  "finance-partners": Handshake,
   "finance-reports": FileBarChart,
   invoices: FileText,
   letters: FileSignature,
@@ -58,7 +60,7 @@ export const NAV_GROUPS: ReadonlyArray<{ label: string; keys: readonly string[] 
   { label: "Workforce", keys: ["workers", "attendance"] },
   { label: "Office staff", keys: ["staff", "staff-leave"] },
   { label: "Pay & leave", keys: ["payroll", "staff-payroll", "deductions", "leave"] },
-  { label: "Finance", keys: ["finance-overview", "finance-accounts", "finance-expenses", "finance-income", "finance-reports"] },
+  { label: "Finance", keys: ["finance-overview", "finance-accounts", "finance-expenses", "finance-income", "finance-partners", "finance-reports"] },
   { label: "Documents", keys: ["invoices", "letters"] },
   { label: "Site", keys: ["progress"] },
   { label: "Administration", keys: ["users", "settings"] },

@@ -8,7 +8,7 @@ namespace HrPayroll.Api.Services.Finance;
 /// <summary>Bank and cash accounts. Balances are worked out from the entries and transfers, never stored.</summary>
 public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, FinanceRedactor redactor, TimeProvider time, FinancePeriodService periods)
 {
-    private sealed record Sums(int AccountId, decimal Income, decimal Expense, decimal In, decimal Out, int Count);
+    private sealed record Sums(int AccountId, decimal Income, decimal Expense, decimal In, decimal Out, int Count, decimal Capital = 0m);
 
     /// <summary>Per account: active income, expense, transfers in and out, and how many rows exist (voided included).</summary>
     private async Task<Dictionary<int, Sums>> SumsAsync(CancellationToken ct)
@@ -20,6 +20,8 @@ public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, F
                 AccountId = g.Key,
                 Income = g.Where(e => e.Status == FinStatuses.Active && e.Kind == FinEntryKinds.Income).Sum(e => (decimal?)e.Amount) ?? 0m,
                 Expense = g.Where(e => e.Status == FinStatuses.Active && e.Kind == FinEntryKinds.Expense).Sum(e => (decimal?)e.Amount) ?? 0m,
+                Capital = (g.Where(e => e.Status == FinStatuses.Active && e.Kind == FinEntryKinds.Capital).Sum(e => (decimal?)e.Amount) ?? 0m)
+                    - (g.Where(e => e.Status == FinStatuses.Active && e.Kind == FinEntryKinds.CapitalOut).Sum(e => (decimal?)e.Amount) ?? 0m),
                 Count = g.Count(),
             }).ToListAsync(ct);
         var outgoing = await db.FinTransfers.AsNoTracking().GroupBy(t => t.FromAccountId)
@@ -33,7 +35,7 @@ public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, F
             var e = entries.SingleOrDefault(x => x.AccountId == id);
             var o = outgoing.SingleOrDefault(x => x.AccountId == id);
             var i = incoming.SingleOrDefault(x => x.AccountId == id);
-            result[id] = new Sums(id, e?.Income ?? 0m, e?.Expense ?? 0m, i?.Sum ?? 0m, o?.Sum ?? 0m, (e?.Count ?? 0) + (o?.Count ?? 0) + (i?.Count ?? 0));
+            result[id] = new Sums(id, e?.Income ?? 0m, e?.Expense ?? 0m, i?.Sum ?? 0m, o?.Sum ?? 0m, (e?.Count ?? 0) + (o?.Count ?? 0) + (i?.Count ?? 0), e?.Capital ?? 0m);
         }
 
         return result;
@@ -42,7 +44,7 @@ public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, F
     private FinAccountResponse ToResponse(FinAccount a, Sums? s) => new(
         a.Id, a.Name, a.Kind, a.BankName, redactor.Number(a.AccountNumber), redactor.Number(a.Iban), a.OpeningBalance,
         FinanceRules.Format(a.OpeningDate), a.IsActive, a.SortOrder,
-        FinanceCalculator.Balance(a.OpeningBalance, s?.Income ?? 0m, s?.Expense ?? 0m, s?.In ?? 0m, s?.Out ?? 0m), s?.Count ?? 0);
+        FinanceCalculator.Balance(a.OpeningBalance, s?.Income ?? 0m, s?.Expense ?? 0m, s?.In ?? 0m, s?.Out ?? 0m, s?.Capital ?? 0m), s?.Count ?? 0);
 
     public async Task<List<FinAccountResponse>> ListAsync(bool includeInactive, CancellationToken ct)
     {

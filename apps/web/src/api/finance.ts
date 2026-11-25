@@ -127,6 +127,8 @@ export interface FinEntry {
   /** The entry this one corrects, and the entry that corrected it. */
   replacesEntryNo: string | null;
   replacedByEntryNo: string | null;
+  /** Capital entries only. */
+  partnerId?: number | null;
 }
 
 export interface FinEntryList {
@@ -263,10 +265,13 @@ export interface FinReportAccount {
   expense: number;
   transfersIn: number;
   transfersOut: number;
+  /** Capital put in less capital paid back, in the period. */
+  capital: number;
   /** The balance at the end of the period: opening + income - expenses + transfers in - transfers out. */
   closing: number;
 }
 export interface FinReportTotals {
+  capital: number;
   opening: number;
   income: number;
   expense: number;
@@ -281,7 +286,17 @@ export interface FinReportCategory {
   count: number;
   share: number;
 }
+export interface FinReportPartner {
+  partnerId: number;
+  name: string;
+  opening: number;
+  added: number;
+  returned: number;
+  closing: number;
+  share: number;
+}
 export interface FinReport {
+  partners: FinReportPartner[];
   from: string;
   to: string;
   accounts: FinReportAccount[];
@@ -300,4 +315,86 @@ export function getFinReportFile(format: FinReportFormat, from: string, to: stri
   const path = `/api/finance/reports/summary?from=${from}&to=${to}&format=${format}`;
   if (format === "pdf") return apiGetBlob(path);
   return apiGetFile(path, format === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+}
+
+// --- partners and their capital ---------------------------------------------------------------------------------------
+
+export interface FinPartner {
+  id: number;
+  name: string;
+  /** Capital put in before this app was used; already part of the accounts' opening balances. */
+  openingCapital: number;
+  isActive: boolean;
+  sortOrder: number;
+  added: number;
+  returned: number;
+  /** openingCapital + added - returned. */
+  netCapital: number;
+  /** Percentage of every partner's net capital, two decimals; all shares add up to 100.00. */
+  share: number;
+  movementCount: number;
+  lastMovementDate: string | null;
+}
+export interface FinPartners {
+  partners: FinPartner[];
+  totalCapital: number;
+}
+export interface FinPartnerInput {
+  name: string;
+  openingCapital: number;
+  isActive?: boolean;
+}
+export type FinCapitalKind = "Capital" | "CapitalOut";
+export type FinCapitalEntry = Omit<FinEntry, "kind"> & { kind: FinCapitalKind };
+export interface FinCapitalList {
+  items: FinCapitalEntry[];
+  /** Put in less paid back, over every match. */
+  total: number;
+  count: number;
+  truncated: boolean;
+}
+export interface FinCapitalInput {
+  entryDate: string;
+  partnerId: number;
+  accountId: number;
+  amount: number;
+  reference: string;
+  notes: string;
+  files: File[];
+  keepAttachmentIds?: number[];
+}
+
+export function listFinPartners(): Promise<FinPartners> {
+  return apiGet("/api/finance/partners");
+}
+export function createFinPartner(input: FinPartnerInput): Promise<FinPartner> {
+  return apiPost<FinPartner>("/api/finance/partners", input);
+}
+export function updateFinPartner(id: number, input: FinPartnerInput): Promise<FinPartner> {
+  return apiPut<FinPartner>(`/api/finance/partners/${id}`, input);
+}
+export function listFinCapital(filter: { partnerId?: number; includeVoided?: boolean } = {}): Promise<FinCapitalList> {
+  return apiGet(`/api/finance/capital${filterQuery(filter)}`);
+}
+function capitalForm(input: FinCapitalInput): FormData {
+  const form = new FormData();
+  form.set("entryDate", input.entryDate);
+  form.set("partnerId", String(input.partnerId));
+  form.set("accountId", String(input.accountId));
+  form.set("amount", String(input.amount));
+  if (input.reference) form.set("reference", input.reference);
+  if (input.notes) form.set("notes", input.notes);
+  for (const file of input.files) form.append("files", file, file.name);
+  for (const id of input.keepAttachmentIds ?? []) form.append("keepAttachmentIds", String(id));
+  return form;
+}
+/** Capital a partner put in ("Capital") or had paid back ("CapitalOut"). */
+export function addFinCapital(kind: FinCapitalKind, input: FinCapitalInput): Promise<FinCapitalEntry> {
+  return apiPostForm<FinCapitalEntry>(`/api/finance/capital/${kind === "Capital" ? "contributions" : "returns"}`, capitalForm(input));
+}
+export function correctFinCapital(id: number, input: FinCapitalInput): Promise<FinCapitalEntry> {
+  return apiPutForm<FinCapitalEntry>(`/api/finance/capital/${id}`, capitalForm(input));
+}
+export function voidFinCapital(id: number, reason: string): Promise<FinCapitalEntry> {
+  return apiPost<FinCapitalEntry>(`/api/finance/capital/${id}/void`, { reason });
 }

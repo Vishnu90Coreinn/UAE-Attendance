@@ -114,7 +114,7 @@ public class FinanceReportTests(ApiFixture api) : IClassFixture<ApiFixture>
         var bytes = await response.Content.ReadAsByteArrayAsync();
         Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, bytes[..3]);
         var text = Encoding.UTF8.GetString(bytes);
-        Assert.Contains($"{(await AccountName(a.Id))},1500.00,300.00,200.00,0.00,100.00,1500.00", text);
+        Assert.Contains($"{(await AccountName(a.Id))},1500.00,300.00,200.00,0.00,100.00,0.00,1500.00", text);
         Assert.Contains("Net result,", text);
         Assert.DoesNotContain("1,500.00", text);
     }
@@ -152,7 +152,7 @@ public class FinanceReportTests(ApiFixture api) : IClassFixture<ApiFixture>
         var sheet = book.Worksheet("Statement");
         var total = sheet.RowsUsed().Single(r => r.Cell(1).GetString() == "Total");
         Assert.Equal(report.GetProperty("totals").GetProperty("income").GetDecimal(), (decimal)total.Cell(3).GetDouble());
-        Assert.Equal(report.GetProperty("totals").GetProperty("closing").GetDecimal(), (decimal)total.Cell(7).GetDouble());
+        Assert.Equal(report.GetProperty("totals").GetProperty("closing").GetDecimal(), (decimal)total.Cell(8).GetDouble());
         Assert.NotNull(book.Worksheet("Entries"));
     }
 }

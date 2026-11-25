@@ -90,6 +90,7 @@ builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinancePeriodService>(
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceEntryService>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceDashboardService>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceReportService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinancePartnerService>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceReportExportService>();
 builder.Services.AddSingleton<HrPayroll.Api.Services.Finance.IReceiptStore, HrPayroll.Api.Services.Finance.FolderReceiptStore>();
 
