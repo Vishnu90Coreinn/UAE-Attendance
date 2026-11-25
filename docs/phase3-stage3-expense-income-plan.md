@@ -94,7 +94,7 @@ New nav group **Finance**: Dashboard, Expenses, Income, Accounts (accounts + tra
 | **F2 Expenses and receipts** | 1.5 | Multipart create, attachment store and streaming, list with search and filters, receipt viewer, phone card layout | Expense without file refused; wrong file type refused; receipt opens from the list |
 | **F3 Income** | 1 | Same screens with optional attachment, reference | Income raises the balance; no attachment needed |
 | **F4 Corrections, void, month lock** | 1 | Void, correct (chain), lock and unlock, 409 handling, voided filter | Lock blocks add, edit, void and transfer in that month; correction leaves the original with who/when |
-| **F4b Daftra import** | 1 | One-off admin command, dry run, receipt download, `ExternalId` guard (section 7). Quoted to the client as a change request | Row counts, monthly totals and bank balance match |
+| **F4b Daftra import (DROPPED 25 Nov 2026)** | 1 | One-off admin command, dry run, receipt download, `ExternalId` guard (section 7). Quoted to the client as a change request | Row counts, monthly totals and bank balance match |
 | **F5 Dashboard** | 1 | Total balance, per-account balance, income / expense for 7, 30, 365 days, net, spending by category, latest entries | Numbers equal the report for the same period |
 | **F6 Reports and export** | 1.5 | Period report by category and by account with opening and closing balances; Excel (ClosedXML), PDF, CSV; CSV is UTF-8 with BOM so Excel opens it | The three formats show identical figures |
 | **F7 Final test, migration, deploy** | 0.5 | Full verification, migration script, deploy per `docs/DEPLOY.md`, seed with the client's opening balances, Daftra month-total check | Clean LocalDB afterwards; production backup taken first |
@@ -118,7 +118,7 @@ Each slice: run `/ui-ux-pro-max:ui-ux-pro-max` for its screens first (see the UI
 **Decided by the owner (24 Nov 2026):**
 - Access uses today's fixed roles (Manager and Admin edit, Partner views). No configurable matrix.
 - Merge `feat/phone-ui-redesign` first, then cut `feat/finance-accounts` from the result.
-- Daftra history is imported as slice F4b (change request, about 1 day).
+- ~~Daftra history is imported as slice F4b.~~ **Reversed 25 Nov 2026: the client does not want any Daftra data imported. Everything is entered by hand in this app; an import may be considered at a later stage.** Section 7 stays as the record of what an import would take. F4b is not built, and F7 no longer includes an import run or the Daftra month-total check.
 - Receipts are stored in a server folder, not the database.
 - A Manager can unlock a month, with a reason (differs from my recommendation of Administrator only; audit log keeps who and why).
 - Expenses get an optional Reference field.
