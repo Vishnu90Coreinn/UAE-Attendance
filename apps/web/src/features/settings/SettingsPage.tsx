@@ -10,6 +10,7 @@ import { isManagement } from "../../permissions";
 import { TextField } from "../../components/TextField";
 import { CompanyDocumentsCard } from "./CompanyDocumentsCard";
 import { FinanceCategoriesCard } from "../finance/FinanceCategoriesCard";
+import { StaffEntryCard } from "../finance/StaffEntryCard";
 import { FinanceMonthLocksCard } from "../finance/FinanceMonthLocksCard";
 import { StaffSettingsCard } from "../staff/StaffSettingsCard";
 import { LoadError, primaryButtonClass, SuccessRegion } from "../workers/WorkersFeedback";
@@ -349,6 +350,7 @@ export function SettingsPage() {
         <div id="finance" className="max-w-4xl scroll-mt-20">
           <FinanceCategoriesCard />
           <div className="mt-6"><FinanceMonthLocksCard /></div>
+          <div className="mt-6"><StaffEntryCard /></div>
         </div>
       )}
     </section>

@@ -7,6 +7,9 @@ public class User
     public string PasswordHash { get; set; } = "";
     public string Role { get; set; } = "";
     public bool IsActive { get; set; } = true;
+
+    /// <summary>Office staff a Manager has allowed to submit expenses for approval (see Finance). Managers and Administrators need no flag.</summary>
+    public bool CanSubmitExpenses { get; set; }
     public int FailedLoginCount { get; set; }
     public DateTime? LockoutEndUtc { get; set; }
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;

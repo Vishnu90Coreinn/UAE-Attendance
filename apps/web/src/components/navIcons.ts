@@ -1,5 +1,8 @@
 import {
+  Receipt,
   Banknote,
+  Contact,
+  FileCheck2,
   Handshake,
   FileBarChart,
   ChartNoAxesCombined,
@@ -44,6 +47,10 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   "finance-accounts": Landmark,
   "finance-expenses": ReceiptText,
   "finance-income": HandCoins,
+  "my-expenses": Receipt,
+  "finance-petty-cash": Wallet,
+  "finance-cheques": FileCheck2,
+  "finance-payees": Contact,
   "finance-partners": Handshake,
   "finance-reports": FileBarChart,
   invoices: FileText,
@@ -55,12 +62,12 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
 
 /** Sidebar sections. Order within and across groups matches NAV_ITEMS, so the tab order never changes. */
 export const NAV_GROUPS: ReadonlyArray<{ label: string; keys: readonly string[] }> = [
-  { label: "My work", keys: ["my-attendance", "my-leave", "my-letters", "my-profile"] },
+  { label: "My work", keys: ["my-attendance", "my-leave", "my-letters", "my-expenses", "my-profile"] },
   { label: "Overview", keys: ["dashboard"] },
   { label: "Workforce", keys: ["workers", "attendance"] },
   { label: "Office staff", keys: ["staff", "staff-leave"] },
   { label: "Pay & leave", keys: ["payroll", "staff-payroll", "deductions", "leave"] },
-  { label: "Finance", keys: ["finance-overview", "finance-accounts", "finance-expenses", "finance-income", "finance-partners", "finance-reports"] },
+  { label: "Finance", keys: ["finance-overview", "finance-accounts", "finance-expenses", "finance-income", "finance-petty-cash", "finance-cheques", "finance-payees", "finance-partners", "finance-reports"] },
   { label: "Documents", keys: ["invoices", "letters"] },
   { label: "Site", keys: ["progress"] },
   { label: "Administration", keys: ["users", "settings"] },

@@ -14,16 +14,18 @@ interface TransferDialogProps {
   accounts: FinAccount[];
   /** Pre-selects the account the money leaves. */
   fromId?: number;
+  /** Pre-selects the account the money goes to. */
+  toId?: number;
   onClose: () => void;
   onSaved: (transfer: FinTransfer) => void;
   variant: "center" | "sheet";
 }
 
 /** Moves money between two of the company's own accounts. It is not an expense and not income. */
-export function TransferDialog({ accounts, fromId, onClose, onSaved, variant }: TransferDialogProps) {
+export function TransferDialog({ accounts, fromId, toId, onClose, onSaved, variant }: TransferDialogProps) {
   const [date, setDate] = useState(todayInUae());
   const [from, setFrom] = useState(fromId ? String(fromId) : "");
-  const [to, setTo] = useState("");
+  const [to, setTo] = useState(toId ? String(toId) : "");
   const [amount, setAmount] = useState("");
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");

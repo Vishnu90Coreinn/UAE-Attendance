@@ -17,7 +17,7 @@ public sealed class FinanceCategoryService(AppDbContext db, IAuditLogger audit)
         if (!includeInactive) query = query.Where(c => c.IsActive);
         return await query
             .OrderBy(c => c.Kind).ThenBy(c => c.Name)
-            .Select(c => new FinCategoryResponse(c.Id, c.Kind, c.Name, c.IsActive, db.FinEntries.Count(e => e.CategoryId == c.Id)))
+            .Select(c => new FinCategoryResponse(c.Id, c.Kind, c.Name, c.IsActive, db.FinEntryLines.Count(l => l.CategoryId == c.Id)))
             .ToListAsync(ct);
     }
 
@@ -79,7 +79,7 @@ public sealed class FinanceCategoryService(AppDbContext db, IAuditLogger audit)
             }
         }
 
-        var uses = await db.FinEntries.CountAsync(e => e.CategoryId == id, ct);
+        var uses = await db.FinEntryLines.CountAsync(l => l.CategoryId == id, ct);
         return FinResult<FinCategoryResponse>.Ok(new(category.Id, category.Kind, category.Name, category.IsActive, uses));
     }
 }

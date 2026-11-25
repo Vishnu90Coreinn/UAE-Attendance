@@ -70,6 +70,18 @@ const StaffPayrollPage = lazy(() =>
 const FinanceDashboardPage = lazy(() =>
   import("./features/finance/FinanceDashboardPage").then((m) => ({ default: m.FinanceDashboardPage })),
 );
+const PettyCashPage = lazy(() =>
+  import("./features/finance/PettyCashPage").then((m) => ({ default: m.PettyCashPage })),
+);
+const MyExpensesPage = lazy(() =>
+  import("./features/finance/MyExpensesPage").then((m) => ({ default: m.MyExpensesPage })),
+);
+const ChequesPage = lazy(() =>
+  import("./features/finance/ChequesPage").then((m) => ({ default: m.ChequesPage })),
+);
+const PayeesPage = lazy(() =>
+  import("./features/finance/PayeesPage").then((m) => ({ default: m.PayeesPage })),
+);
 const PartnersPage = lazy(() =>
   import("./features/finance/PartnersPage").then((m) => ({ default: m.PartnersPage })),
 );
@@ -193,6 +205,38 @@ export default function App() {
               element={
                 <RequireRole roles={FINANCE_ROLES}>
                   <FinanceDashboardPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/petty-cash"
+              element={
+                <RequireRole roles={FINANCE_ROLES}>
+                  <PettyCashPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="my-expenses"
+              element={
+                <RequireRole roles={["Employee", "Supervisor", "HR"]}>
+                  <MyExpensesPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/cheques"
+              element={
+                <RequireRole roles={FINANCE_ROLES}>
+                  <ChequesPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/payees"
+              element={
+                <RequireRole roles={FINANCE_ROLES}>
+                  <PayeesPage />
                 </RequireRole>
               }
             />

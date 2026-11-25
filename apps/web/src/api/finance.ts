@@ -1,6 +1,7 @@
 import { apiGet, apiGetAnyFile, apiGetBlob, apiGetFile, apiPost, apiPostForm, apiPut, apiPutForm } from "./client";
 
-export type FinAccountKind = "Bank" | "Cash";
+/** Custody is petty cash held by one staff member. */
+export type FinAccountKind = "Bank" | "Cash" | "Custody";
 export type FinEntryKind = "Expense" | "Income";
 
 export interface FinAccount {
@@ -20,6 +21,11 @@ export interface FinAccount {
   balance: number;
   /** Entries and transfers recorded against the account, voided ones included. */
   entryCount: number;
+  /** Staff allowed to submit expenses may choose this account. */
+  staffCanUse?: boolean;
+  /** Custody accounts: the staff login that holds the cash. */
+  holderUserId?: number | null;
+  holderName?: string | null;
 }
 
 export interface FinAccountInput {
@@ -30,6 +36,8 @@ export interface FinAccountInput {
   iban: string;
   openingBalance: number;
   openingDate: string;
+  staffCanUse?: boolean;
+  holderUserId?: number | null;
 }
 
 export interface FinCategory {
@@ -103,6 +111,14 @@ export interface FinAttachment {
   sizeBytes: number;
 }
 
+/** One category's part of an entry; the lines of an entry add up to its amount. */
+export interface FinEntryLine {
+  categoryId: number;
+  categoryName: string;
+  amount: number;
+  note: string | null;
+}
+
 export interface FinEntry {
   id: number;
   kind: FinEntryKind;
@@ -116,7 +132,8 @@ export interface FinEntry {
   amount: number;
   reference: string | null;
   notes: string | null;
-  status: "Active" | "Voided";
+  /** Pending: submitted by staff and waiting for a Manager. It counts in no balance or report until approved. */
+  status: "Active" | "Voided" | "Pending";
   voidReason: string | null;
   createdBy: string;
   createdUtc: string;
@@ -129,6 +146,9 @@ export interface FinEntry {
   replacedByEntryNo: string | null;
   /** Capital entries only. */
   partnerId?: number | null;
+  payeeId?: number | null;
+  /** Largest first. More than one line means the entry is split between categories. */
+  lines?: FinEntryLine[];
 }
 
 export interface FinEntryList {
@@ -137,6 +157,9 @@ export interface FinEntryList {
   total: number;
   count: number;
   truncated: boolean;
+  /** Expenses waiting for approval: they are listed but are not in the total. */
+  pendingCount?: number;
+  pendingTotal?: number;
 }
 
 export interface FinEntryFilter {
@@ -148,6 +171,7 @@ export interface FinEntryFilter {
   max?: number;
   q?: string;
   includeVoided?: boolean;
+  payeeId?: number;
 }
 
 export interface FinEntryInput {
@@ -161,6 +185,9 @@ export interface FinEntryInput {
   files: File[];
   /** When correcting: receipts of the original entry to keep. */
   keepAttachmentIds?: number[];
+  payeeId?: number | null;
+  /** Splits the amount between categories; the lines must add up to the amount. Without it the entry has one line, categoryId. */
+  lines?: { categoryId: number; amount: number; note?: string }[];
 }
 
 function filterQuery(filter: FinEntryFilter): string {
@@ -185,6 +212,8 @@ function entryForm(input: FinEntryInput): FormData {
   const form = new FormData();
   form.set("entryDate", input.entryDate);
   form.set("categoryId", String(input.categoryId));
+  if (input.payeeId) form.set("payeeId", String(input.payeeId));
+  if (input.lines && input.lines.length > 1) form.set("linesJson", JSON.stringify(input.lines));
   form.set("accountId", String(input.accountId));
   form.set("party", input.party);
   form.set("amount", String(input.amount));
@@ -226,8 +255,8 @@ export function lockFinMonth(month: string): Promise<FinMonthLock> {
 export function unlockFinMonth(month: string, reason: string): Promise<FinMonthLock> {
   return apiPost<FinMonthLock>(`/api/finance/month-locks/${month}/unlock`, { reason });
 }
-export function getFinReceipt(id: number): Promise<Blob> {
-  return apiGetAnyFile(`/api/finance/attachments/${id}`);
+export function getFinReceipt(id: number, mine = false): Promise<Blob> {
+  return apiGetAnyFile(mine ? `/api/finance/my/attachments/${id}` : `/api/finance/attachments/${id}`);
 }
 
 export type FinWindow = 7 | 30 | 365;
@@ -324,14 +353,47 @@ export interface FinReport {
   incomeCategories: FinReportCategory[];
   expenseCategories: FinReportCategory[];
   entryCount: number;
+  /** Who was paid or paid us over the period, largest first. Shares add up to exactly 100.0. */
+  expensePayees?: FinReportPayee[];
+  incomePayees?: FinReportPayee[];
+  enteredBy?: FinReportEnteredBy[];
+  cashFlow?: FinCashFlow;
+  /** What `months` is cut by: its `month` is yyyy-MM, yyyy, or a date (the Monday for weeks). */
+  granularity?: FinGranularity;
+}
+export type FinGranularity = "day" | "week" | "month" | "year";
+export interface FinReportPayee {
+  name: string;
+  amount: number;
+  count: number;
+  share: number;
+}
+export interface FinReportEnteredBy {
+  name: string;
+  entries: number;
+  income: number;
+  expense: number;
+}
+export interface FinCashFlow {
+  opening: number;
+  income: number;
+  expense: number;
+  operating: number;
+  capitalIn: number;
+  capitalOut: number;
+  financing: number;
+  /** Normally zero; an account that opened inside the period adds its opening balance. */
+  other: number;
+  netChange: number;
+  closing: number;
 }
 export type FinReportFormat = "xlsx" | "pdf" | "csv";
 
-export function getFinReport(from: string, to: string): Promise<FinReport> {
-  return apiGet(`/api/finance/reports/summary?from=${from}&to=${to}`);
+export function getFinReport(from: string, to: string, granularity: FinGranularity = "month"): Promise<FinReport> {
+  return apiGet(`/api/finance/reports/summary?from=${from}&to=${to}&granularity=${granularity}`);
 }
-export function getFinReportFile(format: FinReportFormat, from: string, to: string): Promise<Blob> {
-  const path = `/api/finance/reports/summary?from=${from}&to=${to}&format=${format}`;
+export function getFinReportFile(format: FinReportFormat, from: string, to: string, granularity: FinGranularity = "month"): Promise<Blob> {
+  const path = `/api/finance/reports/summary?from=${from}&to=${to}&format=${format}&granularity=${granularity}`;
   if (format === "pdf") return apiGetBlob(path);
   return apiGetFile(path, format === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 }
@@ -416,4 +478,206 @@ export function correctFinCapital(id: number, input: FinCapitalInput): Promise<F
 }
 export function voidFinCapital(id: number, reason: string): Promise<FinCapitalEntry> {
   return apiPost<FinCapitalEntry>(`/api/finance/capital/${id}/void`, { reason });
+}
+
+export interface FinPayee {
+  id: number;
+  kind: FinEntryKind;
+  name: string;
+  defaultCategoryId: number | null;
+  defaultCategoryName: string | null;
+  phone: string | null;
+  taxNumber: string | null;
+  notes: string | null;
+  isActive: boolean;
+  /** Active entries for this payee and their total. */
+  entryCount: number;
+  total: number;
+}
+
+export interface FinPayeeInput {
+  kind?: FinEntryKind;
+  name: string;
+  defaultCategoryId: number | null;
+  phone: string;
+  taxNumber: string;
+  notes: string;
+  isActive?: boolean;
+}
+
+export function listFinPayees(kind?: FinEntryKind, includeInactive = false): Promise<FinPayee[]> {
+  const params = new URLSearchParams();
+  if (kind) params.set("kind", kind);
+  if (includeInactive) params.set("includeInactive", "true");
+  const text = params.toString();
+  return apiGet(`/api/finance/payees${text ? `?${text}` : ""}`);
+}
+export function createFinPayee(input: FinPayeeInput): Promise<FinPayee> {
+  return apiPost<FinPayee>("/api/finance/payees", input);
+}
+export function updateFinPayee(id: number, input: FinPayeeInput): Promise<FinPayee> {
+  return apiPut<FinPayee>(`/api/finance/payees/${id}`, input);
+}
+
+export type FinChequeDirection = "Issued" | "Received";
+export type FinChequeStatus = "Issued" | "Delivered" | "Received" | "Deposited" | "Cleared" | "Bounced" | "Cancelled";
+
+export interface FinCheque {
+  id: number;
+  direction: FinChequeDirection;
+  serial: string;
+  amount: number;
+  /** The payee of an issued cheque, the drawer of a received one. */
+  partyName: string;
+  issueDate: string;
+  dueDate: string;
+  accountId: number;
+  accountName: string;
+  status: FinChequeStatus;
+  statusDate: string | null;
+  statusNote: string | null;
+  entryId: number | null;
+  entryNo: string | null;
+  notes: string | null;
+  isOpen: boolean;
+  isPostDated: boolean;
+  isOverdue: boolean;
+  /** The statuses it may move to next; empty once it has cleared, bounced or been cancelled. */
+  nextStatuses: FinChequeStatus[];
+  createdBy: string;
+  createdUtc: string;
+}
+
+export interface FinChequeList {
+  items: FinCheque[];
+  count: number;
+  /** Open cheques: money already committed (issued) or expected (received). */
+  openIssued: number;
+  openReceived: number;
+  truncated: boolean;
+}
+
+export interface FinChequeFilter {
+  direction?: FinChequeDirection;
+  status?: FinChequeStatus;
+  openOnly?: boolean;
+  from?: string;
+  to?: string;
+  accountId?: number;
+  q?: string;
+}
+
+export interface FinChequeSummary {
+  days: number;
+  dueSoonIssued: number;
+  dueSoonIssuedCount: number;
+  dueSoonReceived: number;
+  dueSoonReceivedCount: number;
+  overdueCount: number;
+  overdueAmount: number;
+  laterIssued: number;
+  laterIssuedCount: number;
+  next: FinCheque[];
+}
+
+export interface FinChequeInput {
+  direction?: FinChequeDirection;
+  serial: string;
+  amount: number;
+  partyName: string;
+  issueDate: string;
+  dueDate: string;
+  accountId: number;
+  entryId: number | null;
+  notes: string;
+}
+
+export function listFinCheques(filter: FinChequeFilter = {}): Promise<FinChequeList> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filter)) {
+    if (value !== undefined && value !== "" && value !== false) params.set(key, String(value));
+  }
+  const text = params.toString();
+  return apiGet(`/api/finance/cheques${text ? `?${text}` : ""}`);
+}
+export function getFinChequeSummary(): Promise<FinChequeSummary> {
+  return apiGet("/api/finance/cheques/summary");
+}
+export function createFinCheque(input: FinChequeInput): Promise<FinCheque> {
+  return apiPost<FinCheque>("/api/finance/cheques", input);
+}
+export function updateFinCheque(id: number, input: FinChequeInput): Promise<FinCheque> {
+  return apiPut<FinCheque>(`/api/finance/cheques/${id}`, input);
+}
+export function changeFinChequeStatus(id: number, status: FinChequeStatus, date: string, note: string): Promise<FinCheque> {
+  return apiPost<FinCheque>(`/api/finance/cheques/${id}/status`, { status, date, note });
+}
+
+export function approveFinExpense(id: number): Promise<FinEntry> {
+  return apiPost<FinEntry>(`/api/finance/expenses/${id}/approve`, {});
+}
+export function rejectFinExpense(id: number, reason: string): Promise<FinEntry> {
+  return apiPost<FinEntry>(`/api/finance/expenses/${id}/reject`, { reason });
+}
+
+export interface FinSubmitter {
+  userId: number;
+  username: string;
+  role: string;
+  canSubmit: boolean;
+}
+export function listFinSubmitters(): Promise<FinSubmitter[]> {
+  return apiGet("/api/finance/submitters");
+}
+export function setFinSubmitter(userId: number, canSubmit: boolean): Promise<FinSubmitter> {
+  return apiPut<FinSubmitter>(`/api/finance/submitters/${userId}`, { canSubmit });
+}
+
+/** What a staff member may pick when submitting an expense. */
+export interface FinMyOptions {
+  accounts: FinAccount[];
+  categories: FinCategory[];
+  payees: FinPayee[];
+}
+export function getFinMyOptions(): Promise<FinMyOptions> {
+  return apiGet("/api/finance/my/options");
+}
+export function listMyFinExpenses(): Promise<FinEntryList> {
+  return apiGet("/api/finance/my/expenses");
+}
+export function submitFinExpense(input: FinEntryInput): Promise<FinEntry> {
+  return apiPostForm<FinEntry>("/api/finance/my/expenses", entryForm(input));
+}
+
+export interface FinImportRow {
+  row: number;
+  date: string | null;
+  party: string | null;
+  category: string | null;
+  account: string | null;
+  amount: number | null;
+  reference: string | null;
+  notes: string | null;
+  /** Ready, Duplicate (already recorded, skipped) or Error. */
+  status: "Ready" | "Duplicate" | "Error";
+  problems: string[];
+}
+export interface FinImportResult {
+  rows: FinImportRow[];
+  ready: number;
+  duplicates: number;
+  errors: number;
+  readyTotal: number;
+  /** 0 for a preview; the number saved after a confirmed import. */
+  imported: number;
+}
+const importPath = (kind: FinEntryKind) => `/api/finance/import/${kind === "Income" ? "income" : "expenses"}`;
+/** Checks the file row by row; with commit it also saves every good row, or none if any row is wrong. */
+export function runFinImport(kind: FinEntryKind, file: File, commit: boolean): Promise<FinImportResult> {
+  const form = new FormData();
+  form.set("file", file, file.name);
+  return apiPostForm<FinImportResult>(`${importPath(kind)}?commit=${commit}`, form);
+}
+export function getFinImportTemplate(kind: FinEntryKind): Promise<Blob> {
+  return apiGetFile(`${importPath(kind)}/template`, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 }

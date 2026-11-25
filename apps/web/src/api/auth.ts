@@ -8,6 +8,8 @@ export interface CurrentUser {
   role: Role;
   /** The office employee record linked to this login; decides whether My Attendance and My Leave show. */
   employeeId?: number | null;
+  /** Office staff a Manager has allowed to submit expenses for approval; decides whether My Expenses shows. */
+  canSubmitExpenses?: boolean;
 }
 
 export interface LoginResponse {

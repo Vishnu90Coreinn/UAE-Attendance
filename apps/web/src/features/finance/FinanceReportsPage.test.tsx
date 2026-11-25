@@ -40,7 +40,7 @@ beforeEach(() => {
 it("opens on this month and shows the closing balance, the bridge and the account statement", async () => {
   render(<FinanceReportsPage />);
   const panel = await screen.findByRole("region", { name: /closing balance/i });
-  expect(financeApi.getFinReport).toHaveBeenCalledWith("2026-11-01", "2026-11-25");
+  expect(financeApi.getFinReport).toHaveBeenCalledWith("2026-11-01", "2026-11-25", "month");
   expect(within(panel).getByText("1,550.00")).toBeInTheDocument();
   expect(within(panel).getByText(/AED 50.00/)).toBeInTheDocument(); // net result
   const table = screen.getByRole("table", { name: /statement by account/i });
@@ -82,7 +82,7 @@ it("loads last month when it is picked, and a typed date becomes Custom", async 
   render(<FinanceReportsPage />);
   await screen.findByRole("region", { name: /closing balance/i });
   await userEvent.click(screen.getByRole("radio", { name: "Last month" }));
-  await waitFor(() => expect(financeApi.getFinReport).toHaveBeenLastCalledWith("2026-10-01", "2026-10-31"));
+  await waitFor(() => expect(financeApi.getFinReport).toHaveBeenLastCalledWith("2026-10-01", "2026-10-31", "month"));
   expect(screen.getByRole("radio", { name: "Last month" })).toHaveAttribute("aria-checked", "true");
 });
 
@@ -103,10 +103,10 @@ it("downloads each format for the shown period", async () => {
   render(<FinanceReportsPage />);
   await screen.findByRole("region", { name: /closing balance/i });
   await userEvent.click(screen.getByRole("button", { name: "CSV" }));
-  await waitFor(() => expect(financeApi.getFinReportFile).toHaveBeenCalledWith("csv", "2026-11-01", "2026-11-25"));
+  await waitFor(() => expect(financeApi.getFinReportFile).toHaveBeenCalledWith("csv", "2026-11-01", "2026-11-25", "month"));
   await waitFor(() => expect(download.saveBlob).toHaveBeenCalledWith(expect.any(Blob), "Finance_Report_2026-11-01_2026-11-25.csv"));
   await userEvent.click(screen.getByRole("button", { name: "PDF" }));
-  await waitFor(() => expect(financeApi.getFinReportFile).toHaveBeenCalledWith("pdf", "2026-11-01", "2026-11-25"));
+  await waitFor(() => expect(financeApi.getFinReportFile).toHaveBeenCalledWith("pdf", "2026-11-01", "2026-11-25", "month"));
 });
 
 it("says so when a download fails, and when loading fails", async () => {

@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.Json;
 using HrPayroll.Api.Data;
 using HrPayroll.Api.Data.Entities;
 using HrPayroll.Api.Dtos;
@@ -7,12 +8,16 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace HrPayroll.Api.Services.Finance;
 
-public sealed record FinEntryFilter(string? From, string? To, int? CategoryId, int? AccountId, decimal? Min, decimal? Max, string? Search, bool IncludeVoided, int? PartnerId = null);
+public sealed record FinEntryFilter(string? From, string? To, int? CategoryId, int? AccountId, decimal? Min, decimal? Max, string? Search, bool IncludeVoided, int? PartnerId = null, int? PayeeId = null, string? CreatedBy = null);
 
 /// <summary>Expenses and income (one table, two kinds): recording them with their receipts, and listing them with filters.</summary>
 public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHttpContextAccessor http, TimeProvider time, IReceiptStore store, FinancePeriodService periods)
 {
     private const int ListCap = 500;
+    private const int MaxLines = 20;
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    private sealed record LineInput(int? CategoryId, decimal? Amount, string? Note);
 
     private static string KindWord(string kind) => kind switch
     {
@@ -32,7 +37,8 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         e.Id, e.Kind, e.EntryNo, FinanceRules.Format(e.EntryDate), e.CategoryId, e.Category.Name, e.Party, e.AccountId, e.Account.Name,
         e.Amount, e.Reference, e.Notes, e.Status, e.VoidReason, e.CreatedBy, e.CreatedUtc,
         files.Select(f => new FinAttachmentResponse(f.Id, f.FileName, f.ContentType, f.SizeBytes)).ToList(),
-        e.VoidedBy, e.VoidedUtc, e.ReplacesEntryId, replacesNo, replacedByNo, e.PartnerId);
+        e.VoidedBy, e.VoidedUtc, e.ReplacesEntryId, replacesNo, replacedByNo, e.PartnerId, e.PayeeId,
+        e.Lines.OrderByDescending(l => l.Amount).ThenBy(l => l.Id).Select(l => new FinEntryLineResponse(l.CategoryId, l.Category.Name, l.Amount, l.Note)).ToList());
 
     /// <summary>EntryNo of the entry each given entry replaces, and of the entry that replaced it.</summary>
     private async Task<(Dictionary<int, string> Replaces, Dictionary<int, string> ReplacedBy)> ChainAsync(IReadOnlyCollection<FinEntry> rows, CancellationToken ct)
@@ -50,14 +56,16 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
     /// <summary>Capital in and capital out are listed together; the total is then what is left: put in, less paid back.</summary>
     public async Task<FinEntryList> ListAsync(IReadOnlyCollection<string> kinds, FinEntryFilter f, CancellationToken ct)
     {
-        var query = db.FinEntries.AsNoTracking().Include(e => e.Category).Include(e => e.Account).Where(e => kinds.Contains(e.Kind));
+        var query = db.FinEntries.AsNoTracking().Include(e => e.Category).Include(e => e.Account).Include(e => e.Lines).ThenInclude(l => l.Category).Where(e => kinds.Contains(e.Kind));
         if (f.PartnerId is { } partner) query = query.Where(e => e.PartnerId == partner);
+        if (f.CreatedBy is { } by) query = query.Where(e => e.CreatedBy == by);
         if (FinanceRules.TryParseDate(f.From, out var from)) query = query.Where(e => e.EntryDate >= from);
         if (FinanceRules.TryParseDate(f.To, out var to)) query = query.Where(e => e.EntryDate <= to);
-        if (f.CategoryId is { } c) query = query.Where(e => e.CategoryId == c);
+        if (f.CategoryId is { } c) query = query.Where(e => e.CategoryId == c || e.Lines.Any(l => l.CategoryId == c));
         if (f.AccountId is { } a) query = query.Where(e => e.AccountId == a);
         if (f.Min is { } min) query = query.Where(e => e.Amount >= min);
         if (f.Max is { } max) query = query.Where(e => e.Amount <= max);
+        if (f.PayeeId is { } payee) query = query.Where(e => e.PayeeId == payee);
         if (FinanceRules.Clean(f.Search) is { } q)
             query = query.Where(e => e.Party.Contains(q) || (e.Reference != null && e.Reference.Contains(q)) || (e.Notes != null && e.Notes.Contains(q)) || e.EntryNo.Contains(q));
 
@@ -65,7 +73,10 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         var total = (await active.Where(e => e.Kind != FinEntryKinds.CapitalOut).SumAsync(e => (decimal?)e.Amount, ct) ?? 0m)
             - (await active.Where(e => e.Kind == FinEntryKinds.CapitalOut).SumAsync(e => (decimal?)e.Amount, ct) ?? 0m);
         var count = await active.CountAsync(ct);
-        var shown = f.IncludeVoided ? query : active;
+        var pending = query.Where(e => e.Status == FinStatuses.Pending);
+        var pendingCount = await pending.CountAsync(ct);
+        var pendingTotal = await pending.SumAsync(e => (decimal?)e.Amount, ct) ?? 0m;
+        var shown = f.IncludeVoided ? query : query.Where(e => e.Status != FinStatuses.Voided);
         var rows = await shown.OrderByDescending(e => e.EntryDate).ThenByDescending(e => e.Id).Take(ListCap + 1).ToListAsync(ct);
         var truncated = rows.Count > ListCap;
         rows = rows.Take(ListCap).ToList();
@@ -73,17 +84,20 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         var ids = rows.Select(r => r.Id).ToList();
         var files = (await db.FinAttachments.AsNoTracking().Where(x => ids.Contains(x.EntryId)).OrderBy(x => x.Id).ToListAsync(ct)).ToLookup(x => x.EntryId);
         var (replaces, replacedBy) = await ChainAsync(rows, ct);
-        return new(rows.Select(r => ToResponse(r, files[r.Id], r.ReplacesEntryId is { } o ? replaces.GetValueOrDefault(o) : null, replacedBy.GetValueOrDefault(r.Id))).ToList(), total, count, truncated);
+        return new(rows.Select(r => ToResponse(r, files[r.Id], r.ReplacesEntryId is { } o ? replaces.GetValueOrDefault(o) : null, replacedBy.GetValueOrDefault(r.Id))).ToList(), total, count, truncated, pendingCount, pendingTotal);
     }
 
     public async Task<FinResult<FinEntryResponse>> GetAsync(string kind, int id, CancellationToken ct)
     {
-        var entry = await db.FinEntries.AsNoTracking().Include(e => e.Category).Include(e => e.Account).SingleOrDefaultAsync(e => e.Id == id && e.Kind == kind, ct);
+        var entry = await db.FinEntries.AsNoTracking().Include(e => e.Category).Include(e => e.Account).Include(e => e.Lines).ThenInclude(l => l.Category).SingleOrDefaultAsync(e => e.Id == id && e.Kind == kind, ct);
         if (entry is null) return FinResult<FinEntryResponse>.NotFound($"The {KindWord(kind)} was not found.");
         var files = await db.FinAttachments.AsNoTracking().Where(x => x.EntryId == id).OrderBy(x => x.Id).ToListAsync(ct);
         var (replaces, replacedBy) = await ChainAsync([entry], ct);
         return FinResult<FinEntryResponse>.Ok(ToResponse(entry, files, entry.ReplacesEntryId is { } o ? replaces.GetValueOrDefault(o) : null, replacedBy.GetValueOrDefault(id)));
     }
+
+    /// <summary>Whether the entry was entered by this person.</summary>
+    public Task<bool> IsCreatedByAsync(int entryId, string actor, CancellationToken ct) => db.FinEntries.AsNoTracking().AnyAsync(e => e.Id == entryId && e.CreatedBy == actor, ct);
 
     /// <summary>Which kind an entry is, or null when there is no such entry.</summary>
     public async Task<string?> KindOfAsync(int id, CancellationToken ct) =>
@@ -97,11 +111,47 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
 
     public Task<FinResult<FinEntryResponse>> CreateAsync(string kind, FinExpenseForm form, CancellationToken ct) => SaveAsync(kind, form, null, ct);
 
+    /// <summary>A staff member's expense: saved as Pending, with a number, until a Manager approves or rejects it. Counts in nothing meanwhile.</summary>
+    public Task<FinResult<FinEntryResponse>> SubmitAsync(FinExpenseForm form, CancellationToken ct) => SaveAsync(FinEntryKinds.Expense, form, null, ct, pending: true);
+
+    public async Task<FinResult<FinEntryResponse>> ApproveAsync(int id, CancellationToken ct)
+    {
+        var entry = await db.FinEntries.Include(e => e.Account).SingleOrDefaultAsync(e => e.Id == id && e.Kind == FinEntryKinds.Expense, ct);
+        if (entry is null) return FinResult<FinEntryResponse>.NotFound("The expense was not found.");
+        if (entry.Status != FinStatuses.Pending) return FinResult<FinEntryResponse>.Conflict($"{entry.EntryNo} is not waiting for approval.");
+        if (await periods.LockedMessageAsync(entry.EntryDate, ct) is { } locked) return FinResult<FinEntryResponse>.Conflict(locked + " Reject it and have it entered again with a date in an open month.");
+        if (entry.EntryDate < entry.Account.OpeningDate) return FinResult<FinEntryResponse>.Conflict($"{entry.Account.Name} opens on {FinanceRules.Format(entry.Account.OpeningDate)}. Reject it and have it entered again.");
+
+        entry.Status = FinStatuses.Active;
+        audit.Write("FinExpenseApproved", entityType: nameof(FinEntry), entityId: entry.Id.ToString(), details: new { entry.EntryNo, entry.Amount, submittedBy = entry.CreatedBy });
+        await db.SaveChangesAsync(ct);
+        return await GetAsync(FinEntryKinds.Expense, id, ct);
+    }
+
+    public async Task<FinResult<FinEntryResponse>> RejectAsync(int id, string? reason, CancellationToken ct)
+    {
+        var text = FinanceRules.Clean(reason);
+        if (text is null) return FinResult<FinEntryResponse>.Invalid("reason", "Enter the reason. It is shown to the person who submitted it.");
+        if (text.Length > 280) return FinResult<FinEntryResponse>.Invalid("reason", "Use 280 characters or fewer.");
+        var entry = await db.FinEntries.SingleOrDefaultAsync(e => e.Id == id && e.Kind == FinEntryKinds.Expense, ct);
+        if (entry is null) return FinResult<FinEntryResponse>.NotFound("The expense was not found.");
+        if (entry.Status != FinStatuses.Pending) return FinResult<FinEntryResponse>.Conflict($"{entry.EntryNo} is not waiting for approval.");
+
+        entry.Status = FinStatuses.Voided;
+        entry.VoidReason = "Rejected: " + text;
+        entry.VoidedBy = FinanceRules.Actor(http);
+        entry.VoidedUtc = DateTime.UtcNow;
+        audit.Write("FinExpenseRejected", entityType: nameof(FinEntry), entityId: entry.Id.ToString(), details: new { entry.EntryNo, entry.Amount, submittedBy = entry.CreatedBy, reason = text });
+        await db.SaveChangesAsync(ct);
+        return await GetAsync(FinEntryKinds.Expense, id, ct);
+    }
+
     /// <summary>Corrects an entry: the original is voided and a replacement that points back at it is added, in one transaction.</summary>
     public async Task<FinResult<FinEntryResponse>> CorrectAsync(string kind, int id, FinExpenseForm form, CancellationToken ct)
     {
         var original = await db.FinEntries.SingleOrDefaultAsync(e => e.Id == id && e.Kind == kind, ct);
         if (original is null) return FinResult<FinEntryResponse>.NotFound($"The {KindWord(kind)} was not found.");
+        if (original.Status == FinStatuses.Pending) return FinResult<FinEntryResponse>.Conflict($"{original.EntryNo} is waiting for approval. Approve or reject it first.");
         if (original.Status != FinStatuses.Active) return FinResult<FinEntryResponse>.Conflict($"{original.EntryNo} is already voided and cannot be corrected.");
         if (await db.FinEntries.AnyAsync(e => e.ReplacesEntryId == id, ct)) return FinResult<FinEntryResponse>.Conflict($"{original.EntryNo} has already been corrected.");
         return await SaveAsync(kind, form, original, ct);
@@ -112,8 +162,9 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         var text = FinanceRules.Clean(reason);
         if (text is null) return FinResult<FinEntryResponse>.Invalid("reason", $"Enter the reason for voiding this {KindWord(kind)}.");
         if (text.Length > 300) return FinResult<FinEntryResponse>.Invalid("reason", "Use 300 characters or fewer.");
-        var entry = await db.FinEntries.Include(e => e.Category).Include(e => e.Account).SingleOrDefaultAsync(e => e.Id == id && e.Kind == kind, ct);
+        var entry = await db.FinEntries.Include(e => e.Category).Include(e => e.Account).Include(e => e.Lines).ThenInclude(l => l.Category).SingleOrDefaultAsync(e => e.Id == id && e.Kind == kind, ct);
         if (entry is null) return FinResult<FinEntryResponse>.NotFound($"The {KindWord(kind)} was not found.");
+        if (entry.Status == FinStatuses.Pending) return FinResult<FinEntryResponse>.Conflict($"{entry.EntryNo} is waiting for approval. Approve or reject it instead.");
         if (entry.Status != FinStatuses.Active) return FinResult<FinEntryResponse>.Conflict($"{entry.EntryNo} is already voided.");
         if (await periods.LockedMessageAsync(entry.EntryDate, ct) is { } locked) return FinResult<FinEntryResponse>.Conflict(locked);
 
@@ -127,13 +178,14 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         return await GetAsync(kind, id, ct);
     }
 
-    private async Task<FinResult<FinEntryResponse>> SaveAsync(string kind, FinExpenseForm form, FinEntry? replaces, CancellationToken ct)
+    private async Task<FinResult<FinEntryResponse>> SaveAsync(string kind, FinExpenseForm form, FinEntry? replaces, CancellationToken ct, bool pending = false)
     {
         var errors = new Dictionary<string, string[]>();
         if (FinanceRules.AmountError(form.Amount) is { } amountError) errors["amount"] = [amountError];
         var capital = FinEntryKinds.IsCapital(kind);
         var party = FinanceRules.Clean(form.Party);
         FinPartner? partner = null;
+        FinPayee? payee = null;
         if (capital)
         {
             if (form.PartnerId is null) errors["partnerId"] = ["Choose the partner."];
@@ -147,6 +199,13 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         }
         else
         {
+            if (form.PayeeId is { } payeeId)
+            {
+                payee = await db.FinPayees.AsNoTracking().SingleOrDefaultAsync(p => p.Id == payeeId, ct);
+                if (payee is null || !payee.IsActive || payee.Kind != kind) errors["payeeId"] = ["Choose an active payee of the right type."];
+                else party = payee.Name;
+            }
+
             var partyLabel = kind == FinEntryKinds.Income ? "who it was received from" : "who was paid";
             if (party is null) errors["party"] = [$"Enter {partyLabel}."];
             else if (party.Length > 120) errors["party"] = ["Use 120 characters or fewer."];
@@ -159,12 +218,48 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         else if (date > FinanceRules.Today(time)) errors["entryDate"] = ["The date cannot be in the future."];
 
         FinCategory? category = null;
+        var lineRows = new List<FinEntryLine>();
         if (capital) category = await db.FinCategories.SingleAsync(c => c.Kind == kind, ct);
-        else if (form.CategoryId is null) errors["categoryId"] = ["Choose a category."];
         else
         {
-            category = await db.FinCategories.SingleOrDefaultAsync(c => c.Id == form.CategoryId && c.Kind == kind, ct);
-            if (category is null || !category.IsActive) errors["categoryId"] = ["Choose an active category."];
+            var inputs = new List<LineInput>();
+            if (!string.IsNullOrWhiteSpace(form.LinesJson))
+            {
+                try { inputs = JsonSerializer.Deserialize<List<LineInput>>(form.LinesJson, JsonOptions) ?? []; }
+                catch (JsonException) { errors["lines"] = ["The category lines could not be read."]; }
+                if (inputs.Count == 0 && !errors.ContainsKey("lines")) errors["lines"] = ["Add at least one category line."];
+            }
+            else if (form.CategoryId is null) errors["categoryId"] = ["Choose a category."];
+            else inputs.Add(new LineInput(form.CategoryId, form.Amount, null));
+
+            var key = inputs.Count > 1 || !string.IsNullOrWhiteSpace(form.LinesJson) ? "lines" : "categoryId";
+            if (inputs.Count > MaxLines) errors["lines"] = [$"Use at most {MaxLines} lines."];
+            else if (inputs.Count > 0)
+            {
+                var ids = inputs.Where(i => i.CategoryId is not null).Select(i => i.CategoryId!.Value).Distinct().ToList();
+                var found = await db.FinCategories.Where(c => ids.Contains(c.Id) && c.Kind == kind).ToDictionaryAsync(c => c.Id, ct);
+                foreach (var input in inputs)
+                {
+                    if (input.CategoryId is null || !found.TryGetValue(input.CategoryId.Value, out var lineCategory) || !lineCategory.IsActive)
+                    {
+                        errors[key] = [key == "lines" ? "Choose an active category on every line." : "Choose an active category."];
+                        break;
+                    }
+
+                    if (FinanceRules.AmountError(input.Amount) is { } lineAmountError)
+                    {
+                        if (key == "lines") errors[key] = [$"Every line needs a valid amount: {lineAmountError}"];
+                        break;   // a single line shares the entry's amount, whose error is already reported
+                    }
+
+                    if (FinanceRules.Clean(input.Note)?.Length > 200) { errors["lines"] = ["A line note takes 200 characters or fewer."]; break; }
+                    lineRows.Add(new FinEntryLine { CategoryId = lineCategory.Id, Category = lineCategory, Amount = input.Amount!.Value, Note = FinanceRules.Clean(input.Note) });
+                }
+
+                if (!errors.ContainsKey(key) && !errors.ContainsKey("amount") && lineRows.Sum(l => l.Amount) != form.Amount)
+                    errors["lines"] = [$"The lines add up to AED {lineRows.Sum(l => l.Amount):N2} but the amount is AED {form.Amount:N2}."];
+                if (lineRows.Count > 0) category = lineRows.OrderByDescending(l => l.Amount).First().Category;
+            }
         }
 
         FinAccount? account = null;
@@ -173,6 +268,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         {
             account = await db.FinAccounts.SingleOrDefaultAsync(a => a.Id == form.AccountId, ct);
             if (account is null || !account.IsActive) errors["accountId"] = ["Choose an active account."];
+            else if (pending && !account.StaffCanUse && !(account.HolderUserId is { } holderId && holderId == FinanceRules.UserId(http))) errors["accountId"] = ["Choose one of the accounts you may pay from."];
         }
 
         if (account is not null && !errors.ContainsKey("entryDate") && date < account.OpeningDate)
@@ -244,7 +340,8 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
             {
                 Kind = kind, EntryNo = "PENDING", EntryDate = date, CategoryId = category!.Id, Party = party!, AccountId = account!.Id,
                 Amount = form.Amount!.Value, Reference = FinanceRules.Clean(form.Reference), Notes = FinanceRules.Clean(form.Notes),
-                CreatedBy = actor, CreatedUtc = now, ReplacesEntryId = replaces?.Id, PartnerId = partner?.Id,
+                CreatedBy = actor, CreatedUtc = now, ReplacesEntryId = replaces?.Id, PartnerId = partner?.Id, PayeeId = payee?.Id, Lines = lineRows,
+                Status = pending ? FinStatuses.Pending : FinStatuses.Active,
             };
 
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -281,7 +378,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
                     details: new { original = replaces.EntryNo, replacement = entry.EntryNo, before = new { replaces.Amount, date = FinanceRules.Format(replaces.EntryDate), replaces.Party }, after = new { entry.Amount, date = FinanceRules.Format(date), entry.Party } });
             }
 
-            audit.Write(AuditName(kind, "Created"), entityType: nameof(FinEntry), entityId: entry.Id.ToString(),
+            audit.Write(pending ? "FinExpenseSubmitted" : AuditName(kind, "Created"), entityType: nameof(FinEntry), entityId: entry.Id.ToString(),
                 details: new { entry.EntryNo, category = category.Name, account = account.Name, entry.Amount, date = FinanceRules.Format(date), receipts = attachments.Count, replaces = replaces?.EntryNo });
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);

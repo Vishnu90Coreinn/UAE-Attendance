@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Ban, Download, Lock, Paperclip, Pencil, Plus, ReceiptText, Search, SlidersHorizontal, X } from "lucide-react";
+import { Ban, Check, Download, FileUp, Lock, Paperclip, Pencil, Plus, ReceiptText, Search, SlidersHorizontal, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
-import { listFinAccounts, listFinCategories, listFinEntries, listFinMonthLocks, voidFinEntry, type FinAccount, type FinCategory, type FinEntry, type FinEntryFilter, type FinEntryKind, type FinEntryList } from "../../api/finance";
+import { approveFinExpense, listFinAccounts, listFinCategories, listFinEntries, listFinMonthLocks, rejectFinExpense, voidFinEntry, type FinAccount, type FinCategory, type FinEntry, type FinEntryFilter, type FinEntryKind, type FinEntryList } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
@@ -10,6 +10,7 @@ import { Button, Card, EmptyState, IconButton, LoadingState, PageHeader, Select,
 import { TextField } from "../../components/TextField";
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { EntryDialog } from "./EntryDialog";
+import { ImportDialog } from "./ImportDialog";
 import { ReceiptDialog } from "./ReceiptDialog";
 import { VoidDialog } from "./VoidDialog";
 import { saveBlob } from "../payroll/downloadPdf";
@@ -58,10 +59,12 @@ function ReceiptButton({ entry, onOpen }: { entry: FinEntry; onOpen: () => void 
 function EntryMeta({ entry, locked }: { entry: FinEntry; locked: boolean }) {
   return (
     <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-      {entry.status === "Voided" && <StatusBadge tone="danger" variant="soft">Voided</StatusBadge>}
+      {entry.status === "Voided" && <StatusBadge tone="danger" variant="soft">{entry.voidReason?.startsWith("Rejected") ? "Rejected" : "Voided"}</StatusBadge>}
+      {entry.status === "Pending" && <StatusBadge tone="warning" variant="soft">Waiting for approval</StatusBadge>}
       {entry.replacesEntryNo && <span className="text-xs text-ink-600">Corrects {entry.replacesEntryNo}</span>}
       {entry.replacedByEntryNo && <span className="text-xs text-ink-600">Replaced by {entry.replacedByEntryNo}</span>}
       {locked && entry.status === "Active" && <span className="inline-flex items-center gap-1 text-xs text-ink-600"><Lock aria-hidden="true" size={12} /> Locked month</span>}
+      {entry.kind === "Expense" && <span className="text-xs text-ink-500">Entered by {entry.createdBy}</span>}
       {entry.status === "Voided" && entry.voidReason && <span className="w-full text-xs text-ink-600">{entry.voidedBy ? `${entry.voidedBy}: ` : ""}{entry.voidReason}</span>}
     </span>
   );
@@ -72,6 +75,16 @@ function EntryActions({ entry, onCorrect, onVoid }: { entry: FinEntry; onCorrect
     <span className="flex flex-wrap gap-1">
       <Button size="sm" variant="ghost" icon={Pencil} className="text-ink-600" onClick={onCorrect} aria-label={`Correct ${entry.entryNo}`}>Correct</Button>
       <Button size="sm" variant="ghost" icon={Ban} className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={onVoid} aria-label={`Void ${entry.entryNo}`}>Void</Button>
+    </span>
+  );
+}
+
+/** A staff member's expense waiting for a Manager: approve it into the books, or reject it with a reason. */
+function ReviewActions({ entry, onApprove, onReject, busy }: { entry: FinEntry; onApprove: () => void; onReject: () => void; busy: boolean }) {
+  return (
+    <span className="flex flex-wrap gap-1">
+      <Button size="sm" variant="ghost" icon={Check} className="text-brand-700" disabled={busy} onClick={onApprove} aria-label={`Approve ${entry.entryNo}`}>Approve</Button>
+      <Button size="sm" variant="ghost" icon={Ban} className="text-red-700 hover:bg-red-50 hover:text-red-800" disabled={busy} onClick={onReject} aria-label={`Reject ${entry.entryNo}`}>Reject</Button>
     </span>
   );
 }
@@ -103,6 +116,23 @@ function RowTools({ entry, canAct, onOpen, onCorrect, onVoid }: { entry: FinEntr
 
 function CategoryChip({ name }: { name: string }) {
   return <span className="inline-block max-w-full truncate rounded-full bg-ink-100 px-2.5 py-0.5 text-xs font-medium text-ink-700">{name}</span>;
+}
+
+/** One chip for an ordinary entry; for a split entry, the categories with the part each one has. */
+function Categories({ entry }: { entry: FinEntry }) {
+  const lines = entry.lines ?? [];
+  if (lines.length < 2) return <CategoryChip name={entry.categoryName} />;
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <span className="inline-block rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-800">Split in {lines.length}</span>
+      {lines.map((l, i) => (
+        <span key={i} className="text-xs text-ink-600">
+          {l.categoryName} <span className="tabular-nums text-ink-800">{formatMoney(l.amount)}</span>
+          {l.note ? <span className="text-ink-500"> ({l.note})</span> : null}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 function Amount({ value, className }: { value: number; className?: string }) {
@@ -140,6 +170,9 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
   const [viewing, setViewing] = useState<FinEntry | null>(null);
   const [showVoided, setShowVoided] = useState(false);
   const [voiding, setVoiding] = useState<FinEntry | null>(null);
+  const [rejecting, setRejecting] = useState<FinEntry | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [approving, setApproving] = useState<number | null>(null);
   const [correcting, setCorrecting] = useState<FinEntry | null>(null);
   const [lockedMonths, setLockedMonths] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -188,6 +221,19 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
   }, [kind, filter]);
 
   useEffect(() => load(), [load]);
+
+  async function approve(entry: FinEntry) {
+    setApproving(entry.id);
+    try {
+      await approveFinExpense(entry.id);
+      setMessage(`${entry.entryNo}: AED ${formatMoney(entry.amount)} to ${entry.party} was approved and now counts.`);
+      load();
+    } catch (e) {
+      setError(failure(e));
+    } finally {
+      setApproving(null);
+    }
+  }
 
   function choose(next: Preset) {
     const range = presetRange(next);
@@ -242,6 +288,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
         actions={
           <>
             {result && result.items.length > 0 && <Button variant="secondary" icon={Download} onClick={downloadCsv}>Download CSV</Button>}
+            {canEdit && lists && <Button variant="secondary" icon={FileUp} onClick={() => setImporting(true)}>Import from Excel</Button>}
             {canEdit && lists && <Button icon={Plus} onClick={() => setAdding(true)}>{income ? "Add income" : "Add expense"}</Button>}
           </>
         }
@@ -256,6 +303,11 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
               {result ? <Amount value={result.total} /> : <span className="text-ink-400">...</span>}
             </p>
           </div>
+          {result && (result.pendingCount ?? 0) > 0 && !income && (
+            <p className="w-full rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              <span className="font-semibold tabular-nums">{result.pendingCount}</span> {result.pendingCount === 1 ? "expense is" : "expenses are"} waiting for approval (AED <span className="tabular-nums">{formatMoney(result.pendingTotal ?? 0)}</span>). {result.pendingCount === 1 ? "It is" : "They are"} not in the total until approved.
+            </p>
+          )}
           {result && <p className="text-sm text-ink-600"><span className="font-semibold tabular-nums text-ink-900">{result.count}</span> {income ? "entries" : result.count === 1 ? "expense" : "expenses"}</p>}
         </div>
 
@@ -333,11 +385,12 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
                       )}
                       <EntryMeta entry={e} locked={lockedMonths.includes(e.entryDate.slice(0, 7))} />
                     </Td>
-                    <Td className="align-top"><CategoryChip name={e.categoryName} /></Td>
+                    <Td className="align-top"><Categories entry={e} /></Td>
                     <Td className="align-top text-ink-700">{e.accountName}</Td>
                     <Td className={cx("whitespace-nowrap text-right align-top font-display text-base font-bold", e.status === "Voided" ? "text-ink-500 line-through" : "text-ink-900")}><Amount value={e.amount} /></Td>
                     <Td className="align-top">
                       <RowTools entry={e} canAct={canEdit && e.status === "Active" && !lockedMonths.includes(e.entryDate.slice(0, 7))} onOpen={() => setViewing(e)} onCorrect={() => setCorrecting(e)} onVoid={() => setVoiding(e)} />
+                      {canEdit && e.status === "Pending" && <div className="mt-1 flex justify-end"><ReviewActions entry={e} busy={approving === e.id} onApprove={() => void approve(e)} onReject={() => setRejecting(e)} /></div>}
                     </Td>
                   </TRow>
                 ))}
@@ -363,7 +416,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
                 </div>
                 {e.notes && <p className="mt-2 line-clamp-2 text-[13px] leading-snug text-ink-600">{e.notes}</p>}
                 <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs text-ink-600">
-                  <CategoryChip name={e.categoryName} />
+                  <Categories entry={e} />
                   <span>{e.accountName}</span>
                   {e.reference && <span className="font-mono text-ink-500">Ref {e.reference}</span>}
                 </div>
@@ -371,6 +424,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
                 <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-line/70 pt-1.5">
                   <ReceiptButton entry={e} onOpen={() => setViewing(e)} />
                   {canEdit && e.status === "Active" && !lockedMonths.includes(e.entryDate.slice(0, 7)) && <EntryActions entry={e} onCorrect={() => setCorrecting(e)} onVoid={() => setVoiding(e)} />}
+                  {canEdit && e.status === "Pending" && <ReviewActions entry={e} busy={approving === e.id} onApprove={() => void approve(e)} onReject={() => setRejecting(e)} />}
                 </div>
               </article>
             </li>
@@ -419,6 +473,33 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
             await voidFinEntry(kind, voiding.id, reason);
             setMessage(`${voiding.entryNo} was voided.`);
             setVoiding(null);
+            load();
+          }}
+        />
+      )}
+      {importing && (
+        <ImportDialog
+          kind={kind}
+          variant={variant}
+          onClose={() => setImporting(false)}
+          onImported={(count) => {
+            setImporting(false);
+            setMessage(`${count} ${income ? "income" : "expense"}${count === 1 ? "" : "s"} imported. They have no receipt yet.`);
+            load();
+          }}
+        />
+      )}
+      {rejecting && (
+        <VoidDialog
+          title={`Reject ${rejecting.entryNo}?`}
+          message={`AED ${formatMoney(rejecting.amount)} to ${rejecting.party}, entered by ${rejecting.createdBy}, will not be counted. They will see your reason.`}
+          confirmLabel="Reject"
+          variant={variant}
+          onClose={() => setRejecting(null)}
+          onConfirm={async (reason) => {
+            await rejectFinExpense(rejecting.id, reason);
+            setMessage(`${rejecting.entryNo} was rejected.`);
+            setRejecting(null);
             load();
           }}
         />

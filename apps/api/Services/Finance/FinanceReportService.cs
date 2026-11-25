@@ -12,11 +12,15 @@ namespace HrPayroll.Api.Services.Finance;
 public sealed class FinanceReportService(AppDbContext db, TimeProvider time)
 {
     private const int MaxDays = 1830;
+    private const int MaxDailyDays = 93;
 
-    public async Task<FinResult<FinReport>> BuildAsync(string? from, string? to, CancellationToken ct)
+    public async Task<FinResult<FinReport>> BuildAsync(string? from, string? to, CancellationToken ct, string? granularity = null)
     {
         var parsed = Parse(from, to, out var start, out var end);
         if (parsed is not null) return parsed;
+        var grain = (granularity ?? "month").ToLowerInvariant();
+        if (grain is not ("day" or "week" or "month" or "year")) return FinResult<FinReport>.Invalid("granularity", "Use day, week, month or year.");
+        if (grain == "day" && end.DayNumber - start.DayNumber >= MaxDailyDays) return FinResult<FinReport>.Invalid("granularity", $"The daily view covers at most {MaxDailyDays} days. Choose weeks or months for a longer period.");
 
         var accounts = await db.FinAccounts.AsNoTracking().Where(a => a.OpeningDate <= end).OrderBy(a => a.SortOrder).ThenBy(a => a.Name).ToListAsync(ct);
 
@@ -60,11 +64,14 @@ public sealed class FinanceReportService(AppDbContext db, TimeProvider time)
         var period = FinanceCalculator.Period([new FinMovement(FinMovementType.Income, totals.Income), new FinMovement(FinMovementType.Expense, totals.Expense)]);
 
         var partnerRows = await PartnersAsync(start, end, ct);
-        var monthRows = await MonthsAsync(start, end, ct);
+        var monthRows = grain == "month" ? await MonthsAsync(start, end, ct) : await BucketsAsync(start, end, grain, ct);
 
-        var categoryRows = await activeEntries.Where(e => e.EntryDate >= start && e.EntryDate <= end && (e.Kind == FinEntryKinds.Income || e.Kind == FinEntryKinds.Expense))
-            .GroupBy(e => new { e.Kind, e.CategoryId, e.Category.Name })
-            .Select(g => new { g.Key.Kind, g.Key.CategoryId, g.Key.Name, Sum = g.Sum(e => e.Amount), Count = g.Count() }).ToListAsync(ct);
+        // By category: an entry split across categories counts once in each of them, for the part that belongs to it.
+        var categoryRows = await db.FinEntryLines.AsNoTracking()
+            .Where(l => l.Entry.Status == FinStatuses.Active && l.Entry.EntryDate >= start && l.Entry.EntryDate <= end && (l.Entry.Kind == FinEntryKinds.Income || l.Entry.Kind == FinEntryKinds.Expense))
+            .GroupBy(l => new { l.Entry.Kind, l.CategoryId, l.Category.Name })
+            .Select(g => new { g.Key.Kind, g.Key.CategoryId, g.Key.Name, Sum = g.Sum(l => l.Amount), Count = g.Count() }).ToListAsync(ct);
+        var entryCount = await activeEntries.CountAsync(e => e.EntryDate >= start && e.EntryDate <= end && (e.Kind == FinEntryKinds.Income || e.Kind == FinEntryKinds.Expense), ct);
 
         List<FinReportCategory> Categories(string kind)
         {
@@ -73,9 +80,61 @@ public sealed class FinanceReportService(AppDbContext db, TimeProvider time)
             return rows.Select((r, i) => new FinReportCategory(r.CategoryId, r.Name, r.Sum, r.Count, shares[i])).ToList();
         }
 
+        var payeeRows = await activeEntries.Where(e => e.EntryDate >= start && e.EntryDate <= end && (e.Kind == FinEntryKinds.Income || e.Kind == FinEntryKinds.Expense))
+            .GroupBy(e => new { e.Kind, e.Party }).Select(g => new { g.Key.Kind, Name = g.Key.Party, Sum = g.Sum(e => e.Amount), Count = g.Count() }).ToListAsync(ct);
+        List<FinReportPayee> Payees(string kind)
+        {
+            var rows = payeeRows.Where(r => r.Kind == kind).OrderByDescending(r => r.Sum).ThenBy(r => r.Name).ToList();
+            var shares = FinanceCalculator.Shares(rows.Select(r => r.Sum).ToList(), 1);
+            return rows.Select((r, i) => new FinReportPayee(r.Name, r.Sum, r.Count, shares[i])).ToList();
+        }
+
+        var enteredRows = await activeEntries.Where(e => e.EntryDate >= start && e.EntryDate <= end && (e.Kind == FinEntryKinds.Income || e.Kind == FinEntryKinds.Expense))
+            .GroupBy(e => e.CreatedBy).Select(g => new
+            {
+                Name = g.Key, Entries = g.Count(),
+                Income = g.Where(e => e.Kind == FinEntryKinds.Income).Sum(e => (decimal?)e.Amount) ?? 0m,
+                Expense = g.Where(e => e.Kind == FinEntryKinds.Expense).Sum(e => (decimal?)e.Amount) ?? 0m,
+            }).ToListAsync(ct);
+        var entered = enteredRows.OrderByDescending(r => r.Entries).ThenBy(r => r.Name).Select(r => new FinReportEnteredBy(r.Name, r.Entries, r.Income, r.Expense)).ToList();
+
+        var capitalIn = partnerRows.Sum(p => p.Added);
+        var capitalOut = partnerRows.Sum(p => p.Returned);
+        var operating = period.Income - period.Expense;
+        var financing = capitalIn - capitalOut;
+        var netChange = totals.Closing - totals.Opening;
+        var cashFlow = new FinCashFlow(totals.Opening, period.Income, period.Expense, operating, capitalIn, capitalOut, financing, netChange - operating - financing, netChange, totals.Closing);
+
         return FinResult<FinReport>.Ok(new FinReport(
             FinanceRules.Format(start), FinanceRules.Format(end), lines, totals, new FinPeriodTotals(period.Income, period.Expense, period.Net),
-            Categories(FinEntryKinds.Income), Categories(FinEntryKinds.Expense), categoryRows.Sum(r => r.Count), partnerRows, monthRows));
+            Categories(FinEntryKinds.Income), Categories(FinEntryKinds.Expense), entryCount, partnerRows, monthRows,
+            Payees(FinEntryKinds.Expense), Payees(FinEntryKinds.Income), entered, cashFlow, grain));
+    }
+
+    /// <summary>The period cut into days, weeks (Monday to Sunday) or years, each with its own totals. The first and last bucket hold only the days inside the period.</summary>
+    private async Task<List<FinReportMonth>> BucketsAsync(DateOnly start, DateOnly end, string grain, CancellationToken ct)
+    {
+        var rows = await db.FinEntries.AsNoTracking().Where(e => e.Status == FinStatuses.Active && e.EntryDate >= start && e.EntryDate <= end)
+            .Select(e => new { e.EntryDate, e.Kind, e.Amount }).ToListAsync(ct);
+        DateOnly Floor(DateOnly d) => grain switch
+        {
+            "day" => d,
+            "week" => d.AddDays(-(((int)d.DayOfWeek + 6) % 7)),
+            _ => new DateOnly(d.Year, 1, 1),
+        };
+        var keys = rows.GroupBy(r => Floor(r.EntryDate)).ToDictionary(g => g.Key, g => g.ToList());
+        var result = new List<FinReportMonth>();
+        for (var bucket = Floor(start); bucket <= end; bucket = grain switch { "day" => bucket.AddDays(1), "week" => bucket.AddDays(7), _ => bucket.AddYears(1) })
+        {
+            var items = keys.GetValueOrDefault(bucket) ?? [];
+            decimal Sum(string kind) => items.Where(r => r.Kind == kind).Sum(r => r.Amount);
+            var entries = items.Count(r => r.Kind is FinEntryKinds.Income or FinEntryKinds.Expense);
+            var p = FinanceCalculator.Period([new FinMovement(FinMovementType.Income, Sum(FinEntryKinds.Income)), new FinMovement(FinMovementType.Expense, Sum(FinEntryKinds.Expense))]);
+            var label = grain == "year" ? bucket.ToString("yyyy", System.Globalization.CultureInfo.InvariantCulture) : FinanceRules.Format(bucket);
+            result.Add(new FinReportMonth(label, entries, p.Income, p.Expense, p.Net, Sum(FinEntryKinds.Capital) - Sum(FinEntryKinds.CapitalOut), false, null, null));
+        }
+
+        return result;
     }
 
     /// <summary>Every calendar month the period touches, with its own totals. The first and last month hold only the days inside the period.</summary>

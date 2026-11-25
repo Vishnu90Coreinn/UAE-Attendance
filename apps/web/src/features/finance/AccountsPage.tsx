@@ -99,7 +99,7 @@ function AccountCard({ account, share, canEdit, onEdit, onTransfer, onSwitch }: 
   onTransfer: () => void;
   onSwitch: () => void;
 }) {
-  const Icon = account.kind === "Cash" ? Wallet : Landmark;
+  const Icon = account.kind === "Bank" ? Landmark : Wallet;
   const overdrawn = account.balance < 0;
   return (
     <article aria-label={account.name} className={cx("flex flex-col rounded-card border border-line bg-white p-5 shadow-card", !account.isActive && "bg-ink-50")}>
@@ -109,7 +109,7 @@ function AccountCard({ account, share, canEdit, onEdit, onTransfer, onSwitch }: 
         </span>
         <div className="min-w-0 flex-1">
           <h3 className="break-words font-display text-lg font-bold leading-snug text-ink-900">{account.name}</h3>
-          <p className="mt-0.5 text-sm text-ink-600">{[account.kind === "Cash" ? "Cash" : "Bank account", account.bankName].filter(Boolean).join(" · ")}</p>
+          <p className="mt-0.5 text-sm text-ink-600">{[account.kind === "Cash" ? "Cash" : account.kind === "Custody" ? `Petty cash held by ${account.holderName ?? "staff"}` : "Bank account", account.bankName].filter(Boolean).join(" · ")}</p>
         </div>
         {!account.isActive && <StatusBadge tone="neutral" variant="soft">Switched off</StatusBadge>}
         {overdrawn && account.isActive && <StatusBadge tone="danger">Overdrawn</StatusBadge>}

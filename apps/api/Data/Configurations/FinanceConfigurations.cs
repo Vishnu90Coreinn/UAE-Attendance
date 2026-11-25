@@ -8,7 +8,7 @@ public sealed class FinAccountConfiguration : IEntityTypeConfiguration<FinAccoun
 {
     public void Configure(EntityTypeBuilder<FinAccount> builder)
     {
-        builder.ToTable(t => t.HasCheckConstraint("CK_FinAccounts_Kind", "[Kind] IN ('Bank', 'Cash')"));
+        builder.ToTable(t => t.HasCheckConstraint("CK_FinAccounts_Kind", "[Kind] IN ('Bank', 'Cash', 'Custody')"));
         builder.Property(a => a.Name).HasMaxLength(120).UseCollation(UserConfiguration.CaseInsensitiveCollation).IsRequired();
         builder.Property(a => a.Kind).HasMaxLength(10).IsRequired();
         builder.Property(a => a.BankName).HasMaxLength(80);
@@ -17,9 +17,13 @@ public sealed class FinAccountConfiguration : IEntityTypeConfiguration<FinAccoun
         builder.Property(a => a.OpeningBalance).HasPrecision(12, 2);
         builder.Property(a => a.OpeningDate).HasColumnType("date");
         builder.Property(a => a.IsActive).HasDefaultValue(true);
+        builder.Property(a => a.StaffCanUse).HasDefaultValue(false);
         builder.Property(a => a.CreatedUtc).HasColumnType("datetime2");
         builder.Property(a => a.UpdatedUtc).HasColumnType("datetime2");
         builder.HasIndex(a => a.Name).IsUnique();
+        builder.HasOne<HrPayroll.Api.Data.Entities.User>().WithMany().HasForeignKey(a => a.HolderUserId).OnDelete(DeleteBehavior.Restrict);
+        // One petty-cash account per person.
+        builder.HasIndex(a => a.HolderUserId).IsUnique().HasFilter("[HolderUserId] IS NOT NULL");
     }
 }
 
@@ -59,9 +63,9 @@ public sealed class FinEntryConfiguration : IEntityTypeConfiguration<FinEntry>
         {
             t.HasCheckConstraint("CK_FinEntries_Kind", "[Kind] IN ('Expense', 'Income', 'Capital', 'CapitalOut')");
             t.HasCheckConstraint("CK_FinEntries_Partner", "([Kind] IN ('Capital', 'CapitalOut') AND [PartnerId] IS NOT NULL) OR ([Kind] IN ('Expense', 'Income') AND [PartnerId] IS NULL)");
-            t.HasCheckConstraint("CK_FinEntries_Status", "[Status] IN ('Active', 'Voided')");
+            t.HasCheckConstraint("CK_FinEntries_Status", "[Status] IN ('Active', 'Voided', 'Pending')");
             t.HasCheckConstraint("CK_FinEntries_Amount", "[Amount] > 0");
-            t.HasCheckConstraint("CK_FinEntries_Voided", "[Status] = 'Active' OR [VoidedUtc] IS NOT NULL");
+            t.HasCheckConstraint("CK_FinEntries_Voided", "[Status] IN ('Active', 'Pending') OR [VoidedUtc] IS NOT NULL");
         });
         builder.Property(e => e.Kind).HasMaxLength(10).IsRequired();
         builder.Property(e => e.EntryNo).HasMaxLength(20).IsRequired();
@@ -83,11 +87,77 @@ public sealed class FinEntryConfiguration : IEntityTypeConfiguration<FinEntry>
         builder.HasOne<FinEntry>().WithMany().HasForeignKey(e => e.ReplacesEntryId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<FinPartner>().WithMany().HasForeignKey(e => e.PartnerId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(e => e.PartnerId);
+        builder.HasOne<FinPayee>().WithMany().HasForeignKey(e => e.PayeeId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(e => e.PayeeId);
         builder.HasIndex(e => e.EntryNo).IsUnique();
         builder.HasIndex(e => new { e.AccountId, e.EntryDate });
         builder.HasIndex(e => e.EntryDate);
         builder.HasIndex(e => e.CategoryId);
         builder.HasIndex(e => new { e.ExternalSource, e.ExternalId }).IsUnique().HasFilter("[ExternalId] IS NOT NULL");
+    }
+}
+
+public sealed class FinEntryLineConfiguration : IEntityTypeConfiguration<FinEntryLine>
+{
+    public void Configure(EntityTypeBuilder<FinEntryLine> builder)
+    {
+        builder.ToTable(t => t.HasCheckConstraint("CK_FinEntryLines_Amount", "[Amount] > 0"));
+        builder.Property(l => l.Amount).HasPrecision(12, 2);
+        builder.Property(l => l.Note).HasMaxLength(200);
+        builder.HasOne(l => l.Entry).WithMany(e => e.Lines).HasForeignKey(l => l.EntryId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(l => l.Category).WithMany().HasForeignKey(l => l.CategoryId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(l => l.EntryId);
+        builder.HasIndex(l => l.CategoryId);
+    }
+}
+
+public sealed class FinChequeConfiguration : IEntityTypeConfiguration<FinCheque>
+{
+    public void Configure(EntityTypeBuilder<FinCheque> builder)
+    {
+        builder.ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_FinCheques_Direction", "[Direction] IN ('Issued', 'Received')");
+            t.HasCheckConstraint("CK_FinCheques_Status", "[Status] IN ('Issued', 'Delivered', 'Received', 'Deposited', 'Cleared', 'Bounced', 'Cancelled')");
+            t.HasCheckConstraint("CK_FinCheques_Amount", "[Amount] > 0");
+        });
+        builder.Property(c => c.Direction).HasMaxLength(10).IsRequired();
+        builder.Property(c => c.Serial).HasMaxLength(30).UseCollation(UserConfiguration.CaseInsensitiveCollation).IsRequired();
+        builder.Property(c => c.Amount).HasPrecision(12, 2);
+        builder.Property(c => c.PartyName).HasMaxLength(120).IsRequired();
+        builder.Property(c => c.IssueDate).HasColumnType("date");
+        builder.Property(c => c.DueDate).HasColumnType("date");
+        builder.Property(c => c.Status).HasMaxLength(10).IsRequired();
+        builder.Property(c => c.StatusDate).HasColumnType("date");
+        builder.Property(c => c.StatusNote).HasMaxLength(300);
+        builder.Property(c => c.Notes).HasMaxLength(2000);
+        builder.Property(c => c.CreatedBy).HasMaxLength(50).IsRequired();
+        builder.Property(c => c.CreatedUtc).HasColumnType("datetime2");
+        builder.Property(c => c.UpdatedUtc).HasColumnType("datetime2");
+        builder.HasOne(c => c.Account).WithMany().HasForeignKey(c => c.AccountId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<FinEntry>().WithMany().HasForeignKey(c => c.EntryId).OnDelete(DeleteBehavior.Restrict);
+        // One issued cheque number per account: a cheque book never repeats a serial.
+        builder.HasIndex(c => new { c.AccountId, c.Serial }).IsUnique().HasFilter("[Direction] = 'Issued'");
+        builder.HasIndex(c => c.DueDate);
+        builder.HasIndex(c => c.Status);
+        builder.HasIndex(c => c.EntryId);
+    }
+}
+
+public sealed class FinPayeeConfiguration : IEntityTypeConfiguration<FinPayee>
+{
+    public void Configure(EntityTypeBuilder<FinPayee> builder)
+    {
+        builder.ToTable(t => t.HasCheckConstraint("CK_FinPayees_Kind", "[Kind] IN ('Expense', 'Income')"));
+        builder.Property(p => p.Kind).HasMaxLength(10).IsRequired();
+        builder.Property(p => p.Name).HasMaxLength(120).UseCollation(UserConfiguration.CaseInsensitiveCollation).IsRequired();
+        builder.Property(p => p.Phone).HasMaxLength(40);
+        builder.Property(p => p.TaxNumber).HasMaxLength(40);
+        builder.Property(p => p.Notes).HasMaxLength(500);
+        builder.Property(p => p.IsActive).HasDefaultValue(true);
+        builder.Property(p => p.CreatedUtc).HasColumnType("datetime2");
+        builder.HasOne<FinCategory>().WithMany().HasForeignKey(p => p.DefaultCategoryId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(p => new { p.Kind, p.Name }).IsUnique();
     }
 }
 

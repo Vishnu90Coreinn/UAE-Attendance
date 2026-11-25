@@ -30,17 +30,18 @@ public static class TestFinance
 
     public static async Task<FinEntry> AddEntryAsync(
         string connectionString, int accountId, string kind, decimal amount, DateOnly? date = null,
-        string status = FinStatuses.Active, int? categoryId = null)
+        string status = FinStatuses.Active, int? categoryId = null, string party = "Test party", string createdBy = "tester")
     {
         var now = DateTime.UtcNow;
         var entry = new FinEntry
         {
             Kind = kind, EntryNo = (kind == FinEntryKinds.Income ? "INC-" : "EXP-") + Guid.NewGuid().ToString("N")[..12],
             EntryDate = date ?? Today.AddDays(-5), CategoryId = categoryId ?? (kind == FinEntryKinds.Income ? 10 : 1),
-            Party = "Test party", AccountId = accountId, Amount = amount, Status = status,
+            Party = party, AccountId = accountId, Amount = amount, Status = status,
             VoidedUtc = status == FinStatuses.Voided ? now : null, VoidedBy = status == FinStatuses.Voided ? "tester" : null,
-            CreatedBy = "tester", CreatedUtc = now,
+            CreatedBy = createdBy, CreatedUtc = now,
         };
+        entry.Lines.Add(new FinEntryLine { CategoryId = entry.CategoryId, Amount = amount });   // an ordinary entry is one line
         await using var db = TestUsers.NewContext(connectionString);
         db.FinEntries.Add(entry);
         await db.SaveChangesAsync();

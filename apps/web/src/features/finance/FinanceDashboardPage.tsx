@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, HandCoins, Landmark, ReceiptText, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { Link } from "react-router-dom";
-import { getFinDashboard, listFinCategories, type FinCategory, type FinDashboard, type FinEntryKind, type FinWindow } from "../../api/finance";
+import { getFinChequeSummary, getFinDashboard, listFinCategories, type FinCategory, type FinChequeSummary, type FinDashboard, type FinEntryKind, type FinWindow } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
@@ -239,6 +239,60 @@ function SpendingCard({ data }: { data: FinDashboard }) {
 const CAPITAL_COLORS = ["bg-brand-500", "bg-amber-400", "bg-sky-500", "bg-rose-400", "bg-ink-400"];
 
 /** Whose money it is: the partners' capital and each one's exact share, apart from what the business earned. */
+/** Cheques not yet cleared: what is due in the next 30 days, what is overdue, and the post-dated ones further out. Hidden while there is nothing open. */
+function ChequesCard() {
+  const [summary, setSummary] = useState<FinChequeSummary | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve(getFinChequeSummary())
+      .then((s) => !cancelled && setSummary(s))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  if (!summary || (summary.next.length === 0 && summary.overdueCount === 0 && summary.laterIssuedCount === 0)) return null;
+  return (
+    <Card>
+      <CardHeader title="Cheques" description="Cheques that have not cleared yet. They change no balance until the money moves." />
+      <div className="grid gap-4 px-5 pb-4 sm:grid-cols-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-500">Due in {summary.days} days</p>
+          <p className={cx("font-display text-xl font-bold tabular-nums", summary.dueSoonIssued === 0 ? "text-ink-400" : "text-ink-900")}>AED {formatMoney(summary.dueSoonIssued)}</p>
+          <p className="text-xs text-ink-500">{summary.dueSoonIssuedCount === 1 ? "1 cheque to pay" : `${summary.dueSoonIssuedCount} cheques to pay`}</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-500">Overdue</p>
+          <p className={cx("font-display text-xl font-bold tabular-nums", summary.overdueCount === 0 ? "text-ink-400" : "text-danger")}>AED {formatMoney(summary.overdueAmount)}</p>
+          <p className="text-xs text-ink-500">{summary.overdueCount === 1 ? "1 cheque past its date" : `${summary.overdueCount} cheques past their date`}</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-500">Post-dated, later</p>
+          <p className={cx("font-display text-xl font-bold tabular-nums", summary.laterIssued === 0 ? "text-ink-400" : "text-ink-900")}>AED {formatMoney(summary.laterIssued)}</p>
+          <p className="text-xs text-ink-500">{summary.laterIssuedCount === 1 ? "1 cheque" : `${summary.laterIssuedCount} cheques`} after {summary.days} days</p>
+        </div>
+      </div>
+      {summary.next.length > 0 && (
+        <ul className="divide-y divide-line border-t border-line">
+          {summary.next.map((c) => (
+            <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-5 py-2.5 text-sm">
+              <span className="w-24 shrink-0 tabular-nums text-ink-700">{formatDay(c.dueDate)}</span>
+              <span className="min-w-0 flex-1 truncate font-medium text-ink-900">{c.partyName}</span>
+              <span className="text-xs text-ink-500">{c.direction === "Issued" ? "to pay" : "to receive"} · #{c.serial}</span>
+              <span className="w-28 text-right font-semibold tabular-nums text-ink-900">{formatMoney(c.amount)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="border-t border-line px-5 py-3">
+        <Link to="/finance/cheques" className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-brand-700 hover:underline sm:min-h-0">
+          All cheques <ArrowRight aria-hidden="true" size={14} />
+        </Link>
+      </div>
+    </Card>
+  );
+}
+
 function CapitalCard({ capital }: { capital: NonNullable<FinDashboard["capital"]> }) {
   return (
     <Card>
@@ -375,6 +429,9 @@ export function FinanceDashboardPage() {
           <div style={{ "--i": 2 } as React.CSSProperties} className="fade-up grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
             <BalancesCard data={load.data} />
             <LatestCard data={load.data} />
+          </div>
+          <div style={{ "--i": 3 } as React.CSSProperties} className="fade-up">
+            <ChequesCard />
           </div>
           {load.data.capital && (
             <div style={{ "--i": 3 } as React.CSSProperties} className="fade-up">

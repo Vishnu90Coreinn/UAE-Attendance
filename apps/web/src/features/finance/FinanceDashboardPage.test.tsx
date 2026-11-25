@@ -109,6 +109,7 @@ it("lets a Manager add an expense or income from the overview, and refreshes aft
     voidedBy: null, voidedUtc: null, replacesEntryId: null, replacesEntryNo: null, replacedByEntryNo: null,
   });
   vi.mocked(financeApi.listFinParties).mockResolvedValue([]);
+  vi.mocked(financeApi.listFinPayees).mockResolvedValue([]);
   view();
   await userEvent.click(await screen.findByRole("button", { name: "Add income" }));
   await userEvent.type(screen.getByLabelText("Amount (AED)"), "750");

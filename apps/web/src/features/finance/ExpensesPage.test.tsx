@@ -34,6 +34,7 @@ beforeEach(() => {
   vi.mocked(financeApi.listFinCategories).mockResolvedValue(categories);
   vi.mocked(financeApi.listFinMonthLocks).mockResolvedValue([]);
   vi.mocked(financeApi.listFinParties).mockResolvedValue(["Royal Palm Business Center"]);
+  vi.mocked(financeApi.listFinPayees).mockResolvedValue([]);
   vi.mocked(financeApi.listFinEntries).mockResolvedValue({ items: [entry(), entry({ id: 2, entryNo: "EXP-000002", party: "Dubai Insurance", amount: 40, attachments: [] })], total: 515.65, count: 2, truncated: false });
 });
 
@@ -162,7 +163,7 @@ it("opens a receipt in a dialog", async () => {
   await user.click(await screen.findByRole("button", { name: "View receipt for EXP-000001" }));
 
   expect(await screen.findByTitle(/Receipt 1, permit\.pdf/)).toBeInTheDocument();
-  expect(financeApi.getFinReceipt).toHaveBeenCalledWith(5);
+  expect(financeApi.getFinReceipt).toHaveBeenCalledWith(5, false);
 });
 
 it("explains an empty period and offers a retry on failure", async () => {

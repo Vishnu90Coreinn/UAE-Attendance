@@ -11,7 +11,7 @@ namespace HrPayroll.Api.Controllers;
 /// <summary>Expense and income tracking: bank and cash accounts, categories and transfers. Managers and Administrators edit; the Partner reads.</summary>
 [ApiController]
 [Route("api/finance")]
-public sealed class FinanceController(FinanceAccountService accounts, FinanceCategoryService categories, FinanceTransferService transfers, FinanceEntryService entries, FinancePeriodService periods, FinanceDashboardService dashboard, FinanceReportService reports, FinanceReportExportService reportExports, FinancePartnerService partners) : ControllerBase
+public sealed class FinanceController(FinanceAccountService accounts, FinanceCategoryService categories, FinanceTransferService transfers, FinanceEntryService entries, FinancePeriodService periods, FinanceDashboardService dashboard, FinanceReportService reports, FinanceReportExportService reportExports, FinancePartnerService partners, FinancePayeeService payees, FinanceChequeService cheques, FinanceSubmitterService submitters, FinanceImportService imports) : ControllerBase
 {
     private IActionResult Map<T>(FinResult<T> result) => result.Status switch
     {
@@ -25,6 +25,91 @@ public sealed class FinanceController(FinanceAccountService accounts, FinanceCat
     [HttpGet("dashboard")]
     [Authorize(Policy = Policies.Finance)]
     public async Task<IActionResult> Dashboard([FromQuery] int? days, CancellationToken ct) => Ok(await dashboard.GetAsync(days, ct));
+
+    // --- Excel import ---------------------------------------------------------------------------------------
+
+    private static string? ImportKind(string kind) => kind switch { "expenses" => FinEntryKinds.Expense, "income" => FinEntryKinds.Income, _ => null };
+
+    [HttpGet("import/{kind}/template")]
+    [Authorize(Policy = Policies.Finance)]
+    public IActionResult ImportTemplate(string kind) =>
+        ImportKind(kind) is { } k
+            ? File(FinanceImportService.Template(k), AttendanceExportService.ExcelType, $"{(k == FinEntryKinds.Income ? "Income" : "Expenses")}_import_template.xlsx")
+            : Problem(statusCode: 404, title: "Import expenses or income.");
+
+    /// <summary>Checks an uploaded Excel file row by row; with <c>commit=true</c> it also saves every good row, or none if any row is wrong.</summary>
+    [HttpPost("import/{kind}")]
+    [Authorize(Policy = Policies.Finance)]
+    [RequestSizeLimit(6_000_000)]
+    public async Task<IActionResult> Import(string kind, [FromForm] IFormFile? file, [FromQuery] bool commit, CancellationToken ct)
+    {
+        if (ImportKind(kind) is not { } k) return Problem(statusCode: 404, title: "Import expenses or income.");
+        if (file is null || file.Length == 0) return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { ["file"] = ["Choose the Excel file."] }));
+        if (file.Length > FinanceImportService.MaxBytes) return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { ["file"] = ["The file is larger than 5 MB."] }));
+        await using var stream = file.OpenReadStream();
+        return Map(await imports.RunAsync(k, stream, commit, ct));
+    }
+
+    // --- staff who may submit expenses, and approving what they submit ----------------------------------------
+
+    [HttpGet("submitters")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> Submitters(CancellationToken ct) => Ok(await submitters.ListAsync(ct));
+
+    [HttpPut("submitters/{userId:int}")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> SetSubmitter(int userId, [FromBody] FinSubmitterRequest? request, CancellationToken ct) => Map(await submitters.SetAsync(userId, request ?? new(), ct));
+
+    [HttpPost("expenses/{id:int}/approve")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> ApproveExpense(int id, CancellationToken ct) => Map(await entries.ApproveAsync(id, ct));
+
+    [HttpPost("expenses/{id:int}/reject")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> RejectExpense(int id, [FromBody] FinVoidRequest? request, CancellationToken ct) => Map(await entries.RejectAsync(id, request?.Reason, ct));
+
+    // --- cheque register -------------------------------------------------------------------------------------
+
+    [HttpGet("cheques")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> Cheques(
+        [FromQuery] string? direction, [FromQuery] string? status, [FromQuery] bool openOnly, [FromQuery] string? from, [FromQuery] string? to,
+        [FromQuery] int? accountId, [FromQuery] string? q, CancellationToken ct) =>
+        Ok(await cheques.ListAsync(new FinChequeFilter(direction, status, openOnly, from, to, accountId, q), ct));
+
+    [HttpGet("cheques/summary")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> ChequeSummary(CancellationToken ct) => Ok(await cheques.SummaryAsync(ct));
+
+    [HttpGet("cheques/{id:int}")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> Cheque(int id, CancellationToken ct) => Map(await cheques.GetAsync(id, ct));
+
+    [HttpPost("cheques")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> CreateCheque([FromBody] FinChequeRequest? request, CancellationToken ct) => Map(await cheques.CreateAsync(request ?? new(), ct));
+
+    [HttpPut("cheques/{id:int}")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> UpdateCheque(int id, [FromBody] FinChequeRequest? request, CancellationToken ct) => Map(await cheques.UpdateAsync(id, request ?? new(), ct));
+
+    [HttpPost("cheques/{id:int}/status")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> ChequeStatus(int id, [FromBody] FinChequeStatusRequest? request, CancellationToken ct) => Map(await cheques.ChangeStatusAsync(id, request ?? new(), ct));
+
+    // --- payees: the people and companies paid or received from -----------------------------------------------
+
+    [HttpGet("payees")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> Payees([FromQuery] string? kind, [FromQuery] bool includeInactive, CancellationToken ct) => Ok(await payees.ListAsync(kind, includeInactive, ct));
+
+    [HttpPost("payees")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> CreatePayee([FromBody] FinPayeeRequest? request, CancellationToken ct) => Map(await payees.CreateAsync(request ?? new(), ct));
+
+    [HttpPut("payees/{id:int}")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> UpdatePayee(int id, [FromBody] FinPayeeRequest? request, CancellationToken ct) => Map(await payees.UpdateAsync(id, request ?? new(), ct));
 
     // --- partners and their capital ---------------------------------------------------------------------------
 
@@ -83,19 +168,19 @@ public sealed class FinanceController(FinanceAccountService accounts, FinanceCat
     /// <summary>The period statement as JSON, or as a download when <c>format</c> is xlsx, pdf or csv.</summary>
     [HttpGet("reports/summary")]
     [Authorize(Policy = Policies.Finance)]
-    public async Task<IActionResult> ReportSummary([FromQuery] string? from, [FromQuery] string? to, [FromQuery] string? format, CancellationToken ct)
+    public async Task<IActionResult> ReportSummary([FromQuery] string? from, [FromQuery] string? to, [FromQuery] string? format, [FromQuery] string? granularity, CancellationToken ct)
     {
         var kind = (format ?? "json").ToLowerInvariant() switch
         {
             "json" => FinReportFormat.Json, "xlsx" => FinReportFormat.Excel, "pdf" => FinReportFormat.Pdf, "csv" => FinReportFormat.Csv, _ => (FinReportFormat?)null,
         };
         if (kind is null) return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { ["format"] = ["Use json, xlsx, pdf or csv."] }));
-        if (kind == FinReportFormat.Json) return Map(await reports.BuildAsync(from, to, ct));
+        if (kind == FinReportFormat.Json) return Map(await reports.BuildAsync(from, to, ct, granularity));
 
         Response.Headers.CacheControl = "no-store";
         try
         {
-            var file = await reportExports.ExportAsync(from, to, kind.Value, ct);
+            var file = await reportExports.ExportAsync(from, to, kind.Value, ct, granularity);
             return file.Status == 200 ? File(file.Value!.Content, file.Value.ContentType, file.Value.FileName) : Map(file);
         }
         catch (PdfTextNotSupportedException)
@@ -151,8 +236,8 @@ public sealed class FinanceController(FinanceAccountService accounts, FinanceCat
     [Authorize(Policy = Policies.Finance)]
     public async Task<IActionResult> Expenses(
         [FromQuery] string? from, [FromQuery] string? to, [FromQuery] int? categoryId, [FromQuery] int? accountId,
-        [FromQuery] decimal? min, [FromQuery] decimal? max, [FromQuery] string? q, [FromQuery] bool includeVoided, CancellationToken ct) =>
-        Ok(await entries.ListAsync(FinEntryKinds.Expense, new FinEntryFilter(from, to, categoryId, accountId, min, max, q, includeVoided), ct));
+        [FromQuery] decimal? min, [FromQuery] decimal? max, [FromQuery] string? q, [FromQuery] bool includeVoided, [FromQuery] int? payeeId, CancellationToken ct) =>
+        Ok(await entries.ListAsync(FinEntryKinds.Expense, new FinEntryFilter(from, to, categoryId, accountId, min, max, q, includeVoided, null, payeeId), ct));
 
     [HttpGet("expenses/{id:int}")]
     [Authorize(Policy = Policies.Finance)]
@@ -185,8 +270,8 @@ public sealed class FinanceController(FinanceAccountService accounts, FinanceCat
     [Authorize(Policy = Policies.Finance)]
     public async Task<IActionResult> Income(
         [FromQuery] string? from, [FromQuery] string? to, [FromQuery] int? categoryId, [FromQuery] int? accountId,
-        [FromQuery] decimal? min, [FromQuery] decimal? max, [FromQuery] string? q, [FromQuery] bool includeVoided, CancellationToken ct) =>
-        Ok(await entries.ListAsync(FinEntryKinds.Income, new FinEntryFilter(from, to, categoryId, accountId, min, max, q, includeVoided), ct));
+        [FromQuery] decimal? min, [FromQuery] decimal? max, [FromQuery] string? q, [FromQuery] bool includeVoided, [FromQuery] int? payeeId, CancellationToken ct) =>
+        Ok(await entries.ListAsync(FinEntryKinds.Income, new FinEntryFilter(from, to, categoryId, accountId, min, max, q, includeVoided, null, payeeId), ct));
 
     [HttpGet("income/{id:int}")]
     [Authorize(Policy = Policies.Finance)]

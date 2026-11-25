@@ -32,10 +32,10 @@ public sealed class FinanceDashboardService(AppDbContext db, TimeProvider time, 
         var accountList = await accounts.ListAsync(false, ct);
         var total = accountList.Sum(a => a.Balance);
 
-        var spend = current.Where(r => r.Kind == FinEntryKinds.Expense)
-            .GroupBy(r => (r.CategoryId, r.Category))
-            .Select(g => (g.Key.CategoryId, Name: g.Key.Category, Amount: g.Sum(r => r.Amount)))
-            .OrderByDescending(x => x.Amount).ThenBy(x => x.Name).ToList();
+        var spendRows = await db.FinEntryLines.AsNoTracking()
+            .Where(l => l.Entry.Status == FinStatuses.Active && l.Entry.Kind == FinEntryKinds.Expense && l.Entry.EntryDate >= from && l.Entry.EntryDate <= to)
+            .GroupBy(l => new { l.CategoryId, l.Category.Name }).Select(g => new { g.Key.CategoryId, g.Key.Name, Amount = g.Sum(l => l.Amount) }).ToListAsync(ct);
+        var spend = spendRows.Select(x => (x.CategoryId, x.Name, x.Amount)).OrderByDescending(x => x.Amount).ThenBy(x => x.Name).ToList();
         // The rows on screen are the top categories plus one "other" row; their shares are worked out together so they add up to exactly 100.0.
         var shown = spend.Take(TopCategories).Select(x => (Id: (int?)x.CategoryId, x.Name, x.Amount)).ToList();
         if (spend.Count > TopCategories)

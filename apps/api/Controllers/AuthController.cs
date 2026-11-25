@@ -27,7 +27,7 @@ public sealed class AuthController(AppDbContext db, AuthService authService, Jwt
             case LoginOutcome.Success:
                 var user = result.User!;
                 var (token, expiresUtc) = tokenService.CreateToken(user);
-                return Ok(new LoginResponse(token, expiresUtc, new CurrentUserResponse(user.Id, user.Username, user.Role, await EmployeeIdAsync(user.Id, cancellationToken))));
+                return Ok(new LoginResponse(token, expiresUtc, new CurrentUserResponse(user.Id, user.Username, user.Role, await EmployeeIdAsync(user.Id, cancellationToken), user.CanSubmitExpenses)));
 
             case LoginOutcome.Locked:
                 return Failure(StatusCodes.Status423Locked, "Account temporarily locked. Try again later.");
@@ -53,7 +53,7 @@ public sealed class AuthController(AppDbContext db, AuthService authService, Jwt
             return Unauthorized();
         }
 
-        return Ok(new CurrentUserResponse(user.Id, user.Username, user.Role, await EmployeeIdAsync(user.Id, cancellationToken)));
+        return Ok(new CurrentUserResponse(user.Id, user.Username, user.Role, await EmployeeIdAsync(user.Id, cancellationToken), user.CanSubmitExpenses));
     }
 
     [HttpPost("change-password")]

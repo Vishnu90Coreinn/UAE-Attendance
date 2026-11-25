@@ -91,6 +91,10 @@ builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceEntryService>()
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceDashboardService>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceReportService>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinancePartnerService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinancePayeeService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceChequeService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceSubmitterService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceImportService>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceReportExportService>();
 builder.Services.AddSingleton<HrPayroll.Api.Services.Finance.IReceiptStore, HrPayroll.Api.Services.Finance.FolderReceiptStore>();
 
@@ -165,10 +169,12 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
     });
 
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, UnmatchedRouteFriendlyAuthorizationResultHandler>();
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, FinanceSubmitHandler>();
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy(Policies.AnyUser, policy => policy.RequireAuthenticatedUser())
     .AddPolicy(Policies.SiteProgressAccess, policy => policy.RequireAuthenticatedUser().RequireAssertion(context => !context.User.IsInRole(Roles.HR)))
     .AddPolicy(Policies.ManagerOrAdmin,policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager))
+    .AddPolicy(Policies.FinanceSubmit, policy => policy.RequireAuthenticatedUser().AddRequirements(new FinanceSubmitRequirement()))
     .AddPolicy(Policies.Finance, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager))
     .AddPolicy(Policies.ManagerAdminOrHr,policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager, Roles.HR))
     .AddPolicy(Policies.SupervisorOrAbove, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager, Roles.Supervisor))

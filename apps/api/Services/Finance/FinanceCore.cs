@@ -54,6 +54,9 @@ public static class FinanceRules
 
     /// <summary>The signed-in user's name, for the "created by" columns.</summary>
     public static string Actor(IHttpContextAccessor http) => http.HttpContext?.User.Identity?.Name ?? "system";
+
+    /// <summary>The signed-in user's id, or null when there is none.</summary>
+    public static int? UserId(IHttpContextAccessor http) => int.TryParse(http.HttpContext?.User.FindFirst("sub")?.Value, out var id) ? id : null;
 }
 
 /// <summary>

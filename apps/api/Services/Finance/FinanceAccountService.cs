@@ -41,10 +41,10 @@ public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, F
         return result;
     }
 
-    private FinAccountResponse ToResponse(FinAccount a, Sums? s) => new(
+    private FinAccountResponse ToResponse(FinAccount a, Sums? s, IReadOnlyDictionary<int, string>? holders = null) => new(
         a.Id, a.Name, a.Kind, a.BankName, redactor.Number(a.AccountNumber), redactor.Number(a.Iban), a.OpeningBalance,
         FinanceRules.Format(a.OpeningDate), a.IsActive, a.SortOrder,
-        FinanceCalculator.Balance(a.OpeningBalance, s?.Income ?? 0m, s?.Expense ?? 0m, s?.In ?? 0m, s?.Out ?? 0m, s?.Capital ?? 0m), s?.Count ?? 0);
+        FinanceCalculator.Balance(a.OpeningBalance, s?.Income ?? 0m, s?.Expense ?? 0m, s?.In ?? 0m, s?.Out ?? 0m, s?.Capital ?? 0m), s?.Count ?? 0, a.StaffCanUse, a.HolderUserId, a.HolderUserId is { } h ? holders?.GetValueOrDefault(h) : null);
 
     public async Task<List<FinAccountResponse>> ListAsync(bool includeInactive, CancellationToken ct)
     {
@@ -52,13 +52,20 @@ public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, F
         if (!includeInactive) query = query.Where(a => a.IsActive);
         var accounts = await query.OrderBy(a => a.SortOrder).ThenBy(a => a.Name).ToListAsync(ct);
         var sums = await SumsAsync(ct);
-        return accounts.Select(a => ToResponse(a, sums.GetValueOrDefault(a.Id))).ToList();
+        var holders = await HolderNamesAsync(ct);
+        return accounts.Select(a => ToResponse(a, sums.GetValueOrDefault(a.Id), holders)).ToList();
+    }
+
+    private async Task<Dictionary<int, string>> HolderNamesAsync(CancellationToken ct)
+    {
+        var ids = await db.FinAccounts.AsNoTracking().Where(a => a.HolderUserId != null).Select(a => a.HolderUserId!.Value).ToListAsync(ct);
+        return await db.Users.AsNoTracking().Where(u => ids.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.Username, ct);
     }
 
     private async Task<FinAccountResponse> ReloadAsync(FinAccount account, CancellationToken ct)
     {
         var sums = await SumsAsync(ct);
-        return ToResponse(account, sums.GetValueOrDefault(account.Id));
+        return ToResponse(account, sums.GetValueOrDefault(account.Id), await HolderNamesAsync(ct));
     }
 
     private Dictionary<string, string[]> Validate(FinAccountRequest request, out DateOnly openingDate)
@@ -67,7 +74,7 @@ public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, F
         var name = FinanceRules.Clean(request.Name);
         if (name is null) errors["name"] = ["Enter the account name."];
         else if (name.Length > 120) errors["name"] = ["Use 120 characters or fewer."];
-        if (request.Kind is null || !FinAccountKinds.All.Contains(request.Kind)) errors["kind"] = ["Choose Bank or Cash."];
+        if (request.Kind is null || !FinAccountKinds.All.Contains(request.Kind)) errors["kind"] = ["Choose Bank, Cash or Custody (petty cash held by a staff member)."];
         if (FinanceRules.Clean(request.BankName)?.Length > 80) errors["bankName"] = ["Use 80 characters or fewer."];
         if (FinanceRules.Clean(request.AccountNumber)?.Length > 40) errors["accountNumber"] = ["Use 40 characters or fewer."];
         if (FinanceRules.Clean(request.Iban)?.Length > 40) errors["iban"] = ["Use 40 characters or fewer."];
@@ -82,9 +89,21 @@ public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, F
         return errors;
     }
 
+    /// <summary>A Custody account needs the one staff member who holds it; no other account has a holder.</summary>
+    private async Task<int?> CheckHolderAsync(FinAccountRequest request, int? ownId, Dictionary<string, string[]> errors, CancellationToken ct)
+    {
+        if (request.Kind != FinAccountKinds.Custody) return null;
+        if (request.HolderUserId is not { } holderId) { errors["holderUserId"] = ["Choose the staff member who holds the cash."]; return null; }
+        var staffRoles = new[] { HrPayroll.Api.Auth.Roles.Employee, HrPayroll.Api.Auth.Roles.Supervisor, HrPayroll.Api.Auth.Roles.HR };
+        if (!await db.Users.AnyAsync(u => u.Id == holderId && u.IsActive && staffRoles.Contains(u.Role), ct)) { errors["holderUserId"] = ["Choose an active office staff login."]; return null; }
+        if (await db.FinAccounts.AnyAsync(a => a.HolderUserId == holderId && a.Id != ownId, ct)) { errors["holderUserId"] = ["That person already has a petty-cash account."]; return null; }
+        return holderId;
+    }
+
     public async Task<FinResult<FinAccountResponse>> CreateAsync(FinAccountRequest request, CancellationToken ct)
     {
         var errors = Validate(request, out var openingDate);
+        var holder = errors.ContainsKey("kind") ? null : await CheckHolderAsync(request, null, errors, ct);
         var name = FinanceRules.Clean(request.Name);
         if (errors.Count == 0 && await db.FinAccounts.AnyAsync(a => a.Name == name, ct)) errors["name"] = ["An account with this name already exists."];
         if (errors.Count > 0) return FinResult<FinAccountResponse>.Invalid(errors);
@@ -94,7 +113,7 @@ public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, F
         {
             Name = name!, Kind = request.Kind!, BankName = FinanceRules.Clean(request.BankName), AccountNumber = FinanceRules.Clean(request.AccountNumber),
             Iban = FinanceRules.Clean(request.Iban), OpeningBalance = request.OpeningBalance!.Value, OpeningDate = openingDate,
-            SortOrder = request.SortOrder ?? 0, CreatedUtc = now, UpdatedUtc = now,
+            SortOrder = request.SortOrder ?? 0, StaffCanUse = request.StaffCanUse ?? false, HolderUserId = holder, CreatedUtc = now, UpdatedUtc = now,
         };
         db.FinAccounts.Add(account);
         try
@@ -120,6 +139,7 @@ public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, F
         if (account is null) return FinResult<FinAccountResponse>.NotFound("Account not found.");
 
         var errors = Validate(request, out var openingDate);
+        var holder = errors.ContainsKey("kind") ? null : await CheckHolderAsync(request, id, errors, ct);
         var name = FinanceRules.Clean(request.Name);
         if (errors.Count == 0 && await db.FinAccounts.AnyAsync(a => a.Name == name && a.Id != id, ct)) errors["name"] = ["An account with this name already exists."];
         if (errors.Count == 0 && openingDate > account.OpeningDate)
@@ -135,7 +155,7 @@ public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, F
             errors["openingBalance"] = ["A month has been locked, so opening balances are settled. Unlock every month first to change this."];
         if (errors.Count > 0) return FinResult<FinAccountResponse>.Invalid(errors);
 
-        var before = new { account.Name, account.Kind, account.BankName, hasNumber = account.AccountNumber is not null, hasIban = account.Iban is not null, account.OpeningBalance, openingDate = FinanceRules.Format(account.OpeningDate), account.SortOrder };
+        var before = new { account.Name, account.Kind, account.BankName, hasNumber = account.AccountNumber is not null, hasIban = account.Iban is not null, account.OpeningBalance, openingDate = FinanceRules.Format(account.OpeningDate), account.SortOrder, account.StaffCanUse };
         var numberChanged = account.AccountNumber != FinanceRules.Clean(request.AccountNumber) || account.Iban != FinanceRules.Clean(request.Iban);
         account.Name = name!;
         account.Kind = request.Kind!;
@@ -145,7 +165,9 @@ public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, F
         account.OpeningBalance = request.OpeningBalance!.Value;
         account.OpeningDate = openingDate;
         if (request.SortOrder is { } order) account.SortOrder = order;
-        var after = new { account.Name, account.Kind, account.BankName, hasNumber = account.AccountNumber is not null, hasIban = account.Iban is not null, account.OpeningBalance, openingDate = FinanceRules.Format(account.OpeningDate), account.SortOrder };
+        if (request.StaffCanUse is { } staffCanUse) account.StaffCanUse = staffCanUse;
+        account.HolderUserId = holder;
+        var after = new { account.Name, account.Kind, account.BankName, hasNumber = account.AccountNumber is not null, hasIban = account.Iban is not null, account.OpeningBalance, openingDate = FinanceRules.Format(account.OpeningDate), account.SortOrder, account.StaffCanUse };
 
         if (!before.Equals(after) || numberChanged)
         {

@@ -26,16 +26,22 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
             .Append(["Total", Money(r.Totals.Opening), Money(r.Totals.Income), Money(r.Totals.Expense), Money(r.Totals.TransfersIn), Money(r.Totals.TransfersOut), Money(r.Totals.Capital), Money(r.Totals.Closing)]).ToList(),
         [$"Net result for the period: AED {Money(r.Period.Net)} (income less expenses). Transfers between the company's own accounts and partners' capital are not income or expense.", "Capital is what partners put in, less what was paid back. Voided entries are not counted."]);
 
-    private static string MonthName(string month) =>
-        DateOnly.ParseExact(month + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture).ToString("MMM yyyy", CultureInfo.InvariantCulture);
+    private static string MonthName(string key, string grain) => grain switch
+    {
+        "year" => key,
+        "day" => Day(key),
+        "week" => "Week of " + Day(key),
+        _ => DateOnly.ParseExact(key + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture).ToString("MMM yyyy", CultureInfo.InvariantCulture),
+    };
 
     private static StaffExportService.Table MonthsTable(FinReport r, string stem, string subtitle)
     {
         var months = r.Months ?? [];
-        return new("MONTH BY MONTH", subtitle, stem, [("MONTH", 1.5, false), ("ENTRIES", 0.8, true), ("INCOME", 1.3, true), ("EXPENSES", 1.3, true), ("NET", 1.3, true), ("CAPITAL", 1.2, true), ("STATUS", 1, false)],
-            months.Select(m => new[] { MonthName(m.Month), m.Entries.ToString(CultureInfo.InvariantCulture), Money(m.Income), Money(m.Expense), Money(m.Net), Money(m.Capital), m.IsLocked ? "Locked" : "Open" })
+        var grain = r.Granularity;
+        return new(grain switch { "day" => "DAY BY DAY", "week" => "WEEK BY WEEK", "year" => "YEAR BY YEAR", _ => "MONTH BY MONTH" }, subtitle, stem, [(grain switch { "day" => "DAY", "week" => "WEEK", "year" => "YEAR", _ => "MONTH" }, 1.5, false), ("ENTRIES", 0.8, true), ("INCOME", 1.3, true), ("EXPENSES", 1.3, true), ("NET", 1.3, true), ("CAPITAL", 1.2, true), ("STATUS", 1, false)],
+            months.Select(m => new[] { MonthName(m.Month, grain), m.Entries.ToString(CultureInfo.InvariantCulture), Money(m.Income), Money(m.Expense), Money(m.Net), Money(m.Capital), m.IsLocked ? "Locked" : "Open" })
                 .Append(["Total", months.Sum(m => m.Entries).ToString(CultureInfo.InvariantCulture), Money(r.Period.Income), Money(r.Period.Expense), Money(r.Period.Net), Money(r.Totals.Capital), ""]).ToList(),
-            ["A month is Locked once it has been checked and closed. The first and last month hold only the days inside the report period, so choose whole months to compare with another system."]);
+            ["A month is Locked once it has been checked and closed. The first and last row hold only the days inside the report period, so choose whole months to compare with another system."]);
     }
 
     private static StaffExportService.Table PartnersTable(FinReport r, string stem, string subtitle)
@@ -47,14 +53,48 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
             ["Share is each partner's capital at the end of the period as a percentage of all partners' capital."]);
     }
 
+    private static StaffExportService.Table PayeeTable(string title, IReadOnlyList<FinReportPayee>? rows, decimal total, string stem, string subtitle, string nameHeader)
+    {
+        var list = rows ?? [];
+        return new(title, subtitle, stem, [(nameHeader, 3, false), ("ENTRIES", 0.8, true), ("AMOUNT", 1.3, true), ("SHARE", 0.7, true)],
+            list.Select(p => new[] { p.Name, p.Count.ToString(CultureInfo.InvariantCulture), Money(p.Amount), p.Share.ToString("0.0", CultureInfo.InvariantCulture) + "%" })
+                .Append(["Total", list.Sum(p => p.Count).ToString(CultureInfo.InvariantCulture), Money(total), list.Count > 0 ? "100%" : ""]).ToList(), []);
+    }
+
+    private static StaffExportService.Table EnteredByTable(FinReport r, string stem, string subtitle)
+    {
+        var list = r.EnteredBy ?? [];
+        return new("ENTERED BY", subtitle, stem, [("PERSON", 2.6, false), ("ENTRIES", 0.9, true), ("INCOME", 1.3, true), ("EXPENSES", 1.3, true)],
+            list.Select(p => new[] { p.Name, p.Entries.ToString(CultureInfo.InvariantCulture), Money(p.Income), Money(p.Expense) })
+                .Append(["Total", list.Sum(p => p.Entries).ToString(CultureInfo.InvariantCulture), Money(list.Sum(p => p.Income)), Money(list.Sum(p => p.Expense))]).ToList(),
+            ["Each entry is counted under the person who recorded it. Expenses waiting for approval are not counted."]);
+    }
+
+    private static StaffExportService.Table CashFlowTable(FinReport r, string stem, string subtitle)
+    {
+        var c = r.CashFlow ?? new FinCashFlow(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        static string[] R(string item, string amount) => [item, amount];
+        var rows = new List<string[]>
+        {
+            R("Opening balance of all accounts", Money(c.Opening)),
+            R("Income received", Money(c.Income)), R("Expenses paid", "- " + Money(c.Expense)), R("Net from operations", Money(c.Operating)),
+            R("Capital put in by partners", Money(c.CapitalIn)), R("Capital paid back to partners", "- " + Money(c.CapitalOut)), R("Net from partners' capital", Money(c.Financing)),
+        };
+        if (c.Other != 0m) rows.Add(R("Other (accounts opened in the period)", Money(c.Other)));
+        rows.Add(R("Net change in the period", Money(c.NetChange)));
+        rows.Add(R("Closing balance of all accounts", Money(c.Closing)));
+        return new("CASH FLOW", subtitle, stem, [("ITEM", 3, false), ("AED", 1.3, true)], rows,
+            ["Transfers between the company's own accounts move money from one account to another and do not change the total."]);
+    }
+
     private static StaffExportService.Table CategoryTable(string title, IReadOnlyList<FinReportCategory> rows, decimal total, string stem, string subtitle) => new(
         title, subtitle, stem, [("CATEGORY", 3, false), ("ENTRIES", 0.8, true), ("AMOUNT", 1.3, true), ("SHARE", 0.7, true)],
         rows.Select(c => new[] { c.Name, c.Count.ToString(CultureInfo.InvariantCulture), Money(c.Amount), c.Share.ToString("0.0", CultureInfo.InvariantCulture) + "%" })
             .Append(["Total", rows.Sum(c => c.Count).ToString(CultureInfo.InvariantCulture), Money(total), rows.Count > 0 ? "100%" : ""]).ToList(), []);
 
-    public async Task<FinResult<FinReportFile>> ExportAsync(string? from, string? to, FinReportFormat format, CancellationToken ct)
+    public async Task<FinResult<FinReportFile>> ExportAsync(string? from, string? to, FinReportFormat format, CancellationToken ct, string? granularity = null)
     {
-        var result = await reports.BuildAsync(from, to, ct);
+        var result = await reports.BuildAsync(from, to, ct, granularity);
         if (result.Status != 200) return new(result.Status, Errors: result.Errors, Title: result.Title);
         var r = result.Value!;
         var stem = $"Finance_Report_{r.From}_{r.To}";
@@ -63,19 +103,23 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
         var income = CategoryTable("INCOME BY CATEGORY", r.IncomeCategories, r.Period.Income, stem, subtitle);
         var expenses = CategoryTable("EXPENSES BY CATEGORY", r.ExpenseCategories, r.Period.Expense, stem, subtitle);
         var partnersTable = PartnersTable(r, stem, subtitle);
+        var cashFlow = CashFlowTable(r, stem, subtitle);
+        var expensePayees = PayeeTable("EXPENSES BY PAYEE", r.ExpensePayees, r.Period.Expense, stem, subtitle, "PAID TO");
+        var incomePayees = PayeeTable("INCOME BY SOURCE", r.IncomePayees, r.Period.Income, stem, subtitle, "RECEIVED FROM");
+        var enteredBy = EnteredByTable(r, stem, subtitle);
         var monthsTable = MonthsTable(r, stem, subtitle);
 
         if (format == FinReportFormat.Csv) return FinResult<FinReportFile>.Ok(new(Csv(r), stem + ".csv", "text/csv; charset=utf-8"));
 
         var company = await staffExports.CompanyAsync(ct);
         if (format == FinReportFormat.Pdf)
-            return FinResult<FinReportFile>.Ok(new(staffExports.BuildPdf([accounts, monthsTable, income, expenses, partnersTable], company, Footer), stem + ".pdf", AttendanceExportService.PdfType));
+            return FinResult<FinReportFile>.Ok(new(staffExports.BuildPdf([accounts, cashFlow, monthsTable, income, expenses, expensePayees, incomePayees, enteredBy, partnersTable], company, Footer), stem + ".pdf", AttendanceExportService.PdfType));
 
         var entries = await reports.EntriesAsync(r.From, r.To, ct);
         var detail = new StaffExportService.Table("ENTRIES", subtitle, stem,
             [("DATE", 1, false), ("NO.", 1.1, false), ("TYPE", 0.8, false), ("CATEGORY", 2, false), ("PARTY", 2, false), ("ACCOUNT", 1.6, false), ("REFERENCE", 1.2, false), ("AMOUNT", 1, true)],
             entries.Select(e => new[] { Day(e.Date), e.EntryNo, e.Kind, e.Category, e.Party, e.Account, e.Reference ?? "", Money(e.Amount) }).ToList(), []);
-        var book = StaffExportService.Workbook([("Statement", accounts), ("Months", monthsTable), ("Income", income), ("Expenses", expenses), ("Partners", partnersTable), ("Entries", detail)], company);
+        var book = StaffExportService.Workbook([("Statement", accounts), ("Cash flow", cashFlow), ("Months", monthsTable), ("Income", income), ("Expenses", expenses), ("Expense payees", expensePayees), ("Income sources", incomePayees), ("Entered by", enteredBy), ("Partners", partnersTable), ("Entries", detail)], company);
         return FinResult<FinReportFile>.Ok(new(book, stem + ".xlsx", AttendanceExportService.ExcelType));
     }
 
@@ -100,7 +144,18 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
         foreach (var a in r.Accounts) Line(a.Name, Plain(a.Opening), Plain(a.Income), Plain(a.Expense), Plain(a.TransfersIn), Plain(a.TransfersOut), Plain(a.Capital), Plain(a.Closing));
         Line("Total", Plain(r.Totals.Opening), Plain(r.Totals.Income), Plain(r.Totals.Expense), Plain(r.Totals.TransfersIn), Plain(r.Totals.TransfersOut), Plain(r.Totals.Capital), Plain(r.Totals.Closing));
         Line();
-        Line("Month by month", "Entries", "Income", "Expenses", "Net", "Capital", "Status");
+        var cf = r.CashFlow;
+        if (cf is not null)
+        {
+            Line("Cash flow", "AED");
+            Line("Opening balance", Plain(cf.Opening)); Line("Income received", Plain(cf.Income)); Line("Expenses paid", Plain(-cf.Expense)); Line("Net from operations", Plain(cf.Operating));
+            Line("Capital put in", Plain(cf.CapitalIn)); Line("Capital paid back", Plain(-cf.CapitalOut)); Line("Net from capital", Plain(cf.Financing));
+            if (cf.Other != 0m) Line("Other", Plain(cf.Other));
+            Line("Net change", Plain(cf.NetChange)); Line("Closing balance", Plain(cf.Closing));
+            Line();
+        }
+
+        Line(r.Granularity switch { "day" => "Day by day", "week" => "Week by week (Monday)", "year" => "Year by year", _ => "Month by month" }, "Entries", "Income", "Expenses", "Net", "Capital", "Status");
         foreach (var m in r.Months ?? []) Line(m.Month, m.Entries.ToString(CultureInfo.InvariantCulture), Plain(m.Income), Plain(m.Expense), Plain(m.Net), Plain(m.Capital), m.IsLocked ? "Locked" : "Open");
         Line();
         Line("Income by category", "Entries", "Amount", "Share %");
@@ -110,6 +165,15 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
         Line("Expenses by category", "Entries", "Amount", "Share %");
         foreach (var c in r.ExpenseCategories) Line(c.Name, c.Count.ToString(CultureInfo.InvariantCulture), Plain(c.Amount), c.Share.ToString(CultureInfo.InvariantCulture));
         Line("Total", r.ExpenseCategories.Sum(c => c.Count).ToString(CultureInfo.InvariantCulture), Plain(r.Period.Expense), "");
+        Line();
+        Line("Expenses by payee", "Entries", "Amount", "Share %");
+        foreach (var p in r.ExpensePayees ?? []) Line(p.Name, p.Count.ToString(CultureInfo.InvariantCulture), Plain(p.Amount), p.Share.ToString(CultureInfo.InvariantCulture));
+        Line();
+        Line("Income by source", "Entries", "Amount", "Share %");
+        foreach (var p in r.IncomePayees ?? []) Line(p.Name, p.Count.ToString(CultureInfo.InvariantCulture), Plain(p.Amount), p.Share.ToString(CultureInfo.InvariantCulture));
+        Line();
+        Line("Entered by", "Entries", "Income", "Expenses");
+        foreach (var p in r.EnteredBy ?? []) Line(p.Name, p.Entries.ToString(CultureInfo.InvariantCulture), Plain(p.Income), Plain(p.Expense));
         Line();
         Line("Net result", Plain(r.Period.Net));
         Line();

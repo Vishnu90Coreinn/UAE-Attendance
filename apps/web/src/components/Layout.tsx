@@ -51,7 +51,7 @@ export function Layout() {
     };
   }, []);
 
-  const tabs = user ? navItemsForRole(user.role, user.employeeId) : [];
+  const tabs = user ? navItemsForRole(user.role, user.employeeId, user.canSubmitExpenses) : [];
   const { pathname } = useLocation();
   // Each screen names the browser tab, so tabs and history are told apart.
   useEffect(() => {

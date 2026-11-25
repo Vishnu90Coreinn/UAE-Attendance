@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, FileSpreadsheet, FileText, Lock, LockOpen, Sheet } from "lucide-react";
-import { getFinReport, getFinReportFile, type FinReport, type FinReportAccount, type FinReportCategory, type FinReportFormat, type FinReportMonth } from "../../api/finance";
+import { getFinReport, getFinReportFile, type FinGranularity, type FinReport, type FinReportAccount, type FinReportCategory, type FinReportFormat, type FinReportMonth } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { TextField } from "../../components/TextField";
 import { useIsDesktop } from "../../utils/useIsDesktop";
@@ -178,7 +178,10 @@ function CategoryCard({ title, rows, total, bar }: { title: string; rows: FinRep
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** "Nov 2026", and for a month the period only partly covers, which days: "10 to 31 Nov 2026". */
-function monthLabel(m: FinReportMonth, from: string, to: string): { name: string; part: string | null } {
+function monthLabel(m: FinReportMonth, from: string, to: string, grain: FinGranularity = "month"): { name: string; part: string | null } {
+  if (grain === "year") return { name: m.month, part: null };
+  if (grain === "day") return { name: formatDay(m.month), part: null };
+  if (grain === "week") return { name: `Week of ${formatDay(m.month)}`, part: null };
   const [year, month] = m.month.split("-").map(Number);
   const name = `${MONTH_NAMES[month - 1]} ${year}`;
   const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -200,19 +203,31 @@ function LockMark({ month }: { month: FinReportMonth }) {
 }
 
 /** One row per month with its own totals, so each month can be set against another set of books. A locked month has been checked and closed. */
-function MonthsCard({ report, desktop }: { report: FinReport; desktop: boolean }) {
+const GRAINS: { key: FinGranularity; label: string }[] = [
+  { key: "day", label: "Days" }, { key: "week", label: "Weeks" }, { key: "month", label: "Months" }, { key: "year", label: "Years" },
+];
+
+function MonthsCard({ report, desktop, grain, onGrain, dailyOk }: { report: FinReport; desktop: boolean; grain: FinGranularity; onGrain: (g: FinGranularity) => void; dailyOk: boolean }) {
   const months = report.months ?? [];
   const entries = months.reduce((sum, m) => sum + m.entries, 0);
   return (
     <Card>
-      <CardHeader title="Month by month" description="To compare with another system, set the period to whole months. A locked month has been checked and closed." />
+      <CardHeader title={{ day: "Day by day", week: "Week by week", month: "Month by month", year: "Year by year" }[grain]} description="To compare with another system, set the period to whole months. A locked month has been checked and closed." />
+      <div role="group" aria-label="Group the table by" className="flex flex-wrap gap-2 px-5 pb-3">
+        {GRAINS.map((g) => (
+          <button key={g.key} type="button" aria-pressed={grain === g.key} disabled={g.key === "day" && !dailyOk} onClick={() => onGrain(g.key)}
+            className={cx("min-h-11 rounded-full border px-3.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 md:min-h-9", grain === g.key ? "border-brand-600 bg-brand-600 text-white" : "border-line bg-white text-ink-700 hover:border-brand-300")}>
+            {g.label}
+          </button>
+        ))}
+      </div>
       {months.length === 0 ? null : desktop ? (
         <TableScroll>
           <Table>
             <caption className="sr-only">Income, expenses and net for each month, in AED</caption>
             <THead>
               <tr>
-                <Th>Month</Th>
+                <Th>{{ day: "Day", week: "Week", month: "Month", year: "Year" }[grain]}</Th>
                 <Th align="right">Entries</Th>
                 <Th align="right">Income</Th>
                 <Th align="right">Expenses</Th>
@@ -223,7 +238,7 @@ function MonthsCard({ report, desktop }: { report: FinReport; desktop: boolean }
             </THead>
             <tbody>
               {months.map((m) => {
-                const label = monthLabel(m, report.from, report.to);
+                const label = monthLabel(m, report.from, report.to, report.granularity);
                 return (
                   <TRow key={m.month}>
                     <Td className="font-medium text-ink-900">
@@ -254,7 +269,7 @@ function MonthsCard({ report, desktop }: { report: FinReport; desktop: boolean }
       ) : (
         <ul className="divide-y divide-line border-t border-line">
           {months.map((m) => {
-            const label = monthLabel(m, report.from, report.to);
+            const label = monthLabel(m, report.from, report.to, report.granularity);
             if (m.entries === 0 && m.capital === 0) {
               return (
                 <li key={m.month} className="flex items-center justify-between gap-3 px-5 py-3">
@@ -300,6 +315,62 @@ function MonthsCard({ report, desktop }: { report: FinReport; desktop: boolean }
 }
 
 /** What each partner had at the start of the period, put in, took back and holds at the end, with the exact share. */
+/** The same card as the categories, for the people and companies: who the money went to or came from, with each one's share. */
+function PayeesCard({ title, rows, total, bar }: { title: string; rows: NonNullable<FinReport["expensePayees"]>; total: number; bar: string }) {
+  return <CategoryCard title={title} rows={rows.map((p, i) => ({ categoryId: i, name: p.name, amount: p.amount, count: p.count, share: p.share }))} total={total} bar={bar} />;
+}
+
+/** Where the money came from and went: operations, partners' capital, and how the total of all accounts changed. */
+function CashFlowCard({ report }: { report: FinReport }) {
+  const c = report.cashFlow;
+  if (!c) return null;
+  const rows: { label: string; value: number; strong?: boolean; sign?: boolean }[] = [
+    { label: "Opening balance of all accounts", value: c.opening },
+    { label: "Income received", value: c.income, sign: true },
+    { label: "Expenses paid", value: -c.expense, sign: true },
+    { label: "Net from operations", value: c.operating, strong: true, sign: true },
+    { label: "Capital put in by partners", value: c.capitalIn, sign: true },
+    { label: "Capital paid back to partners", value: -c.capitalOut, sign: true },
+    { label: "Net from partners' capital", value: c.financing, strong: true, sign: true },
+    ...(c.other !== 0 ? [{ label: "Other (accounts opened in the period)", value: c.other, sign: true }] : []),
+    { label: "Net change in the period", value: c.netChange, strong: true, sign: true },
+    { label: "Closing balance of all accounts", value: c.closing, strong: true },
+  ];
+  return (
+    <Card>
+      <CardHeader title="Cash flow" description="Transfers between your own accounts move money from one to another and do not change the total." />
+      <dl className="divide-y divide-line border-t border-line">
+        {rows.map((r) => (
+          <div key={r.label} className={cx("flex items-baseline justify-between gap-4 px-5 py-2.5", r.strong && "bg-ink-50")}>
+            <dt className={cx("text-sm", r.strong ? "font-semibold text-ink-900" : "text-ink-700")}>{r.label}</dt>
+            <dd className={cx("tabular-nums", r.strong ? "font-display text-base font-bold text-ink-900" : "text-sm text-ink-800", r.sign && r.value < 0 && "text-danger")}>AED {r.sign ? signed(r.value) : formatMoney(r.value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </Card>
+  );
+}
+
+function EnteredByCard({ report }: { report: FinReport }) {
+  const rows = report.enteredBy ?? [];
+  if (rows.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader title="Entered by" description="How many entries each person recorded in this period. Expenses waiting for approval are not counted." />
+      <ul className="divide-y divide-line border-t border-line">
+        {rows.map((p) => (
+          <li key={p.name} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-0.5 px-5 py-3 sm:flex sm:items-baseline">
+            <span className="min-w-0 truncate text-[15px] font-medium text-ink-900 sm:flex-1">{p.name}</span>
+            <span className="text-right text-sm tabular-nums text-ink-600 sm:w-28">{p.entries === 1 ? "1 entry" : `${p.entries} entries`}</span>
+            <span className={cx("text-sm tabular-nums text-ink-700 sm:w-40 sm:text-right", quietZero(p.income))}>Income {formatMoney(p.income)}</span>
+            <span className={cx("text-right text-sm tabular-nums text-ink-700 sm:w-40", quietZero(p.expense))}>Expenses {formatMoney(p.expense)}</span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
 function PartnersCard({ report }: { report: FinReport }) {
   const rows = report.partners ?? [];
   return (
@@ -334,17 +405,21 @@ export function FinanceReportsPage() {
   const [preset, setPreset] = useState<ReportPreset>("month");
   const [range, setRange] = useState(() => presetRange("month", today));
   const [load, setLoad] = useState<Load>({ status: "idle" });
+  const [grain, setGrain] = useState<FinGranularity>("month");
   const [busy, setBusy] = useState<FinReportFormat | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const latest = useRef(0);
 
   const rangeError = rangeProblem(range, today);
 
-  const refresh = useCallback(async (from: string, to: string) => {
+  const dailyOk = Math.round((Date.parse(range.to) - Date.parse(range.from)) / 86_400_000) < 93;
+  const effectiveGrain: FinGranularity = grain === "day" && !dailyOk ? "month" : grain;
+
+  const refresh = useCallback(async (from: string, to: string, by: FinGranularity) => {
     const request = ++latest.current;
     setLoad({ status: "loading" });
     try {
-      const report = await getFinReport(from, to);
+      const report = await getFinReport(from, to, by);
       if (request === latest.current) setLoad({ status: "ready", report });
     } catch (error) {
       if (request === latest.current) setLoad({ status: "error", message: failure(error) });
@@ -352,9 +427,9 @@ export function FinanceReportsPage() {
   }, []);
 
   useEffect(() => {
-    if (!rangeProblem({ from: range.from, to: range.to }, today)) void refresh(range.from, range.to);
+    if (!rangeProblem({ from: range.from, to: range.to }, today)) void refresh(range.from, range.to, effectiveGrain);
     else latest.current++;
-  }, [range.from, range.to, today, refresh]);
+  }, [range.from, range.to, effectiveGrain, today, refresh]);
 
   function choose(next: ReportPreset) {
     setPreset(next);
@@ -365,7 +440,7 @@ export function FinanceReportsPage() {
     setBusy(format);
     setProblem(null);
     try {
-      saveBlob(await getFinReportFile(format, range.from, range.to), `Finance_Report_${range.from}_${range.to}.${extension}`);
+      saveBlob(await getFinReportFile(format, range.from, range.to, effectiveGrain), `Finance_Report_${range.from}_${range.to}.${extension}`);
     } catch (error) {
       setProblem(failure(error));
     } finally {
@@ -415,7 +490,7 @@ export function FinanceReportsPage() {
       {problem && <ActionFailure message={problem} />}
 
       {load.status === "loading" && <LoadingState label="Preparing the report..." withCards />}
-      {load.status === "error" && <LoadError message={load.message} onRetry={() => void refresh(range.from, range.to)} />}
+      {load.status === "error" && <LoadError message={load.message} onRetry={() => void refresh(range.from, range.to, effectiveGrain)} />}
 
       {ready && (
         <>
@@ -430,11 +505,17 @@ export function FinanceReportsPage() {
               <AccountStatements accounts={ready.accounts} />
             )}
           </Card>
-          <MonthsCard report={ready} desktop={desktop} />
+          <CashFlowCard report={ready} />
+          <MonthsCard report={ready} desktop={desktop} grain={effectiveGrain} onGrain={setGrain} dailyOk={dailyOk} />
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <CategoryCard title="Income by category" rows={ready.incomeCategories} total={ready.period.income} bar="bg-brand-500" />
             <CategoryCard title="Expenses by category" rows={ready.expenseCategories} total={ready.period.expense} bar="bg-amber-400" />
           </div>
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <PayeesCard title="Income by source" rows={ready.incomePayees ?? []} total={ready.period.income} bar="bg-brand-500" />
+            <PayeesCard title="Expenses by payee" rows={ready.expensePayees ?? []} total={ready.period.expense} bar="bg-amber-400" />
+          </div>
+          <EnteredByCard report={ready} />
           <PartnersCard report={ready} />
         </>
       )}

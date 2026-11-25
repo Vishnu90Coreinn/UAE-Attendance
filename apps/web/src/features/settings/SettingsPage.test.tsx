@@ -11,7 +11,7 @@ vi.mock("../../api/settings");
 // The company documents card has its own tests; here it stays unmounted while its (never answered) request is pending.
 vi.mock("../../api/documentSettings", () => ({ getDocumentSettings: () => new Promise(() => {}) }));
 // The finance categories card has its own tests; its request stays pending here too.
-vi.mock("../../api/finance", () => ({ listFinCategories: () => new Promise(() => {}), listFinMonthLocks: () => new Promise(() => {}) }));
+vi.mock("../../api/finance", () => ({ listFinCategories: () => new Promise(() => {}), listFinMonthLocks: () => new Promise(() => {}), listFinSubmitters: () => new Promise(() => {}), setFinSubmitter: vi.fn() }));
 vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
 
 const current: PayrollSettings = {
