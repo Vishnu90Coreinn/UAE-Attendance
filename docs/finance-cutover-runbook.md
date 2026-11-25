@@ -4,16 +4,36 @@ For DE AKS BE GLASS & ALUMINIUM CO. L.L.C S.O.C. Plain steps, in order. Nothing 
 
 Companion documents: `docs/finance-chart-of-accounts.md` (the starting chart, how each thing is booked, and the Daftra crosswalk for the opening balances), `docs/phase4-ledger-plan.md` (what the books do), `docs/DEPLOY.md` (how to release), `docs/finance-client-roadmap.md`.
 
+## Agreed dates
+
+- **Cut-off: 31 December 2026.** The last day entered in Daftra.
+- **First day in the new app: 1 January 2027.** Opening balances are as at 31 December 2026, so the new books start on the first day of the financial year and of the first VAT quarter of 2027. The new app never has to close 2026; the accountant does that in Daftra.
+- The first financial year in the new app is 2027. Year-end close first applies after 31 December 2027.
+
+## Timeline
+
+| When | What |
+|---|---|
+| By early December | Merge PR 37, back up, deploy to production, check `/api/health` and the Books banner (section 6) |
+| Early to mid December | Dry run on a restored copy (section 5). Train the people who will enter expenses and approve them |
+| Mid December | Create the accounts (opening date **1 January 2027**), partners, categories, mapping and VAT defaults (section 3, steps 1 to 4) with provisional zero balances |
+| 31 December | Last entries in Daftra. The accountant closes December in Daftra |
+| From 1 January | Staff enter everything in the new app only. Entries dated 1 January or later are accepted before the opening balances are final |
+| When the signed 31 December trial balance is ready | Enter the real opening balances and the opening journal (section 3, steps 1, 2 and 5 to 7), then run the checks in section 7. Opening balances can be edited until the first month is locked |
+| End of January | Compare with Daftra if it is still running (section 8), then lock January |
+
+Entering the opening balances after the first entries is safe: an account's opening balance and date, and a partner's opening capital, can be changed until any month is locked, and the books are derived again. Do not lock a month before the opening position is final.
+
 ## 0. The idea in one paragraph
 
-On an agreed **cut-over date** the books in this app start from the closing balances of Daftra. From then on every entry is made here only. We run one **parallel month** (both systems) so the accountant can compare the figures before Daftra is switched off. The cut-over date should be the **first day of a month**, so the parallel month is a whole month.
+On the cut-over date (1 January 2027) the books in this app start from the closing balances of Daftra at 31 December 2026. From then on every entry is made here only. If the accountant wants a safety net, January can be run in both systems and compared before Daftra is switched off. If the client goes fully to the new app from 1 January, the comparison is the opening position (section 7) and the first VAT return.
 
 ## 1. Decisions needed before anything is entered
 
 | # | Decision | Who | Why it matters |
 |---|---|---|---|
-| 1 | Cut-over date (first day of a month) | Client and accountant | Opening balances are "as at the day before" |
-| 2 | Parallel month, and the sign-off date | Accountant | Daftra is switched off only after sign-off |
+| 1 | Cut-over date | Client | **Decided: 1 January 2027**, opening as at 31 December 2026 |
+| 2 | Run January in both systems, or go fully to the new app from 1 January? | Client and accountant | Daftra is switched off only after sign-off |
 | 3 | VAT type for each expense and income category | Accountant | Sets the default VAT type on each category (Books are wrong quietly if a category is mapped wrongly) |
 | 4 | Is reverse charge VAT 5% for this company? | Accountant | Affects the VAT return |
 | 5 | Prepaid rent: expense when paid, or spread over the months? | Accountant | We expense when paid today; spreading needs a manual journal each month |
