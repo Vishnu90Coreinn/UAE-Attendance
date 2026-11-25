@@ -105,6 +105,14 @@ public sealed class FinanceTransferService(AppDbContext db, IAuditLogger audit, 
         transfer.TransferNo = "TRF-" + transfer.Id.ToString("000000");
         if (replaces is not null)
         {
+            // Claim the original inside the transaction: of two simultaneous corrections only one finds it still Active.
+            var claimed = await db.FinTransfers.Where(t => t.Id == replaces.Id && t.Status == FinStatuses.Active)
+                .ExecuteUpdateAsync(s => s.SetProperty(t => t.Status, FinStatuses.Voided).SetProperty(t => t.VoidReason, $"Corrected: replaced by {transfer.TransferNo}")
+                    .SetProperty(t => t.VoidedBy, transfer.CreatedBy).SetProperty(t => t.VoidedUtc, transfer.CreatedUtc), ct);
+            if (claimed == 0) return FinResult<FinTransferResponse>.Conflict($"{replaces.TransferNo} was changed by someone else and cannot be corrected.");
+        }
+        if (replaces is not null)
+        {
             replaces.Status = FinStatuses.Voided;
             replaces.VoidReason = $"Corrected: replaced by {transfer.TransferNo}";
             replaces.VoidedBy = transfer.CreatedBy;

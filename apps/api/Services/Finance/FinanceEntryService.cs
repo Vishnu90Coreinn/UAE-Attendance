@@ -216,6 +216,19 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
             command.CommandText = $"SELECT NEXT VALUE FOR {sequence}";   // the sequence name is one of two constants above
             var number = Convert.ToInt32(await command.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
             entry.EntryNo = (kind == FinEntryKinds.Income ? "INC-" : "EXP-") + number.ToString("000000");
+            if (replaces is not null)
+            {
+                // Claim the original inside the transaction: of two simultaneous corrections only one finds it still Active.
+                var claimed = await db.FinEntries.Where(e => e.Id == replaces.Id && e.Status == FinStatuses.Active)
+                    .ExecuteUpdateAsync(s => s.SetProperty(e => e.Status, FinStatuses.Voided).SetProperty(e => e.VoidReason, $"Corrected: replaced by {entry.EntryNo}")
+                        .SetProperty(e => e.VoidedBy, actor).SetProperty(e => e.VoidedUtc, now), ct);
+                if (claimed == 0)
+                {
+                    foreach (var name in stored) store.Delete(name);
+                    return FinResult<FinEntryResponse>.Conflict($"{replaces.EntryNo} was changed by someone else and cannot be corrected.");
+                }
+            }
+
             db.FinEntries.Add(entry);
             await db.SaveChangesAsync(ct);
             foreach (var a in attachments) a.EntryId = entry.Id;

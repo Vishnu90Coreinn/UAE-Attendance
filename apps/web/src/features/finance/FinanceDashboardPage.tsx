@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, Landmark, ReceiptText, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { Link } from "react-router-dom";
 import { getFinDashboard, type FinDashboard, type FinWindow } from "../../api/finance";
@@ -252,11 +252,15 @@ export function FinanceDashboardPage() {
   const [days, setDays] = useState<FinWindow>(30);
   const [load, setLoad] = useState<Load>({ status: "loading" });
 
+  // Only the answer to the latest request may be shown, so a slow reply for an earlier period cannot overwrite the current one.
+  const latestRequest = useRef(0);
   const refresh = useCallback(async (window: FinWindow) => {
+    const request = ++latestRequest.current;
     try {
-      setLoad({ status: "ready", data: await getFinDashboard(window) });
+      const data = await getFinDashboard(window);
+      if (request === latestRequest.current) setLoad({ status: "ready", data });
     } catch (error) {
-      setLoad({ status: "error", message: error instanceof ApiError ? error.message : "Something went wrong. Please try again." });
+      if (request === latestRequest.current) setLoad({ status: "error", message: error instanceof ApiError ? error.message : "Something went wrong. Please try again." });
     }
   }, []);
 
