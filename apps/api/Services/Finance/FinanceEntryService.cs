@@ -39,7 +39,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         files.Select(f => new FinAttachmentResponse(f.Id, f.FileName, f.ContentType, f.SizeBytes)).ToList(),
         e.VoidedBy, e.VoidedUtc, e.ReplacesEntryId, replacesNo, replacedByNo, e.PartnerId, e.PayeeId,
         e.Lines.OrderByDescending(l => l.Amount).ThenBy(l => l.Id).Select(l => new FinEntryLineResponse(l.CategoryId, l.Category.Name, l.Amount, l.Note)).ToList(),
-        e.TaxTypeId, e.TaxRate, e.TaxAmount, e.TaxInclusive);
+        e.TaxTypeId, e.TaxRate, e.TaxAmount, e.TaxInclusive, e.InvoiceId, e.BillId);
 
     /// <summary>EntryNo of the entry each given entry replaces, and of the entry that replaced it.</summary>
     private async Task<(Dictionary<int, string> Replaces, Dictionary<int, string> ReplacedBy)> ChainAsync(IReadOnlyCollection<FinEntry> rows, CancellationToken ct)
@@ -254,7 +254,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
                 var found = await db.FinCategories.Where(c => ids.Contains(c.Id) && c.Kind == kind).ToDictionaryAsync(c => c.Id, ct);
                 foreach (var input in inputs)
                 {
-                    if (input.CategoryId is null || !found.TryGetValue(input.CategoryId.Value, out var lineCategory) || !lineCategory.IsActive)
+                    if (input.CategoryId is null || !found.TryGetValue(input.CategoryId.Value, out var lineCategory) || !lineCategory.IsActive || lineCategory.IsSystem)   // system categories are posted by the app, never picked by hand
                     {
                         errors[key] = [key == "lines" ? "Choose an active category on every line." : "Choose an active category."];
                         break;
@@ -308,7 +308,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         FinTaxType? taxType = null;
         if (!capital && !errors.ContainsKey("amount"))
         {
-            var taxId = form.TaxTypeId is 0 || (category is not null && FinanceRules.IsVatSettlement(category.Id)) ? null : form.TaxTypeId ?? category?.DefaultTaxTypeId;   // settling VAT carries no VAT
+            var taxId = form.TaxTypeId is 0 || (category is not null && FinanceRules.IsVatSettlement(category.Id)) ? null : form.TaxTypeId ?? (category is { NoVat: true } ? null : category?.DefaultTaxTypeId);   // settling VAT, and a category that never carries VAT, record none
             if (taxId is { } id)
             {
                 taxType = await db.FinTaxTypes.AsNoTracking().SingleOrDefaultAsync(t => t.Id == id, ct);

@@ -52,6 +52,10 @@ export interface FinCategory {
   useCount: number;
   /** The VAT type offered first for this category. */
   defaultTaxTypeId?: number | null;
+  /** True when the category never carries VAT (the form starts on "no VAT"). With neither this nor a default, the form asks each time. */
+  noVat?: boolean;
+  /** Made and used by the app itself; never offered on entry forms. */
+  isSystem?: boolean;
 }
 
 export interface FinTransfer {
@@ -126,6 +130,9 @@ export interface FinEntryLine {
 }
 
 export interface FinEntry {
+  /** Set when this is a payment received on a tax invoice, or paid on a supplier bill: it is changed on that document, not here. */
+  invoiceId?: number | null;
+  billId?: number | null;
   id: number;
   kind: FinEntryKind;
   entryNo: string;
@@ -894,6 +901,7 @@ export interface FinTaxType {
 export function listFinTaxTypes(): Promise<FinTaxType[]> {
   return apiGet("/api/finance/tax-types");
 }
+/** A VAT type id, 0 for "this category never carries VAT", or null for "ask each time". */
 export function setCategoryTaxDefault(categoryId: number, taxTypeId: number | null): Promise<FinCategory> {
   return apiPut<FinCategory>(`/api/finance/categories/${categoryId}/tax-default`, { taxTypeId });
 }

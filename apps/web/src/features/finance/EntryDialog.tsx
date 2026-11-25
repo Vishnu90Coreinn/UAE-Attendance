@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Camera, FileText, Loader2, Paperclip, Plus, Save, Split, X } from "lucide-react";
 import { correctFinEntry, createFinEntry, listFinParties, listFinPayees, listFinTaxTypes, submitFinExpense, type FinAccount, type FinCategory, type FinEntry, type FinEntryKind, type FinPayee, type FinTaxType } from "../../api/finance";
 import { ApiError } from "../../api/client";
@@ -8,8 +8,8 @@ import { Button, Select, Textarea } from "../../ui";
 import { formatMoney, isVatSettlementCategory, todayInUae, parseMoneyInput, vatOf } from "./financeFormat";
 import { formatBytes, receiptProblem, RECEIPT_MAX_FILES, shrinkPhoto } from "./receiptFile";
 
-type FieldName = "amount" | "entryDate" | "categoryId" | "accountId" | "party" | "reference" | "notes" | "files" | "payeeId" | "lines";
-const FIELDS: FieldName[] = ["amount", "entryDate", "categoryId", "accountId", "party", "reference", "notes", "files", "payeeId", "lines"];
+type FieldName = "taxTypeId" | "amount" | "entryDate" | "categoryId" | "accountId" | "party" | "reference" | "notes" | "files" | "payeeId" | "lines";
+const FIELDS: FieldName[] = ["taxTypeId", "amount", "entryDate", "categoryId", "accountId", "party", "reference", "notes", "files", "payeeId", "lines"];
 
 interface LineDraft {
   categoryId: string;
@@ -42,7 +42,8 @@ interface EntryDialogProps {
 }
 
 /** Record an expense (receipt required) or an income (attachment optional). The amount comes first and the last account and category are remembered. */
-export function EntryDialog({ kind, entry, accounts, categories, onClose, onSaved, variant, submit: submitMode }: EntryDialogProps) {
+export function EntryDialog({ kind, entry, accounts, categories: allCategories, onClose, onSaved, variant, submit: submitMode }: EntryDialogProps) {
+  const categories = useMemo(() => allCategories.filter((c) => !c.isSystem), [allCategories]);   // the app's own categories are posted by the app, never picked here
   const income = kind === "Income";
   const LAST_CATEGORY = lastCategoryKey(kind);
   const [amount, setAmount] = useState(entry ? String(entry.amount) : "");
@@ -52,8 +53,22 @@ export function EntryDialog({ kind, entry, accounts, categories, onClose, onSave
   const [party, setParty] = useState(entry?.party ?? "");
   const [payees, setPayees] = useState<FinPayee[]>(submitMode?.payees ?? []);
   const [taxTypes, setTaxTypes] = useState<FinTaxType[]>(submitMode?.taxTypes ?? []);
-  /** "0" is "no VAT recorded". A new entry starts on its category's VAT type, else the one used last, else standard rated. */
-  const [taxTypeId, setTaxTypeId] = useState(() => (entry ? String(entry.taxTypeId ?? 0) : remembered(`hrpayroll.finance.last${kind}Tax`, [0, 1, 2, 3, 4, 5]) || "1"));
+  /**
+   * "0" is "no VAT recorded", "" is "not chosen yet". A new entry starts on what its category says (never VAT, or a VAT type to offer first), then on what was chosen
+   * for that category last time, and otherwise asks. Standard rated is never assumed: a salary saved with VAT on it would over-claim in the VAT return.
+   */
+  const startingTax = (category: string) => {
+    const found = categories.find((c) => String(c.id) === category);
+    if (!found) return "";
+    if (found.noVat) return "0";
+    if (found.defaultTaxTypeId) return String(found.defaultTaxTypeId);
+    try {
+      return localStorage.getItem(`hrpayroll.finance.catTax.${found.id}`) ?? "";
+    } catch {
+      return "";
+    }
+  };
+  const [taxTypeId, setTaxTypeId] = useState(() => (entry ? String(entry.taxTypeId ?? 0) : startingTax(categoryId)));
   const [taxTouched, setTaxTouched] = useState(Boolean(entry));
   const [taxInclusive, setTaxInclusive] = useState(true);
   const [payeeId, setPayeeId] = useState(entry?.payeeId ? String(entry.payeeId) : "");
@@ -93,8 +108,7 @@ export function EntryDialog({ kind, entry, accounts, categories, onClose, onSave
 
   function pickCategory(value: string) {
     setCategoryId(value);
-    const fallback = categories.find((c) => String(c.id) === value)?.defaultTaxTypeId;
-    if (!taxTouched && fallback) setTaxTypeId(String(fallback));
+    if (!taxTouched) setTaxTypeId(startingTax(value));
   }
 
   function startSplit() {
@@ -151,6 +165,7 @@ export function EntryDialog({ kind, entry, accounts, categories, onClose, onSave
     }
     if (!accountId) next.accountId = income ? "Choose the account the money went into." : "Choose the account it was paid from.";
     if (!party.trim()) next.party = income ? "Enter who it was received from." : "Enter who was paid.";
+    if (taxTypes.length > 0 && !vatSettlement && taxTypeId === "") next.taxTypeId = "Choose the VAT type, or \"No VAT recorded\" if this carries none.";
     if (!income && files.length + keep.length === 0) next.files = "Attach the receipt or supplier invoice.";
     setErrors(next);
     setGeneral(null);
@@ -159,12 +174,12 @@ export function EntryDialog({ kind, entry, accounts, categories, onClose, onSave
     setPending(true);
     try {
       const primary = split && lineInput ? [...lineInput].sort((a, b) => b.amount - a.amount)[0].categoryId : Number(categoryId);
-      const input = { taxTypeId: Number(taxTypeId), taxInclusive, entryDate: date, categoryId: primary, accountId: Number(accountId), party: party.trim(), amount: value, reference: reference.trim(), notes: notes.trim(), files, keepAttachmentIds: keep, payeeId: payeeId ? Number(payeeId) : null, lines: lineInput };
+      const input = { taxTypeId: Number(taxTypeId || 0), taxInclusive, entryDate: date, categoryId: primary, accountId: Number(accountId), party: party.trim(), amount: value, reference: reference.trim(), notes: notes.trim(), files, keepAttachmentIds: keep, payeeId: payeeId ? Number(payeeId) : null, lines: lineInput };
       const saved = submitMode ? await submitFinExpense(input) : entry ? await correctFinEntry(kind, entry.id, input) : await createFinEntry(kind, input);
       try {
         localStorage.setItem(LAST_ACCOUNT, accountId);
         if (!split && !vatSettlement) localStorage.setItem(LAST_CATEGORY, categoryId);
-        localStorage.setItem(`hrpayroll.finance.last${kind}Tax`, taxTypeId);
+        if (!split && !vatSettlement && taxTypeId !== "") localStorage.setItem(`hrpayroll.finance.catTax.${categoryId}`, taxTypeId);   // next time this category starts here
       } catch {
         // Not remembering is harmless.
       }
@@ -290,7 +305,8 @@ export function EntryDialog({ kind, entry, accounts, categories, onClose, onSave
           <fieldset className="rounded-lg border border-line p-4">
             <legend className="px-1 text-sm font-medium text-ink-800">VAT</legend>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Select label="VAT type" value={taxTypeId} onChange={(e) => { setTaxTypeId(e.target.value); setTaxTouched(true); }}>
+              <Select label="VAT type" value={taxTypeId} error={errors.taxTypeId} onChange={(e) => { setTaxTypeId(e.target.value); setTaxTouched(true); }}>
+                {taxTypeId === "" && <option value="" disabled>Choose VAT type</option>}
                 <option value="0">No VAT recorded</option>
                 {taxTypes.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}{t.rate > 0 ? ` (${t.rate}%)` : ""}</option>

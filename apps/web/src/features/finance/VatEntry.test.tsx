@@ -38,16 +38,48 @@ async function open(amount = "105") {
   return user;
 }
 
-it("starts on standard rated and shows the VAT inside the amount typed", async () => {
-  await open("105");
+it("does not assume a VAT type: a category with no VAT setting asks, and saving without a choice is refused", async () => {
+  const user = await open("105");
 
-  expect(screen.getByLabelText("VAT type")).toHaveValue("1");
+  expect(screen.getByLabelText("VAT type")).toHaveValue("");              // nothing is assumed, so a salary can never pick up VAT by accident
+  await user.click(screen.getByRole("button", { name: "Save expense" }));
+  expect(await screen.findByText(/Choose the VAT type/)).toBeInTheDocument();
+  expect(financeApi.createFinEntry).not.toHaveBeenCalled();
+
+  await user.selectOptions(screen.getByLabelText("VAT type"), "1");
   expect(screen.getByText("Includes VAT of AED 5.00 on a net of AED 100.00.")).toBeInTheDocument();
+});
+
+it("starts on no VAT for a category that never carries it, and on the VAT type last chosen for a category", async () => {
+  const user = userEvent.setup();
+  const withRules: FinCategory[] = [
+    ...categories,
+    { id: 4, kind: "Expense", name: "Monthly Salary", isActive: true, useCount: 0, noVat: true },
+    { id: 9, kind: "Expense", name: "Pest control", isActive: true, useCount: 0 },
+  ];
+  localStorage.setItem("hrpayroll.finance.catTax.9", "1");                   // chosen for this category last time
+  render(<EntryDialog kind="Expense" accounts={[account]} categories={withRules} variant="center" onClose={vi.fn()} onSaved={vi.fn()} />);
+  await screen.findByLabelText("Category");
+
+  await user.selectOptions(screen.getByLabelText("Category"), "4");
+  await screen.findByLabelText("VAT type");
+  expect(screen.getByLabelText("VAT type")).toHaveValue("0");
+  await user.selectOptions(screen.getByLabelText("Category"), "9");
+  expect(screen.getByLabelText("VAT type")).toHaveValue("1");
+});
+
+it("keeps the app's own categories off the form", async () => {
+  render(<EntryDialog kind="Expense" accounts={[account]} categories={[...categories, { id: 20, kind: "Expense", name: "Supplier bill payments", isActive: true, useCount: 0, isSystem: true }]} variant="center" onClose={vi.fn()} onSaved={vi.fn()} />);
+  await screen.findByLabelText("Category");
+
+  expect(screen.queryByRole("option", { name: "Supplier bill payments" })).not.toBeInTheDocument();
+  expect(screen.getByRole("option", { name: "Company expenses" })).toBeInTheDocument();
 });
 
 it("says the total when the VAT is added on top, and sends what was chosen", async () => {
   const user = await open("100");
 
+  await user.selectOptions(screen.getByLabelText("VAT type"), "1");
   await user.click(screen.getByRole("checkbox", { name: "The amount already includes VAT" }));
   expect(screen.getByText("VAT AED 5.00 is added: the total paid is AED 105.00.")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Save expense" }));

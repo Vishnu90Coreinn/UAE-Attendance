@@ -79,7 +79,7 @@ function ProfitLoss() {
   }, [range.from, range.to]);
   return (
     <Card>
-      <CardHeader title="Profit and loss" description="Revenue less expenses for the period, from the journals." />
+      <CardHeader title="Profit and loss" description="Revenue less expenses for the period, from the journals. This counts what was invoiced and billed, paid or not. The Finance screens count money actually received and paid, so their totals can differ: the Receivables and Payables tabs show the difference." />
       <div className="grid gap-3 px-5 pb-4 sm:grid-cols-2">
         <TextField label="From" type="date" value={range.from} max={today} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} />
         <TextField label="To" type="date" value={range.to} max={today} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} />
@@ -122,7 +122,7 @@ function Sheet() {
   }, [asOf]);
   return (
     <Card>
-      <CardHeader title="Balance sheet" description="What the company holds, what it owes, and the owners' share, at one date." />
+      <CardHeader title="Balance sheet" description="What the company holds, what it owes, and the owners' share, at one date. Unpaid invoices appear as money owed to the company, and unpaid supplier bills as money the company owes." />
       <div className="px-5 pb-4 sm:max-w-xs"><TextField label="As at" type="date" value={asOf} max={today} onChange={(e) => setAsOf(e.target.value)} /></div>
       {error && <p role="alert" className="px-5 pb-4 text-sm text-danger">{error}</p>}
       {data && (

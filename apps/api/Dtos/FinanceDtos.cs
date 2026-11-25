@@ -26,7 +26,7 @@ public sealed class FinAccountRequest
     public int? HolderUserId { get; init; }
 }
 
-public sealed record FinCategoryResponse(int Id, string Kind, string Name, bool IsActive, int UseCount, int? DefaultTaxTypeId = null);
+public sealed record FinCategoryResponse(int Id, string Kind, string Name, bool IsActive, int UseCount, int? DefaultTaxTypeId = null, bool NoVat = false, bool IsSystem = false);
 
 public sealed record FinTaxTypeResponse(int Id, string Name, string Treatment, decimal Rate);
 
@@ -79,7 +79,7 @@ public sealed record FinEntryResponse(
     IReadOnlyList<FinAttachmentResponse> Attachments,
     string? VoidedBy = null, DateTime? VoidedUtc = null, int? ReplacesEntryId = null, string? ReplacesEntryNo = null, string? ReplacedByEntryNo = null, int? PartnerId = null,
     int? PayeeId = null, IReadOnlyList<FinEntryLineResponse>? Lines = null,
-    int? TaxTypeId = null, decimal TaxRate = 0m, decimal TaxAmount = 0m, bool TaxInclusive = true);
+    int? TaxTypeId = null, decimal TaxRate = 0m, decimal TaxAmount = 0m, bool TaxInclusive = true, int? InvoiceId = null, int? BillId = null);
 
 /// <summary>The filtered expenses, newest first, with their total. Voided rows are listed only when asked for and never counted in the total.</summary>
 public sealed record FinEntryList(IReadOnlyList<FinEntryResponse> Items, decimal Total, int Count, bool Truncated, int PendingCount = 0, decimal PendingTotal = 0m);

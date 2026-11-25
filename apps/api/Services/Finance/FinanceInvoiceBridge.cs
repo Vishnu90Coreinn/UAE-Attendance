@@ -21,7 +21,7 @@ public sealed class FinanceInvoiceBridge(AppDbContext db, FinanceLedgerService l
     {
         var category = await db.FinCategories.SingleOrDefaultAsync(c => c.Kind == FinEntryKinds.Income && c.Name == CategoryName, ct);
         if (category is not null) return category;
-        category = new FinCategory { Kind = FinEntryKinds.Income, Name = CategoryName, LedgerAccountId = await ledger.ReceivablesAccountIdAsync(ct) };   // posts to receivables, so no empty revenue account appears
+        category = new FinCategory { Kind = FinEntryKinds.Income, Name = CategoryName, IsSystem = true, NoVat = true, LedgerAccountId = await ledger.ReceivablesAccountIdAsync(ct) };   // posts to receivables, so no empty revenue account appears
         db.FinCategories.Add(category);
         await db.SaveChangesAsync(ct);
         return category;

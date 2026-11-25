@@ -165,7 +165,7 @@ public sealed class FinanceBillService(AppDbContext db, FinanceLedgerService led
     {
         var category = await db.FinCategories.SingleOrDefaultAsync(c => c.Kind == FinEntryKinds.Expense && c.Name == PaymentCategoryName, ct);
         if (category is not null) return category;
-        category = new FinCategory { Kind = FinEntryKinds.Expense, Name = PaymentCategoryName, LedgerAccountId = await ledger.PayablesAccountIdAsync(ct) };   // posts to payables, so no empty expense account appears
+        category = new FinCategory { Kind = FinEntryKinds.Expense, Name = PaymentCategoryName, IsSystem = true, NoVat = true, LedgerAccountId = await ledger.PayablesAccountIdAsync(ct) };   // posts to payables, so no empty expense account appears
         db.FinCategories.Add(category);
         await db.SaveChangesAsync(ct);
         return category;

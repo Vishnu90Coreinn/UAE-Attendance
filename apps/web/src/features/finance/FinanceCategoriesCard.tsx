@@ -3,6 +3,7 @@ import { Check, Pencil, Plus, Power, X } from "lucide-react";
 import { createFinCategory, listFinCategories, listFinTaxTypes, setCategoryTaxDefault, updateFinCategory, type FinCategory, type FinEntryKind, type FinTaxType } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { Button, Card, CardHeader, Input, StatusBadge } from "../../ui";
+import { isVatSettlementCategory } from "./financeFormat";
 
 const KINDS: { kind: FinEntryKind; title: string; hint: string }[] = [
   { kind: "Expense", title: "Expense categories", hint: "What the company spends money on." },
@@ -56,7 +57,14 @@ function KindList({ kind, title, hint, items, taxTypes, onChanged }: {
       </h3>
       <p className="mt-0.5 text-sm text-ink-600">{hint}</p>
       <ul className="mt-3 divide-y divide-line rounded-lg border border-line">
-        {items.map((c) => (
+        {items.map((c) => c.isSystem || isVatSettlementCategory(c.id) ? (
+          // Categories the app needs: shown so nobody wonders where the money went, but nothing about them can be changed here.
+          <li key={c.id} className="flex flex-wrap items-center gap-2 bg-ink-50 px-3 py-2">
+            <span className="min-w-0 basis-full break-words text-[15px] font-medium text-ink-900 sm:flex-1 sm:basis-0">{c.name}</span>
+            <StatusBadge tone="neutral" variant="soft">System</StatusBadge>
+            <span className="text-xs text-ink-600">{isVatSettlementCategory(c.id) ? "Settles VAT with the tax authority. No VAT of its own." : "Posted by the app. Not offered on entry forms."}</span>
+          </li>
+        ) : (
           <li key={c.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
             {renaming?.id === c.id ? (
               <form
@@ -84,12 +92,13 @@ function KindList({ kind, title, hint, items, taxTypes, onChanged }: {
                 {taxTypes.length > 0 && (
                   <select
                     aria-label={`VAT type offered for ${c.name}`}
-                    value={c.defaultTaxTypeId ?? ""}
+                    value={c.noVat ? "0" : (c.defaultTaxTypeId ?? "")}
                     disabled={pending}
-                    onChange={(e) => void run(() => setCategoryTaxDefault(c.id, e.target.value ? Number(e.target.value) : null))}
+                    onChange={(e) => void run(() => setCategoryTaxDefault(c.id, e.target.value === "" ? null : Number(e.target.value)))}
                     className="select-control min-h-9 max-w-44 rounded-lg border border-line bg-white px-2 text-xs text-ink-800"
                   >
-                    <option value="">No VAT offered</option>
+                    <option value="">Ask each time</option>
+                    <option value="0">Never carries VAT</option>
                     {taxTypes.map((t) => (
                       <option key={t.id} value={t.id}>{t.name}</option>
                     ))}

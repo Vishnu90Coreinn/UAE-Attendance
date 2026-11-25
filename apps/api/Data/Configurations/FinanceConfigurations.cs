@@ -43,9 +43,9 @@ public sealed class FinCategoryConfiguration : IEntityTypeConfiguration<FinCateg
         // The starting lists, from the accountant's Daftra account. The client renames or switches them off in Settings.
         builder.HasData(
             new FinCategory { Id = 1, Kind = FinEntryKinds.Expense, Name = "Company expenses" },
-            new FinCategory { Id = 2, Kind = FinEntryKinds.Expense, Name = "Government-related procedures for workers" },
-            new FinCategory { Id = 3, Kind = FinEntryKinds.Expense, Name = "Salary Advance" },
-            new FinCategory { Id = 4, Kind = FinEntryKinds.Expense, Name = "Monthly Salary" },
+            new FinCategory { Id = 2, Kind = FinEntryKinds.Expense, Name = "Government-related procedures for workers", NoVat = true },
+            new FinCategory { Id = 3, Kind = FinEntryKinds.Expense, Name = "Salary Advance", NoVat = true },
+            new FinCategory { Id = 4, Kind = FinEntryKinds.Expense, Name = "Monthly Salary", NoVat = true },
             new FinCategory { Id = 5, Kind = FinEntryKinds.Expense, Name = "Worker Accommodation Rent" },
             new FinCategory { Id = 6, Kind = FinEntryKinds.Expense, Name = "Worker Transportation" },
             new FinCategory { Id = 7, Kind = FinEntryKinds.Expense, Name = "Office Rent" },

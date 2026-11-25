@@ -736,6 +736,9 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
 
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -749,6 +752,9 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)")
                         .UseCollation("SQL_Latin1_General_CP1_CI_AS");
+
+                    b.Property<bool>("NoVat")
+                        .HasColumnType("bit");
 
                     b.HasKey("Id");
 
@@ -769,99 +775,127 @@ namespace HrPayroll.Api.Data.Migrations
                         {
                             Id = 1,
                             IsActive = true,
+                            IsSystem = false,
                             Kind = "Expense",
-                            Name = "Company expenses"
+                            Name = "Company expenses",
+                            NoVat = false
                         },
                         new
                         {
                             Id = 2,
                             IsActive = true,
+                            IsSystem = false,
                             Kind = "Expense",
-                            Name = "Government-related procedures for workers"
+                            Name = "Government-related procedures for workers",
+                            NoVat = true
                         },
                         new
                         {
                             Id = 3,
                             IsActive = true,
+                            IsSystem = false,
                             Kind = "Expense",
-                            Name = "Salary Advance"
+                            Name = "Salary Advance",
+                            NoVat = true
                         },
                         new
                         {
                             Id = 4,
                             IsActive = true,
+                            IsSystem = false,
                             Kind = "Expense",
-                            Name = "Monthly Salary"
+                            Name = "Monthly Salary",
+                            NoVat = true
                         },
                         new
                         {
                             Id = 5,
                             IsActive = true,
+                            IsSystem = false,
                             Kind = "Expense",
-                            Name = "Worker Accommodation Rent"
+                            Name = "Worker Accommodation Rent",
+                            NoVat = false
                         },
                         new
                         {
                             Id = 6,
                             IsActive = true,
+                            IsSystem = false,
                             Kind = "Expense",
-                            Name = "Worker Transportation"
+                            Name = "Worker Transportation",
+                            NoVat = false
                         },
                         new
                         {
                             Id = 7,
                             IsActive = true,
+                            IsSystem = false,
                             Kind = "Expense",
-                            Name = "Office Rent"
+                            Name = "Office Rent",
+                            NoVat = false
                         },
                         new
                         {
                             Id = 8,
                             IsActive = true,
+                            IsSystem = false,
                             Kind = "Expense",
-                            Name = "Dubai Insurance"
+                            Name = "Dubai Insurance",
+                            NoVat = false
                         },
                         new
                         {
                             Id = 9,
                             IsActive = true,
+                            IsSystem = false,
                             Kind = "Expense",
-                            Name = "Commission for Labor"
+                            Name = "Commission for Labor",
+                            NoVat = false
                         },
                         new
                         {
                             Id = 10,
                             IsActive = true,
+                            IsSystem = false,
                             Kind = "Income",
-                            Name = "Other income"
+                            Name = "Other income",
+                            NoVat = false
                         },
                         new
                         {
                             Id = 13,
                             IsActive = true,
+                            IsSystem = false,
                             Kind = "Expense",
-                            Name = "VAT paid to tax authority"
+                            Name = "VAT paid to tax authority",
+                            NoVat = false
                         },
                         new
                         {
                             Id = 14,
                             IsActive = true,
+                            IsSystem = false,
                             Kind = "Income",
-                            Name = "VAT refund from tax authority"
+                            Name = "VAT refund from tax authority",
+                            NoVat = false
                         },
                         new
                         {
                             Id = 11,
                             IsActive = true,
+                            IsSystem = false,
                             Kind = "Capital",
-                            Name = "Capital contribution"
+                            Name = "Capital contribution",
+                            NoVat = false
                         },
                         new
                         {
                             Id = 12,
                             IsActive = true,
+                            IsSystem = false,
                             Kind = "CapitalOut",
-                            Name = "Capital returned"
+                            Name = "Capital returned",
+                            NoVat = false
                         });
                 });
 

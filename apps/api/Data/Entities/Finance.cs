@@ -95,6 +95,12 @@ public sealed class FinCategory
     /// <summary>The VAT treatment offered first for this category (the accountant decides per category; for example government fees may carry none).</summary>
     public int? DefaultTaxTypeId { get; set; }
 
+    /// <summary>True when this category never carries VAT (salaries, advances, some government fees): the entry form starts on "no VAT". With neither this nor a default VAT type, the form asks each time.</summary>
+    public bool NoVat { get; set; }
+
+    /// <summary>Made and used by the system (invoice payments, supplier bill payments). Never offered on entry forms and never picked by hand.</summary>
+    public bool IsSystem { get; set; }
+
     /// <summary>The ledger account this category posts to (an expense or revenue account, unless the accountant chooses otherwise).</summary>
     public int? LedgerAccountId { get; set; }
 }

@@ -17,7 +17,7 @@ public sealed class FinanceCategoryService(AppDbContext db, IAuditLogger audit)
         if (!includeInactive) query = query.Where(c => c.IsActive);
         return await query
             .OrderBy(c => c.Kind).ThenBy(c => c.Name)
-            .Select(c => new FinCategoryResponse(c.Id, c.Kind, c.Name, c.IsActive, db.FinEntryLines.Count(l => l.CategoryId == c.Id), c.DefaultTaxTypeId))
+            .Select(c => new FinCategoryResponse(c.Id, c.Kind, c.Name, c.IsActive, db.FinEntryLines.Count(l => l.CategoryId == c.Id), c.DefaultTaxTypeId, c.NoVat, c.IsSystem))
             .ToListAsync(ct);
     }
 
@@ -29,15 +29,20 @@ public sealed class FinanceCategoryService(AppDbContext db, IAuditLogger audit)
     {
         var category = await db.FinCategories.SingleOrDefaultAsync(c => c.Id == id && !FinEntryKinds.CapitalKinds.Contains(c.Kind), ct);
         if (category is null) return FinResult<FinCategoryResponse>.NotFound("Category not found.");
-        if (taxTypeId is { } t && !await db.FinTaxTypes.AnyAsync(x => x.Id == t && x.IsActive, ct)) return FinResult<FinCategoryResponse>.Invalid("taxTypeId", "Choose an active VAT type.");
-        if (category.DefaultTaxTypeId != taxTypeId)
+        if (category.IsSystem || FinanceRules.IsVatSettlement(category.Id)) return FinResult<FinCategoryResponse>.Conflict("This category is used by the system and carries no VAT setting.");
+        // 0 means "this category never carries VAT"; null means "ask each time".
+        var noVat = taxTypeId == 0;
+        var defaultId = noVat ? null : taxTypeId;
+        if (defaultId is { } t && !await db.FinTaxTypes.AnyAsync(x => x.Id == t && x.IsActive, ct)) return FinResult<FinCategoryResponse>.Invalid("taxTypeId", "Choose an active VAT type.");
+        if (category.DefaultTaxTypeId != defaultId || category.NoVat != noVat)
         {
-            audit.Write("FinCategoryTaxDefaultChanged", entityType: nameof(FinCategory), entityId: id.ToString(), details: new { category.Name, from = category.DefaultTaxTypeId, to = taxTypeId });
-            category.DefaultTaxTypeId = taxTypeId;
+            audit.Write("FinCategoryTaxDefaultChanged", entityType: nameof(FinCategory), entityId: id.ToString(), details: new { category.Name, from = category.NoVat ? 0 : category.DefaultTaxTypeId, to = taxTypeId });
+            category.DefaultTaxTypeId = defaultId;
+            category.NoVat = noVat;
             await db.SaveChangesAsync(ct);
         }
 
-        return FinResult<FinCategoryResponse>.Ok(new(category.Id, category.Kind, category.Name, category.IsActive, await db.FinEntryLines.CountAsync(l => l.CategoryId == id, ct), category.DefaultTaxTypeId));
+        return FinResult<FinCategoryResponse>.Ok(new(category.Id, category.Kind, category.Name, category.IsActive, await db.FinEntryLines.CountAsync(l => l.CategoryId == id, ct), category.DefaultTaxTypeId, category.NoVat, category.IsSystem));
     }
 
     private static string? NameError(string? name) =>

@@ -84,3 +84,14 @@ it("gives the Partner no add button", async () => {
   await screen.findAllByText("111,767.04");
   expect(screen.queryByRole("button", { name: "Add income" })).not.toBeInTheDocument();
 });
+
+it("marks a payment recorded on a tax invoice, and offers no Correct or Void on it", async () => {
+  vi.mocked(financeApi.listFinEntries).mockResolvedValue({ items: [{ ...entry, party: "Acme Glass LLC", invoiceId: 7 }, { ...entry, id: 4, entryNo: "INC-000004", party: "Walk-in" }], total: 1, count: 2, truncated: false });
+  render(<MemoryRouter><IncomePage /></MemoryRouter>);
+
+  expect((await screen.findAllByText("Payment on a tax invoice")).length).toBeGreaterThan(0);
+  expect(screen.queryByRole("button", { name: "Correct INC-000003" })).not.toBeInTheDocument();     // changed on the invoice, so the books and the invoice never disagree
+  expect(screen.queryByRole("button", { name: "Void INC-000003" })).not.toBeInTheDocument();
+  expect(screen.getAllByRole("button", { name: "Correct INC-000004" }).length).toBeGreaterThan(0);  // an ordinary income keeps its tools
+  expect(screen.getByText(/recorded as a payment on a tax invoice/)).toBeInTheDocument();
+});

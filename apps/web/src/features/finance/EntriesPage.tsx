@@ -63,6 +63,8 @@ function EntryMeta({ entry, locked }: { entry: FinEntry; locked: boolean }) {
       {entry.status === "Pending" && <StatusBadge tone="warning" variant="soft">Waiting for approval</StatusBadge>}
       {entry.replacesEntryNo && <span className="text-xs text-ink-600">Corrects {entry.replacesEntryNo}</span>}
       {entry.replacedByEntryNo && <span className="text-xs text-ink-600">Replaced by {entry.replacedByEntryNo}</span>}
+      {entry.invoiceId != null && <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800" title="Change or remove it on the tax invoice">Payment on a tax invoice</span>}
+      {entry.billId != null && <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800" title="Take it back on the supplier bill">Payment on a supplier bill</span>}
       {locked && entry.status === "Active" && <span className="inline-flex items-center gap-1 text-xs text-ink-600"><Lock aria-hidden="true" size={12} /> Locked month</span>}
       {(entry.taxAmount ?? 0) > 0 && <span className="text-xs tabular-nums text-ink-500">VAT AED {formatMoney(entry.taxAmount ?? 0)}</span>}
       {entry.kind === "Expense" && <span className="text-xs text-ink-500">Entered by {entry.createdBy}</span>}
@@ -285,7 +287,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
     <section className="space-y-5">
       <PageHeader
         title={income ? "Income" : "Expenses"}
-        description={income ? "Money the company has received. Entered by hand; it is not linked to the Tax Invoice module." : "Money the company has paid out, each with its receipt."}
+        description={income ? "Money the company has received: entered here, or recorded as a payment on a tax invoice (those rows say so and are changed on the invoice)." : "Money the company has paid out, each with its receipt."}
         actions={
           <>
             {result && result.items.length > 0 && <Button variant="secondary" icon={Download} onClick={downloadCsv}>Download CSV</Button>}
@@ -390,7 +392,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
                     <Td className="align-top text-ink-700">{e.accountName}</Td>
                     <Td className={cx("whitespace-nowrap text-right align-top font-display text-base font-bold", e.status === "Voided" ? "text-ink-500 line-through" : "text-ink-900")}><Amount value={e.amount} /></Td>
                     <Td className="align-top">
-                      <RowTools entry={e} canAct={canEdit && e.status === "Active" && !lockedMonths.includes(e.entryDate.slice(0, 7))} onOpen={() => setViewing(e)} onCorrect={() => setCorrecting(e)} onVoid={() => setVoiding(e)} />
+                      <RowTools entry={e} canAct={canEdit && e.status === "Active" && e.invoiceId == null && e.billId == null && !lockedMonths.includes(e.entryDate.slice(0, 7))} onOpen={() => setViewing(e)} onCorrect={() => setCorrecting(e)} onVoid={() => setVoiding(e)} />
                       {canEdit && e.status === "Pending" && <div className="mt-1 flex justify-end"><ReviewActions entry={e} busy={approving === e.id} onApprove={() => void approve(e)} onReject={() => setRejecting(e)} /></div>}
                     </Td>
                   </TRow>
@@ -424,7 +426,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
                 <div className="mt-1"><EntryMeta entry={e} locked={lockedMonths.includes(e.entryDate.slice(0, 7))} /></div>
                 <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-line/70 pt-1.5">
                   <ReceiptButton entry={e} onOpen={() => setViewing(e)} />
-                  {canEdit && e.status === "Active" && !lockedMonths.includes(e.entryDate.slice(0, 7)) && <EntryActions entry={e} onCorrect={() => setCorrecting(e)} onVoid={() => setVoiding(e)} />}
+                  {canEdit && e.status === "Active" && e.invoiceId == null && e.billId == null && !lockedMonths.includes(e.entryDate.slice(0, 7)) && <EntryActions entry={e} onCorrect={() => setCorrecting(e)} onVoid={() => setVoiding(e)} />}
                   {canEdit && e.status === "Pending" && <ReviewActions entry={e} busy={approving === e.id} onApprove={() => void approve(e)} onReject={() => setRejecting(e)} />}
                 </div>
               </article>
