@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Camera, FileText, Loader2, Paperclip, Save, X } from "lucide-react";
-import { createFinExpense, listFinExpenseParties, type FinAccount, type FinCategory, type FinEntry } from "../../api/finance";
+import { correctFinEntry, createFinEntry, listFinParties, type FinAccount, type FinCategory, type FinEntry, type FinEntryKind } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
@@ -11,7 +11,7 @@ import { formatBytes, receiptProblem, RECEIPT_MAX_FILES, shrinkPhoto } from "./r
 type FieldName = "amount" | "entryDate" | "categoryId" | "accountId" | "party" | "reference" | "notes" | "files";
 const FIELDS: FieldName[] = ["amount", "entryDate", "categoryId", "accountId", "party", "reference", "notes", "files"];
 const LAST_ACCOUNT = "hrpayroll.finance.lastAccount";
-const LAST_CATEGORY = "hrpayroll.finance.lastExpenseCategory";
+const lastCategoryKey = (kind: FinEntryKind) => `hrpayroll.finance.last${kind}Category`;
 
 function remembered(key: string, valid: number[]): string {
   try {
@@ -22,7 +22,10 @@ function remembered(key: string, valid: number[]): string {
   }
 }
 
-interface ExpenseDialogProps {
+interface EntryDialogProps {
+  kind: FinEntryKind;
+  /** When set, the dialog corrects this entry: it is voided and the saved form replaces it. */
+  entry?: FinEntry;
   accounts: FinAccount[];
   categories: FinCategory[];
   onClose: () => void;
@@ -30,15 +33,18 @@ interface ExpenseDialogProps {
   variant: "center" | "sheet";
 }
 
-/** Record an expense. The amount comes first, the last account and category are remembered, and a receipt is required. */
-export function ExpenseDialog({ accounts, categories, onClose, onSaved, variant }: ExpenseDialogProps) {
-  const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(todayInUae());
-  const [categoryId, setCategoryId] = useState(() => remembered(LAST_CATEGORY, categories.map((c) => c.id)));
-  const [accountId, setAccountId] = useState(() => remembered(LAST_ACCOUNT, accounts.map((a) => a.id)) || (accounts.length === 1 ? String(accounts[0].id) : ""));
-  const [party, setParty] = useState("");
-  const [reference, setReference] = useState("");
-  const [notes, setNotes] = useState("");
+/** Record an expense (receipt required) or an income (attachment optional). The amount comes first and the last account and category are remembered. */
+export function EntryDialog({ kind, entry, accounts, categories, onClose, onSaved, variant }: EntryDialogProps) {
+  const income = kind === "Income";
+  const LAST_CATEGORY = lastCategoryKey(kind);
+  const [amount, setAmount] = useState(entry ? String(entry.amount) : "");
+  const [date, setDate] = useState(entry?.entryDate ?? todayInUae());
+  const [categoryId, setCategoryId] = useState(() => (entry ? String(entry.categoryId) : remembered(LAST_CATEGORY, categories.map((c) => c.id))));
+  const [accountId, setAccountId] = useState(() => (entry ? String(entry.accountId) : "") || remembered(LAST_ACCOUNT, accounts.map((a) => a.id)) || (accounts.length === 1 ? String(accounts[0].id) : ""));
+  const [party, setParty] = useState(entry?.party ?? "");
+  const [reference, setReference] = useState(entry?.reference ?? "");
+  const [notes, setNotes] = useState(entry?.notes ?? "");
+  const [keep, setKeep] = useState<number[]>(() => entry?.attachments.map((a) => a.id) ?? []);
   const [files, setFiles] = useState<File[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [errors, setErrors] = useState<Partial<Record<FieldName, string>>>({});
@@ -48,7 +54,7 @@ export function ExpenseDialog({ accounts, categories, onClose, onSaved, variant 
 
   useEffect(() => {
     let cancelled = false;
-    listFinExpenseParties().then((list) => !cancelled && setSuggestions(list)).catch(() => {});
+    listFinParties(kind).then((list) => !cancelled && setSuggestions(list)).catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -85,16 +91,17 @@ export function ExpenseDialog({ accounts, categories, onClose, onSaved, variant 
     if (value === null || value <= 0) next.amount = "Enter an amount above zero with at most 2 decimals.";
     if (!date) next.entryDate = "Enter the date.";
     if (!categoryId) next.categoryId = "Choose a category.";
-    if (!accountId) next.accountId = "Choose the account it was paid from.";
-    if (!party.trim()) next.party = "Enter who was paid.";
-    if (files.length === 0) next.files = "Attach the receipt or supplier invoice.";
+    if (!accountId) next.accountId = income ? "Choose the account the money went into." : "Choose the account it was paid from.";
+    if (!party.trim()) next.party = income ? "Enter who it was received from." : "Enter who was paid.";
+    if (!income && files.length + keep.length === 0) next.files = "Attach the receipt or supplier invoice.";
     setErrors(next);
     setGeneral(null);
     if (Object.keys(next).length > 0 || value === null) return;
 
     setPending(true);
     try {
-      const saved = await createFinExpense({ entryDate: date, categoryId: Number(categoryId), accountId: Number(accountId), party: party.trim(), amount: value, reference: reference.trim(), notes: notes.trim(), files });
+      const input = { entryDate: date, categoryId: Number(categoryId), accountId: Number(accountId), party: party.trim(), amount: value, reference: reference.trim(), notes: notes.trim(), files, keepAttachmentIds: keep };
+      const saved = entry ? await correctFinEntry(kind, entry.id, input) : await createFinEntry(kind, input);
       try {
         localStorage.setItem(LAST_ACCOUNT, accountId);
         localStorage.setItem(LAST_CATEGORY, categoryId);
@@ -121,8 +128,9 @@ export function ExpenseDialog({ accounts, categories, onClose, onSaved, variant 
   }
 
   return (
-    <Dialog open title="Add expense" onClose={pending ? () => {} : onClose} initialFocusRef={amountRef} variant={variant} size="wide">
+    <Dialog open title={entry ? (income ? "Correct income" : "Correct expense") : income ? "Add income" : "Add expense"} onClose={pending ? () => {} : onClose} initialFocusRef={amountRef} variant={variant} size="wide">
       <form onSubmit={submit} noValidate className="mt-4 space-y-4">
+        {entry && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{entry.entryNo} will be voided and kept, and what you save here replaces it with a new number.</p>}
         <div className="rounded-lg border border-line bg-ink-50 p-4">
           <TextField label="Amount (AED)" value={amount} onChange={(e) => setAmount(e.target.value)} error={errors.amount} inputRef={amountRef} inputMode="decimal" autoComplete="off" placeholder="0.00" />
         </div>
@@ -133,7 +141,7 @@ export function ExpenseDialog({ accounts, categories, onClose, onSaved, variant 
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </Select>
-          <Select label="Paid from" value={accountId} error={errors.accountId} onChange={(e) => setAccountId(e.target.value)}>
+          <Select label={income ? "Received into" : "Paid from"} value={accountId} error={errors.accountId} onChange={(e) => setAccountId(e.target.value)}>
             <option value="">Choose an account</option>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>{a.name}</option>
@@ -142,8 +150,8 @@ export function ExpenseDialog({ accounts, categories, onClose, onSaved, variant 
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <TextField label="Paid to" value={party} onChange={(e) => setParty(e.target.value)} error={errors.party} maxLength={120} autoComplete="off" list="fin-expense-parties" />
-            <datalist id="fin-expense-parties">
+            <TextField label={income ? "Received from" : "Paid to"} value={party} onChange={(e) => setParty(e.target.value)} error={errors.party} maxLength={120} autoComplete="off" list={`fin-${kind}-parties`} />
+            <datalist id={`fin-${kind}-parties`}>
               {suggestions.map((s) => (
                 <option key={s} value={s} />
               ))}
@@ -151,12 +159,12 @@ export function ExpenseDialog({ accounts, categories, onClose, onSaved, variant 
           </div>
           <TextField label="Date" type="date" value={date} max={todayInUae()} onChange={(e) => setDate(e.target.value)} error={errors.entryDate} />
         </div>
-        <TextField label="Invoice, cheque or receipt no. (optional)" value={reference} onChange={(e) => setReference(e.target.value)} error={errors.reference} maxLength={60} autoComplete="off" />
+        <TextField label={income ? "Reference (optional)" : "Invoice, cheque or receipt no. (optional)"} value={reference} onChange={(e) => setReference(e.target.value)} error={errors.reference} maxLength={60} autoComplete="off" />
         <Textarea label="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} error={errors.notes} rows={2} maxLength={2000} />
 
         <fieldset className="rounded-lg border border-dashed border-ink-300 p-4" aria-describedby="receipt-help">
-          <legend className="px-1 text-sm font-medium text-ink-800">Receipt or supplier invoice</legend>
-          <p id="receipt-help" className="text-sm text-ink-600">Required. A photo, a PDF or a PNG, up to 5 MB each, at most {RECEIPT_MAX_FILES} files.</p>
+          <legend className="px-1 text-sm font-medium text-ink-800">{income ? "Attachment (optional)" : "Receipt or supplier invoice"}</legend>
+          <p id="receipt-help" className="text-sm text-ink-600">{income ? "Optional, for example a remittance advice or the cheque. A photo" : "Required. A photo, a PDF or a PNG, up to 5 MB each, at most {RECEIPT_MAX_FILES} files."}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-ink-300 bg-white px-4 text-sm font-medium text-ink-800 hover:bg-ink-50 focus-within:outline-2 focus-within:outline-brand-500 md:min-h-10">
               <Camera aria-hidden="true" size={16} /> Take photo
@@ -167,6 +175,17 @@ export function ExpenseDialog({ accounts, categories, onClose, onSaved, variant 
               <input type="file" accept="application/pdf,image/jpeg,image/png" multiple className="sr-only" onChange={(e) => void addFiles(e)} />
             </label>
           </div>
+          {entry && entry.attachments.length > 0 && (
+            <ul className="mt-3 space-y-2" aria-label="Receipts already on this entry">
+              {entry.attachments.map((a) => (
+                <li key={a.id} className="flex items-center gap-2 rounded-lg bg-ink-50 px-3 py-2 text-sm">
+                  <input id={`keep-${a.id}`} type="checkbox" className="size-5" checked={keep.includes(a.id)} onChange={(e) => setKeep((cur) => (e.target.checked ? [...cur, a.id] : cur.filter((n) => n !== a.id)))} />
+                  <label htmlFor={`keep-${a.id}`} className="min-w-0 flex-1 truncate text-ink-900">Keep {a.fileName}</label>
+                  <span className="shrink-0 text-ink-500">{formatBytes(a.sizeBytes)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
           {files.length > 0 && (
             <ul className="mt-3 space-y-2">
               {files.map((f, i) => (
@@ -189,7 +208,7 @@ export function ExpenseDialog({ accounts, categories, onClose, onSaved, variant 
           <Button variant="secondary" onClick={onClose} disabled={pending}>Cancel</Button>
           <Button type="submit" disabled={pending}>
             {pending ? <Loader2 aria-hidden="true" size={16} className="animate-spin" /> : <Save aria-hidden="true" size={16} />}
-            Save expense
+            {entry ? "Save correction" : income ? "Save income" : "Save expense"}
           </Button>
         </div>
       </form>

@@ -129,6 +129,21 @@ public sealed class FinAttachmentConfiguration : IEntityTypeConfiguration<FinAtt
         builder.Property(a => a.UploadedUtc).HasColumnType("datetime2");
         builder.HasOne(a => a.Entry).WithMany().HasForeignKey(a => a.EntryId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(a => a.EntryId);
-        builder.HasIndex(a => a.StoredName).IsUnique();
+        // A corrected entry points at the same stored file as the entry it replaces, so a file may be named by several rows.
+        builder.HasIndex(a => a.StoredName);
+    }
+}
+
+public sealed class FinMonthLockConfiguration : IEntityTypeConfiguration<FinMonthLock>
+{
+    public void Configure(EntityTypeBuilder<FinMonthLock> builder)
+    {
+        builder.ToTable(t => t.HasCheckConstraint("CK_FinMonthLocks_Month", "[Month] BETWEEN 1 AND 12"));
+        builder.Property(l => l.LockedBy).HasMaxLength(50).IsRequired();
+        builder.Property(l => l.LockedUtc).HasColumnType("datetime2");
+        builder.Property(l => l.UnlockedBy).HasMaxLength(50);
+        builder.Property(l => l.UnlockedUtc).HasColumnType("datetime2");
+        builder.Property(l => l.UnlockReason).HasMaxLength(300);
+        builder.HasIndex(l => new { l.Year, l.Month }).IsUnique();
     }
 }

@@ -104,6 +104,23 @@ public sealed class FinAttachment
     public DateTime UploadedUtc { get; set; }
 }
 
+/// <summary>
+/// A month a Manager has locked: nothing dated in it can be added, changed or voided while it is locked. One row per month;
+/// unlocking keeps the row and records who, when and why.
+/// </summary>
+public sealed class FinMonthLock
+{
+    public int Id { get; set; }
+    public int Year { get; set; }
+    public int Month { get; set; }
+    public bool IsLocked { get; set; }
+    public string LockedBy { get; set; } = "";
+    public DateTime LockedUtc { get; set; }
+    public string? UnlockedBy { get; set; }
+    public DateTime? UnlockedUtc { get; set; }
+    public string? UnlockReason { get; set; }
+}
+
 /// <summary>Money moved between two of the company's own accounts. Not an expense and not income.</summary>
 public sealed class FinTransfer
 {

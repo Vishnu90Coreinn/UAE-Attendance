@@ -215,3 +215,8 @@ export async function apiGetAnyFile(path: string, signal?: AbortSignal): Promise
   }
   return response.blob();
 }
+
+/** PUT a multipart form (fields and files), with the same auth and problem handling as JSON requests. */
+export function apiPutForm<T>(path: string, form: FormData, signal?: AbortSignal): Promise<T> {
+  return send<T>(path, { method: "PUT", body: form, signal });
+}

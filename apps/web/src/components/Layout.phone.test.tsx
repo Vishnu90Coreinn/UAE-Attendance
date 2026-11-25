@@ -124,6 +124,7 @@ describe("Layout on a phone", () => {
       ["Leave Management", "/leave"],
       ["Accounts", "/finance/accounts"],
       ["Expenses", "/finance/expenses"],
+      ["Income", "/finance/income"],
       ["Deductions", "/deductions"],
       ["Staff Attendance", "/staff"],
       ["Staff Payroll Summary", "/staff-payroll"],

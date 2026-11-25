@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeftRight, ArrowRight, Landmark, Plus, Power, Wallet } from "lucide-react";
-import { listFinAccounts, listFinTransfers, setFinAccountActive, type FinAccount, type FinTransfer } from "../../api/finance";
+import { ArrowLeftRight, ArrowRight, Ban, Landmark, Plus, Power, Wallet } from "lucide-react";
+import { listFinAccounts, listFinTransfers, setFinAccountActive, voidFinTransfer, type FinAccount, type FinTransfer } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { useAuth } from "../../contexts/AuthContext";
@@ -10,6 +10,7 @@ import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, StatusB
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { AccountDialog } from "./AccountDialog";
 import { TransferDialog } from "./TransferDialog";
+import { VoidDialog } from "./VoidDialog";
 import { formatDay, formatMoney, sharePercent, sumMoney } from "./financeFormat";
 
 type Load = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; accounts: FinAccount[]; transfers: FinTransfer[] };
@@ -165,7 +166,7 @@ function AccountCard({ account, share, canEdit, onEdit, onTransfer, onSwitch }: 
   );
 }
 
-function RecentTransfers({ transfers }: { transfers: FinTransfer[] }) {
+function RecentTransfers({ transfers, canEdit, onVoid }: { transfers: FinTransfer[]; canEdit: boolean; onVoid: (t: FinTransfer) => void }) {
   const recent = transfers.filter((t) => t.status === "Active").slice(0, 8);
   return (
     <Card>
@@ -184,6 +185,11 @@ function RecentTransfers({ transfers }: { transfers: FinTransfer[] }) {
                 <span className="mr-1 text-xs font-medium text-ink-500">AED</span>
                 {formatMoney(t.amount)}
               </p>
+              {canEdit && (
+                <p className="sm:order-last">
+                  <Button size="sm" variant="ghost" icon={Ban} onClick={() => onVoid(t)} aria-label={`Void ${t.transferNo}`}>Void</Button>
+                </p>
+              )}
               <p className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-ink-800 sm:flex-1">
                 <span className="font-medium">{t.fromAccountName}</span>
                 <ArrowRight aria-label="to" size={14} className="shrink-0 text-ink-500" />
@@ -208,6 +214,7 @@ export function AccountsPage() {
   const [editing, setEditing] = useState<FinAccount | "new" | null>(null);
   const [transferFrom, setTransferFrom] = useState<number | "any" | null>(null);
   const [switching, setSwitching] = useState<FinAccount | null>(null);
+  const [voidingTransfer, setVoidingTransfer] = useState<FinTransfer | null>(null);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -315,7 +322,7 @@ export function AccountsPage() {
               )}
             </div>
           )}
-          <RecentTransfers transfers={ready.transfers} />
+          <RecentTransfers transfers={ready.transfers} canEdit={canEdit} onVoid={setVoidingTransfer} />
         </>
       )}
 
@@ -343,6 +350,21 @@ export function AccountsPage() {
             setMessage(`${t.transferNo}: AED ${formatMoney(t.amount)} moved from ${t.fromAccountName} to ${t.toAccountName}.`);
             setProblem(null);
             void refresh();
+          }}
+        />
+      )}
+      {voidingTransfer && (
+        <VoidDialog
+          title={`Void ${voidingTransfer.transferNo}?`}
+          message={`AED ${formatMoney(voidingTransfer.amount)} moved from ${voidingTransfer.fromAccountName} to ${voidingTransfer.toAccountName} will be reversed in both balances. The record stays, with who voided it and why.`}
+          confirmLabel="Void"
+          variant={variant}
+          onClose={() => setVoidingTransfer(null)}
+          onConfirm={async (reason) => {
+            await voidFinTransfer(voidingTransfer.id, reason);
+            setMessage(`${voidingTransfer.transferNo} was voided.`);
+            setVoidingTransfer(null);
+            await refresh();
           }}
         />
       )}

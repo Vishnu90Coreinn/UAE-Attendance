@@ -1,4 +1,4 @@
-import { apiGet, apiGetAnyFile, apiPost, apiPostForm, apiPut } from "./client";
+import { apiGet, apiGetAnyFile, apiPost, apiPostForm, apiPut, apiPutForm } from "./client";
 
 export type FinAccountKind = "Bank" | "Cash";
 export type FinEntryKind = "Expense" | "Income";
@@ -121,6 +121,12 @@ export interface FinEntry {
   createdBy: string;
   createdUtc: string;
   attachments: FinAttachment[];
+  voidedBy: string | null;
+  voidedUtc: string | null;
+  replacesEntryId: number | null;
+  /** The entry this one corrects, and the entry that corrected it. */
+  replacesEntryNo: string | null;
+  replacedByEntryNo: string | null;
 }
 
 export interface FinEntryList {
@@ -142,7 +148,7 @@ export interface FinEntryFilter {
   includeVoided?: boolean;
 }
 
-export interface FinExpenseInput {
+export interface FinEntryInput {
   entryDate: string;
   categoryId: number;
   accountId: number;
@@ -151,6 +157,8 @@ export interface FinExpenseInput {
   reference: string;
   notes: string;
   files: File[];
+  /** When correcting: receipts of the original entry to keep. */
+  keepAttachmentIds?: number[];
 }
 
 function filterQuery(filter: FinEntryFilter): string {
@@ -162,13 +170,16 @@ function filterQuery(filter: FinEntryFilter): string {
   return text ? `?${text}` : "";
 }
 
-export function listFinExpenses(filter: FinEntryFilter = {}): Promise<FinEntryList> {
-  return apiGet(`/api/finance/expenses${filterQuery(filter)}`);
+const entryPath = (kind: FinEntryKind) => (kind === "Income" ? "/api/finance/income" : "/api/finance/expenses");
+
+export function listFinEntries(kind: FinEntryKind, filter: FinEntryFilter = {}): Promise<FinEntryList> {
+  return apiGet(`${entryPath(kind)}${filterQuery(filter)}`);
 }
-export function listFinExpenseParties(): Promise<string[]> {
-  return apiGet("/api/finance/expenses/parties");
+/** Names typed before ("paid to" or "received from"), newest first. */
+export function listFinParties(kind: FinEntryKind): Promise<string[]> {
+  return apiGet(`${entryPath(kind)}/parties`);
 }
-export function createFinExpense(input: FinExpenseInput): Promise<FinEntry> {
+function entryForm(input: FinEntryInput): FormData {
   const form = new FormData();
   form.set("entryDate", input.entryDate);
   form.set("categoryId", String(input.categoryId));
@@ -178,7 +189,40 @@ export function createFinExpense(input: FinExpenseInput): Promise<FinEntry> {
   if (input.reference) form.set("reference", input.reference);
   if (input.notes) form.set("notes", input.notes);
   for (const file of input.files) form.append("files", file, file.name);
-  return apiPostForm<FinEntry>("/api/finance/expenses", form);
+  for (const id of input.keepAttachmentIds ?? []) form.append("keepAttachmentIds", String(id));
+  return form;
+}
+export function createFinEntry(kind: FinEntryKind, input: FinEntryInput): Promise<FinEntry> {
+  return apiPostForm<FinEntry>(entryPath(kind), entryForm(input));
+}
+/** Voids the entry and adds a replacement that points back at it. */
+export function correctFinEntry(kind: FinEntryKind, id: number, input: FinEntryInput): Promise<FinEntry> {
+  return apiPutForm<FinEntry>(`${entryPath(kind)}/${id}`, entryForm(input));
+}
+export function voidFinEntry(kind: FinEntryKind, id: number, reason: string): Promise<FinEntry> {
+  return apiPost<FinEntry>(`${entryPath(kind)}/${id}/void`, { reason });
+}
+export function voidFinTransfer(id: number, reason: string): Promise<FinTransfer> {
+  return apiPost<FinTransfer>(`/api/finance/transfers/${id}/void`, { reason });
+}
+
+export interface FinMonthLock {
+  month: string;
+  isLocked: boolean;
+  lockedBy: string | null;
+  lockedUtc: string | null;
+  unlockedBy: string | null;
+  unlockedUtc: string | null;
+  unlockReason: string | null;
+}
+export function listFinMonthLocks(): Promise<FinMonthLock[]> {
+  return apiGet("/api/finance/month-locks");
+}
+export function lockFinMonth(month: string): Promise<FinMonthLock> {
+  return apiPost<FinMonthLock>(`/api/finance/month-locks/${month}/lock`, {});
+}
+export function unlockFinMonth(month: string, reason: string): Promise<FinMonthLock> {
+  return apiPost<FinMonthLock>(`/api/finance/month-locks/${month}/unlock`, { reason });
 }
 export function getFinReceipt(id: number): Promise<Blob> {
   return apiGetAnyFile(`/api/finance/attachments/${id}`);

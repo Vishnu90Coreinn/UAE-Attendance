@@ -86,6 +86,7 @@ builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceRedactor>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceAccountService>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceCategoryService>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceTransferService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinancePeriodService>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceEntryService>();
 builder.Services.AddSingleton<HrPayroll.Api.Services.Finance.IReceiptStore, HrPayroll.Api.Services.Finance.FolderReceiptStore>();
 

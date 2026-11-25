@@ -10,16 +10,28 @@ namespace HrPayroll.Api.Services.Finance;
 public sealed record FinEntryFilter(string? From, string? To, int? CategoryId, int? AccountId, decimal? Min, decimal? Max, string? Search, bool IncludeVoided);
 
 /// <summary>Expenses and income (one table, two kinds): recording them with their receipts, and listing them with filters.</summary>
-public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHttpContextAccessor http, TimeProvider time, IReceiptStore store)
+public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHttpContextAccessor http, TimeProvider time, IReceiptStore store, FinancePeriodService periods)
 {
     private const int ListCap = 500;
 
     private static string KindWord(string kind) => kind == FinEntryKinds.Income ? "income" : "expense";
 
-    private static FinEntryResponse ToResponse(FinEntry e, IEnumerable<FinAttachment> files) => new(
+    private static FinEntryResponse ToResponse(FinEntry e, IEnumerable<FinAttachment> files, string? replacesNo = null, string? replacedByNo = null) => new(
         e.Id, e.Kind, e.EntryNo, FinanceRules.Format(e.EntryDate), e.CategoryId, e.Category.Name, e.Party, e.AccountId, e.Account.Name,
         e.Amount, e.Reference, e.Notes, e.Status, e.VoidReason, e.CreatedBy, e.CreatedUtc,
-        files.Select(f => new FinAttachmentResponse(f.Id, f.FileName, f.ContentType, f.SizeBytes)).ToList());
+        files.Select(f => new FinAttachmentResponse(f.Id, f.FileName, f.ContentType, f.SizeBytes)).ToList(),
+        e.VoidedBy, e.VoidedUtc, e.ReplacesEntryId, replacesNo, replacedByNo);
+
+    /// <summary>EntryNo of the entry each given entry replaces, and of the entry that replaced it.</summary>
+    private async Task<(Dictionary<int, string> Replaces, Dictionary<int, string> ReplacedBy)> ChainAsync(IReadOnlyCollection<FinEntry> rows, CancellationToken ct)
+    {
+        var ids = rows.Select(r => r.Id).ToList();
+        var replacedBy = await db.FinEntries.AsNoTracking().Where(e => e.ReplacesEntryId != null && ids.Contains(e.ReplacesEntryId.Value))
+            .Select(e => new { Original = e.ReplacesEntryId!.Value, e.EntryNo }).ToDictionaryAsync(x => x.Original, x => x.EntryNo, ct);
+        var originalIds = rows.Where(r => r.ReplacesEntryId != null).Select(r => r.ReplacesEntryId!.Value).ToList();
+        var replaces = await db.FinEntries.AsNoTracking().Where(e => originalIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.EntryNo, ct);
+        return (replaces, replacedBy);
+    }
 
     public async Task<FinEntryList> ListAsync(string kind, FinEntryFilter f, CancellationToken ct)
     {
@@ -43,7 +55,8 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
 
         var ids = rows.Select(r => r.Id).ToList();
         var files = (await db.FinAttachments.AsNoTracking().Where(x => ids.Contains(x.EntryId)).OrderBy(x => x.Id).ToListAsync(ct)).ToLookup(x => x.EntryId);
-        return new(rows.Select(r => ToResponse(r, files[r.Id])).ToList(), total, count, truncated);
+        var (replaces, replacedBy) = await ChainAsync(rows, ct);
+        return new(rows.Select(r => ToResponse(r, files[r.Id], r.ReplacesEntryId is { } o ? replaces.GetValueOrDefault(o) : null, replacedBy.GetValueOrDefault(r.Id))).ToList(), total, count, truncated);
     }
 
     public async Task<FinResult<FinEntryResponse>> GetAsync(string kind, int id, CancellationToken ct)
@@ -51,7 +64,8 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         var entry = await db.FinEntries.AsNoTracking().Include(e => e.Category).Include(e => e.Account).SingleOrDefaultAsync(e => e.Id == id && e.Kind == kind, ct);
         if (entry is null) return FinResult<FinEntryResponse>.NotFound($"The {KindWord(kind)} was not found.");
         var files = await db.FinAttachments.AsNoTracking().Where(x => x.EntryId == id).OrderBy(x => x.Id).ToListAsync(ct);
-        return FinResult<FinEntryResponse>.Ok(ToResponse(entry, files));
+        var (replaces, replacedBy) = await ChainAsync([entry], ct);
+        return FinResult<FinEntryResponse>.Ok(ToResponse(entry, files, entry.ReplacesEntryId is { } o ? replaces.GetValueOrDefault(o) : null, replacedBy.GetValueOrDefault(id)));
     }
 
     /// <summary>The names people have typed before, newest first, to suggest while typing "paid to" or "received from".</summary>
@@ -60,7 +74,39 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
             .GroupBy(e => e.Party).Select(g => new { Party = g.Key, Last = g.Max(e => e.Id) })
             .OrderByDescending(g => g.Last).Take(50).Select(g => g.Party).ToListAsync(ct);
 
-    public async Task<FinResult<FinEntryResponse>> CreateAsync(string kind, FinExpenseForm form, CancellationToken ct)
+    public Task<FinResult<FinEntryResponse>> CreateAsync(string kind, FinExpenseForm form, CancellationToken ct) => SaveAsync(kind, form, null, ct);
+
+    /// <summary>Corrects an entry: the original is voided and a replacement that points back at it is added, in one transaction.</summary>
+    public async Task<FinResult<FinEntryResponse>> CorrectAsync(string kind, int id, FinExpenseForm form, CancellationToken ct)
+    {
+        var original = await db.FinEntries.SingleOrDefaultAsync(e => e.Id == id && e.Kind == kind, ct);
+        if (original is null) return FinResult<FinEntryResponse>.NotFound($"The {KindWord(kind)} was not found.");
+        if (original.Status != FinStatuses.Active) return FinResult<FinEntryResponse>.Conflict($"{original.EntryNo} is already voided and cannot be corrected.");
+        if (await db.FinEntries.AnyAsync(e => e.ReplacesEntryId == id, ct)) return FinResult<FinEntryResponse>.Conflict($"{original.EntryNo} has already been corrected.");
+        return await SaveAsync(kind, form, original, ct);
+    }
+
+    public async Task<FinResult<FinEntryResponse>> VoidAsync(string kind, int id, string? reason, CancellationToken ct)
+    {
+        var text = FinanceRules.Clean(reason);
+        if (text is null) return FinResult<FinEntryResponse>.Invalid("reason", $"Enter the reason for voiding this {KindWord(kind)}.");
+        if (text.Length > 300) return FinResult<FinEntryResponse>.Invalid("reason", "Use 300 characters or fewer.");
+        var entry = await db.FinEntries.Include(e => e.Category).Include(e => e.Account).SingleOrDefaultAsync(e => e.Id == id && e.Kind == kind, ct);
+        if (entry is null) return FinResult<FinEntryResponse>.NotFound($"The {KindWord(kind)} was not found.");
+        if (entry.Status != FinStatuses.Active) return FinResult<FinEntryResponse>.Conflict($"{entry.EntryNo} is already voided.");
+        if (await periods.LockedMessageAsync(entry.EntryDate, ct) is { } locked) return FinResult<FinEntryResponse>.Conflict(locked);
+
+        entry.Status = FinStatuses.Voided;
+        entry.VoidReason = text;
+        entry.VoidedBy = FinanceRules.Actor(http);
+        entry.VoidedUtc = DateTime.UtcNow;
+        audit.Write(kind == FinEntryKinds.Income ? "FinIncomeVoided" : "FinExpenseVoided", entityType: nameof(FinEntry), entityId: entry.Id.ToString(),
+            details: new { entry.EntryNo, entry.Amount, reason = text });
+        await db.SaveChangesAsync(ct);
+        return await GetAsync(kind, id, ct);
+    }
+
+    private async Task<FinResult<FinEntryResponse>> SaveAsync(string kind, FinExpenseForm form, FinEntry? replaces, CancellationToken ct)
     {
         var errors = new Dictionary<string, string[]>();
         if (FinanceRules.AmountError(form.Amount) is { } amountError) errors["amount"] = [amountError];
@@ -94,11 +140,19 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         if (account is not null && !errors.ContainsKey("entryDate") && date < account.OpeningDate)
             errors["entryDate"] = [$"{account.Name} opens on {FinanceRules.Format(account.OpeningDate)}. The date cannot be earlier."];
 
+        // When correcting, the receipts being kept come from the original entry.
+        var kept = new List<FinAttachment>();
+        if (replaces is not null && form.KeepAttachmentIds is { Count: > 0 } keepIds)
+        {
+            kept = await db.FinAttachments.AsNoTracking().Where(a => a.EntryId == replaces.Id && keepIds.Contains(a.Id)).ToListAsync(ct);
+            if (kept.Count != keepIds.Distinct().Count()) errors["files"] = ["One of the receipts to keep does not belong to this entry."];
+        }
+
         // Receipts: read and judge every file before anything is saved.
         var incoming = new List<(string Name, byte[] Bytes, string ContentType, string Extension)>();
         var files = form.Files?.ToList() ?? [];
-        if (files.Count > ReceiptFile.MaxFiles) errors["files"] = [$"Attach at most {ReceiptFile.MaxFiles} files."];
-        else
+        if (files.Count + kept.Count > ReceiptFile.MaxFiles) errors["files"] = [$"Attach at most {ReceiptFile.MaxFiles} files."];
+        else if (!errors.ContainsKey("files"))
         {
             foreach (var file in files)
             {
@@ -121,9 +175,13 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
             }
         }
 
-        if (kind == FinEntryKinds.Expense && incoming.Count == 0 && !errors.ContainsKey("files"))
+        if (kind == FinEntryKinds.Expense && incoming.Count + kept.Count == 0 && !errors.ContainsKey("files"))
             errors["files"] = ["Attach the receipt or supplier invoice."];
         if (errors.Count > 0) return FinResult<FinEntryResponse>.Invalid(errors);
+
+        // A locked month takes nothing new, and nothing may leave it either.
+        if (await periods.LockedMessageAsync(date, ct) is { } lockedNew) return FinResult<FinEntryResponse>.Conflict(lockedNew);
+        if (replaces is not null && await periods.LockedMessageAsync(replaces.EntryDate, ct) is { } lockedOld) return FinResult<FinEntryResponse>.Conflict(lockedOld);
 
         var stored = new List<string>();
         try
@@ -131,6 +189,8 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
             var actor = FinanceRules.Actor(http);
             var now = DateTime.UtcNow;
             var attachments = new List<FinAttachment>();
+            foreach (var k in kept)
+                attachments.Add(new FinAttachment { FileName = k.FileName, ContentType = k.ContentType, SizeBytes = k.SizeBytes, StoredName = k.StoredName, Sha256 = k.Sha256, UploadedBy = k.UploadedBy, UploadedUtc = k.UploadedUtc });
             foreach (var (name, bytes, contentType, extension) in incoming)
             {
                 var storedName = await store.SaveAsync(bytes, extension, ct);
@@ -146,7 +206,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
             {
                 Kind = kind, EntryNo = "PENDING", EntryDate = date, CategoryId = category!.Id, Party = party!, AccountId = account!.Id,
                 Amount = form.Amount!.Value, Reference = FinanceRules.Clean(form.Reference), Notes = FinanceRules.Clean(form.Notes),
-                CreatedBy = actor, CreatedUtc = now,
+                CreatedBy = actor, CreatedUtc = now, ReplacesEntryId = replaces?.Id,
             };
 
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -160,14 +220,24 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
             await db.SaveChangesAsync(ct);
             foreach (var a in attachments) a.EntryId = entry.Id;
             db.FinAttachments.AddRange(attachments);
+            if (replaces is not null)
+            {
+                replaces.Status = FinStatuses.Voided;
+                replaces.VoidReason = $"Corrected: replaced by {entry.EntryNo}";
+                replaces.VoidedBy = actor;
+                replaces.VoidedUtc = now;
+                audit.Write(kind == FinEntryKinds.Income ? "FinIncomeCorrected" : "FinExpenseCorrected", entityType: nameof(FinEntry), entityId: replaces.Id.ToString(),
+                    details: new { original = replaces.EntryNo, replacement = entry.EntryNo, before = new { replaces.Amount, date = FinanceRules.Format(replaces.EntryDate), replaces.Party }, after = new { entry.Amount, date = FinanceRules.Format(date), entry.Party } });
+            }
+
             audit.Write(kind == FinEntryKinds.Income ? "FinIncomeCreated" : "FinExpenseCreated", entityType: nameof(FinEntry), entityId: entry.Id.ToString(),
-                details: new { entry.EntryNo, category = category.Name, account = account.Name, entry.Amount, date = FinanceRules.Format(date), receipts = attachments.Count });
+                details: new { entry.EntryNo, category = category.Name, account = account.Name, entry.Amount, date = FinanceRules.Format(date), receipts = attachments.Count, replaces = replaces?.EntryNo });
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
 
             entry.Category = category;
             entry.Account = account;
-            return FinResult<FinEntryResponse>.Created(ToResponse(entry, attachments));
+            return FinResult<FinEntryResponse>.Created(ToResponse(entry, attachments, replaces?.EntryNo));
         }
         catch
         {

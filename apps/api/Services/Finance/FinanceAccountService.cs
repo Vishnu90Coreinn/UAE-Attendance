@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace HrPayroll.Api.Services.Finance;
 
 /// <summary>Bank and cash accounts. Balances are worked out from the entries and transfers, never stored.</summary>
-public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, FinanceRedactor redactor, TimeProvider time)
+public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, FinanceRedactor redactor, TimeProvider time, FinancePeriodService periods)
 {
     private sealed record Sums(int AccountId, decimal Income, decimal Expense, decimal In, decimal Out, int Count);
 
@@ -129,6 +129,8 @@ public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, F
                 errors["openingDate"] = [$"An entry is dated {FinanceRules.Format(date)}. The opening date cannot be after it."];
         }
 
+        if (errors.Count == 0 && (request.OpeningBalance != account.OpeningBalance || openingDate != account.OpeningDate) && await periods.AnyLockedAsync(ct))
+            errors["openingBalance"] = ["A month has been locked, so opening balances are settled. Unlock every month first to change this."];
         if (errors.Count > 0) return FinResult<FinAccountResponse>.Invalid(errors);
 
         var before = new { account.Name, account.Kind, account.BankName, hasNumber = account.AccountNumber is not null, hasIban = account.Iban is not null, account.OpeningBalance, openingDate = FinanceRules.Format(account.OpeningDate), account.SortOrder };

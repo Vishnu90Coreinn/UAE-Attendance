@@ -512,8 +512,7 @@ namespace HrPayroll.Api.Data.Migrations
 
                     b.HasIndex("EntryId");
 
-                    b.HasIndex("StoredName")
-                        .IsUnique();
+                    b.HasIndex("StoredName");
 
                     b.ToTable("FinAttachments");
                 });
@@ -730,6 +729,53 @@ namespace HrPayroll.Api.Data.Migrations
                             t.HasCheckConstraint("CK_FinEntries_Status", "[Status] IN ('Active', 'Voided')");
 
                             t.HasCheckConstraint("CK_FinEntries_Voided", "[Status] = 'Active' OR [VoidedUtc] IS NOT NULL");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinMonthLock", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LockedBy")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("LockedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UnlockReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("UnlockedBy")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("UnlockedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Year", "Month")
+                        .IsUnique();
+
+                    b.ToTable("FinMonthLocks", t =>
+                        {
+                            t.HasCheckConstraint("CK_FinMonthLocks_Month", "[Month] BETWEEN 1 AND 12");
                         });
                 });
 

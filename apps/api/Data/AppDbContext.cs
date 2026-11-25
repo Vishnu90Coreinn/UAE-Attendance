@@ -47,6 +47,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<FinEntry> FinEntries => Set<FinEntry>();
     public DbSet<FinTransfer> FinTransfers => Set<FinTransfer>();
     public DbSet<FinAttachment> FinAttachments => Set<FinAttachment>();
+    public DbSet<FinMonthLock> FinMonthLocks => Set<FinMonthLock>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

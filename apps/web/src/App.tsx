@@ -73,6 +73,9 @@ const AccountsPage = lazy(() =>
 const ExpensesPage = lazy(() =>
   import("./features/finance/ExpensesPage").then((m) => ({ default: m.ExpensesPage })),
 );
+const IncomePage = lazy(() =>
+  import("./features/finance/IncomePage").then((m) => ({ default: m.IncomePage })),
+);
 const SettingsPage = lazy(() =>
   import("./features/settings/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );
@@ -189,6 +192,14 @@ export default function App() {
               element={
                 <RequireRole roles={FINANCE_ROLES}>
                   <ExpensesPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/income"
+              element={
+                <RequireRole roles={FINANCE_ROLES}>
+                  <IncomePage />
                 </RequireRole>
               }
             />

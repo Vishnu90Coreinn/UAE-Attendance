@@ -20,6 +20,10 @@ public class FinanceAuthorizationTests(ApiFixture api) : IClassFixture<ApiFixtur
         ["GET", "/api/finance/expenses"],
         ["GET", $"/api/finance/expenses/{Missing}"],
         ["GET", "/api/finance/expenses/parties"],
+        ["GET", "/api/finance/income"],
+        ["GET", $"/api/finance/income/{Missing}"],
+        ["GET", "/api/finance/income/parties"],
+        ["GET", "/api/finance/month-locks"],
         ["GET", $"/api/finance/attachments/{Missing}"],
     ];
 
@@ -33,6 +37,15 @@ public class FinanceAuthorizationTests(ApiFixture api) : IClassFixture<ApiFixtur
         ["PUT", $"/api/finance/categories/{Missing}"],
         ["POST", "/api/finance/transfers"],
         ["POST", "/api/finance/expenses"],
+        ["POST", "/api/finance/income"],
+        ["PUT", $"/api/finance/expenses/{Missing}"],
+        ["PUT", $"/api/finance/income/{Missing}"],
+        ["POST", $"/api/finance/expenses/{Missing}/void"],
+        ["POST", $"/api/finance/income/{Missing}/void"],
+        ["PUT", $"/api/finance/transfers/{Missing}"],
+        ["POST", $"/api/finance/transfers/{Missing}/void"],
+        ["POST", "/api/finance/month-locks/2026-01/lock"],
+        ["POST", "/api/finance/month-locks/2026-01/unlock"],
     ];
 
     private Task<HttpResponseMessage> Send(string verb, string url, string? token) =>

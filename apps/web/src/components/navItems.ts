@@ -35,6 +35,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "leave", label: "Leave Management", shortLabel: "Leave", roles: ALL_ROLES, path: "/leave" },
   { key: "finance-accounts", label: "Accounts", shortLabel: "Accounts", roles: FINANCE_ROLES, path: "/finance/accounts" },
   { key: "finance-expenses", label: "Expenses", shortLabel: "Expenses", roles: FINANCE_ROLES, path: "/finance/expenses" },
+  { key: "finance-income", label: "Income", shortLabel: "Income", roles: FINANCE_ROLES, path: "/finance/income" },
   { key: "invoices", label: "Tax Invoices", shortLabel: "Invoices", roles: VIEW_ALL_ROLES, path: "/invoices" },
   { key: "letters", label: "HR Letters", shortLabel: "Letters", roles: ALL_ROLES, path: "/letters" },
   { key: "progress", label: "Site Progress", shortLabel: "Progress", roles: SITE_PROGRESS_ROLES, path: "/progress" },
@@ -47,7 +48,7 @@ export function navItemsForRole(role: Role, employeeId?: number | null): NavItem
 }
 
 /** Most to least used on a phone: the first screens get bottom-bar slots, the rest go behind "More". */
-const PHONE_ORDER = ["my-attendance", "my-leave", "my-letters", "my-profile", "dashboard", "attendance", "workers", "payroll", "leave", "finance-accounts", "finance-expenses", "deductions", "staff", "staff-payroll", "staff-leave", "progress", "invoices", "letters", "users", "settings"];
+const PHONE_ORDER = ["my-attendance", "my-leave", "my-letters", "my-profile", "dashboard", "attendance", "workers", "payroll", "leave", "finance-accounts", "finance-expenses", "finance-income", "deductions", "staff", "staff-payroll", "staff-leave", "progress", "invoices", "letters", "users", "settings"];
 /** A bottom bar holds five slots at most; when "More" is needed it takes the last one. */
 const PHONE_SLOTS = 5;
 

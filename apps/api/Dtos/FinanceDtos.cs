@@ -48,7 +48,8 @@ public sealed record FinAttachmentResponse(int Id, string FileName, string Conte
 public sealed record FinEntryResponse(
     int Id, string Kind, string EntryNo, string EntryDate, int CategoryId, string CategoryName, string Party, int AccountId, string AccountName,
     decimal Amount, string? Reference, string? Notes, string Status, string? VoidReason, string CreatedBy, DateTime CreatedUtc,
-    IReadOnlyList<FinAttachmentResponse> Attachments);
+    IReadOnlyList<FinAttachmentResponse> Attachments,
+    string? VoidedBy = null, DateTime? VoidedUtc = null, int? ReplacesEntryId = null, string? ReplacesEntryNo = null, string? ReplacedByEntryNo = null);
 
 /// <summary>The filtered expenses, newest first, with their total. Voided rows are listed only when asked for and never counted in the total.</summary>
 public sealed record FinEntryList(IReadOnlyList<FinEntryResponse> Items, decimal Total, int Count, bool Truncated);
@@ -64,4 +65,14 @@ public sealed class FinExpenseForm
     public string? Reference { get; init; }
     public string? Notes { get; init; }
     public IFormFileCollection? Files { get; init; }
+
+    /// <summary>When correcting: the receipts of the original entry to keep. Others are left behind with the voided original.</summary>
+    public List<int>? KeepAttachmentIds { get; init; }
+}
+
+public sealed record FinMonthLockResponse(string Month, bool IsLocked, string? LockedBy, DateTime? LockedUtc, string? UnlockedBy, DateTime? UnlockedUtc, string? UnlockReason);
+
+public sealed class FinVoidRequest
+{
+    public string? Reason { get; init; }
 }

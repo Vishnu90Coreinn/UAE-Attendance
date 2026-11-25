@@ -163,3 +163,24 @@ it("sends a valid transfer and shows its number", async () => {
   await waitFor(() => expect(financeApi.createFinTransfer).toHaveBeenCalledWith(expect.objectContaining({ fromAccountId: 1, toAccountId: 2, amount: 25.5 })));
   expect(await screen.findByText(/TRF-000008: AED 25.50 moved/)).toBeInTheDocument();
 });
+
+it("voids a transfer with a reason and shows the confirmation", async () => {
+  vi.mocked(financeApi.voidFinTransfer).mockResolvedValue({ ...transfer, status: "Voided", voidReason: "Cancelled by bank" });
+  const user = userEvent.setup();
+  render(<AccountsPage />);
+  await user.click(await screen.findByRole("button", { name: "Void TRF-000007" }));
+  const dialog = await screen.findByRole("dialog");
+
+  await user.type(within(dialog).getByLabelText("Reason"), "Cancelled by bank");
+  await user.click(within(dialog).getByRole("button", { name: "Void" }));
+
+  await waitFor(() => expect(financeApi.voidFinTransfer).toHaveBeenCalledWith(7, "Cancelled by bank"));
+  expect(await screen.findByText("TRF-000007 was voided.")).toBeInTheDocument();
+});
+
+it("gives the Partner no void button on transfers", async () => {
+  signIn("Viewer");
+  render(<AccountsPage />);
+  await screen.findByText("TRF-000007");
+  expect(screen.queryByRole("button", { name: /Void TRF/ })).not.toBeInTheDocument();
+});
