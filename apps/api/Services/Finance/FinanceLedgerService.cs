@@ -20,7 +20,7 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
 
     // ---- chart of accounts -----------------------------------------------------------------------------------------
 
-    // The system's own accounts sit above these ranges (1500, 1600, 2150, 2200, 3900), so new accounts never run into them.
+    // The system's own accounts sit above these ranges (1500, 1600, 2150, 2200, 3800, 3900), so new accounts never run into them.
     private static (int Base, int Width) Range(string type) => type switch
     {
         LedgerTypes.Asset => (1100, 400), LedgerTypes.Liability => (2100, 40), LedgerTypes.Equity => (3100, 700),
@@ -42,6 +42,7 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
     public const string ChequesReceivableCode = "1600";
     public const string ChequesPayableCode = "2150";
     public const string OutputVatCode = "2200";
+    public const string RetainedEarningsCode = "3800";
 
     private static readonly (string Code, string Name, string Type)[] SystemAccounts =
     [
@@ -50,6 +51,7 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
         (ChequesReceivableCode, "Cheques receivable (not yet in the bank)", LedgerTypes.Asset),
         (ChequesPayableCode, "Cheques payable (not yet paid by the bank)", LedgerTypes.Liability),
         (OutputVatCode, "VAT payable (output VAT)", LedgerTypes.Liability),
+        (RetainedEarningsCode, "Retained earnings", LedgerTypes.Equity),
     ];
 
     /// <summary>The accounts the system needs, made when first wanted. Their codes are reserved: nobody else can claim them.</summary>

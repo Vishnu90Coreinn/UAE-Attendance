@@ -29,6 +29,9 @@ public static class JournalSources
 
     /// <summary>A cheque issued or received: it moves money between the bank and "cheques payable" or "cheques receivable" until it clears.</summary>
     public const string Cheque = "Cheque";
+
+    /// <summary>The closing journal of a financial year (SourceId is the year): income and expenses move to retained earnings.</summary>
+    public const string YearEnd = "YearEnd";
 }
 
 /// <summary>One account in the chart of accounts. Never deleted, only switched off.</summary>

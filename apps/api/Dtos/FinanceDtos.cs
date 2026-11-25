@@ -353,3 +353,8 @@ public sealed record FinVatUnrecorded(int Count, decimal Amount);
 public sealed record FinVatReport(
     string From, string To, IReadOnlyList<FinVatRow> Sales, IReadOnlyList<FinVatRow> Purchases, decimal OutputVat, decimal InputVat, decimal NetPayable,
     FinVatUnrecorded UnrecordedSales, FinVatUnrecorded UnrecordedPurchases);
+
+/// <summary>One financial year (1 January to 31 December) and whether it is closed. <see cref="Blocker"/> says why it cannot be closed yet.</summary>
+public sealed record FinYearResponse(
+    int Year, string Status, decimal Revenue, decimal Expenses, decimal NetResult, string? JournalNumber, string? ClosedBy, DateTime? ClosedUtc,
+    bool CanClose, bool CanReopen, string? Blocker);

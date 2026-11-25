@@ -109,6 +109,21 @@ public sealed class LedgerController(FinanceLedgerService ledger, FinanceLedgerE
     [Authorize(Policy = Policies.AdminOnly)]
     public async Task<IActionResult> SetMapping(string kind, int id, [FromBody] LedgerMappingRequest? request, CancellationToken ct) => Map(await ledger.SetMappingAsync(kind, id, request ?? new(), ct));
 
+    /// <summary>Each financial year (1 January to 31 December) with its result and whether it is closed.</summary>
+    [HttpGet("years")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> Years(CancellationToken ct) => Ok(await ledger.YearsAsync(ct));
+
+    /// <summary>Close a finished year: lock its months and move its income and expenses to retained earnings.</summary>
+    [HttpPost("years/{year:int}/close")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> CloseYear(int year, CancellationToken ct) => Map(await ledger.CloseYearAsync(year, ct));
+
+    /// <summary>Administrator only: undo the closing journal of the latest closed year, with a reason.</summary>
+    [HttpPost("years/{year:int}/reopen")]
+    [Authorize(Policy = Policies.AdminOnly)]
+    public async Task<IActionResult> ReopenYear(int year, [FromBody] FinVoidRequest? request, CancellationToken ct) => Map(await ledger.ReopenYearAsync(year, request?.Reason, ct));
+
     [HttpPost("sync")]
     [Authorize(Policy = Policies.Finance)]
     public async Task<IActionResult> Sync(CancellationToken ct) => Ok(await ledger.SyncAsync(ct));

@@ -80,6 +80,8 @@ public sealed class FinancePeriodService(AppDbContext db, IAuditLogger audit, IH
 
         var row = await db.FinMonthLocks.SingleOrDefaultAsync(l => l.Year == year && l.Month == number, ct);
         if (row is not { IsLocked: true }) return FinResult<FinMonthLockResponse>.Conflict("This month is not locked.");
+        if (await db.Journals.AnyAsync(j => j.SourceType == JournalSources.YearEnd && j.SourceId == year && j.Part == "Post" && !db.Journals.Any(r => r.ReversesJournalId == j.Id), ct))
+            return FinResult<FinMonthLockResponse>.Conflict($"{year} is closed, so its months stay locked. Reopen the year first.");
         row.IsLocked = false;
         row.UnlockedBy = FinanceRules.Actor(http);
         row.UnlockedUtc = DateTime.UtcNow;

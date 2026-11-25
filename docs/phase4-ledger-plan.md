@@ -1,6 +1,6 @@
 # Phase 4 plan: a double-entry ledger, so the client can leave Daftra
 
-Status: L1 to L4 and L5 (VAT) are built on branch `feat/finance-accounts` (PR 37), with cheque handling. Not built: L6 (receivables and payables), year-end close, cut-over. This work is outside the Phase 3 quotation (QTN-HR-2026-005) and needs its own quotation.
+Status: L1 to L4 and L5 (VAT) are built on branch `feat/finance-accounts` (PR 37), with cheque handling. Year-end close is built too (Books > Year end): it locks the twelve months, posts one journal dated 31 December that moves income and expenses to "Retained earnings" (code 3800), and can be reopened by an Administrator with a reason. Not built: L6 (receivables and payables) and the cut-over. This work is outside the Phase 3 quotation (QTN-HR-2026-005) and needs its own quotation.
 
 Built since the plan was written: Daftra-style tax types per entry (Standard, Zero, Exempt, Reverse Charge, Intra GCC) with a category default; the VAT return report with Excel download; cheques held in "Cheques payable / receivable" until they clear, with a bank statement balance (book balance plus uncleared cheques). Financial year end is 31 December; the company is VAT-registered (confirmed by the client). Still to confirm with the accountant: the VAT type for each category, whether reverse charge applies at 5%, and how prepaid rent is treated.
 

@@ -9,11 +9,12 @@ public sealed partial class FinanceLedgerService
 {
     private sealed record Row(string Code, string Name, string Type, decimal Debit, decimal Credit);
 
-    private async Task<List<Row>> RowsAsync(DateOnly? from, DateOnly? to, CancellationToken ct)
+    private async Task<List<Row>> RowsAsync(DateOnly? from, DateOnly? to, CancellationToken ct, bool withoutClosing = false)
     {
         var lines = db.JournalLines.AsNoTracking().AsQueryable();
         if (from is { } f) lines = lines.Where(l => l.Journal.Date >= f);
         if (to is { } t) lines = lines.Where(l => l.Journal.Date <= t);
+        if (withoutClosing) lines = lines.Where(l => l.Journal.SourceType != JournalSources.YearEnd);   // a closed year's Profit & Loss still shows its income and expenses
         var grouped = await lines.GroupBy(l => new { l.LedgerAccount.Code, l.LedgerAccount.Name, l.LedgerAccount.Type })
             .Select(g => new { g.Key.Code, g.Key.Name, g.Key.Type, Debit = g.Sum(l => l.Debit), Credit = g.Sum(l => l.Credit) }).ToListAsync(ct);
         return grouped.Select(g => new Row(g.Code, g.Name, g.Type, g.Debit, g.Credit)).OrderBy(r => r.Code, StringComparer.Ordinal).ToList();
@@ -34,7 +35,7 @@ public sealed partial class FinanceLedgerService
         if (errors.Count == 0 && start > end) errors["to"] = ["The end date cannot be before the start date."];
         if (errors.Count > 0) return FinResult<ProfitAndLoss>.Invalid(errors);
 
-        var rows = await RowsAsync(start, end, ct);
+        var rows = await RowsAsync(start, end, ct, withoutClosing: true);
         var revenue = Section(rows, LedgerTypes.Revenue);
         var expenses = Section(rows, LedgerTypes.Expense);
         var manual = await db.Journals.AsNoTracking().CountAsync(j => j.SourceType == JournalSources.Manual && j.Part == "Post" && j.Date >= start && j.Date <= end, ct);

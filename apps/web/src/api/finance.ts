@@ -929,3 +929,28 @@ export function getFinVatFile(format: FinReportFormat, from: string, to: string)
   if (format === "pdf") return apiGetBlob(path);
   return apiGetFile(path, format === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 }
+
+// ---- Year-end close ----
+export interface FinYear {
+  year: number;
+  status: "Open" | "Closed";
+  revenue: number;
+  expenses: number;
+  netResult: number;
+  journalNumber: string | null;
+  closedBy: string | null;
+  closedUtc: string | null;
+  canClose: boolean;
+  canReopen: boolean;
+  /** Why the year cannot be closed yet, in a sentence. */
+  blocker: string | null;
+}
+export function listFinYears(): Promise<FinYear[]> {
+  return apiGet<FinYear[]>("/api/finance/ledger/years");
+}
+export function closeFinYear(year: number): Promise<FinYear> {
+  return apiPost<FinYear>(`/api/finance/ledger/years/${year}/close`, {});
+}
+export function reopenFinYear(year: number, reason: string): Promise<FinYear> {
+  return apiPost<FinYear>(`/api/finance/ledger/years/${year}/reopen`, { reason });
+}
