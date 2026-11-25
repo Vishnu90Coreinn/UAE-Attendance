@@ -13,9 +13,9 @@ export const STATUS_ACTIONS: Record<FinChequeStatus, { label: string; help: stri
   Received: { label: "Received", help: "", noteRequired: false },
   Delivered: { label: "Mark as handed over", help: "The cheque has been given to the person it is written to.", noteRequired: false },
   Deposited: { label: "Mark as deposited", help: "The cheque has been paid into the bank.", noteRequired: false },
-  Cleared: { label: "Mark as cleared", help: "The money has moved at the bank. Record the expense or income if you have not already.", noteRequired: false },
+  Cleared: { label: "Mark as cleared", help: "The money has moved at the bank. If the cheque is linked to an expense or income, the bank balance in the books moves on this day.", noteRequired: false },
   Bounced: { label: "Mark as bounced", help: "The bank returned it. If you had recorded an income for it, void that income separately.", noteRequired: true, danger: true },
-  Cancelled: { label: "Cancel cheque", help: "The cheque is no longer valid. It stays in the register.", noteRequired: true, danger: true },
+  Cancelled: { label: "Cancel cheque", help: "The cheque is no longer valid. It stays in the register. If it was never paid, void the expense it was written for.", noteRequired: true, danger: true },
 };
 
 interface ChequeStatusDialogProps {

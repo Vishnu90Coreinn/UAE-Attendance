@@ -12,7 +12,7 @@ namespace HrPayroll.Api.Controllers;
 [ApiController]
 [ServiceFilter(typeof(LedgerSyncFilter))]
 [Route("api/finance")]
-public sealed class FinanceController(FinanceAccountService accounts, FinanceCategoryService categories, FinanceTransferService transfers, FinanceEntryService entries, FinancePeriodService periods, FinanceDashboardService dashboard, FinanceReportService reports, FinanceReportExportService reportExports, FinancePartnerService partners, FinancePayeeService payees, FinanceChequeService cheques, FinanceSubmitterService submitters, FinanceImportService imports) : ControllerBase
+public sealed class FinanceController(FinanceAccountService accounts, FinanceCategoryService categories, FinanceTransferService transfers, FinanceEntryService entries, FinancePeriodService periods, FinanceDashboardService dashboard, FinanceReportService reports, FinanceReportExportService reportExports, FinancePartnerService partners, FinancePayeeService payees, FinanceChequeService cheques, FinanceSubmitterService submitters, FinanceImportService imports, FinanceVatService vat) : ControllerBase
 {
     private IActionResult Map<T>(FinResult<T> result) => result.Status switch
     {
@@ -68,6 +68,29 @@ public sealed class FinanceController(FinanceAccountService accounts, FinanceCat
     [HttpPost("expenses/{id:int}/reject")]
     [Authorize(Policy = Policies.Finance)]
     public async Task<IActionResult> RejectExpense(int id, [FromBody] FinVoidRequest? request, CancellationToken ct) => Map(await entries.RejectAsync(id, request?.Reason, ct));
+
+    // --- VAT ---------------------------------------------------------------------------------------------------
+
+    [HttpGet("tax-types")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> TaxTypes(CancellationToken ct) => Ok(await categories.TaxTypesAsync(ct));
+
+    /// <summary>The VAT return figures for a period, as JSON or as a download when <c>format</c> is xlsx, pdf or csv.</summary>
+    [HttpGet("reports/vat")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> VatReport([FromQuery] string? from, [FromQuery] string? to, [FromQuery] string? format, CancellationToken ct)
+    {
+        var kind = (format ?? "json").ToLowerInvariant() switch { "json" => FinReportFormat.Json, "xlsx" => FinReportFormat.Excel, "pdf" => FinReportFormat.Pdf, "csv" => FinReportFormat.Csv, _ => (FinReportFormat?)null };
+        if (kind is null) return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { ["format"] = ["Use json, xlsx, pdf or csv."] }));
+        if (kind == FinReportFormat.Json) return Map(await vat.BuildAsync(from, to, ct));
+        Response.Headers.CacheControl = "no-store";
+        var file = await reportExports.VatAsync(from, to, kind.Value, ct);
+        return file.Status == 200 ? File(file.Value!.Content, file.Value.ContentType, file.Value.FileName) : Map(file);
+    }
+
+    [HttpPut("categories/{id:int}/tax-default")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> SetTaxDefault(int id, [FromBody] FinTaxDefaultRequest? request, CancellationToken ct) => Map(await categories.SetTaxDefaultAsync(id, request?.TaxTypeId, ct));
 
     // --- cheque register -------------------------------------------------------------------------------------
 

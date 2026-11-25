@@ -105,7 +105,7 @@ export function MyExpensesPage() {
           accounts={ready.options.accounts}
           categories={ready.options.categories}
           variant={variant}
-          submit={{ payees: ready.options.payees }}
+          submit={{ payees: ready.options.payees, taxTypes: ready.options.taxTypes }}
           onClose={() => setAdding(false)}
           onSaved={(entry) => {
             setAdding(false);

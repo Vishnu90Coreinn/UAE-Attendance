@@ -23,6 +23,10 @@ export interface FinAccount {
   entryCount: number;
   /** Staff allowed to submit expenses may choose this account. */
   staffCanUse?: boolean;
+  /** Cheques recorded in the books that the bank has not paid or received yet (written add back, received take off). */
+  unclearedCheques?: number;
+  /** What the bank statement shows: the balance plus the cheques still to clear. */
+  bankBalance?: number;
   /** Custody accounts: the staff login that holds the cash. */
   holderUserId?: number | null;
   holderName?: string | null;
@@ -46,6 +50,8 @@ export interface FinCategory {
   name: string;
   isActive: boolean;
   useCount: number;
+  /** The VAT type offered first for this category. */
+  defaultTaxTypeId?: number | null;
 }
 
 export interface FinTransfer {
@@ -149,6 +155,11 @@ export interface FinEntry {
   payeeId?: number | null;
   /** Largest first. More than one line means the entry is split between categories. */
   lines?: FinEntryLine[];
+  /** VAT: the type chosen (null when none was recorded), the rate that applied, and the VAT on the entry. */
+  taxTypeId?: number | null;
+  taxRate?: number;
+  taxAmount?: number;
+  taxInclusive?: boolean;
 }
 
 export interface FinEntryList {
@@ -186,6 +197,10 @@ export interface FinEntryInput {
   /** When correcting: receipts of the original entry to keep. */
   keepAttachmentIds?: number[];
   payeeId?: number | null;
+  /** A VAT type id, 0 for "no VAT recorded", or left out for the category default. */
+  taxTypeId?: number | null;
+  /** Whether the amount typed already contains the VAT. */
+  taxInclusive?: boolean;
   /** Splits the amount between categories; the lines must add up to the amount. Without it the entry has one line, categoryId. */
   lines?: { categoryId: number; amount: number; note?: string }[];
 }
@@ -213,6 +228,10 @@ function entryForm(input: FinEntryInput): FormData {
   form.set("entryDate", input.entryDate);
   form.set("categoryId", String(input.categoryId));
   if (input.payeeId) form.set("payeeId", String(input.payeeId));
+  if (input.taxTypeId !== undefined && input.taxTypeId !== null) {
+    form.set("taxTypeId", String(input.taxTypeId));
+    form.set("taxInclusive", String(input.taxInclusive ?? true));
+  }
   if (input.lines && input.lines.length > 1) form.set("linesJson", JSON.stringify(input.lines));
   form.set("accountId", String(input.accountId));
   form.set("party", input.party);
@@ -638,6 +657,7 @@ export interface FinMyOptions {
   accounts: FinAccount[];
   categories: FinCategory[];
   payees: FinPayee[];
+  taxTypes?: FinTaxType[];
 }
 export function getFinMyOptions(): Promise<FinMyOptions> {
   return apiGet("/api/finance/my/options");
@@ -862,3 +882,50 @@ export function getBalanceSheet(asOf: string): Promise<BalanceSheet> {
 }
 export const downloadProfitAndLoss = (from: string, to: string, format: LedgerFile) => ledgerDownload(`/api/finance/ledger/profit-and-loss?from=${from}&to=${to}`, format);
 export const downloadBalanceSheet = (asOf: string, format: LedgerFile) => ledgerDownload(`/api/finance/ledger/balance-sheet?asOf=${asOf}`, format);
+
+// ---- VAT ----
+export type FinTaxTreatment = "Standard" | "ZeroRated" | "Exempt" | "ReverseCharge" | "IntraGcc";
+export interface FinTaxType {
+  id: number;
+  name: string;
+  treatment: FinTaxTreatment;
+  rate: number;
+}
+export function listFinTaxTypes(): Promise<FinTaxType[]> {
+  return apiGet("/api/finance/tax-types");
+}
+export function setCategoryTaxDefault(categoryId: number, taxTypeId: number | null): Promise<FinCategory> {
+  return apiPut<FinCategory>(`/api/finance/categories/${categoryId}/tax-default`, { taxTypeId });
+}
+
+export interface FinVatRow {
+  taxTypeId: number;
+  taxType: string;
+  treatment: FinTaxTreatment;
+  rate: number;
+  count: number;
+  net: number;
+  vat: number;
+}
+export interface FinVatReport {
+  from: string;
+  to: string;
+  sales: FinVatRow[];
+  purchases: FinVatRow[];
+  /** VAT charged on sales plus the VAT accounted for on reverse-charge purchases. */
+  outputVat: number;
+  /** VAT paid on purchases plus the same reverse-charge VAT, which is reclaimed. */
+  inputVat: number;
+  /** Output less input: positive is owed, negative is a refund. */
+  netPayable: number;
+  unrecordedSales: { count: number; amount: number };
+  unrecordedPurchases: { count: number; amount: number };
+}
+export function getFinVatReport(from: string, to: string): Promise<FinVatReport> {
+  return apiGet(`/api/finance/reports/vat?from=${from}&to=${to}`);
+}
+export function getFinVatFile(format: FinReportFormat, from: string, to: string): Promise<Blob> {
+  const path = `/api/finance/reports/vat?from=${from}&to=${to}&format=${format}`;
+  if (format === "pdf") return apiGetBlob(path);
+  return apiGetFile(path, format === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+}

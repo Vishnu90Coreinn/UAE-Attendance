@@ -1,4 +1,5 @@
 import {
+  Percent,
   BookOpen,
   Receipt,
   Banknote,
@@ -49,6 +50,7 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   "finance-expenses": ReceiptText,
   "finance-income": HandCoins,
   "my-expenses": Receipt,
+  "finance-vat": Percent,
   "finance-books": BookOpen,
   "finance-petty-cash": Wallet,
   "finance-cheques": FileCheck2,
@@ -69,7 +71,7 @@ export const NAV_GROUPS: ReadonlyArray<{ label: string; keys: readonly string[] 
   { label: "Workforce", keys: ["workers", "attendance"] },
   { label: "Office staff", keys: ["staff", "staff-leave"] },
   { label: "Pay & leave", keys: ["payroll", "staff-payroll", "deductions", "leave"] },
-  { label: "Finance", keys: ["finance-overview", "finance-accounts", "finance-expenses", "finance-income", "finance-petty-cash", "finance-cheques", "finance-payees", "finance-partners", "finance-books", "finance-reports"] },
+  { label: "Finance", keys: ["finance-overview", "finance-accounts", "finance-expenses", "finance-income", "finance-petty-cash", "finance-cheques", "finance-payees", "finance-partners", "finance-vat", "finance-books", "finance-reports"] },
   { label: "Documents", keys: ["invoices", "letters"] },
   { label: "Site", keys: ["progress"] },
   { label: "Administration", keys: ["users", "settings"] },

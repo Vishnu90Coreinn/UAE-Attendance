@@ -17,8 +17,27 @@ public sealed class FinanceCategoryService(AppDbContext db, IAuditLogger audit)
         if (!includeInactive) query = query.Where(c => c.IsActive);
         return await query
             .OrderBy(c => c.Kind).ThenBy(c => c.Name)
-            .Select(c => new FinCategoryResponse(c.Id, c.Kind, c.Name, c.IsActive, db.FinEntryLines.Count(l => l.CategoryId == c.Id)))
+            .Select(c => new FinCategoryResponse(c.Id, c.Kind, c.Name, c.IsActive, db.FinEntryLines.Count(l => l.CategoryId == c.Id), c.DefaultTaxTypeId))
             .ToListAsync(ct);
+    }
+
+    public async Task<List<FinTaxTypeResponse>> TaxTypesAsync(CancellationToken ct) =>
+        await db.FinTaxTypes.AsNoTracking().Where(t => t.IsActive).OrderBy(t => t.SortOrder).Select(t => new FinTaxTypeResponse(t.Id, t.Name, t.Treatment, t.Rate)).ToListAsync(ct);
+
+    /// <summary>Which VAT type a category offers first on the entry form. The accountant decides this per category.</summary>
+    public async Task<FinResult<FinCategoryResponse>> SetTaxDefaultAsync(int id, int? taxTypeId, CancellationToken ct)
+    {
+        var category = await db.FinCategories.SingleOrDefaultAsync(c => c.Id == id && !FinEntryKinds.CapitalKinds.Contains(c.Kind), ct);
+        if (category is null) return FinResult<FinCategoryResponse>.NotFound("Category not found.");
+        if (taxTypeId is { } t && !await db.FinTaxTypes.AnyAsync(x => x.Id == t && x.IsActive, ct)) return FinResult<FinCategoryResponse>.Invalid("taxTypeId", "Choose an active VAT type.");
+        if (category.DefaultTaxTypeId != taxTypeId)
+        {
+            audit.Write("FinCategoryTaxDefaultChanged", entityType: nameof(FinCategory), entityId: id.ToString(), details: new { category.Name, from = category.DefaultTaxTypeId, to = taxTypeId });
+            category.DefaultTaxTypeId = taxTypeId;
+            await db.SaveChangesAsync(ct);
+        }
+
+        return FinResult<FinCategoryResponse>.Ok(new(category.Id, category.Kind, category.Name, category.IsActive, await db.FinEntryLines.CountAsync(l => l.CategoryId == id, ct), category.DefaultTaxTypeId));
     }
 
     private static string? NameError(string? name) =>

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Camera, FileText, Loader2, Paperclip, Plus, Save, Split, X } from "lucide-react";
-import { correctFinEntry, createFinEntry, listFinParties, listFinPayees, submitFinExpense, type FinAccount, type FinCategory, type FinEntry, type FinEntryKind, type FinPayee } from "../../api/finance";
+import { correctFinEntry, createFinEntry, listFinParties, listFinPayees, listFinTaxTypes, submitFinExpense, type FinAccount, type FinCategory, type FinEntry, type FinEntryKind, type FinPayee, type FinTaxType } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
 import { Button, Select, Textarea } from "../../ui";
-import { formatMoney, todayInUae, parseMoneyInput } from "./financeFormat";
+import { formatMoney, todayInUae, parseMoneyInput, vatOf } from "./financeFormat";
 import { formatBytes, receiptProblem, RECEIPT_MAX_FILES, shrinkPhoto } from "./receiptFile";
 
 type FieldName = "amount" | "entryDate" | "categoryId" | "accountId" | "party" | "reference" | "notes" | "files" | "payeeId" | "lines";
@@ -38,7 +38,7 @@ interface EntryDialogProps {
   onSaved: (entry: FinEntry) => void;
   variant: "center" | "sheet";
   /** Staff entering an expense for approval: it is sent to the submit endpoint and the saved payees come from here. */
-  submit?: { payees: FinPayee[] };
+  submit?: { payees: FinPayee[]; taxTypes?: FinTaxType[] };
 }
 
 /** Record an expense (receipt required) or an income (attachment optional). The amount comes first and the last account and category are remembered. */
@@ -51,6 +51,11 @@ export function EntryDialog({ kind, entry, accounts, categories, onClose, onSave
   const [accountId, setAccountId] = useState(() => (entry ? String(entry.accountId) : "") || remembered(LAST_ACCOUNT, accounts.map((a) => a.id)) || (accounts.length === 1 ? String(accounts[0].id) : ""));
   const [party, setParty] = useState(entry?.party ?? "");
   const [payees, setPayees] = useState<FinPayee[]>(submitMode?.payees ?? []);
+  const [taxTypes, setTaxTypes] = useState<FinTaxType[]>(submitMode?.taxTypes ?? []);
+  /** "0" is "no VAT recorded". A new entry starts on its category's VAT type, else the one used last, else standard rated. */
+  const [taxTypeId, setTaxTypeId] = useState(() => (entry ? String(entry.taxTypeId ?? 0) : remembered(`hrpayroll.finance.last${kind}Tax`, [0, 1, 2, 3, 4, 5]) || "1"));
+  const [taxTouched, setTaxTouched] = useState(Boolean(entry));
+  const [taxInclusive, setTaxInclusive] = useState(true);
   const [payeeId, setPayeeId] = useState(entry?.payeeId ? String(entry.payeeId) : "");
   const [split, setSplit] = useState((entry?.lines?.length ?? 0) > 1);
   const [lines, setLines] = useState<LineDraft[]>(() =>
@@ -71,6 +76,7 @@ export function EntryDialog({ kind, entry, accounts, categories, onClose, onSave
     if (submitMode) return;   // staff may not read the manager lists; their payees arrive with the form
     listFinParties(kind).then((list) => !cancelled && setSuggestions(list)).catch(() => {});
     listFinPayees(kind).then((list) => !cancelled && setPayees(list)).catch(() => {});
+    listFinTaxTypes().then((list) => !cancelled && setTaxTypes(list)).catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -82,6 +88,12 @@ export function EntryDialog({ kind, entry, accounts, categories, onClose, onSave
     if (!chosen) return;
     setParty(chosen.name);
     if (chosen.defaultCategoryId && !split && !categoryId && categories.some((c) => c.id === chosen.defaultCategoryId)) setCategoryId(String(chosen.defaultCategoryId));
+  }
+
+  function pickCategory(value: string) {
+    setCategoryId(value);
+    const fallback = categories.find((c) => String(c.id) === value)?.defaultTaxTypeId;
+    if (!taxTouched && fallback) setTaxTypeId(String(fallback));
   }
 
   function startSplit() {
@@ -146,11 +158,12 @@ export function EntryDialog({ kind, entry, accounts, categories, onClose, onSave
     setPending(true);
     try {
       const primary = split && lineInput ? [...lineInput].sort((a, b) => b.amount - a.amount)[0].categoryId : Number(categoryId);
-      const input = { entryDate: date, categoryId: primary, accountId: Number(accountId), party: party.trim(), amount: value, reference: reference.trim(), notes: notes.trim(), files, keepAttachmentIds: keep, payeeId: payeeId ? Number(payeeId) : null, lines: lineInput };
+      const input = { taxTypeId: Number(taxTypeId), taxInclusive, entryDate: date, categoryId: primary, accountId: Number(accountId), party: party.trim(), amount: value, reference: reference.trim(), notes: notes.trim(), files, keepAttachmentIds: keep, payeeId: payeeId ? Number(payeeId) : null, lines: lineInput };
       const saved = submitMode ? await submitFinExpense(input) : entry ? await correctFinEntry(kind, entry.id, input) : await createFinEntry(kind, input);
       try {
         localStorage.setItem(LAST_ACCOUNT, accountId);
         if (!split) localStorage.setItem(LAST_CATEGORY, categoryId);
+        localStorage.setItem(`hrpayroll.finance.last${kind}Tax`, taxTypeId);
       } catch {
         // Not remembering is harmless.
       }
@@ -173,6 +186,16 @@ export function EntryDialog({ kind, entry, accounts, categories, onClose, onSave
     }
   }
 
+  const chosenTax = taxTypes.find((t) => String(t.id) === taxTypeId);
+  const typedAmount = parseMoneyInput(amount);
+  const vat = chosenTax && typedAmount !== null && typedAmount > 0 ? vatOf(typedAmount, chosenTax.treatment, chosenTax.rate, entry ? true : taxInclusive) : null;
+  let vatPreview: string | null = null;
+  if (vat && chosenTax) {
+    if (chosenTax.treatment === "ReverseCharge") vatPreview = `No VAT is paid in cash. The company accounts for AED ${formatMoney(vat.tax)} of VAT itself, and reclaims it in the same return.`;
+    else if (vat.tax > 0 && vat.cash !== typedAmount) vatPreview = `VAT AED ${formatMoney(vat.tax)} is added: the total ${income ? "received" : "paid"} is AED ${formatMoney(vat.cash)}.`;
+    else if (vat.tax > 0) vatPreview = `Includes VAT of AED ${formatMoney(vat.tax)} on a net of AED ${formatMoney(vat.net)}.`;
+  }
+
   return (
     <Dialog open title={entry ? (income ? "Correct income" : "Correct expense") : income ? "Add income" : "Add expense"} onClose={pending ? () => {} : onClose} initialFocusRef={amountRef} variant={variant} size="wide">
       <form onSubmit={submit} noValidate className="mt-4 space-y-4">
@@ -187,7 +210,7 @@ export function EntryDialog({ kind, entry, accounts, categories, onClose, onSave
             </div>
           ) : (
             <div>
-              <Select label="Category" value={categoryId} error={errors.categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+              <Select label="Category" value={categoryId} error={errors.categoryId} onChange={(e) => pickCategory(e.target.value)}>
                 <option value="">Choose a category</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
@@ -259,6 +282,27 @@ export function EntryDialog({ kind, entry, accounts, categories, onClose, onSave
             </div>
             {errors.lines && <p role="alert" className="mt-2 text-sm text-danger">{errors.lines}</p>}
             <button type="button" onClick={() => { setSplit(false); setErrors((e) => ({ ...e, lines: undefined })); }} className="mt-2 text-sm font-medium text-ink-600 hover:underline">Use one category instead</button>
+          </fieldset>
+        )}
+        {taxTypes.length > 0 && (
+          <fieldset className="rounded-lg border border-line p-4">
+            <legend className="px-1 text-sm font-medium text-ink-800">VAT</legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Select label="VAT type" value={taxTypeId} onChange={(e) => { setTaxTypeId(e.target.value); setTaxTouched(true); }}>
+                <option value="0">No VAT recorded</option>
+                {taxTypes.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}{t.rate > 0 ? ` (${t.rate}%)` : ""}</option>
+                ))}
+              </Select>
+              {chosenTax?.treatment === "Standard" && !entry && (
+                <label className="flex min-h-11 items-center gap-3 self-end text-sm text-ink-900">
+                  <input type="checkbox" className="size-5" checked={taxInclusive} onChange={(e) => setTaxInclusive(e.target.checked)} />
+                  The amount already includes VAT
+                </label>
+              )}
+            </div>
+            {vatPreview && <p aria-live="polite" className="mt-3 text-sm text-ink-700">{vatPreview}</p>}
+            {entry && <p className="mt-2 text-xs text-ink-600">The amount above is the total, VAT included.</p>}
           </fieldset>
         )}
         <TextField label={income ? "Reference (optional)" : "Invoice, cheque or receipt no. (optional)"} value={reference} onChange={(e) => setReference(e.target.value)} error={errors.reference} maxLength={60} autoComplete="off" />

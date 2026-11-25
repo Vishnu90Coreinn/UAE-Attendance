@@ -18,6 +18,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(financeApi.listFinParties).mockResolvedValue([]);
   vi.mocked(financeApi.listFinPayees).mockResolvedValue([]);
+  vi.mocked(financeApi.listFinTaxTypes).mockResolvedValue([]);
   vi.mocked(financeApi.createFinEntry).mockResolvedValue(saved);
 });
 

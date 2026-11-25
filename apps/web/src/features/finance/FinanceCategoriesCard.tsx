@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Check, Pencil, Plus, Power, X } from "lucide-react";
-import { createFinCategory, listFinCategories, updateFinCategory, type FinCategory, type FinEntryKind } from "../../api/finance";
+import { createFinCategory, listFinCategories, listFinTaxTypes, setCategoryTaxDefault, updateFinCategory, type FinCategory, type FinEntryKind, type FinTaxType } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { Button, Card, CardHeader, Input, StatusBadge } from "../../ui";
 
@@ -14,11 +14,12 @@ function message(error: unknown): string {
   return "Something went wrong. Please try again.";
 }
 
-function KindList({ kind, title, hint, items, onChanged }: {
+function KindList({ kind, title, hint, items, taxTypes, onChanged }: {
   kind: FinEntryKind;
   title: string;
   hint: string;
   items: FinCategory[];
+  taxTypes: FinTaxType[];
   onChanged: (category: FinCategory) => void;
 }) {
   const [adding, setAdding] = useState("");
@@ -80,6 +81,20 @@ function KindList({ kind, title, hint, items, onChanged }: {
                 <span className={`min-w-0 basis-full break-words text-[15px] font-medium sm:flex-1 sm:basis-0 ${c.isActive ? "text-ink-900" : "text-ink-500 line-through"}`}>{c.name}</span>
                 {!c.isActive && <StatusBadge tone="neutral" variant="soft">Switched off</StatusBadge>}
                 <span className="mr-auto text-xs tabular-nums text-ink-500 sm:mr-0">{c.useCount === 1 ? "1 entry" : `${c.useCount} entries`}</span>
+                {taxTypes.length > 0 && (
+                  <select
+                    aria-label={`VAT type offered for ${c.name}`}
+                    value={c.defaultTaxTypeId ?? ""}
+                    disabled={pending}
+                    onChange={(e) => void run(() => setCategoryTaxDefault(c.id, e.target.value ? Number(e.target.value) : null))}
+                    className="select-control min-h-9 max-w-44 rounded-lg border border-line bg-white px-2 text-xs text-ink-800"
+                  >
+                    <option value="">No VAT offered</option>
+                    {taxTypes.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                )}
                 <span className="flex gap-1">
                   <Button size="sm" variant="ghost" icon={Pencil} className="px-2 text-ink-600" onClick={() => setRenaming({ id: c.id, name: c.name })} aria-label={`Rename ${c.name}`}>
                     Rename
@@ -115,9 +130,13 @@ function KindList({ kind, title, hint, items, onChanged }: {
 export function FinanceCategoriesCard() {
   const [categories, setCategories] = useState<FinCategory[] | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const [taxTypes, setTaxTypes] = useState<FinTaxType[]>([]);
 
   useEffect(() => {
     let cancelled = false;
+    Promise.resolve(listFinTaxTypes())
+      .then((list) => !cancelled && setTaxTypes(list ?? []))
+      .catch(() => {});
     listFinCategories(true)
       .then((list) => !cancelled && setCategories(list))
       .catch((error) => !cancelled && setFailed(message(error)));
@@ -135,7 +154,7 @@ export function FinanceCategoriesCard() {
 
   return (
     <Card>
-      <CardHeader title="Finance categories" description="The lists offered when an expense or income is recorded. Categories are renamed or switched off, never deleted, so old entries keep theirs." />
+      <CardHeader title="Finance categories" description="The lists offered when an expense or income is recorded, with the VAT type each one offers first (the accountant decides this per category). Categories are renamed or switched off, never deleted, so old entries keep theirs." />
       <div className="grid gap-8 p-5 lg:grid-cols-2">
         {failed && (
           <p role="alert" className="text-sm text-danger lg:col-span-2">
@@ -143,7 +162,7 @@ export function FinanceCategoriesCard() {
           </p>
         )}
         {!categories && !failed && <p className="text-sm text-ink-600 lg:col-span-2">Loading categories...</p>}
-        {categories && KINDS.map((k) => <KindList key={k.kind} {...k} items={categories.filter((c) => c.kind === k.kind)} onChanged={changed} />)}
+        {categories && KINDS.map((k) => <KindList key={k.kind} {...k} items={categories.filter((c) => c.kind === k.kind)} taxTypes={taxTypes} onChanged={changed} />)}
       </div>
     </Card>
   );

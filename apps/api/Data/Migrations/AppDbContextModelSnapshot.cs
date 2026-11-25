@@ -548,6 +548,9 @@ namespace HrPayroll.Api.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("DefaultTaxTypeId")
+                        .HasColumnType("int");
+
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -568,6 +571,8 @@ namespace HrPayroll.Api.Data.Migrations
                         .UseCollation("SQL_Latin1_General_CP1_CI_AS");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DefaultTaxTypeId");
 
                     b.HasIndex("LedgerAccountId");
 
@@ -829,6 +834,22 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
+                    b.Property<decimal>("TaxAmount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<bool>("TaxInclusive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<decimal>("TaxRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int?>("TaxTypeId")
+                        .HasColumnType("int");
+
                     b.Property<string>("VoidReason")
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
@@ -855,6 +876,8 @@ namespace HrPayroll.Api.Data.Migrations
 
                     b.HasIndex("ReplacesEntryId");
 
+                    b.HasIndex("TaxTypeId");
+
                     b.HasIndex("AccountId", "EntryDate");
 
                     b.HasIndex("ExternalSource", "ExternalId")
@@ -870,6 +893,8 @@ namespace HrPayroll.Api.Data.Migrations
                             t.HasCheckConstraint("CK_FinEntries_Partner", "([Kind] IN ('Capital', 'CapitalOut') AND [PartnerId] IS NOT NULL) OR ([Kind] IN ('Expense', 'Income') AND [PartnerId] IS NULL)");
 
                             t.HasCheckConstraint("CK_FinEntries_Status", "[Status] IN ('Active', 'Voided', 'Pending')");
+
+                            t.HasCheckConstraint("CK_FinEntries_Tax", "[TaxAmount] >= 0");
 
                             t.HasCheckConstraint("CK_FinEntries_Voided", "[Status] IN ('Active', 'Pending') OR [VoidedUtc] IS NOT NULL");
                         });
@@ -1056,6 +1081,97 @@ namespace HrPayroll.Api.Data.Migrations
                     b.ToTable("FinPayees", t =>
                         {
                             t.HasCheckConstraint("CK_FinPayees_Kind", "[Kind] IN ('Expense', 'Income')");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinTaxType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)")
+                        .UseCollation("SQL_Latin1_General_CP1_CI_AS");
+
+                    b.Property<decimal>("Rate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Treatment")
+                        .IsRequired()
+                        .HasMaxLength(13)
+                        .HasColumnType("nvarchar(13)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("FinTaxTypes", t =>
+                        {
+                            t.HasCheckConstraint("CK_FinTaxTypes_Rate", "[Rate] >= 0 AND [Rate] <= 100");
+
+                            t.HasCheckConstraint("CK_FinTaxTypes_Treatment", "[Treatment] IN ('Standard', 'ZeroRated', 'Exempt', 'ReverseCharge', 'IntraGcc')");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            IsActive = true,
+                            Name = "Standard Rated (VAT)",
+                            Rate = 5m,
+                            SortOrder = 1,
+                            Treatment = "Standard"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            IsActive = true,
+                            Name = "Zero Rated",
+                            Rate = 0m,
+                            SortOrder = 2,
+                            Treatment = "ZeroRated"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            IsActive = true,
+                            Name = "Exempt",
+                            Rate = 0m,
+                            SortOrder = 3,
+                            Treatment = "Exempt"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            IsActive = true,
+                            Name = "Reverse Charges (VAT)",
+                            Rate = 5m,
+                            SortOrder = 4,
+                            Treatment = "ReverseCharge"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            IsActive = true,
+                            Name = "Intra GCC",
+                            Rate = 0m,
+                            SortOrder = 5,
+                            Treatment = "IntraGcc"
                         });
                 });
 
@@ -1537,7 +1653,7 @@ namespace HrPayroll.Api.Data.Migrations
 
                     b.ToTable("Journals", t =>
                         {
-                            t.HasCheckConstraint("CK_Journals_Part", "[Part] IN ('Post', 'Reversal')");
+                            t.HasCheckConstraint("CK_Journals_Part", "[Part] IN ('Post', 'Reversal', 'Clear')");
                         });
                 });
 
@@ -2823,6 +2939,11 @@ namespace HrPayroll.Api.Data.Migrations
 
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinCategory", b =>
                 {
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinTaxType", null)
+                        .WithMany()
+                        .HasForeignKey("DefaultTaxTypeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("HrPayroll.Api.Data.Entities.LedgerAccount", null)
                         .WithMany()
                         .HasForeignKey("LedgerAccountId")
@@ -2872,6 +2993,11 @@ namespace HrPayroll.Api.Data.Migrations
                     b.HasOne("HrPayroll.Api.Data.Entities.FinEntry", null)
                         .WithMany()
                         .HasForeignKey("ReplacesEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinTaxType", null)
+                        .WithMany()
+                        .HasForeignKey("TaxTypeId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Account");

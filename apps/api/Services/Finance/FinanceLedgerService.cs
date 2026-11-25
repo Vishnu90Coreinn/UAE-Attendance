@@ -20,32 +20,57 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
 
     // ---- chart of accounts -----------------------------------------------------------------------------------------
 
-    private static (string Type, int Base) Range(string type) => type switch
+    // The system's own accounts sit above these ranges (1500, 1600, 2150, 2200, 3900), so new accounts never run into them.
+    private static (int Base, int Width) Range(string type) => type switch
     {
-        LedgerTypes.Asset => (type, 1100), LedgerTypes.Liability => (type, 2100), LedgerTypes.Equity => (type, 3100),
-        LedgerTypes.Revenue => (type, 4000), _ => (type, 5000),
+        LedgerTypes.Asset => (1100, 400), LedgerTypes.Liability => (2100, 40), LedgerTypes.Equity => (3100, 700),
+        LedgerTypes.Revenue => (4000, 900), _ => (5000, 900),
     };
 
     private async Task<LedgerAccount> NewAccountAsync(string type, string name, CancellationToken ct)
     {
-        var (_, start) = Range(type);
+        var (start, width) = Range(type);
         var codes = await db.LedgerAccounts.Where(a => a.Type == type).Select(a => a.Code).ToListAsync(ct);
-        var next = codes.Select(c => int.TryParse(c, NumberStyles.None, CultureInfo.InvariantCulture, out var n) ? n : 0).Where(n => n >= start && n < start + 900).DefaultIfEmpty(start - 10).Max() + 10;
+        var next = codes.Select(c => int.TryParse(c, NumberStyles.None, CultureInfo.InvariantCulture, out var n) ? n : 0).Where(n => n >= start && n < start + width).DefaultIfEmpty(start - 10).Max() + 10;
         var account = new LedgerAccount { Code = next.ToString(CultureInfo.InvariantCulture), Name = name, Type = type, CreatedUtc = DateTime.UtcNow };
         db.LedgerAccounts.Add(account);
         await db.SaveChangesAsync(ct);
         return account;
     }
 
-    private async Task<LedgerAccount> OpeningEquityAsync(CancellationToken ct)
+    public const string InputVatCode = "1500";
+    public const string ChequesReceivableCode = "1600";
+    public const string ChequesPayableCode = "2150";
+    public const string OutputVatCode = "2200";
+
+    private static readonly (string Code, string Name, string Type)[] SystemAccounts =
+    [
+        (OpeningEquityCode, "Opening balance equity", LedgerTypes.Equity),
+        (InputVatCode, "VAT recoverable (input VAT)", LedgerTypes.Asset),
+        (ChequesReceivableCode, "Cheques receivable (not yet in the bank)", LedgerTypes.Asset),
+        (ChequesPayableCode, "Cheques payable (not yet paid by the bank)", LedgerTypes.Liability),
+        (OutputVatCode, "VAT payable (output VAT)", LedgerTypes.Liability),
+    ];
+
+    /// <summary>The accounts the system needs, made when first wanted. Their codes are reserved: nobody else can claim them.</summary>
+    private async Task<Dictionary<string, LedgerAccount>> SystemAsync(CancellationToken ct)
     {
-        var existing = await db.LedgerAccounts.SingleOrDefaultAsync(a => a.Code == OpeningEquityCode, ct);
-        if (existing is not null) return existing;
-        var account = new LedgerAccount { Code = OpeningEquityCode, Name = "Opening balance equity", Type = LedgerTypes.Equity, IsSystem = true, CreatedUtc = DateTime.UtcNow };
-        db.LedgerAccounts.Add(account);
-        await db.SaveChangesAsync(ct);
-        return account;
+        var existing = await db.LedgerAccounts.Where(a => a.IsSystem).ToDictionaryAsync(a => a.Code, ct);
+        var taken = await db.LedgerAccounts.Where(a => !a.IsSystem && SystemAccounts.Select(s => s.Code).Contains(a.Code)).Select(a => a.Code).ToListAsync(ct);
+        foreach (var (code, name, type) in SystemAccounts)
+        {
+            if (existing.ContainsKey(code)) continue;
+            if (taken.Contains(code)) throw new InvalidOperationException($"Ledger code {code} is reserved for \"{name}\" but is used by another account.");
+            var account = new LedgerAccount { Code = code, Name = name, Type = type, IsSystem = true, CreatedUtc = DateTime.UtcNow };
+            db.LedgerAccounts.Add(account);
+            existing[code] = account;
+        }
+
+        if (db.ChangeTracker.HasChanges()) await db.SaveChangesAsync(ct);
+        return existing;
     }
+
+    private async Task<LedgerAccount> OpeningEquityAsync(CancellationToken ct) => (await SystemAsync(ct))[OpeningEquityCode];
 
     /// <summary>Gives every account, category and partner its ledger account, making one where none is set yet.</summary>
     private async Task EnsureMappingAsync(CancellationToken ct)
@@ -72,9 +97,9 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
 
     private sealed record Posting(string Source, int SourceId, int Revision, DateOnly Date, string Description, List<(int Account, decimal Debit, decimal Credit, string? Memo)> Lines);
 
-    private async Task<int> AddAsync(Posting p, IDbContextTransaction transaction, CancellationToken ct)
+    private async Task<int> AddAsync(Posting p, IDbContextTransaction transaction, CancellationToken ct, string part = "Post")
     {
-        var journal = new Journal { Number = await NextNumberAsync(transaction, ct), Date = p.Date, SourceType = p.Source, SourceId = p.SourceId, Revision = p.Revision, Part = "Post", Description = p.Description, CreatedUtc = DateTime.UtcNow };
+        var journal = new Journal { Number = await NextNumberAsync(transaction, ct), Date = p.Date, SourceType = p.Source, SourceId = p.SourceId, Revision = p.Revision, Part = part, Description = p.Description, CreatedUtc = DateTime.UtcNow };
         foreach (var l in p.Lines.Where(l => l.Debit != 0m || l.Credit != 0m))
             journal.Lines.Add(new JournalLine { LedgerAccountId = l.Account, Debit = l.Debit, Credit = l.Credit, Memo = l.Memo });
         if (journal.Lines.Sum(l => l.Debit) != journal.Lines.Sum(l => l.Credit)) throw new InvalidOperationException($"Journal for {p.Source} {p.SourceId} does not balance.");
@@ -102,7 +127,8 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
         try
         {
             await EnsureMappingAsync(ct);
-            var equity = await OpeningEquityAsync(ct);
+            var system = await SystemAsync(ct);
+            var equity = system[OpeningEquityCode];
             var posted = 0;
             var reversed = 0;
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -127,6 +153,7 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
             var finAccounts = await db.FinAccounts.AsNoTracking().ToDictionaryAsync(a => a.Id, ct);
             var partnersById = await db.FinPartners.AsNoTracking().ToDictionaryAsync(p => p.Id, ct);
             var categories = await db.FinCategories.AsNoTracking().ToDictionaryAsync(c => c.Id, ct);
+            var taxTypes = await db.FinTaxTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
 
             // Opening balances of accounts: re-posted when the amount or date changed.
             foreach (var a in finAccounts.Values.OrderBy(a => a.Id))
@@ -148,13 +175,25 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
                     switch (e.Kind)
                     {
                         case FinEntryKinds.Expense:
-                            foreach (var l in LinesOf(e)) lines.Add((categories[l.CategoryId].LedgerAccountId!.Value, l.Amount, 0m, l.Note));
-                            lines.Add((asset, 0m, e.Amount, null));
-                            break;
                         case FinEntryKinds.Income:
-                            lines.Add((asset, e.Amount, 0m, null));
-                            foreach (var l in LinesOf(e)) lines.Add((categories[l.CategoryId].LedgerAccountId!.Value, 0m, l.Amount, l.Note));
+                        {
+                            var expense = e.Kind == FinEntryKinds.Expense;
+                            var treatment = e.TaxTypeId is { } tid && e.TaxAmount > 0m ? taxTypes[tid].Treatment : null;
+                            var parts = LinesOf(e).ToList();
+                            // Standard VAT is inside the amount: the lines carry the net, the VAT goes to its own account. Reverse charge adds a matching pair on top.
+                            var net = treatment == FinTaxTreatments.Standard ? FinanceCalculator.Allocate(e.Amount - e.TaxAmount, parts.Select(p => p.Amount).ToList()) : parts.Select(p => p.Amount).ToArray();
+                            if (expense) lines.Add((asset, 0m, e.Amount, null)); else lines.Add((asset, e.Amount, 0m, null));
+                            for (var i = 0; i < parts.Count; i++)
+                                if (net[i] > 0m) lines.Add((categories[parts[i].CategoryId].LedgerAccountId!.Value, expense ? net[i] : 0m, expense ? 0m : net[i], parts[i].Note));
+                            if (treatment == FinTaxTreatments.Standard) lines.Add((expense ? system[InputVatCode].Id : system[OutputVatCode].Id, expense ? e.TaxAmount : 0m, expense ? 0m : e.TaxAmount, "VAT"));
+                            else if (treatment == FinTaxTreatments.ReverseCharge && expense)
+                            {
+                                lines.Add((system[InputVatCode].Id, e.TaxAmount, 0m, "VAT on reverse charge"));
+                                lines.Add((system[OutputVatCode].Id, 0m, e.TaxAmount, "VAT on reverse charge"));
+                            }
+
                             break;
+                        }
                         case FinEntryKinds.Capital:
                             lines.Add((asset, e.Amount, 0m, null));
                             lines.Add((partnersById[e.PartnerId!.Value].LedgerAccountId!.Value, 0m, e.Amount, null));
@@ -180,6 +219,38 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
                         [(finAccounts[t.ToAccountId].LedgerAccountId!.Value, t.Amount, 0m, null), (finAccounts[t.FromAccountId].LedgerAccountId!.Value, 0m, t.Amount, null)]));
                 else if (t.Status == FinStatuses.Voided && original is not null && Find(JournalSources.Transfer, t.Id, "Reversal") is null)
                     await UndoAsync(original);
+            }
+
+            // Cheques: while the bank has not paid (or received) a cheque, the money sits in "cheques payable" (or "cheques receivable"), so the bank in the books
+            // matches the bank statement. Clearing moves it to the bank. A cancelled or bounced cheque, or one whose entry was voided, puts the bank back as it was.
+            var activeEntries = (await db.FinEntries.AsNoTracking().Where(e => e.Status == FinStatuses.Active).Select(e => e.Id).ToListAsync(ct)).ToHashSet();
+            var postedCheques = journals.Where(j => j.SourceType == JournalSources.Cheque).Select(j => j.SourceId).ToHashSet();
+            foreach (var c in await db.FinCheques.AsNoTracking().Where(c => c.EntryId != null || postedCheques.Contains(c.Id)).OrderBy(c => c.Id).ToListAsync(ct))
+            {
+                var issued = c.Direction == FinChequeDirections.Issued;
+                var bank = finAccounts[c.AccountId].LedgerAccountId!.Value;
+                var holding = (issued ? system[ChequesPayableCode] : system[ChequesReceivableCode]).Id;
+                var shouldHold = c.EntryId is { } linked && activeEntries.Contains(linked) && c.Status is not (FinChequeStatuses.Cancelled or FinChequeStatuses.Bounced);
+                var live = journals.Where(j => j.SourceType == JournalSources.Cheque && j.SourceId == c.Id && j.Part == "Post" && !journals.Any(r => r.ReversesJournalId == j.Id)).OrderByDescending(j => j.Revision).FirstOrDefault();
+                var kind = issued ? "issued" : "received";
+                if (live is null && shouldHold)
+                {
+                    var revision = journals.Where(j => j.SourceType == JournalSources.Cheque && j.SourceId == c.Id).Select(j => j.Revision).DefaultIfEmpty(-1).Max() + 1;
+                    // Issued: the entry took the money from the bank; it now waits in cheques payable. Received: the entry put it in the bank; it is really still a cheque in hand.
+                    await PostAsync(new Posting(JournalSources.Cheque, c.Id, revision, c.IssueDate, $"Cheque {c.Serial} {kind}: {c.PartyName}",
+                        issued ? [(bank, c.Amount, 0m, null), (holding, 0m, c.Amount, null)] : [(holding, c.Amount, 0m, null), (bank, 0m, c.Amount, null)]));
+                    live = journals.Last(j => j.SourceType == JournalSources.Cheque && j.SourceId == c.Id && j.Part == "Post");
+                }
+                else if (live is not null && !shouldHold && !journals.Any(j => j.SourceType == JournalSources.Cheque && j.SourceId == c.Id && j.Part == "Clear" && j.Revision == live.Revision))
+                    await UndoAsync(live);
+
+                if (live is not null && shouldHold && c.Status == FinChequeStatuses.Cleared && !journals.Any(j => j.SourceType == JournalSources.Cheque && j.SourceId == c.Id && j.Part == "Clear" && j.Revision == live.Revision))
+                {
+                    var journalId = await AddAsync(new Posting(JournalSources.Cheque, c.Id, live.Revision, c.StatusDate ?? c.DueDate, $"Cheque {c.Serial} cleared: {c.PartyName}",
+                        issued ? [(holding, c.Amount, 0m, null), (bank, 0m, c.Amount, null)] : [(bank, c.Amount, 0m, null), (holding, 0m, c.Amount, null)]), transaction, ct, "Clear");
+                    journals.Add(await db.Journals.Include(j => j.Lines).SingleAsync(j => j.Id == journalId, ct));
+                    posted++;
+                }
             }
 
             await transaction.CommitAsync(ct);
@@ -312,7 +383,7 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
             var mapped = finAccounts[screen.Id].LedgerAccountId!.Value;
             totals.TryGetValue(mapped, out var t);
             var ledger = Balance(types[mapped], t?.Debit ?? 0m, t?.Credit ?? 0m);
-            checks.Add(new("Account balance", screen.Name, ledger, screen.Balance, ledger == screen.Balance));
+            checks.Add(new("Account balance", screen.Name, ledger, screen.BankBalance, ledger == screen.BankBalance));   // the bank, with cheques still to clear taken out of the books
         }
 
         var partnerAccounts = await db.FinPartners.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.LedgerAccountId!.Value, ct);

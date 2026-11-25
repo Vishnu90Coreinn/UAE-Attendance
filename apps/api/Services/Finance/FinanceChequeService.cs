@@ -112,6 +112,8 @@ public sealed class FinanceChequeService(AppDbContext db, IAuditLogger audit, IH
             var entry = await db.FinEntries.AsNoTracking().SingleOrDefaultAsync(e => e.Id == entryId && e.Kind == wanted, ct);
             if (entry is null || entry.Status != FinStatuses.Active) errors["entryId"] = [$"Choose an active {wanted.ToLowerInvariant()} to link."];
             else if (await db.FinCheques.AnyAsync(c => c.EntryId == entryId && c.Id != ownId && c.Status != FinChequeStatuses.Cancelled, ct)) errors["entryId"] = ["That entry is already linked to another cheque."];
+            else if (r.AccountId is { } chequeAccount && entry.AccountId != chequeAccount) errors["entryId"] = ["That entry was paid from a different account than this cheque is drawn on."];
+            else if (r.Amount is { } chequeAmount && chequeAmount > entry.Amount) errors["entryId"] = [$"The cheque is for more than the entry (AED {entry.Amount:N2})."];
         }
 
         if (errors.Count == 0 && direction == FinChequeDirections.Issued && await db.FinCheques.AnyAsync(c => c.Direction == FinChequeDirections.Issued && c.AccountId == account!.Id && c.Serial == serial && c.Id != ownId, ct))

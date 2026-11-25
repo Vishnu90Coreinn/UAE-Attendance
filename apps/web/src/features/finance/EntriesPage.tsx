@@ -64,6 +64,7 @@ function EntryMeta({ entry, locked }: { entry: FinEntry; locked: boolean }) {
       {entry.replacesEntryNo && <span className="text-xs text-ink-600">Corrects {entry.replacesEntryNo}</span>}
       {entry.replacedByEntryNo && <span className="text-xs text-ink-600">Replaced by {entry.replacedByEntryNo}</span>}
       {locked && entry.status === "Active" && <span className="inline-flex items-center gap-1 text-xs text-ink-600"><Lock aria-hidden="true" size={12} /> Locked month</span>}
+      {(entry.taxAmount ?? 0) > 0 && <span className="text-xs tabular-nums text-ink-500">VAT AED {formatMoney(entry.taxAmount ?? 0)}</span>}
       {entry.kind === "Expense" && <span className="text-xs text-ink-500">Entered by {entry.createdBy}</span>}
       {entry.status === "Voided" && entry.voidReason && <span className="w-full text-xs text-ink-600">{entry.voidedBy ? `${entry.voidedBy}: ` : ""}{entry.voidReason}</span>}
     </span>

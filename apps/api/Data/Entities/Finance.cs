@@ -92,6 +92,9 @@ public sealed class FinCategory
     public string Name { get; set; } = "";
     public bool IsActive { get; set; } = true;
 
+    /// <summary>The VAT treatment offered first for this category (the accountant decides per category; for example government fees may carry none).</summary>
+    public int? DefaultTaxTypeId { get; set; }
+
     /// <summary>The ledger account this category posts to (an expense or revenue account, unless the accountant chooses otherwise).</summary>
     public int? LedgerAccountId { get; set; }
 }
@@ -131,6 +134,18 @@ public sealed class FinEntry
 
     /// <summary>The saved payee picked for this entry, when one was. <see cref="Party"/> keeps the name as it was on the day.</summary>
     public int? PayeeId { get; set; }
+
+    /// <summary>The VAT treatment chosen, or null when none was recorded (entries from before VAT, or a deliberate "no VAT").</summary>
+    public int? TaxTypeId { get; set; }
+
+    /// <summary>The rate that applied on the day, as a percentage.</summary>
+    public decimal TaxRate { get; set; }
+
+    /// <summary>The VAT on this entry. Inside <see cref="Amount"/> for a standard-rated entry; for reverse charge it is owed by the company and not part of the cash.</summary>
+    public decimal TaxAmount { get; set; }
+
+    /// <summary>Whether what was typed already contained the VAT (true) or the VAT was added on top (false).</summary>
+    public bool TaxInclusive { get; set; } = true;
 
     /// <summary>How the amount divides between categories (expenses and income). One line for an ordinary entry; the lines add up to <see cref="Amount"/>.</summary>
     public List<FinEntryLine> Lines { get; set; } = [];
@@ -236,6 +251,32 @@ public sealed class FinCheque
     public string CreatedBy { get; set; } = "";
     public DateTime CreatedUtc { get; set; }
     public DateTime UpdatedUtc { get; set; }
+}
+
+public static class FinTaxTreatments
+{
+    /// <summary>VAT is charged at the rate (5%); it is claimable on a purchase and owed on a sale.</summary>
+    public const string Standard = "Standard";
+
+    /// <summary>A taxable supply at 0%: reported, but no VAT.</summary>
+    public const string ZeroRated = "ZeroRated";
+    public const string Exempt = "Exempt";
+
+    /// <summary>The supplier charges no VAT; the buyer accounts for it (owed and reclaimed in the same return).</summary>
+    public const string ReverseCharge = "ReverseCharge";
+    public const string IntraGcc = "IntraGcc";
+    public static readonly string[] All = [Standard, ZeroRated, Exempt, ReverseCharge, IntraGcc];
+}
+
+/// <summary>A VAT treatment an entry can carry. The rate is copied onto each entry, so changing it later never rewrites the past.</summary>
+public sealed class FinTaxType
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+    public string Treatment { get; set; } = FinTaxTreatments.Standard;
+    public decimal Rate { get; set; }
+    public bool IsActive { get; set; } = true;
+    public int SortOrder { get; set; }
 }
 
 /// <summary>A receipt or supplier invoice kept with an entry. The file lives in the receipts folder; only its details are here.</summary>

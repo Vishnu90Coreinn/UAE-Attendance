@@ -317,6 +317,35 @@ public class FinanceEndToEndScenarioTests(ReceiptsFixture api) : IClassFixture<R
         Assert.Equal(HttpStatusCode.Forbidden, (await SendAsync(HttpMethod.Post, "/api/finance/expenses/1/approve", jesus)).Status);
         Assert.Equal(HttpStatusCode.Forbidden, (await SendAsync(HttpMethod.Post, "/api/finance/cheques", partnerToken, new { direction = "Issued" })).Status);
         Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Get, "/api/finance/cheques", partnerToken)).Status);
+
+        // ---- 13. VAT and a cheque left open, the company being VAT-registered ------------------------------------------------
+        var vatDay = Today.AddDays(-1);
+        var supplies = await SendAsync(HttpMethod.Post, "/api/finance/expenses", manager, content: Expense(rak, 2_100m, vatDay, "Aluminium supplier", category: 1, reference: "Cheque 000005"));
+        var suppliesId = supplies.Body.GetProperty("id").GetInt32();
+        var vatForm = Expense(rak, 2_100m, vatDay, "Aluminium supplier 2", category: 1);
+        vatForm.Add(new StringContent("1"), "taxTypeId");
+        var withVat = await SendAsync(HttpMethod.Post, "/api/finance/expenses", manager, content: vatForm);
+        Assert.Equal(100m, withVat.Body.GetProperty("taxAmount").GetDecimal());                 // 2,100 includes 100 of VAT
+        var openCheque = await SendAsync(HttpMethod.Post, "/api/finance/cheques", manager, new
+        {
+            direction = "Issued", serial = "000005", amount = 2_100m, partyName = "Aluminium supplier", issueDate = D(vatDay), dueDate = D(Today.AddDays(20)), accountId = rak, entryId = suppliesId,
+        });
+        Assert.Equal(HttpStatusCode.Created, openCheque.Status);
+
+        var accountsNow = (await SendAsync(HttpMethod.Get, "/api/finance/accounts", manager)).Body.EnumerateArray().ToList();
+        var rakNow = accountsNow.Single(a => a.GetProperty("id").GetInt32() == rak);
+        Assert.Equal(276_704.70m - 4_200m, Dec(rakNow, "balance"));                             // both purchases are spent
+        Assert.Equal(2_100m, Dec(rakNow, "unclearedCheques"));
+        Assert.Equal(Dec(rakNow, "balance") + 2_100m, Dec(rakNow, "bankBalance"));              // the bank has not paid the cheque yet
+        var checkAgain = (await SendAsync(HttpMethod.Get, "/api/finance/ledger/check", partnerToken)).Body;
+        Assert.True(checkAgain.GetProperty("allAgree").GetBoolean());
+        var sheetNow = (await SendAsync(HttpMethod.Get, $"/api/finance/ledger/balance-sheet?asOf={to}", partnerToken)).Body;
+        Assert.True(sheetNow.GetProperty("balanced").GetBoolean());
+        Assert.Equal(2_100m, Dec(sheetNow, "totalLiabilities"));                                // the open cheque is owed
+        var vatReturn = (await SendAsync(HttpMethod.Get, $"/api/finance/reports/vat?from={D(vatDay)}&to={D(vatDay)}", partnerToken)).Body;
+        Assert.Equal(100m, Dec(vatReturn, "inputVat"));
+        Assert.Equal(-100m, Dec(vatReturn, "netPayable"));                                      // a refund claim: only purchases so far
+        Assert.Equal(1, vatReturn.GetProperty("unrecordedPurchases").GetProperty("count").GetInt32());   // the first purchase has no VAT type yet, and the return says so
         _ = partnerB; _ = partnerC;
     }
 }

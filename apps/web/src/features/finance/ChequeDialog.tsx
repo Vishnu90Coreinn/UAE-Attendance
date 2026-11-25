@@ -112,9 +112,15 @@ export function ChequeDialog({ cheque, direction, accounts, variant, onClose, on
             <option key={a.id} value={a.id}>{a.name}</option>
           ))}
         </Select>
-        <Select label={issued ? "The expense it pays (optional)" : "The income it is for (optional)"} value={entryId} onChange={(e) => setEntryId(e.target.value)} error={errors.entryId}>
+        <Select
+          label={issued ? "The expense it pays (optional)" : "The income it is for (optional)"}
+          value={entryId}
+          onChange={(e) => setEntryId(e.target.value)}
+          error={errors.entryId}
+          hint={issued ? "Linked, the bank balance only drops when the cheque clears. Only expenses paid from the account chosen above are listed." : "Linked, the money only counts in the bank once the cheque clears. Only income received into the account chosen above is listed."}
+        >
           <option value="">Not linked</option>
-          {entries.map((e) => (
+          {entries.filter((e) => !accountId || String(e.accountId) === accountId).map((e) => (
             <option key={e.id} value={e.id}>{e.entryNo} · {formatDay(e.entryDate)} · {e.party} · AED {formatMoney(e.amount)}</option>
           ))}
         </Select>

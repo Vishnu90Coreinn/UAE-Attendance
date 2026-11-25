@@ -4,7 +4,8 @@ namespace HrPayroll.Api.Dtos;
 
 public sealed record FinAccountResponse(
     int Id, string Name, string Kind, string? BankName, string? AccountNumber, string? Iban,
-    decimal OpeningBalance, string OpeningDate, bool IsActive, int SortOrder, decimal Balance, int EntryCount, bool StaffCanUse = false, int? HolderUserId = null, string? HolderName = null);
+    decimal OpeningBalance, string OpeningDate, bool IsActive, int SortOrder, decimal Balance, int EntryCount, bool StaffCanUse = false, int? HolderUserId = null, string? HolderName = null,
+    decimal UnclearedCheques = 0m, decimal BankBalance = 0m);
 
 /// <summary>Missing fields are answered with field messages, so every property is nullable.</summary>
 public sealed class FinAccountRequest
@@ -25,7 +26,9 @@ public sealed class FinAccountRequest
     public int? HolderUserId { get; init; }
 }
 
-public sealed record FinCategoryResponse(int Id, string Kind, string Name, bool IsActive, int UseCount);
+public sealed record FinCategoryResponse(int Id, string Kind, string Name, bool IsActive, int UseCount, int? DefaultTaxTypeId = null);
+
+public sealed record FinTaxTypeResponse(int Id, string Name, string Treatment, decimal Rate);
 
 /// <summary>Create uses <c>Kind</c> and <c>Name</c>. Update uses <c>Name</c> and <c>IsActive</c>; the kind never changes.</summary>
 public sealed class FinCategoryRequest
@@ -75,7 +78,8 @@ public sealed record FinEntryResponse(
     decimal Amount, string? Reference, string? Notes, string Status, string? VoidReason, string CreatedBy, DateTime CreatedUtc,
     IReadOnlyList<FinAttachmentResponse> Attachments,
     string? VoidedBy = null, DateTime? VoidedUtc = null, int? ReplacesEntryId = null, string? ReplacesEntryNo = null, string? ReplacedByEntryNo = null, int? PartnerId = null,
-    int? PayeeId = null, IReadOnlyList<FinEntryLineResponse>? Lines = null);
+    int? PayeeId = null, IReadOnlyList<FinEntryLineResponse>? Lines = null,
+    int? TaxTypeId = null, decimal TaxRate = 0m, decimal TaxAmount = 0m, bool TaxInclusive = true);
 
 /// <summary>The filtered expenses, newest first, with their total. Voided rows are listed only when asked for and never counted in the total.</summary>
 public sealed record FinEntryList(IReadOnlyList<FinEntryResponse> Items, decimal Total, int Count, bool Truncated, int PendingCount = 0, decimal PendingTotal = 0m);
@@ -99,6 +103,12 @@ public sealed class FinExpenseForm
 
     /// <summary>Optional JSON list <c>[{"categoryId":1,"amount":2000,"note":"Deposit"}]</c>: splits the amount between categories. Without it the entry has one line, <see cref="CategoryId"/>.</summary>
     public string? LinesJson { get; init; }
+
+    /// <summary>The VAT treatment: an id, 0 for "no VAT recorded", or left out to use the category's default.</summary>
+    public int? TaxTypeId { get; init; }
+
+    /// <summary>Whether the amount typed already contains the VAT (the default) or the VAT is added on top. Reverse charge ignores it.</summary>
+    public bool? TaxInclusive { get; init; }
     public IFormFileCollection? Files { get; init; }
 
     /// <summary>When correcting: the receipts of the original entry to keep. Others are left behind with the voided original.</summary>
@@ -237,7 +247,13 @@ public sealed class FinSubmitterRequest
 }
 
 /// <summary>What a staff member may pick when submitting: the accounts they may pay from, the expense categories and the saved payees.</summary>
-public sealed record FinMyOptions(IReadOnlyList<FinAccountResponse> Accounts, IReadOnlyList<FinCategoryResponse> Categories, IReadOnlyList<FinPayeeResponse> Payees);
+public sealed record FinMyOptions(IReadOnlyList<FinAccountResponse> Accounts, IReadOnlyList<FinCategoryResponse> Categories, IReadOnlyList<FinPayeeResponse> Payees, IReadOnlyList<FinTaxTypeResponse>? TaxTypes = null);
+
+public sealed class FinTaxDefaultRequest
+{
+    /// <summary>The VAT type to offer first for the category, or null for none.</summary>
+    public int? TaxTypeId { get; init; }
+}
 
 /// <summary>One row of an uploaded Excel file, as read and checked. Status is Ready, Duplicate (already recorded, skipped) or Error.</summary>
 public sealed record FinImportRow(
@@ -322,3 +338,18 @@ public sealed record ProfitAndLoss(
 public sealed record BalanceSheet(
     string AsOf, IReadOnlyList<StatementLine> Assets, decimal TotalAssets, IReadOnlyList<StatementLine> Liabilities, decimal TotalLiabilities,
     IReadOnlyList<StatementLine> Equity, decimal RetainedProfit, decimal TotalEquity, decimal TotalLiabilitiesAndEquity, bool Balanced);
+
+// ---- VAT return (the company is VAT-registered) ----------------------------------------------------------------------
+
+public sealed record FinVatRow(int TaxTypeId, string TaxType, string Treatment, decimal Rate, int Count, decimal Net, decimal Vat);
+
+/// <summary>Entries in the period with no VAT type recorded: they are left out of the return until one is chosen.</summary>
+public sealed record FinVatUnrecorded(int Count, decimal Amount);
+
+/// <summary>
+/// The VAT figures for a period, from the entries. <c>OutputVat</c> is VAT charged on sales plus VAT on reverse-charge purchases; <c>InputVat</c> is VAT paid on purchases
+/// plus the same reverse-charge VAT, which is reclaimed. <c>NetPayable</c> is output less input: positive is owed to the tax authority, negative is a refund.
+/// </summary>
+public sealed record FinVatReport(
+    string From, string To, IReadOnlyList<FinVatRow> Sales, IReadOnlyList<FinVatRow> Purchases, decimal OutputVat, decimal InputVat, decimal NetPayable,
+    FinVatUnrecorded UnrecordedSales, FinVatUnrecorded UnrecordedPurchases);

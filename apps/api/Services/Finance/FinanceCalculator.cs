@@ -75,6 +75,49 @@ public static class FinanceCalculator
         return result;
     }
 
+    /// <summary>
+    /// The VAT on one amount. <paramref name="typed"/> is what the person entered. <c>Cash</c> is the money that actually moves (it is what balances use),
+    /// <c>Net</c> is the amount before VAT, and <c>Tax</c> is the VAT. Standard: included means the VAT is already inside what was typed, otherwise it is added on top.
+    /// Reverse charge: the supplier charged no VAT, so the cash is what was typed, but the company owes (and may reclaim) the VAT itself. Zero rated, exempt and
+    /// intra-GCC carry no VAT. Amounts round to the fils, halves away from zero.
+    /// </summary>
+    public static (decimal Cash, decimal Net, decimal Tax) Vat(decimal typed, string treatment, decimal ratePercent, bool inclusive)
+    {
+        decimal Round(decimal v) => decimal.Round(v, 2, MidpointRounding.AwayFromZero);
+        switch (treatment)
+        {
+            case "Standard" when inclusive:
+                var included = Round(typed * ratePercent / (100m + ratePercent));
+                return (typed, typed - included, included);
+            case "Standard":
+                var added = Round(typed * ratePercent / 100m);
+                return (typed + added, typed, added);
+            case "ReverseCharge":
+                return (typed, typed, Round(typed * ratePercent / 100m));
+            default:
+                return (typed, typed, 0m);
+        }
+    }
+
+    /// <summary>
+    /// Splits <paramref name="total"/> between the weights, to the fils, so the parts add up to exactly the total (the largest remainders get the spare fils).
+    /// A weight of zero or less gets nothing; with no weight to share every part is 0.
+    /// </summary>
+    public static decimal[] Allocate(decimal total, IReadOnlyList<decimal> weights)
+    {
+        var parts = new decimal[weights.Count];
+        var positive = weights.Select(w => w > 0 ? w : 0m).ToArray();
+        var whole = positive.Sum();
+        if (whole <= 0 || total == 0m) return parts;
+        var cents = (long)decimal.Round(total * 100m, 0, MidpointRounding.AwayFromZero);
+        var exact = positive.Select(w => cents * w / whole).ToArray();
+        var floors = exact.Select(Math.Floor).ToArray();
+        var spare = cents - (long)floors.Sum();
+        foreach (var i in Enumerable.Range(0, exact.Length).OrderByDescending(i => exact[i] - floors[i]).ThenBy(i => i).Take((int)spare)) floors[i] += 1;
+        for (var i = 0; i < parts.Length; i++) parts[i] = floors[i] / 100m;
+        return parts;
+    }
+
     /// <summary>True for an amount of AED with at most two decimals.</summary>
     public static bool IsMoney(decimal value) => decimal.Round(value, 2, MidpointRounding.AwayFromZero) == value;
 }

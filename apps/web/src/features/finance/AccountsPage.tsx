@@ -119,6 +119,12 @@ function AccountCard({ account, share, canEdit, onEdit, onTransfer, onSwitch }: 
         <span className="text-sm font-medium text-ink-500">AED</span>
         <span className="font-display text-3xl font-bold tracking-tight">{formatMoney(account.balance)}</span>
       </p>
+      {(account.unclearedCheques ?? 0) !== 0 && account.bankBalance !== undefined && (
+        <p className="mt-1 text-[13px] text-ink-600">
+          The bank statement shows <span className="font-semibold tabular-nums text-ink-800">AED {formatMoney(account.bankBalance)}</span>: cheques of AED{" "}
+          <span className="tabular-nums">{formatMoney(Math.abs(account.unclearedCheques ?? 0))}</span> {(account.unclearedCheques ?? 0) > 0 ? "have not been paid by the bank yet" : "have not reached the bank yet"}.
+        </p>
+      )}
       {account.isActive && share > 0 && (
         <div className="mt-3" aria-hidden="true">
           <div className="h-1.5 overflow-hidden rounded-full bg-ink-100">

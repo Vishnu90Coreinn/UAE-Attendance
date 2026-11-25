@@ -38,7 +38,8 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         e.Amount, e.Reference, e.Notes, e.Status, e.VoidReason, e.CreatedBy, e.CreatedUtc,
         files.Select(f => new FinAttachmentResponse(f.Id, f.FileName, f.ContentType, f.SizeBytes)).ToList(),
         e.VoidedBy, e.VoidedUtc, e.ReplacesEntryId, replacesNo, replacedByNo, e.PartnerId, e.PayeeId,
-        e.Lines.OrderByDescending(l => l.Amount).ThenBy(l => l.Id).Select(l => new FinEntryLineResponse(l.CategoryId, l.Category.Name, l.Amount, l.Note)).ToList());
+        e.Lines.OrderByDescending(l => l.Amount).ThenBy(l => l.Id).Select(l => new FinEntryLineResponse(l.CategoryId, l.Category.Name, l.Amount, l.Note)).ToList(),
+        e.TaxTypeId, e.TaxRate, e.TaxAmount, e.TaxInclusive);
 
     /// <summary>EntryNo of the entry each given entry replaces, and of the entry that replaced it.</summary>
     private async Task<(Dictionary<int, string> Replaces, Dictionary<int, string> ReplacedBy)> ChainAsync(IReadOnlyCollection<FinEntry> rows, CancellationToken ct)
@@ -154,7 +155,15 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         if (original.Status == FinStatuses.Pending) return FinResult<FinEntryResponse>.Conflict($"{original.EntryNo} is waiting for approval. Approve or reject it first.");
         if (original.Status != FinStatuses.Active) return FinResult<FinEntryResponse>.Conflict($"{original.EntryNo} is already voided and cannot be corrected.");
         if (await db.FinEntries.AnyAsync(e => e.ReplacesEntryId == id, ct)) return FinResult<FinEntryResponse>.Conflict($"{original.EntryNo} has already been corrected.");
+        if (await LinkedChequeMessageAsync(original.Id, original.EntryNo, ct) is { } linked) return FinResult<FinEntryResponse>.Conflict(linked);
         return await SaveAsync(kind, form, original, ct);
+    }
+
+    /// <summary>An entry paid by a cheque that is still live (not cancelled or bounced) cannot be voided or corrected: the cheque has to be dealt with first.</summary>
+    private async Task<string?> LinkedChequeMessageAsync(int entryId, string entryNo, CancellationToken ct)
+    {
+        var serial = await db.FinCheques.AsNoTracking().Where(c => c.EntryId == entryId && c.Status != FinChequeStatuses.Cancelled && c.Status != FinChequeStatuses.Bounced).Select(c => c.Serial).FirstOrDefaultAsync(ct);
+        return serial is null ? null : $"{entryNo} is linked to cheque {serial}. Cancel the cheque, or take the link off it while it is still open, before voiding or correcting this.";
     }
 
     public async Task<FinResult<FinEntryResponse>> VoidAsync(string kind, int id, string? reason, CancellationToken ct)
@@ -167,6 +176,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         if (entry.Status == FinStatuses.Pending) return FinResult<FinEntryResponse>.Conflict($"{entry.EntryNo} is waiting for approval. Approve or reject it instead.");
         if (entry.Status != FinStatuses.Active) return FinResult<FinEntryResponse>.Conflict($"{entry.EntryNo} is already voided.");
         if (await periods.LockedMessageAsync(entry.EntryDate, ct) is { } locked) return FinResult<FinEntryResponse>.Conflict(locked);
+        if (await LinkedChequeMessageAsync(entry.Id, entry.EntryNo, ct) is { } linked) return FinResult<FinEntryResponse>.Conflict(linked);
 
         entry.Status = FinStatuses.Voided;
         entry.VoidReason = text;
@@ -282,6 +292,33 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
             if (kept.Count != keepIds.Distinct().Count()) errors["files"] = ["One of the receipts to keep does not belong to this entry."];
         }
 
+        // VAT: the amount typed becomes the cash that moves, the net and the tax. A split's lines scale with it when the VAT is added on top.
+        var amount = form.Amount ?? 0m;
+        decimal taxAmount = 0m, taxRate = 0m;
+        var inclusive = form.TaxInclusive ?? true;
+        FinTaxType? taxType = null;
+        if (!capital && !errors.ContainsKey("amount"))
+        {
+            var taxId = form.TaxTypeId is 0 ? null : form.TaxTypeId ?? category?.DefaultTaxTypeId;
+            if (taxId is { } id)
+            {
+                taxType = await db.FinTaxTypes.AsNoTracking().SingleOrDefaultAsync(t => t.Id == id, ct);
+                if (taxType is null || !taxType.IsActive) errors["taxTypeId"] = ["Choose an active VAT type."];
+            }
+
+            if (taxType is not null)
+            {
+                (amount, _, taxAmount) = FinanceCalculator.Vat(form.Amount!.Value, taxType.Treatment, taxType.Rate, inclusive);
+                taxRate = taxType.Rate;
+                if (FinanceRules.AmountError(amount) is { } grossError) errors["amount"] = [grossError];
+                else if (amount != form.Amount && lineRows.Count > 0)
+                {
+                    var scaled = FinanceCalculator.Allocate(amount, lineRows.Select(l => l.Amount).ToList());
+                    for (var i = 0; i < lineRows.Count; i++) lineRows[i].Amount = scaled[i];
+                }
+            }
+        }
+
         // Receipts: read and judge every file before anything is saved.
         var incoming = new List<(string Name, byte[] Bytes, string ContentType, string Extension)>();
         var files = form.Files?.ToList() ?? [];
@@ -339,7 +376,8 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
             var entry = new FinEntry
             {
                 Kind = kind, EntryNo = "PENDING", EntryDate = date, CategoryId = category!.Id, Party = party!, AccountId = account!.Id,
-                Amount = form.Amount!.Value, Reference = FinanceRules.Clean(form.Reference), Notes = FinanceRules.Clean(form.Notes),
+                Amount = amount, Reference = FinanceRules.Clean(form.Reference), Notes = FinanceRules.Clean(form.Notes),
+                TaxTypeId = taxType?.Id, TaxRate = taxRate, TaxAmount = taxAmount, TaxInclusive = inclusive,
                 CreatedBy = actor, CreatedUtc = now, ReplacesEntryId = replaces?.Id, PartnerId = partner?.Id, PayeeId = payee?.Id, Lines = lineRows,
                 Status = pending ? FinStatuses.Pending : FinStatuses.Active,
             };

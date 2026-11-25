@@ -1,58 +1,510 @@
 {
   "description": "Shared by the xUnit FinanceCalculatorTests (and later the web finance tests) so the browser and the server cannot drift. Money is AED with 2 decimals. Balance = opening + income - expense + transfers in - transfers out + capital in - capital out; voided rows count nowhere; a transfer and capital are never income or expense. Shares are percentages with two decimals that add up to exactly 100.00.",
   "balances": [
-    { "name": "opening only", "opening": 1000.00, "movements": [], "balance": 1000.00 },
-    { "name": "income and expense", "opening": 1000.00, "movements": [
-        { "type": "income", "amount": 250.50 }, { "type": "expense", "amount": 100.25 } ], "balance": 1150.25 },
-    { "name": "transfer out lowers the source only", "opening": 500.00, "movements": [
-        { "type": "transferOut", "amount": 200.00 } ], "balance": 300.00 },
-    { "name": "transfer in raises the target only", "opening": 0.00, "movements": [
-        { "type": "transferIn", "amount": 200.00 } ], "balance": 200.00 },
-    { "name": "voided rows are ignored", "opening": 100.00, "movements": [
-        { "type": "expense", "amount": 40.00, "voided": true }, { "type": "income", "amount": 15.00, "voided": true },
-        { "type": "transferOut", "amount": 10.00, "voided": true }, { "type": "expense", "amount": 5.00 } ], "balance": 95.00 },
-    { "name": "overdrawn account goes negative", "opening": 100.00, "movements": [
-        { "type": "expense", "amount": 150.75 } ], "balance": -50.75 },
-    { "name": "capital put in raises the balance", "opening": 0.00, "movements": [
-        { "type": "capital", "amount": 5000.00 } ], "balance": 5000.00 },
-    { "name": "capital returned lowers the balance", "opening": 1000.00, "movements": [
-        { "type": "capital", "amount": 5000.00 }, { "type": "capitalOut", "amount": 1500.50 } ], "balance": 4499.50 },
-    { "name": "voided capital counts nowhere", "opening": 100.00, "movements": [
-        { "type": "capital", "amount": 900.00, "voided": true }, { "type": "capitalOut", "amount": 50.00, "voided": true } ], "balance": 100.00 },
-    { "name": "many small amounts add exactly", "opening": 0.00, "movements": [
-        { "type": "income", "amount": 0.10 }, { "type": "income", "amount": 0.20 }, { "type": "expense", "amount": 0.30 } ], "balance": 0.00 }
+    {
+      "name": "opening only",
+      "opening": 1000.0,
+      "movements": [],
+      "balance": 1000.0
+    },
+    {
+      "name": "income and expense",
+      "opening": 1000.0,
+      "movements": [
+        {
+          "type": "income",
+          "amount": 250.5
+        },
+        {
+          "type": "expense",
+          "amount": 100.25
+        }
+      ],
+      "balance": 1150.25
+    },
+    {
+      "name": "transfer out lowers the source only",
+      "opening": 500.0,
+      "movements": [
+        {
+          "type": "transferOut",
+          "amount": 200.0
+        }
+      ],
+      "balance": 300.0
+    },
+    {
+      "name": "transfer in raises the target only",
+      "opening": 0.0,
+      "movements": [
+        {
+          "type": "transferIn",
+          "amount": 200.0
+        }
+      ],
+      "balance": 200.0
+    },
+    {
+      "name": "voided rows are ignored",
+      "opening": 100.0,
+      "movements": [
+        {
+          "type": "expense",
+          "amount": 40.0,
+          "voided": true
+        },
+        {
+          "type": "income",
+          "amount": 15.0,
+          "voided": true
+        },
+        {
+          "type": "transferOut",
+          "amount": 10.0,
+          "voided": true
+        },
+        {
+          "type": "expense",
+          "amount": 5.0
+        }
+      ],
+      "balance": 95.0
+    },
+    {
+      "name": "overdrawn account goes negative",
+      "opening": 100.0,
+      "movements": [
+        {
+          "type": "expense",
+          "amount": 150.75
+        }
+      ],
+      "balance": -50.75
+    },
+    {
+      "name": "capital put in raises the balance",
+      "opening": 0.0,
+      "movements": [
+        {
+          "type": "capital",
+          "amount": 5000.0
+        }
+      ],
+      "balance": 5000.0
+    },
+    {
+      "name": "capital returned lowers the balance",
+      "opening": 1000.0,
+      "movements": [
+        {
+          "type": "capital",
+          "amount": 5000.0
+        },
+        {
+          "type": "capitalOut",
+          "amount": 1500.5
+        }
+      ],
+      "balance": 4499.5
+    },
+    {
+      "name": "voided capital counts nowhere",
+      "opening": 100.0,
+      "movements": [
+        {
+          "type": "capital",
+          "amount": 900.0,
+          "voided": true
+        },
+        {
+          "type": "capitalOut",
+          "amount": 50.0,
+          "voided": true
+        }
+      ],
+      "balance": 100.0
+    },
+    {
+      "name": "many small amounts add exactly",
+      "opening": 0.0,
+      "movements": [
+        {
+          "type": "income",
+          "amount": 0.1
+        },
+        {
+          "type": "income",
+          "amount": 0.2
+        },
+        {
+          "type": "expense",
+          "amount": 0.3
+        }
+      ],
+      "balance": 0.0
+    }
   ],
   "periods": [
-    { "name": "transfers are not income or expense", "movements": [
-        { "type": "income", "amount": 1000.00 }, { "type": "expense", "amount": 400.50 },
-        { "type": "transferIn", "amount": 999.00 }, { "type": "transferOut", "amount": 999.00 } ],
-      "income": 1000.00, "expense": 400.50, "net": 599.50 },
-    { "name": "voided rows are left out", "movements": [
-        { "type": "income", "amount": 300.00 }, { "type": "income", "amount": 700.00, "voided": true },
-        { "type": "expense", "amount": 50.00, "voided": true } ],
-      "income": 300.00, "expense": 0.00, "net": 300.00 },
-    { "name": "capital is not income or expense", "movements": [
-        { "type": "income", "amount": 100.00 }, { "type": "capital", "amount": 9000.00 }, { "type": "capitalOut", "amount": 400.00 } ],
-      "income": 100.00, "expense": 0.00, "net": 100.00 },
-    { "name": "spending beats income", "movements": [
-        { "type": "income", "amount": 10.00 }, { "type": "expense", "amount": 25.40 } ],
-      "income": 10.00, "expense": 25.40, "net": -15.40 }
+    {
+      "name": "transfers are not income or expense",
+      "movements": [
+        {
+          "type": "income",
+          "amount": 1000.0
+        },
+        {
+          "type": "expense",
+          "amount": 400.5
+        },
+        {
+          "type": "transferIn",
+          "amount": 999.0
+        },
+        {
+          "type": "transferOut",
+          "amount": 999.0
+        }
+      ],
+      "income": 1000.0,
+      "expense": 400.5,
+      "net": 599.5
+    },
+    {
+      "name": "voided rows are left out",
+      "movements": [
+        {
+          "type": "income",
+          "amount": 300.0
+        },
+        {
+          "type": "income",
+          "amount": 700.0,
+          "voided": true
+        },
+        {
+          "type": "expense",
+          "amount": 50.0,
+          "voided": true
+        }
+      ],
+      "income": 300.0,
+      "expense": 0.0,
+      "net": 300.0
+    },
+    {
+      "name": "capital is not income or expense",
+      "movements": [
+        {
+          "type": "income",
+          "amount": 100.0
+        },
+        {
+          "type": "capital",
+          "amount": 9000.0
+        },
+        {
+          "type": "capitalOut",
+          "amount": 400.0
+        }
+      ],
+      "income": 100.0,
+      "expense": 0.0,
+      "net": 100.0
+    },
+    {
+      "name": "spending beats income",
+      "movements": [
+        {
+          "type": "income",
+          "amount": 10.0
+        },
+        {
+          "type": "expense",
+          "amount": 25.4
+        }
+      ],
+      "income": 10.0,
+      "expense": 25.4,
+      "net": -15.4
+    }
   ],
   "shares": [
-    { "name": "round split", "amounts": [600000.00, 300000.00, 100000.00], "shares": [60.00, 30.00, 10.00] },
-    { "name": "thirds add up to exactly 100", "amounts": [1.00, 1.00, 1.00], "shares": [33.34, 33.33, 33.33] },
-    { "name": "no capital means no share", "amounts": [0.00, 0.00], "shares": [0.00, 0.00] },
-    { "name": "a negative amount has no share", "amounts": [100.00, -50.00, 100.00], "shares": [50.00, 0.00, 50.00] },
-    { "name": "two decimals", "amounts": [1000.00, 250.00, 3.00], "shares": [79.81, 19.95, 0.24] },
-    { "name": "one decimal adds up to 100.0 where whole numbers gave 101", "decimals": 1,
-      "amounts": [26995.00, 12000.00, 5000.00, 4500.00, 1818.90, 475.65, 420.00], "shares": [52.7, 23.4, 9.8, 8.8, 3.6, 0.9, 0.8] },
-    { "name": "one decimal thirds", "decimals": 1, "amounts": [1.00, 1.00, 1.00], "shares": [33.4, 33.3, 33.3] }
+    {
+      "name": "round split",
+      "amounts": [
+        600000.0,
+        300000.0,
+        100000.0
+      ],
+      "shares": [
+        60.0,
+        30.0,
+        10.0
+      ]
+    },
+    {
+      "name": "thirds add up to exactly 100",
+      "amounts": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shares": [
+        33.34,
+        33.33,
+        33.33
+      ]
+    },
+    {
+      "name": "no capital means no share",
+      "amounts": [
+        0.0,
+        0.0
+      ],
+      "shares": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "a negative amount has no share",
+      "amounts": [
+        100.0,
+        -50.0,
+        100.0
+      ],
+      "shares": [
+        50.0,
+        0.0,
+        50.0
+      ]
+    },
+    {
+      "name": "two decimals",
+      "amounts": [
+        1000.0,
+        250.0,
+        3.0
+      ],
+      "shares": [
+        79.81,
+        19.95,
+        0.24
+      ]
+    },
+    {
+      "name": "one decimal adds up to 100.0 where whole numbers gave 101",
+      "decimals": 1,
+      "amounts": [
+        26995.0,
+        12000.0,
+        5000.0,
+        4500.0,
+        1818.9,
+        475.65,
+        420.0
+      ],
+      "shares": [
+        52.7,
+        23.4,
+        9.8,
+        8.8,
+        3.6,
+        0.9,
+        0.8
+      ]
+    },
+    {
+      "name": "one decimal thirds",
+      "decimals": 1,
+      "amounts": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "shares": [
+        33.4,
+        33.3,
+        33.3
+      ]
+    }
   ],
   "money": [
-    { "value": 12.5, "valid": true },
-    { "value": 12.55, "valid": true },
-    { "value": 12.555, "valid": false },
-    { "value": 0, "valid": true },
-    { "value": 999999999.99, "valid": true }
+    {
+      "value": 12.5,
+      "valid": true
+    },
+    {
+      "value": 12.55,
+      "valid": true
+    },
+    {
+      "value": 12.555,
+      "valid": false
+    },
+    {
+      "value": 0,
+      "valid": true
+    },
+    {
+      "value": 999999999.99,
+      "valid": true
+    }
+  ],
+  "vat": [
+    {
+      "name": "standard, amount includes VAT",
+      "treatment": "Standard",
+      "rate": 5,
+      "inclusive": true,
+      "typed": 105.0,
+      "cash": 105.0,
+      "net": 100.0,
+      "tax": 5.0
+    },
+    {
+      "name": "standard, VAT added on top",
+      "treatment": "Standard",
+      "rate": 5,
+      "inclusive": false,
+      "typed": 100.0,
+      "cash": 105.0,
+      "net": 100.0,
+      "tax": 5.0
+    },
+    {
+      "name": "standard, included, rounds half up",
+      "treatment": "Standard",
+      "rate": 5,
+      "inclusive": true,
+      "typed": 156.45,
+      "cash": 156.45,
+      "net": 149.0,
+      "tax": 7.45
+    },
+    {
+      "name": "standard, included, odd cents",
+      "treatment": "Standard",
+      "rate": 5,
+      "inclusive": true,
+      "typed": 0.1,
+      "cash": 0.1,
+      "net": 0.1,
+      "tax": 0.0
+    },
+    {
+      "name": "standard, added on top, rounds",
+      "treatment": "Standard",
+      "rate": 5,
+      "inclusive": false,
+      "typed": 33.33,
+      "cash": 35.0,
+      "net": 33.33,
+      "tax": 1.67
+    },
+    {
+      "name": "zero rated has no VAT",
+      "treatment": "ZeroRated",
+      "rate": 0,
+      "inclusive": true,
+      "typed": 500.0,
+      "cash": 500.0,
+      "net": 500.0,
+      "tax": 0.0
+    },
+    {
+      "name": "exempt has no VAT",
+      "treatment": "Exempt",
+      "rate": 0,
+      "inclusive": false,
+      "typed": 1200.0,
+      "cash": 1200.0,
+      "net": 1200.0,
+      "tax": 0.0
+    },
+    {
+      "name": "reverse charge: VAT is worked out but never paid in cash",
+      "treatment": "ReverseCharge",
+      "rate": 5,
+      "inclusive": true,
+      "typed": 1000.0,
+      "cash": 1000.0,
+      "net": 1000.0,
+      "tax": 50.0
+    },
+    {
+      "name": "intra-GCC has no VAT here",
+      "treatment": "IntraGcc",
+      "rate": 0,
+      "inclusive": true,
+      "typed": 80.0,
+      "cash": 80.0,
+      "net": 80.0,
+      "tax": 0.0
+    }
+  ],
+  "allocate": [
+    {
+      "name": "even split",
+      "total": 100.0,
+      "weights": [
+        1,
+        1
+      ],
+      "parts": [
+        50.0,
+        50.0
+      ]
+    },
+    {
+      "name": "spare cent goes to the largest remainder",
+      "total": 100.0,
+      "weights": [
+        1,
+        1,
+        1
+      ],
+      "parts": [
+        33.34,
+        33.33,
+        33.33
+      ]
+    },
+    {
+      "name": "the split payment, VAT share",
+      "total": 5.0,
+      "weights": [
+        2000,
+        3000
+      ],
+      "parts": [
+        2.0,
+        3.0
+      ]
+    },
+    {
+      "name": "nothing to share",
+      "total": 0.0,
+      "weights": [
+        1,
+        2
+      ],
+      "parts": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "a weight of zero gets nothing",
+      "total": 10.0,
+      "weights": [
+        0,
+        5
+      ],
+      "parts": [
+        0.0,
+        10.0
+      ]
+    }
   ]
 }

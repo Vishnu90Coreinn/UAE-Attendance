@@ -35,6 +35,7 @@ beforeEach(() => {
   vi.mocked(financeApi.listFinMonthLocks).mockResolvedValue([]);
   vi.mocked(financeApi.listFinParties).mockResolvedValue(["Royal Palm Business Center"]);
   vi.mocked(financeApi.listFinPayees).mockResolvedValue([]);
+  vi.mocked(financeApi.listFinTaxTypes).mockResolvedValue([]);
   vi.mocked(financeApi.listFinEntries).mockResolvedValue({ items: [entry(), entry({ id: 2, entryNo: "EXP-000002", party: "Dubai Insurance", amount: 40, attachments: [] })], total: 515.65, count: 2, truncated: false });
 });
 

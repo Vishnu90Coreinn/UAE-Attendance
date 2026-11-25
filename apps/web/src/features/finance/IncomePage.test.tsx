@@ -34,6 +34,7 @@ beforeEach(() => {
   vi.mocked(financeApi.listFinMonthLocks).mockResolvedValue([]);
   vi.mocked(financeApi.listFinParties).mockResolvedValue([]);
   vi.mocked(financeApi.listFinPayees).mockResolvedValue([]);
+  vi.mocked(financeApi.listFinTaxTypes).mockResolvedValue([]);
   vi.mocked(financeApi.listFinEntries).mockResolvedValue({ items: [entry], total: 111767.04, count: 1, truncated: false });
 });
 

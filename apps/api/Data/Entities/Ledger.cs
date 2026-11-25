@@ -26,6 +26,9 @@ public static class JournalSources
     /// <summary>A partner's opening capital (SourceId is the partner).</summary>
     public const string PartnerOpening = "PartnerOpen";
     public const string Manual = "Manual";
+
+    /// <summary>A cheque issued or received: it moves money between the bank and "cheques payable" or "cheques receivable" until it clears.</summary>
+    public const string Cheque = "Cheque";
 }
 
 /// <summary>One account in the chart of accounts. Never deleted, only switched off.</summary>

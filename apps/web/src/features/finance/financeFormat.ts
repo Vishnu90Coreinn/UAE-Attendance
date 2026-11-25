@@ -90,3 +90,21 @@ export function splitShares(amounts: number[], decimals = 1): number[] {
 export function quietZero(amount: number): string {
   return amount === 0 ? "text-ink-400" : "";
 }
+
+/**
+ * The VAT on one amount, worked out the way the server does it (the shared vectors pin both): what moves in cash, the net, and the VAT.
+ * Standard: included means the VAT is inside what was typed, otherwise it is added on top. Reverse charge: no VAT in the cash; the company owes it itself.
+ */
+export function vatOf(typed: number, treatment: string, ratePercent: number, inclusive: boolean): { cash: number; net: number; tax: number } {
+  const round = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
+  if (treatment === "Standard" && inclusive) {
+    const tax = round((typed * ratePercent) / (100 + ratePercent));
+    return { cash: typed, net: round(typed - tax), tax };
+  }
+  if (treatment === "Standard") {
+    const tax = round((typed * ratePercent) / 100);
+    return { cash: round(typed + tax), net: typed, tax };
+  }
+  if (treatment === "ReverseCharge") return { cash: typed, net: typed, tax: round((typed * ratePercent) / 100) };
+  return { cash: typed, net: typed, tax: 0 };
+}

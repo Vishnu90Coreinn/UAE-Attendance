@@ -35,7 +35,8 @@ public sealed class FinanceSubmitController(FinanceEntryService entries, Finance
         (await accounts.ListAsync(false, ct)).Where(a => a.StaffCanUse || (a.HolderUserId is { } h && h == FinanceRules.UserId(http)))
             .Select(a => a.HolderUserId is not null ? a with { OpeningBalance = 0m } : a with { OpeningBalance = 0m, Balance = 0m, AccountNumber = null, Iban = null, BankName = null }).ToList(),
         await categories.ListAsync(FinEntryKinds.Expense, false, ct),
-        await payees.ListAsync(FinEntryKinds.Expense, false, ct)));
+        await payees.ListAsync(FinEntryKinds.Expense, false, ct),
+        await categories.TaxTypesAsync(ct)));
 
     [HttpGet("expenses")]
     [Authorize(Policy = Policies.FinanceSubmit)]

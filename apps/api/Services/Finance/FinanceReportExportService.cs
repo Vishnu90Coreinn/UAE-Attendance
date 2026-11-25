@@ -10,7 +10,7 @@ public enum FinReportFormat { Json, Excel, Pdf, Csv }
 public sealed record FinReportFile(byte[] Content, string FileName, string ContentType);
 
 /// <summary>Excel, PDF and CSV of the period report. All three are cut from the same <see cref="FinReport"/>, so the figures cannot differ.</summary>
-public sealed class FinanceReportExportService(FinanceReportService reports, StaffExportService staffExports)
+public sealed class FinanceReportExportService(FinanceReportService reports, StaffExportService staffExports, FinanceVatService vat)
 {
     private const string Footer = "Confidential: company finance record for internal use only.";
     private static readonly StaffExportService.Table[] None = [];
@@ -52,6 +52,50 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
                 .Append(["Total", Money(partners.Sum(p => p.Opening)), Money(partners.Sum(p => p.Added)), Money(partners.Sum(p => p.Returned)), Money(partners.Sum(p => p.Closing)), partners.Count > 0 ? "100.00%" : ""]).ToList(),
             ["Share is each partner's capital at the end of the period as a percentage of all partners' capital."]);
     }
+
+    /// <summary>The VAT return figures as Excel, PDF or CSV.</summary>
+    public async Task<FinResult<FinReportFile>> VatAsync(string? from, string? to, FinReportFormat format, CancellationToken ct)
+    {
+        var result = await vat.BuildAsync(from, to, ct);
+        if (result.Status != 200) return new(result.Status, Errors: result.Errors, Title: result.Title);
+        var v = result.Value!;
+        var stem = $"VAT_{v.From}_{v.To}";
+        var rows = new List<string[]>();
+        var csv = new List<string[]> { new[] { "VAT return", v.From, v.To, "AED" }, new[] { "Section", "Type", "Rate %", "Entries", "Net", "VAT" } };
+        void Block(string title, IReadOnlyList<FinVatRow> list)
+        {
+            rows.Add([title.ToUpperInvariant(), "", "", "", ""]);
+            foreach (var r in list)
+            {
+                rows.Add([r.TaxType, r.Rate.ToString("0.##", CultureInfo.InvariantCulture) + "%", r.Count.ToString(CultureInfo.InvariantCulture), Money(r.Net), Money(r.Vat)]);
+                csv.Add([title, r.TaxType, r.Rate.ToString("0.##", CultureInfo.InvariantCulture), r.Count.ToString(CultureInfo.InvariantCulture), Plain(r.Net), Plain(r.Vat)]);
+            }
+
+            if (list.Count == 0) rows.Add(["None in this period", "", "", "", ""]);
+        }
+
+        Block("Sales", v.Sales);
+        Block("Purchases", v.Purchases);
+        rows.Add(["", "", "", "", ""]);
+        rows.Add(["VAT charged (output)", "", "", "", Money(v.OutputVat)]);
+        rows.Add(["VAT reclaimable (input)", "", "", "", Money(v.InputVat)]);
+        rows.Add([v.NetPayable >= 0 ? "Net VAT payable" : "Net VAT refundable", "", "", "", Money(v.NetPayable)]);
+        csv.Add(["Summary", "VAT charged (output)", "", "", "", Plain(v.OutputVat)]);
+        csv.Add(["Summary", "VAT reclaimable (input)", "", "", "", Plain(v.InputVat)]);
+        csv.Add(["Summary", "Net VAT payable", "", "", "", Plain(v.NetPayable)]);
+        var notes = new List<string> { "Output VAT includes the VAT the company accounts for itself on reverse-charge purchases, which is reclaimed as input VAT in the same return." };
+        if (v.UnrecordedSales.Count + v.UnrecordedPurchases.Count > 0)
+            notes.Add($"Not in this return: {v.UnrecordedSales.Count} sales (AED {Money(v.UnrecordedSales.Amount)}) and {v.UnrecordedPurchases.Count} purchases (AED {Money(v.UnrecordedPurchases.Amount)}) have no VAT type recorded.");
+        var table = new StaffExportService.Table("VAT RETURN", $"{Day(v.From)} to {Day(v.To)}  |  AED", stem, [("TYPE", 3, false), ("RATE", 0.8, true), ("ENTRIES", 0.9, true), ("NET", 1.3, true), ("VAT", 1.3, true)], rows, notes.ToArray());
+        if (format == FinReportFormat.Csv) return FinResult<FinReportFile>.Ok(new(Csv(csv), stem + ".csv", "text/csv; charset=utf-8"));
+        var company = await staffExports.CompanyAsync(ct);
+        return FinResult<FinReportFile>.Ok(format == FinReportFormat.Pdf
+            ? new(staffExports.BuildPdf([table], company, Footer), stem + ".pdf", AttendanceExportService.PdfType)
+            : new(StaffExportService.Workbook([("VAT return", table)], company), stem + ".xlsx", AttendanceExportService.ExcelType));
+    }
+
+    private static byte[] Csv(IEnumerable<string[]> lines) =>
+        [.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(string.Join("\r\n", lines.Select(r => string.Join(',', r.Select(Cell)))) + "\r\n")];
 
     private static StaffExportService.Table PayeeTable(string title, IReadOnlyList<FinReportPayee>? rows, decimal total, string stem, string subtitle, string nameHeader)
     {

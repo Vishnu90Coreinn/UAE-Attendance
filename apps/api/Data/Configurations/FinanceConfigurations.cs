@@ -38,6 +38,7 @@ public sealed class FinCategoryConfiguration : IEntityTypeConfiguration<FinCateg
         builder.Property(c => c.IsActive).HasDefaultValue(true);
         builder.HasIndex(c => new { c.Kind, c.Name }).IsUnique();
         builder.HasOne<LedgerAccount>().WithMany().HasForeignKey(c => c.LedgerAccountId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<FinTaxType>().WithMany().HasForeignKey(c => c.DefaultTaxTypeId).OnDelete(DeleteBehavior.Restrict);
 
         // The starting lists, from the accountant's Daftra account. The client renames or switches them off in Settings.
         builder.HasData(
@@ -67,6 +68,7 @@ public sealed class FinEntryConfiguration : IEntityTypeConfiguration<FinEntry>
             t.HasCheckConstraint("CK_FinEntries_Partner", "([Kind] IN ('Capital', 'CapitalOut') AND [PartnerId] IS NOT NULL) OR ([Kind] IN ('Expense', 'Income') AND [PartnerId] IS NULL)");
             t.HasCheckConstraint("CK_FinEntries_Status", "[Status] IN ('Active', 'Voided', 'Pending')");
             t.HasCheckConstraint("CK_FinEntries_Amount", "[Amount] > 0");
+            t.HasCheckConstraint("CK_FinEntries_Tax", "[TaxAmount] >= 0");
             t.HasCheckConstraint("CK_FinEntries_Voided", "[Status] IN ('Active', 'Pending') OR [VoidedUtc] IS NOT NULL");
         });
         builder.Property(e => e.Kind).HasMaxLength(10).IsRequired();
@@ -91,6 +93,11 @@ public sealed class FinEntryConfiguration : IEntityTypeConfiguration<FinEntry>
         builder.HasIndex(e => e.PartnerId);
         builder.HasOne<FinPayee>().WithMany().HasForeignKey(e => e.PayeeId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(e => e.PayeeId);
+        builder.Property(e => e.TaxRate).HasPrecision(5, 2);
+        builder.Property(e => e.TaxAmount).HasPrecision(12, 2);
+        builder.Property(e => e.TaxInclusive).HasDefaultValue(true);
+        builder.HasOne<FinTaxType>().WithMany().HasForeignKey(e => e.TaxTypeId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(e => e.TaxTypeId);
         builder.HasIndex(e => e.EntryNo).IsUnique();
         builder.HasIndex(e => new { e.AccountId, e.EntryDate });
         builder.HasIndex(e => e.EntryDate);
@@ -164,7 +171,7 @@ public sealed class JournalConfiguration : IEntityTypeConfiguration<Journal>
 {
     public void Configure(EntityTypeBuilder<Journal> builder)
     {
-        builder.ToTable(t => t.HasCheckConstraint("CK_Journals_Part", "[Part] IN ('Post', 'Reversal')"));
+        builder.ToTable(t => t.HasCheckConstraint("CK_Journals_Part", "[Part] IN ('Post', 'Reversal', 'Clear')"));
         builder.Property(j => j.Number).HasMaxLength(20).IsRequired();
         builder.Property(j => j.Date).HasColumnType("date");
         builder.Property(j => j.SourceType).HasMaxLength(12).IsRequired();
@@ -192,6 +199,31 @@ public sealed class JournalLineConfiguration : IEntityTypeConfiguration<JournalL
         builder.HasOne(l => l.LedgerAccount).WithMany().HasForeignKey(l => l.LedgerAccountId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(l => l.JournalId);
         builder.HasIndex(l => l.LedgerAccountId);
+    }
+}
+
+public sealed class FinTaxTypeConfiguration : IEntityTypeConfiguration<FinTaxType>
+{
+    public void Configure(EntityTypeBuilder<FinTaxType> builder)
+    {
+        builder.ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_FinTaxTypes_Treatment", "[Treatment] IN ('Standard', 'ZeroRated', 'Exempt', 'ReverseCharge', 'IntraGcc')");
+            t.HasCheckConstraint("CK_FinTaxTypes_Rate", "[Rate] >= 0 AND [Rate] <= 100");
+        });
+        builder.Property(x => x.Name).HasMaxLength(80).UseCollation(UserConfiguration.CaseInsensitiveCollation).IsRequired();
+        builder.Property(x => x.Treatment).HasMaxLength(13).IsRequired();
+        builder.Property(x => x.Rate).HasPrecision(5, 2);
+        builder.Property(x => x.IsActive).HasDefaultValue(true);
+        builder.HasIndex(x => x.Name).IsUnique();
+
+        // The list the accountant already uses in Daftra (without excise and amendments). Rates are 5% for standard and for reverse charge.
+        builder.HasData(
+            new FinTaxType { Id = 1, Name = "Standard Rated (VAT)", Treatment = FinTaxTreatments.Standard, Rate = 5m, SortOrder = 1 },
+            new FinTaxType { Id = 2, Name = "Zero Rated", Treatment = FinTaxTreatments.ZeroRated, Rate = 0m, SortOrder = 2 },
+            new FinTaxType { Id = 3, Name = "Exempt", Treatment = FinTaxTreatments.Exempt, Rate = 0m, SortOrder = 3 },
+            new FinTaxType { Id = 4, Name = "Reverse Charges (VAT)", Treatment = FinTaxTreatments.ReverseCharge, Rate = 5m, SortOrder = 4 },
+            new FinTaxType { Id = 5, Name = "Intra GCC", Treatment = FinTaxTreatments.IntraGcc, Rate = 0m, SortOrder = 5 });
     }
 }
 

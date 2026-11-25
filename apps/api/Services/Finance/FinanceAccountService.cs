@@ -41,10 +41,11 @@ public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, F
         return result;
     }
 
-    private FinAccountResponse ToResponse(FinAccount a, Sums? s, IReadOnlyDictionary<int, string>? holders = null) => new(
+    private FinAccountResponse ToResponse(FinAccount a, Sums? s, IReadOnlyDictionary<int, string>? holders = null, decimal uncleared = 0m) => new(
         a.Id, a.Name, a.Kind, a.BankName, redactor.Number(a.AccountNumber), redactor.Number(a.Iban), a.OpeningBalance,
         FinanceRules.Format(a.OpeningDate), a.IsActive, a.SortOrder,
-        FinanceCalculator.Balance(a.OpeningBalance, s?.Income ?? 0m, s?.Expense ?? 0m, s?.In ?? 0m, s?.Out ?? 0m, s?.Capital ?? 0m), s?.Count ?? 0, a.StaffCanUse, a.HolderUserId, a.HolderUserId is { } h ? holders?.GetValueOrDefault(h) : null);
+        FinanceCalculator.Balance(a.OpeningBalance, s?.Income ?? 0m, s?.Expense ?? 0m, s?.In ?? 0m, s?.Out ?? 0m, s?.Capital ?? 0m), s?.Count ?? 0, a.StaffCanUse, a.HolderUserId, a.HolderUserId is { } h ? holders?.GetValueOrDefault(h) : null,
+        uncleared, FinanceCalculator.Balance(a.OpeningBalance, s?.Income ?? 0m, s?.Expense ?? 0m, s?.In ?? 0m, s?.Out ?? 0m, s?.Capital ?? 0m) + uncleared);
 
     public async Task<List<FinAccountResponse>> ListAsync(bool includeInactive, CancellationToken ct)
     {
@@ -53,7 +54,21 @@ public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, F
         var accounts = await query.OrderBy(a => a.SortOrder).ThenBy(a => a.Name).ToListAsync(ct);
         var sums = await SumsAsync(ct);
         var holders = await HolderNamesAsync(ct);
-        return accounts.Select(a => ToResponse(a, sums.GetValueOrDefault(a.Id), holders)).ToList();
+        var uncleared = await UnclearedAsync(ct);
+        return accounts.Select(a => ToResponse(a, sums.GetValueOrDefault(a.Id), holders, uncleared.GetValueOrDefault(a.Id))).ToList();
+    }
+
+    /// <summary>
+    /// Per account: cheques recorded in the books that the bank has not paid or received yet. A cheque written is already an expense here, but the money is still in the
+    /// bank (so it adds back); a cheque received is already income here, but the money is not in the bank yet (so it takes off). The bank statement agrees with the balance plus this.
+    /// </summary>
+    private async Task<Dictionary<int, decimal>> UnclearedAsync(CancellationToken ct)
+    {
+        var rows = await db.FinCheques.AsNoTracking()
+            .Where(c => c.EntryId != null && (c.Status == FinChequeStatuses.Issued || c.Status == FinChequeStatuses.Delivered || c.Status == FinChequeStatuses.Received || c.Status == FinChequeStatuses.Deposited)
+                && db.FinEntries.Any(e => e.Id == c.EntryId && e.Status == FinStatuses.Active))
+            .Select(c => new { c.AccountId, c.Direction, c.Amount }).ToListAsync(ct);
+        return rows.GroupBy(r => r.AccountId).ToDictionary(g => g.Key, g => g.Sum(r => r.Direction == FinChequeDirections.Issued ? r.Amount : -r.Amount));
     }
 
     private async Task<Dictionary<int, string>> HolderNamesAsync(CancellationToken ct)
@@ -65,7 +80,7 @@ public sealed class FinanceAccountService(AppDbContext db, IAuditLogger audit, F
     private async Task<FinAccountResponse> ReloadAsync(FinAccount account, CancellationToken ct)
     {
         var sums = await SumsAsync(ct);
-        return ToResponse(account, sums.GetValueOrDefault(account.Id), await HolderNamesAsync(ct));
+        return ToResponse(account, sums.GetValueOrDefault(account.Id), await HolderNamesAsync(ct), (await UnclearedAsync(ct)).GetValueOrDefault(account.Id));
     }
 
     private Dictionary<string, string[]> Validate(FinAccountRequest request, out DateOnly openingDate)
