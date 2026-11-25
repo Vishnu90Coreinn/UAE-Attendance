@@ -259,13 +259,47 @@ public sealed record LedgerAccountStatement(LedgerAccountResponse Account, strin
 
 public sealed record JournalLineResponse(string AccountCode, string AccountName, decimal Debit, decimal Credit, string? Memo);
 
-public sealed record JournalResponse(int Id, string Number, string Date, string SourceType, int SourceId, string Part, string Description, IReadOnlyList<JournalLineResponse> Lines);
+/// <summary><c>IsManual</c> journals were posted by hand and may be reversed; <c>Reversed</c> means a reversal already exists.</summary>
+public sealed record JournalResponse(
+    int Id, string Number, string Date, string SourceType, int SourceId, string Part, string Description, IReadOnlyList<JournalLineResponse> Lines,
+    bool IsManual = false, bool Reversed = false, string? CreatedBy = null);
 
 public sealed record JournalList(IReadOnlyList<JournalResponse> Items, int Count, bool Truncated);
 
 /// <summary>One of the safety checks: what the ledger says, what the finance screens say, and whether they agree.</summary>
 public sealed record LedgerCheck(string Name, string Subject, decimal Ledger, decimal Screens, bool Agrees);
 
-public sealed record LedgerCheckResult(bool AllAgree, IReadOnlyList<LedgerCheck> Checks, int Journals, decimal TotalDebit, decimal TotalCredit);
+public sealed record LedgerCheckResult(bool AllAgree, IReadOnlyList<LedgerCheck> Checks, int Journals, decimal TotalDebit, decimal TotalCredit, int ManualJournals = 0);
 
 public sealed record LedgerSyncResult(int Posted, int Reversed);
+
+public sealed class LedgerAccountRequest
+{
+    public string? Code { get; init; }
+    public string? Name { get; init; }
+    public string? Type { get; init; }
+    public bool? IsActive { get; init; }
+}
+
+public sealed class ManualJournalLineRequest
+{
+    public int? AccountId { get; init; }
+    public decimal? Debit { get; init; }
+    public decimal? Credit { get; init; }
+    public string? Memo { get; init; }
+}
+
+public sealed class ManualJournalRequest
+{
+    public string? Date { get; init; }
+    public string? Description { get; init; }
+    public List<ManualJournalLineRequest>? Lines { get; init; }
+}
+
+/// <summary>Which ledger account a category, a bank or cash account, or a partner posts to.</summary>
+public sealed record LedgerMapping(string Kind, int Id, string Name, string? Detail, int LedgerAccountId);
+
+public sealed class LedgerMappingRequest
+{
+    public int? LedgerAccountId { get; init; }
+}

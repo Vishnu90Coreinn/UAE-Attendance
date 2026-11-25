@@ -59,6 +59,9 @@ public sealed class Journal
     public string Part { get; set; } = "Post";
     public string Description { get; set; } = "";
     public int? ReversesJournalId { get; set; }
+
+    /// <summary>Who posted it by hand; null for the journals the system derives.</summary>
+    public string? CreatedBy { get; set; }
     public DateTime CreatedUtc { get; set; }
     public List<JournalLine> Lines { get; set; } = [];
 }

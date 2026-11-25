@@ -170,6 +170,7 @@ public sealed class JournalConfiguration : IEntityTypeConfiguration<Journal>
         builder.Property(j => j.SourceType).HasMaxLength(12).IsRequired();
         builder.Property(j => j.Part).HasMaxLength(10).IsRequired();
         builder.Property(j => j.Description).HasMaxLength(300).IsRequired();
+        builder.Property(j => j.CreatedBy).HasMaxLength(50);
         builder.Property(j => j.CreatedUtc).HasColumnType("datetime2");
         builder.HasOne<Journal>().WithMany().HasForeignKey(j => j.ReversesJournalId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(j => j.Number).IsUnique();

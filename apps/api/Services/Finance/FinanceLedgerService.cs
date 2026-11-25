@@ -12,7 +12,7 @@ namespace HrPayroll.Api.Services.Finance;
 /// new, reverses what was voided, and re-posts an opening balance that changed. It is idempotent, so it is safe to run after every write and
 /// before every read. Journals are never edited or deleted (except by <see cref="RebuildAsync"/>, which exists only before the books go live).
 /// </summary>
-public sealed class FinanceLedgerService(AppDbContext db, FinanceAccountService accounts, FinancePartnerService partners, TimeProvider time)
+public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccountService accounts, FinancePartnerService partners, TimeProvider time, IAuditLogger audit, IHttpContextAccessor http, FinancePeriodService periods)
 {
     private static readonly SemaphoreSlim Gate = new(1, 1);
     public const string OpeningEquityCode = "3900";
@@ -220,9 +220,10 @@ public sealed class FinanceLedgerService(AppDbContext db, FinanceAccountService 
 
     private sealed record Totals(int Id, decimal Debit, decimal Credit);
 
-    private async Task<Dictionary<int, Totals>> TotalsAsync(DateOnly? upTo, DateOnly? before, CancellationToken ct)
+    private async Task<Dictionary<int, Totals>> TotalsAsync(DateOnly? upTo, DateOnly? before, CancellationToken ct, bool systemOnly = false)
     {
         var lines = db.JournalLines.AsNoTracking().AsQueryable();
+        if (systemOnly) lines = lines.Where(l => l.Journal.SourceType != JournalSources.Manual);
         if (upTo is { } to) lines = lines.Where(l => l.Journal.Date <= to);
         if (before is { } b) lines = lines.Where(l => l.Journal.Date < b);
         var rows = await lines.GroupBy(l => l.LedgerAccountId).Select(g => new { Id = g.Key, Debit = g.Sum(l => l.Debit), Credit = g.Sum(l => l.Credit) }).ToListAsync(ct);
@@ -289,8 +290,10 @@ public sealed class FinanceLedgerService(AppDbContext db, FinanceAccountService 
         var count = await query.CountAsync(ct);
         var rows = await query.OrderByDescending(j => j.Date).ThenByDescending(j => j.Id).Take(ListCap + 1).ToListAsync(ct);
         var truncated = rows.Count > ListCap;
+        var reversedIds = (await db.Journals.AsNoTracking().Where(j => j.ReversesJournalId != null).Select(j => j.ReversesJournalId!.Value).ToListAsync(ct)).ToHashSet();
         return new(rows.Take(ListCap).Select(j => new JournalResponse(j.Id, j.Number, FinanceRules.Format(j.Date), j.SourceType, j.SourceId, j.Part, j.Description,
-            j.Lines.OrderByDescending(l => l.Debit).ThenBy(l => l.Id).Select(l => new JournalLineResponse(l.LedgerAccount.Code, l.LedgerAccount.Name, l.Debit, l.Credit, l.Memo)).ToList())).ToList(), count, truncated);
+            j.Lines.OrderByDescending(l => l.Debit).ThenBy(l => l.Id).Select(l => new JournalLineResponse(l.LedgerAccount.Code, l.LedgerAccount.Name, l.Debit, l.Credit, l.Memo)).ToList(),
+            j.SourceType == JournalSources.Manual, reversedIds.Contains(j.Id), j.CreatedBy)).ToList(), count, truncated);
     }
 
     // ---- the safety checks -----------------------------------------------------------------------------------------
@@ -299,7 +302,7 @@ public sealed class FinanceLedgerService(AppDbContext db, FinanceAccountService 
     public async Task<LedgerCheckResult> CheckAsync(CancellationToken ct)
     {
         await SyncAsync(ct);
-        var totals = await TotalsAsync(null, null, ct);
+        var totals = await TotalsAsync(null, null, ct, systemOnly: true);   // what the finance records alone say; the accountant's manual journals are counted apart
         var checks = new List<LedgerCheck>();
         var finAccounts = await db.FinAccounts.AsNoTracking().ToDictionaryAsync(a => a.Id, ct);
         var types = await db.LedgerAccounts.AsNoTracking().ToDictionaryAsync(a => a.Id, a => a.Type, ct);
@@ -326,7 +329,8 @@ public sealed class FinanceLedgerService(AppDbContext db, FinanceAccountService 
         var credit = journalSums.Sum(j => j.Credit);
         checks.Add(new("Journals balance", "Every journal", unbalanced, 0m, unbalanced == 0));
         checks.Add(new("Debits equal credits", "All journals", debit, credit, debit == credit));
-        return new(checks.All(c => c.Agrees), checks, journalSums.Count, debit, credit);
+        var manual = await db.Journals.CountAsync(j => j.SourceType == JournalSources.Manual && j.Part == "Post", ct);
+        return new(checks.All(c => c.Agrees), checks, journalSums.Count, debit, credit, manual);
     }
 
     // ---- rebuild (before the books go live) ------------------------------------------------------------------------
@@ -339,9 +343,10 @@ public sealed class FinanceLedgerService(AppDbContext db, FinanceAccountService 
         try
         {
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
-            await db.JournalLines.ExecuteDeleteAsync(ct);
-            await db.Database.ExecuteSqlRawAsync("UPDATE [Journals] SET [ReversesJournalId] = NULL", ct);
-            await db.Journals.ExecuteDeleteAsync(ct);
+            // The accountant's manual journals (and their reversals) are never thrown away; only what is derived from the records is.
+            await db.JournalLines.Where(l => l.Journal.SourceType != JournalSources.Manual).ExecuteDeleteAsync(ct);
+            await db.Database.ExecuteSqlRawAsync("UPDATE [Journals] SET [ReversesJournalId] = NULL WHERE [SourceType] <> 'Manual'", ct);
+            await db.Journals.Where(j => j.SourceType != JournalSources.Manual).ExecuteDeleteAsync(ct);
             await transaction.CommitAsync(ct);
         }
         finally

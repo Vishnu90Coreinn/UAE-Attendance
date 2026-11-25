@@ -1,17 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
-import { BookOpen, CheckCircle2, XCircle } from "lucide-react";
+import { BookOpen, CheckCircle2, Download, Plus, Undo2, XCircle } from "lucide-react";
 import {
-  getLedgerCheck, getLedgerStatement, getLedgerTrialBalance, listJournals,
-  type Journal, type LedgerAccount, type LedgerCheckResult, type LedgerStatement, type LedgerTrialBalance,
+  downloadJournals, downloadLedger, downloadTrialBalance, getLedgerChart, getLedgerCheck, getLedgerStatement, getLedgerTrialBalance, listJournals, reverseManualJournal,
+  type Journal, type LedgerAccount, type LedgerCheckResult, type LedgerFile, type LedgerStatement, type LedgerTrialBalance,
 } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { TextField } from "../../components/TextField";
+import { useAuth } from "../../contexts/AuthContext";
+import { isManagement } from "../../permissions";
+import { useIsDesktop } from "../../utils/useIsDesktop";
+import { saveBlob } from "../payroll/downloadPdf";
+import { ChartTab } from "./ChartTab";
+import { ManualJournalDialog } from "./ManualJournalDialog";
+import { MappingTab } from "./MappingTab";
+import { VoidDialog } from "./VoidDialog";
 import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, Select, cx } from "../../ui";
 import { LoadError } from "../workers/WorkersFeedback";
 import { formatDay, formatMoney, quietZero, todayInUae } from "./financeFormat";
 
-type Tab = "trial" | "ledger" | "journals";
-type Load = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; trial: LedgerTrialBalance; check: LedgerCheckResult };
+type Tab = "trial" | "ledger" | "journals" | "chart" | "mapping";
+type Load = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; trial: LedgerTrialBalance; check: LedgerCheckResult; chart: LedgerAccount[] };
 
 const TYPE_ORDER = ["Asset", "Liability", "Equity", "Revenue", "Expense"] as const;
 const GROUP_LABEL = { Asset: "Assets", Liability: "Liabilities", Equity: "Equity", Revenue: "Revenue", Expense: "Expenses" } as const;
@@ -38,10 +46,36 @@ function CheckBanner({ check }: { check: LedgerCheckResult }) {
   );
 }
 
+/** Excel, PDF and CSV of what is on screen. */
+function Downloads({ make, formats = ["xlsx", "pdf", "csv"], name }: { make: (f: LedgerFile) => Promise<Blob>; formats?: LedgerFile[]; name: string }) {
+  const [busy, setBusy] = useState<LedgerFile | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  async function run(format: LedgerFile) {
+    setBusy(format);
+    setError(null);
+    try {
+      saveBlob(await make(format), `${name}.${format}`);
+    } catch (e) {
+      setError(failure(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2 px-5 pb-3">
+      {formats.map((f) => (
+        <Button key={f} size="sm" variant="secondary" icon={Download} disabled={busy !== null} onClick={() => void run(f)}>{f === "xlsx" ? "Excel" : f.toUpperCase()}</Button>
+      ))}
+      {error && <span role="alert" className="text-sm text-danger">{error}</span>}
+    </div>
+  );
+}
+
 function TrialBalance({ trial, onOpen }: { trial: LedgerTrialBalance; onOpen: (a: LedgerAccount) => void }) {
   return (
     <Card>
       <CardHeader title="Trial balance" description={`As at ${formatDay(trial.asOf)}. Total debits must equal total credits.`} />
+      <Downloads make={downloadTrialBalance} name={`Trial_Balance_${trial.asOf}`} />
       {trial.accounts.length === 0 ? (
         <EmptyState icon={BookOpen} title="Nothing posted yet" description="Entries, transfers and opening balances post here by themselves." />
       ) : (
@@ -117,6 +151,7 @@ function LedgerView({ accounts, accountId, onAccount }: { accounts: LedgerAccoun
       </div>
       {error && <p role="alert" className="px-5 pb-4 text-sm text-danger">{error}</p>}
       {accountId === null && <p className="border-t border-line px-5 py-6 text-sm text-ink-600">Choose an account, or open one from the trial balance.</p>}
+      {accountId !== null && <Downloads make={(f) => downloadLedger(accountId, from, to, f)} formats={["xlsx", "pdf", "csv"]} name={`Ledger_${accounts.find((a) => a.id === accountId)?.code ?? accountId}_${from}_${to}`} />}
       {statement && (
         <div className="overflow-x-auto border-t border-line">
           <table className="w-full min-w-[40rem] text-sm">
@@ -150,9 +185,15 @@ function LedgerView({ accounts, accountId, onAccount }: { accounts: LedgerAccoun
   );
 }
 
-function Journals() {
+function Journals({ accounts, canEdit, onChanged }: { accounts: LedgerAccount[]; canEdit: boolean; onChanged: () => void }) {
+  const desktop = useIsDesktop();
+  const variant = desktop ? "center" : "sheet";
   const [list, setList] = useState<{ items: Journal[]; count: number; truncated: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
+  const [posting, setPosting] = useState(false);
+  const [reversing, setReversing] = useState<Journal | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     listJournals()
@@ -161,10 +202,19 @@ function Journals() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [version]);
+  const changed = () => {
+    setVersion((v) => v + 1);
+    onChanged();
+  };
   return (
     <Card>
       <CardHeader title="Journals" description="Every posting, newest first. A reversal undoes an earlier one; nothing is ever edited or deleted." />
+      <div className="flex flex-wrap items-center gap-2 px-5 pb-3">
+        {canEdit && <Button icon={Plus} onClick={() => setPosting(true)}>Post a journal</Button>}
+      </div>
+      <Downloads make={downloadJournals} formats={["xlsx", "pdf", "csv"]} name="Journals" />
+      {message && <p role="status" className="px-5 pb-3 text-sm text-green-800">{message}</p>}
       {error && <p role="alert" className="px-5 pb-4 text-sm text-danger">{error}</p>}
       {!list && !error && <p className="px-5 pb-5 text-sm text-ink-600">Loading...</p>}
       {list && (
@@ -176,6 +226,10 @@ function Journals() {
                 <span className="tabular-nums text-ink-700">{formatDay(j.date)}</span>
                 <span className="min-w-0 flex-1 break-words font-medium text-ink-900">{j.description}</span>
                 {j.part === "Reversal" && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">Reversal</span>}
+                {j.isManual && j.part === "Post" && <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800">By hand{j.createdBy ? ` · ${j.createdBy}` : ""}{j.reversed ? " · reversed" : ""}</span>}
+                {canEdit && j.isManual && j.part === "Post" && !j.reversed && (
+                  <Button size="sm" variant="ghost" icon={Undo2} className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => setReversing(j)} aria-label={`Reverse ${j.number}`}>Reverse</Button>
+                )}
               </p>
               <table className="mt-1.5 w-full text-[13px]">
                 <caption className="sr-only">Lines of {j.number}</caption>
@@ -195,20 +249,40 @@ function Journals() {
         </ul>
       )}
       {list?.truncated && <p className="border-t border-line px-5 py-3 text-sm text-ink-600">Showing the newest 500 of {list.count}.</p>}
+      {posting && <ManualJournalDialog accounts={accounts} variant={variant} onClose={() => setPosting(false)} onPosted={(n) => { setPosting(false); setMessage(`${n} was posted.`); changed(); }} />}
+      {reversing && (
+        <VoidDialog
+          title={`Reverse ${reversing.number}?`}
+          message="A reversing journal is posted today with every debit and credit swapped. The original stays on record."
+          confirmLabel="Reverse"
+          variant={variant}
+          onClose={() => setReversing(null)}
+          onConfirm={async (reason) => {
+            await reverseManualJournal(reversing.id, reason);
+            setMessage(`${reversing.number} was reversed.`);
+            setReversing(null);
+            changed();
+          }}
+        />
+      )}
     </Card>
   );
 }
 
 /** The books, derived from every finance record: trial balance, ledger per account and journals, with the check that they agree with the finance screens. */
 export function BooksPage() {
+  const { user } = useAuth();
+  const canEdit = isManagement(user?.role);
+  const desktop = useIsDesktop();
+  const [notice, setNotice] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("trial");
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [accountId, setAccountId] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const [trial, check] = await Promise.all([getLedgerTrialBalance(), getLedgerCheck()]);
-      setLoad({ status: "ready", trial, check });
+      const [trial, check, chart] = await Promise.all([getLedgerTrialBalance(), getLedgerCheck(), getLedgerChart()]);
+      setLoad({ status: "ready", trial, check, chart });
     } catch (error) {
       setLoad({ status: "error", message: failure(error) });
     }
@@ -219,6 +293,7 @@ export function BooksPage() {
   }, [refresh]);
 
   const ready = load.status === "ready" ? load : null;
+  const chart = ready?.chart;
   return (
     <section className="space-y-5">
       <PageHeader title="Books" description="The double-entry view of the same records: every entry, transfer and opening balance posts a balanced journal by itself. Nothing here is typed twice." actions={ready && <Button variant="secondary" onClick={() => void refresh()}>Check again</Button>} />
@@ -228,7 +303,7 @@ export function BooksPage() {
         <>
           <CheckBanner check={ready.check} />
           <div role="tablist" aria-label="Books view" className="flex gap-1 border-b border-line">
-            {([["trial", "Trial balance"], ["ledger", "Ledger"], ["journals", "Journals"]] as const).map(([key, label]) => (
+            {([["trial", "Trial balance"], ["ledger", "Ledger"], ["journals", "Journals"], ["chart", "Chart of accounts"], ["mapping", "Where records post"]] as const).map(([key, label]) => (
               <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
                 className={cx("min-h-11 rounded-t-lg px-4 text-sm font-semibold", tab === key ? "border-b-2 border-brand-600 text-brand-700" : "text-ink-600 hover:bg-ink-50")}>
                 {label}
@@ -236,8 +311,11 @@ export function BooksPage() {
             ))}
           </div>
           {tab === "trial" && <TrialBalance trial={ready.trial} onOpen={(a) => { setAccountId(a.id); setTab("ledger"); }} />}
-          {tab === "ledger" && <LedgerView accounts={ready.trial.accounts} accountId={accountId} onAccount={setAccountId} />}
-          {tab === "journals" && <Journals />}
+          {tab === "ledger" && <LedgerView accounts={ready.chart} accountId={accountId} onAccount={setAccountId} />}
+          {tab === "journals" && <Journals accounts={ready.chart} canEdit={canEdit} onChanged={() => void refresh()} />}
+          {tab === "chart" && <ChartTab accounts={chart ?? []} variant={desktop ? "center" : "sheet"} canEdit={canEdit} onChanged={(m) => { setNotice(m); void refresh(); }} />}
+          {tab === "mapping" && <MappingTab accounts={chart ?? []} canEdit={user?.role === "Administrator"} onChanged={() => void refresh()} />}
+          {notice && tab === "chart" && <p role="status" className="text-sm text-green-800">{notice}</p>}
         </>
       )}
     </section>

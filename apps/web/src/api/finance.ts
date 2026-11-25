@@ -729,6 +729,10 @@ export interface Journal {
   part: "Post" | "Reversal";
   description: string;
   lines: { accountCode: string; accountName: string; debit: number; credit: number; memo: string | null }[];
+  /** Posted by hand by the accountant; only these can be reversed here. */
+  isManual?: boolean;
+  reversed?: boolean;
+  createdBy?: string | null;
 }
 export interface JournalList {
   items: Journal[];
@@ -748,6 +752,8 @@ export interface LedgerCheckResult {
   journals: number;
   totalDebit: number;
   totalCredit: number;
+  /** Journals posted by hand. The checks compare the records alone, so these are counted apart. */
+  manualJournals?: number;
 }
 
 export function getLedgerTrialBalance(asOf?: string): Promise<LedgerTrialBalance> {
@@ -769,3 +775,52 @@ export function listJournals(from?: string, to?: string): Promise<JournalList> {
 export function getLedgerCheck(): Promise<LedgerCheckResult> {
   return apiGet("/api/finance/ledger/check");
 }
+
+export interface LedgerAccountInput {
+  code: string;
+  name: string;
+  type: LedgerAccount["type"];
+  isActive?: boolean;
+}
+export function createLedgerAccount(input: LedgerAccountInput): Promise<LedgerAccount> {
+  return apiPost<LedgerAccount>("/api/finance/ledger/accounts", input);
+}
+export function updateLedgerAccount(id: number, input: Partial<LedgerAccountInput>): Promise<LedgerAccount> {
+  return apiPut<LedgerAccount>(`/api/finance/ledger/accounts/${id}`, input);
+}
+
+export interface ManualJournalInput {
+  date: string;
+  description: string;
+  lines: { accountId: number; debit?: number; credit?: number; memo?: string }[];
+}
+export function postManualJournal(input: ManualJournalInput): Promise<Journal> {
+  return apiPost<Journal>("/api/finance/ledger/journals", input);
+}
+export function reverseManualJournal(id: number, reason: string): Promise<Journal> {
+  return apiPost<Journal>(`/api/finance/ledger/journals/${id}/reverse`, { reason });
+}
+
+export interface LedgerMapping {
+  kind: "Category" | "Account" | "Partner";
+  id: number;
+  name: string;
+  detail: string | null;
+  ledgerAccountId: number;
+}
+export function getLedgerMappings(): Promise<LedgerMapping[]> {
+  return apiGet("/api/finance/ledger/mappings");
+}
+export function setLedgerMapping(kind: LedgerMapping["kind"], id: number, ledgerAccountId: number): Promise<LedgerMapping> {
+  return apiPut<LedgerMapping>(`/api/finance/ledger/mappings/${kind}/${id}`, { ledgerAccountId });
+}
+
+export type LedgerFile = "xlsx" | "pdf" | "csv";
+function ledgerDownload(path: string, format: LedgerFile): Promise<Blob> {
+  const url = `${path}${path.includes("?") ? "&" : "?"}format=${format}`;
+  if (format === "pdf") return apiGetBlob(url);
+  return apiGetFile(url, format === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+}
+export const downloadTrialBalance = (format: LedgerFile) => ledgerDownload("/api/finance/ledger/trial-balance", format);
+export const downloadLedger = (id: number, from: string, to: string, format: LedgerFile) => ledgerDownload(`/api/finance/ledger/accounts/${id}/statement?from=${from}&to=${to}`, format);
+export const downloadJournals = (format: LedgerFile) => ledgerDownload("/api/finance/ledger/journals", format);

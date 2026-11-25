@@ -96,6 +96,7 @@ builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceChequeService>(
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceSubmitterService>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceImportService>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceLedgerService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceLedgerExportService>();
 builder.Services.AddScoped<HrPayroll.Api.Controllers.LedgerSyncFilter>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceReportExportService>();
 builder.Services.AddSingleton<HrPayroll.Api.Services.Finance.IReceiptStore, HrPayroll.Api.Services.Finance.FolderReceiptStore>();
