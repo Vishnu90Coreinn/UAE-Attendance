@@ -109,11 +109,14 @@ public sealed record FinReportCategory(int CategoryId, string Name, decimal Amou
 
 public sealed record FinReportEntry(string Date, string EntryNo, string Kind, string Category, string Party, string Account, string? Reference, decimal Amount);
 
+/// <summary>One calendar month inside the report period: what was recorded in it, and whether it has been locked (checked and closed).</summary>
+public sealed record FinReportMonth(string Month, int Entries, decimal Income, decimal Expense, decimal Net, decimal Capital, bool IsLocked, string? LockedBy, DateTime? LockedUtc);
+
 /// <summary>The period report. Identical figures go into the screen, the Excel file, the PDF and the CSV.</summary>
 public sealed record FinReport(
     string From, string To, IReadOnlyList<FinReportAccount> Accounts, FinReportTotals Totals, FinPeriodTotals Period,
     IReadOnlyList<FinReportCategory> IncomeCategories, IReadOnlyList<FinReportCategory> ExpenseCategories, int EntryCount,
-    IReadOnlyList<FinReportPartner>? Partners = null);
+    IReadOnlyList<FinReportPartner>? Partners = null, IReadOnlyList<FinReportMonth>? Months = null);
 
 /// <summary>
 /// A partner and the capital figures worked out for them. <c>NetCapital</c> = opening capital + capital added - capital returned,

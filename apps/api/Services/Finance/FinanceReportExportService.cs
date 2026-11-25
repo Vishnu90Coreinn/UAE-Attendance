@@ -26,6 +26,18 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
             .Append(["Total", Money(r.Totals.Opening), Money(r.Totals.Income), Money(r.Totals.Expense), Money(r.Totals.TransfersIn), Money(r.Totals.TransfersOut), Money(r.Totals.Capital), Money(r.Totals.Closing)]).ToList(),
         [$"Net result for the period: AED {Money(r.Period.Net)} (income less expenses). Transfers between the company's own accounts and partners' capital are not income or expense.", "Capital is what partners put in, less what was paid back. Voided entries are not counted."]);
 
+    private static string MonthName(string month) =>
+        DateOnly.ParseExact(month + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture).ToString("MMM yyyy", CultureInfo.InvariantCulture);
+
+    private static StaffExportService.Table MonthsTable(FinReport r, string stem, string subtitle)
+    {
+        var months = r.Months ?? [];
+        return new("MONTH BY MONTH", subtitle, stem, [("MONTH", 1.5, false), ("ENTRIES", 0.8, true), ("INCOME", 1.3, true), ("EXPENSES", 1.3, true), ("NET", 1.3, true), ("CAPITAL", 1.2, true), ("STATUS", 1, false)],
+            months.Select(m => new[] { MonthName(m.Month), m.Entries.ToString(CultureInfo.InvariantCulture), Money(m.Income), Money(m.Expense), Money(m.Net), Money(m.Capital), m.IsLocked ? "Locked" : "Open" })
+                .Append(["Total", months.Sum(m => m.Entries).ToString(CultureInfo.InvariantCulture), Money(r.Period.Income), Money(r.Period.Expense), Money(r.Period.Net), Money(r.Totals.Capital), ""]).ToList(),
+            ["A month is Locked once it has been checked and closed. The first and last month hold only the days inside the report period, so choose whole months to compare with another system."]);
+    }
+
     private static StaffExportService.Table PartnersTable(FinReport r, string stem, string subtitle)
     {
         var partners = r.Partners ?? [];
@@ -51,18 +63,19 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
         var income = CategoryTable("INCOME BY CATEGORY", r.IncomeCategories, r.Period.Income, stem, subtitle);
         var expenses = CategoryTable("EXPENSES BY CATEGORY", r.ExpenseCategories, r.Period.Expense, stem, subtitle);
         var partnersTable = PartnersTable(r, stem, subtitle);
+        var monthsTable = MonthsTable(r, stem, subtitle);
 
         if (format == FinReportFormat.Csv) return FinResult<FinReportFile>.Ok(new(Csv(r), stem + ".csv", "text/csv; charset=utf-8"));
 
         var company = await staffExports.CompanyAsync(ct);
         if (format == FinReportFormat.Pdf)
-            return FinResult<FinReportFile>.Ok(new(staffExports.BuildPdf([accounts, income, expenses, partnersTable], company, Footer), stem + ".pdf", AttendanceExportService.PdfType));
+            return FinResult<FinReportFile>.Ok(new(staffExports.BuildPdf([accounts, monthsTable, income, expenses, partnersTable], company, Footer), stem + ".pdf", AttendanceExportService.PdfType));
 
         var entries = await reports.EntriesAsync(r.From, r.To, ct);
         var detail = new StaffExportService.Table("ENTRIES", subtitle, stem,
             [("DATE", 1, false), ("NO.", 1.1, false), ("TYPE", 0.8, false), ("CATEGORY", 2, false), ("PARTY", 2, false), ("ACCOUNT", 1.6, false), ("REFERENCE", 1.2, false), ("AMOUNT", 1, true)],
             entries.Select(e => new[] { Day(e.Date), e.EntryNo, e.Kind, e.Category, e.Party, e.Account, e.Reference ?? "", Money(e.Amount) }).ToList(), []);
-        var book = StaffExportService.Workbook([("Statement", accounts), ("Income", income), ("Expenses", expenses), ("Partners", partnersTable), ("Entries", detail)], company);
+        var book = StaffExportService.Workbook([("Statement", accounts), ("Months", monthsTable), ("Income", income), ("Expenses", expenses), ("Partners", partnersTable), ("Entries", detail)], company);
         return FinResult<FinReportFile>.Ok(new(book, stem + ".xlsx", AttendanceExportService.ExcelType));
     }
 
@@ -72,7 +85,8 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
     {
         var value = text ?? "";
         // A cell that starts like a formula would run when opened in Excel.
-        if (value.Length > 0 && value[0] is '=' or '+' or '-' or '@' or '\t' or '\r') value = "'" + value;
+        // Plain numbers such as -250.00 are left alone; only text that could be a formula is marked.
+        if (value.Length > 0 && value[0] is '=' or '+' or '-' or '@' or '\t' or '\r' && !decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out _)) value = "'" + value;
         return value.IndexOfAny([',', '"', '\r', '\n']) >= 0 ? "\"" + value.Replace("\"", "\"\"") + "\"" : value;
     }
 
@@ -85,6 +99,9 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
         Line("Account", "Opening", "Income", "Expenses", "Transfers in", "Transfers out", "Capital", "Closing");
         foreach (var a in r.Accounts) Line(a.Name, Plain(a.Opening), Plain(a.Income), Plain(a.Expense), Plain(a.TransfersIn), Plain(a.TransfersOut), Plain(a.Capital), Plain(a.Closing));
         Line("Total", Plain(r.Totals.Opening), Plain(r.Totals.Income), Plain(r.Totals.Expense), Plain(r.Totals.TransfersIn), Plain(r.Totals.TransfersOut), Plain(r.Totals.Capital), Plain(r.Totals.Closing));
+        Line();
+        Line("Month by month", "Entries", "Income", "Expenses", "Net", "Capital", "Status");
+        foreach (var m in r.Months ?? []) Line(m.Month, m.Entries.ToString(CultureInfo.InvariantCulture), Plain(m.Income), Plain(m.Expense), Plain(m.Net), Plain(m.Capital), m.IsLocked ? "Locked" : "Open");
         Line();
         Line("Income by category", "Entries", "Amount", "Share %");
         foreach (var c in r.IncomeCategories) Line(c.Name, c.Count.ToString(CultureInfo.InvariantCulture), Plain(c.Amount), c.Share.ToString(CultureInfo.InvariantCulture));

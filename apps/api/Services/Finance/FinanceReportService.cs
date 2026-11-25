@@ -60,6 +60,7 @@ public sealed class FinanceReportService(AppDbContext db, TimeProvider time)
         var period = FinanceCalculator.Period([new FinMovement(FinMovementType.Income, totals.Income), new FinMovement(FinMovementType.Expense, totals.Expense)]);
 
         var partnerRows = await PartnersAsync(start, end, ct);
+        var monthRows = await MonthsAsync(start, end, ct);
 
         var categoryRows = await activeEntries.Where(e => e.EntryDate >= start && e.EntryDate <= end && (e.Kind == FinEntryKinds.Income || e.Kind == FinEntryKinds.Expense))
             .GroupBy(e => new { e.Kind, e.CategoryId, e.Category.Name })
@@ -74,7 +75,30 @@ public sealed class FinanceReportService(AppDbContext db, TimeProvider time)
 
         return FinResult<FinReport>.Ok(new FinReport(
             FinanceRules.Format(start), FinanceRules.Format(end), lines, totals, new FinPeriodTotals(period.Income, period.Expense, period.Net),
-            Categories(FinEntryKinds.Income), Categories(FinEntryKinds.Expense), categoryRows.Sum(r => r.Count), partnerRows));
+            Categories(FinEntryKinds.Income), Categories(FinEntryKinds.Expense), categoryRows.Sum(r => r.Count), partnerRows, monthRows));
+    }
+
+    /// <summary>Every calendar month the period touches, with its own totals. The first and last month hold only the days inside the period.</summary>
+    private async Task<List<FinReportMonth>> MonthsAsync(DateOnly start, DateOnly end, CancellationToken ct)
+    {
+        var rows = await db.FinEntries.AsNoTracking().Where(e => e.Status == FinStatuses.Active && e.EntryDate >= start && e.EntryDate <= end)
+            .GroupBy(e => new { e.EntryDate.Year, e.EntryDate.Month, e.Kind })
+            .Select(g => new { g.Key.Year, g.Key.Month, g.Key.Kind, Sum = g.Sum(e => e.Amount), Count = g.Count() }).ToListAsync(ct);
+        var locks = await db.FinMonthLocks.AsNoTracking().Where(l => l.IsLocked).ToListAsync(ct);
+
+        var result = new List<FinReportMonth>();
+        for (var month = new DateOnly(start.Year, start.Month, 1); month <= end; month = month.AddMonths(1))
+        {
+            var m = month;
+            decimal Sum(string kind) => rows.Where(r => r.Year == m.Year && r.Month == m.Month && r.Kind == kind).Sum(r => r.Sum);
+            var entries = rows.Where(r => r.Year == m.Year && r.Month == m.Month && (r.Kind == FinEntryKinds.Income || r.Kind == FinEntryKinds.Expense)).Sum(r => r.Count);
+            var period = FinanceCalculator.Period([new FinMovement(FinMovementType.Income, Sum(FinEntryKinds.Income)), new FinMovement(FinMovementType.Expense, Sum(FinEntryKinds.Expense))]);
+            var l = locks.SingleOrDefault(x => x.Year == m.Year && x.Month == m.Month);
+            result.Add(new FinReportMonth(m.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture), entries, period.Income, period.Expense, period.Net,
+                Sum(FinEntryKinds.Capital) - Sum(FinEntryKinds.CapitalOut), l is not null, l?.LockedBy, l?.LockedUtc));
+        }
+
+        return result;
     }
 
     private async Task<List<FinReportPartner>> PartnersAsync(DateOnly start, DateOnly end, CancellationToken ct)

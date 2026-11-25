@@ -155,4 +155,60 @@ public class FinanceReportTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(report.GetProperty("totals").GetProperty("closing").GetDecimal(), (decimal)total.Cell(8).GetDouble());
         Assert.NotNull(book.Worksheet("Entries"));
     }
+
+    [Fact]
+    public async Task Months_ListEveryMonthOfThePeriod_WithTheirOwnTotals_AndTheLockedMarker()
+    {
+        // 2015 is far from every other test's dates, so these figures are this test's alone.
+        var account = await TestFinance.AddAccountAsync(api.ConnectionString, opening: 0m, openingDate: new DateOnly(2014, 1, 1));
+        var partner = await TestFinance.AddPartnerAsync(api.ConnectionString);
+        var c = api.ConnectionString;
+        await TestFinance.AddEntryAsync(c, account.Id, FinEntryKinds.Income, 777m, new DateOnly(2015, 3, 5));    // before the period
+        await TestFinance.AddEntryAsync(c, account.Id, FinEntryKinds.Income, 1000m, new DateOnly(2015, 3, 15));
+        await TestFinance.AddEntryAsync(c, account.Id, FinEntryKinds.Expense, 400m, new DateOnly(2015, 3, 20));
+        await TestFinance.AddEntryAsync(c, account.Id, FinEntryKinds.Expense, 250m, new DateOnly(2015, 4, 2));
+        await TestFinance.AddEntryAsync(c, account.Id, FinEntryKinds.Expense, 999m, new DateOnly(2015, 4, 3), FinStatuses.Voided);
+        await TestFinance.AddCapitalAsync(c, account.Id, partner.Id, 5000m, new DateOnly(2015, 4, 10));
+        await TestFinance.AddCapitalAsync(c, account.Id, partner.Id, 500m, new DateOnly(2015, 4, 11), FinEntryKinds.CapitalOut);
+        await using (var db = TestUsers.NewContext(c))
+        {
+            db.FinMonthLocks.Add(new FinMonthLock { Year = 2015, Month = 4, IsLocked = true, LockedBy = "checker", LockedUtc = DateTime.UtcNow });
+            await db.SaveChangesAsync();
+        }
+
+        var report = await (await GetAsync("?from=2015-03-10&to=2015-05-31")).Content.ReadFromJsonAsync<JsonElement>();
+        var months = report.GetProperty("months").EnumerateArray().ToList();
+        Assert.Equal(["2015-03", "2015-04", "2015-05"], months.Select(m => m.GetProperty("month").GetString()));
+
+        Assert.Equal(1000m, months[0].GetProperty("income").GetDecimal());
+        Assert.Equal(400m, months[0].GetProperty("expense").GetDecimal());
+        Assert.Equal(600m, months[0].GetProperty("net").GetDecimal());
+        Assert.Equal(2, months[0].GetProperty("entries").GetInt32());
+        Assert.False(months[0].GetProperty("isLocked").GetBoolean());
+
+        Assert.Equal(-250m, months[1].GetProperty("net").GetDecimal());
+        Assert.Equal(4500m, months[1].GetProperty("capital").GetDecimal());   // 5,000 put in less 500 paid back, not income
+        Assert.Equal(1, months[1].GetProperty("entries").GetInt32());          // the voided 999 counts nowhere
+        Assert.True(months[1].GetProperty("isLocked").GetBoolean());
+        Assert.Equal("checker", months[1].GetProperty("lockedBy").GetString());
+
+        Assert.Equal(0m, months[2].GetProperty("net").GetDecimal());
+        Assert.Equal(report.GetProperty("period").GetProperty("net").GetDecimal(), months.Sum(m => m.GetProperty("net").GetDecimal()));
+    }
+
+    [Fact]
+    public async Task Months_AreInTheCsv_AndTheExcelFile()
+    {
+        var account = await TestFinance.AddAccountAsync(api.ConnectionString, opening: 0m, openingDate: new DateOnly(2013, 1, 1));
+        await TestFinance.AddEntryAsync(api.ConnectionString, account.Id, FinEntryKinds.Expense, 250m, new DateOnly(2013, 6, 2));
+        var csv = await (await GetAsync("?from=2013-06-01&to=2013-06-30&format=csv")).Content.ReadAsStringAsync();
+        Assert.Contains("Month by month,Entries,Income,Expenses,Net,Capital,Status", csv);
+        Assert.Contains("2013-06,1,0.00,250.00,-250.00,0.00,Open", csv);
+
+        var bytes = await (await GetAsync("?from=2013-06-01&to=2013-06-30&format=xlsx")).Content.ReadAsByteArrayAsync();
+        using var book = new ClosedXML.Excel.XLWorkbook(new MemoryStream(bytes));
+        var sheet = book.Worksheet("Months");
+        var total = sheet.RowsUsed().Single(r => r.Cell(1).GetString() == "Total");
+        Assert.Equal(-250.0, total.Cell(5).GetDouble());
+    }
 }

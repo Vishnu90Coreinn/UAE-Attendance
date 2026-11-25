@@ -24,6 +24,10 @@ function report(overrides: Partial<FinReport> = {}): FinReport {
     period: { income: 300, expense: 250, net: 50 },
     incomeCategories: [{ categoryId: 10, name: "Other income", amount: 300, count: 1, share: 100 }],
     expenseCategories: [{ categoryId: 1, name: "Rent", amount: 200, count: 1, share: 80 }, { categoryId: 2, name: "Fuel", amount: 50, count: 2, share: 20 }],
+    months: [
+      { month: "2026-10", entries: 2, income: 100, expense: 400.5, net: -300.5, capital: 0, isLocked: true, lockedBy: "manager1", lockedUtc: "2026-11-01T08:00:00Z" },
+      { month: "2026-11", entries: 3, income: 200, expense: 0, net: 200, capital: 5000, isLocked: false, lockedBy: null, lockedUtc: null },
+    ],
     entryCount: 4, ...overrides,
   };
 }
@@ -52,6 +56,18 @@ it("shows each partner's capital with the exact share to two decimals", async ()
   expect(within(anil).getByText("62.50%")).toBeInTheDocument();
   expect(within(anil).getByText(/Opening 6,000.00 · added 2,000.00 · returned 500.00/)).toBeInTheDocument();
   expect(screen.getByText("37.50%")).toBeInTheDocument();
+});
+
+it("compares month by month: each month's totals, a locked or open marker, and a total row", async () => {
+  vi.mocked(financeApi.getFinReport).mockResolvedValue(report({ from: "2026-10-01", to: "2026-11-25" }));
+  render(<FinanceReportsPage />);
+  const table = await screen.findByRole("table", { name: /for each month/i });
+  const oct = within(table).getByText("Oct 2026").closest("tr")!;
+  expect(within(oct).getAllByRole("cell").map((c) => c.textContent?.trim())).toEqual(["Oct 2026", "2", "100.00", "400.50", "−300.50", "0.00", "Locked"]);
+  const nov = within(table).getByText("Nov 2026").closest("tr")!;
+  expect(within(nov).getByText("Open")).toBeInTheDocument();
+  expect(within(nov).getByText("1 to 25 Nov only")).toBeInTheDocument(); // the period ends on the 25th
+  expect(within(table).getByText("Total").closest("tr")).toHaveTextContent("300.00");
 });
 
 it("lists income and expenses by category with shares", async () => {

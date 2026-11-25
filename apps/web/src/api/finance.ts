@@ -286,6 +286,20 @@ export interface FinReportCategory {
   count: number;
   share: number;
 }
+export interface FinReportMonth {
+  /** yyyy-MM */
+  month: string;
+  /** Income and expense entries in the month, voided ones left out. */
+  entries: number;
+  income: number;
+  expense: number;
+  net: number;
+  /** Capital put in less capital paid back. Not part of income, expense or net. */
+  capital: number;
+  isLocked: boolean;
+  lockedBy: string | null;
+  lockedUtc: string | null;
+}
 export interface FinReportPartner {
   partnerId: number;
   name: string;
@@ -297,6 +311,7 @@ export interface FinReportPartner {
 }
 export interface FinReport {
   partners: FinReportPartner[];
+  months: FinReportMonth[];
   from: string;
   to: string;
   accounts: FinReportAccount[];

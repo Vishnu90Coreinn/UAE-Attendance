@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, FileSpreadsheet, FileText, Sheet } from "lucide-react";
-import { getFinReport, getFinReportFile, type FinReport, type FinReportAccount, type FinReportCategory, type FinReportFormat } from "../../api/finance";
+import { Download, FileSpreadsheet, FileText, Lock, LockOpen, Sheet } from "lucide-react";
+import { getFinReport, getFinReportFile, type FinReport, type FinReportAccount, type FinReportCategory, type FinReportFormat, type FinReportMonth } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { TextField } from "../../components/TextField";
 import { useIsDesktop } from "../../utils/useIsDesktop";
@@ -175,6 +175,130 @@ function CategoryCard({ title, rows, total, bar }: { title: string; rows: FinRep
   );
 }
 
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "Nov 2026", and for a month the period only partly covers, which days: "10 to 31 Nov 2026". */
+function monthLabel(m: FinReportMonth, from: string, to: string): { name: string; part: string | null } {
+  const [year, month] = m.month.split("-").map(Number);
+  const name = `${MONTH_NAMES[month - 1]} ${year}`;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const first = from.startsWith(m.month) ? Number(from.slice(8)) : 1;
+  const last = to.startsWith(m.month) ? Number(to.slice(8)) : lastDay;
+  return { name, part: first === 1 && last === lastDay ? null : `${first} to ${last} ${MONTH_NAMES[month - 1]} only` };
+}
+
+function LockMark({ month }: { month: FinReportMonth }) {
+  return month.isLocked ? (
+    <span className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700" title={month.lockedBy ? `Locked by ${month.lockedBy}` : undefined}>
+      <Lock aria-hidden="true" size={14} /> Locked
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1.5 text-sm text-ink-600">
+      <LockOpen aria-hidden="true" size={14} /> Open
+    </span>
+  );
+}
+
+/** One row per month with its own totals, so each month can be set against another set of books. A locked month has been checked and closed. */
+function MonthsCard({ report, desktop }: { report: FinReport; desktop: boolean }) {
+  const months = report.months ?? [];
+  const entries = months.reduce((sum, m) => sum + m.entries, 0);
+  return (
+    <Card>
+      <CardHeader title="Month by month" description="To compare with another system, set the period to whole months. A locked month has been checked and closed." />
+      {months.length === 0 ? null : desktop ? (
+        <TableScroll>
+          <Table>
+            <caption className="sr-only">Income, expenses and net for each month, in AED</caption>
+            <THead>
+              <tr>
+                <Th>Month</Th>
+                <Th align="right">Entries</Th>
+                <Th align="right">Income</Th>
+                <Th align="right">Expenses</Th>
+                <Th align="right">Net</Th>
+                <Th align="right">Capital</Th>
+                <Th>Status</Th>
+              </tr>
+            </THead>
+            <tbody>
+              {months.map((m) => {
+                const label = monthLabel(m, report.from, report.to);
+                return (
+                  <TRow key={m.month}>
+                    <Td className="font-medium text-ink-900">
+                      {label.name}
+                      {label.part && <span className="block text-xs font-normal text-ink-500">{label.part}</span>}
+                    </Td>
+                    <Td numeric>{m.entries}</Td>
+                    <Td numeric>{formatMoney(m.income)}</Td>
+                    <Td numeric>{formatMoney(m.expense)}</Td>
+                    <Td numeric className={cx("font-semibold", m.net < 0 ? "text-danger" : "text-ink-900")}>{signed(m.net)}</Td>
+                    <Td numeric>{signed(m.capital)}</Td>
+                    <Td><LockMark month={m} /></Td>
+                  </TRow>
+                );
+              })}
+              <tr className="bg-ink-50 font-semibold text-ink-900">
+                <Td>Total</Td>
+                <Td numeric>{entries}</Td>
+                <Td numeric>{formatMoney(report.period.income)}</Td>
+                <Td numeric>{formatMoney(report.period.expense)}</Td>
+                <Td numeric>{signed(report.period.net)}</Td>
+                <Td numeric>{signed(report.totals.capital)}</Td>
+                <Td />
+              </tr>
+            </tbody>
+          </Table>
+        </TableScroll>
+      ) : (
+        <ul className="divide-y divide-line border-t border-line">
+          {months.map((m) => {
+            const label = monthLabel(m, report.from, report.to);
+            if (m.entries === 0 && m.capital === 0) {
+              return (
+                <li key={m.month} className="flex items-center justify-between gap-3 px-5 py-3">
+                  <p className="text-sm text-ink-900">
+                    <span className="font-medium">{label.name}</span> <span className="text-ink-500">· nothing recorded{label.part ? `, ${label.part}` : ""}</span>
+                  </p>
+                  <LockMark month={m} />
+                </li>
+              );
+            }
+
+            return (
+              <li key={m.month} className="px-5 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-ink-900">{label.name}</p>
+                    {label.part && <p className="text-xs text-ink-500">{label.part}</p>}
+                  </div>
+                  <LockMark month={m} />
+                </div>
+                <dl className="mt-2 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm tabular-nums">
+                  <dt className="text-ink-600">Income</dt><dd className="text-right">{formatMoney(m.income)}</dd>
+                  <dt className="text-ink-600">Expenses</dt><dd className="text-right">{formatMoney(m.expense)}</dd>
+                  <dt className="border-t border-line pt-1 font-semibold text-ink-900">Net</dt>
+                  <dd className={cx("border-t border-line pt-1 text-right font-semibold", m.net < 0 ? "text-danger" : "text-ink-900")}>AED {signed(m.net)}</dd>
+                  <dt className="text-ink-500">{m.entries} {m.entries === 1 ? "entry" : "entries"}</dt>
+                  <dd className="text-right text-ink-500">{m.capital !== 0 ? `Capital ${signed(m.capital)}` : ""}</dd>
+                </dl>
+              </li>
+            );
+          })}
+          <li className="bg-ink-50 px-5 py-4 font-semibold text-ink-900">
+            <div className="flex items-baseline justify-between gap-3 tabular-nums">
+              <span>Total net</span>
+              <span>AED {signed(report.period.net)}</span>
+            </div>
+            <p className="mt-0.5 text-sm font-normal text-ink-600 tabular-nums">Income {formatMoney(report.period.income)} · expenses {formatMoney(report.period.expense)} · {entries} {entries === 1 ? "entry" : "entries"}</p>
+          </li>
+        </ul>
+      )}
+    </Card>
+  );
+}
+
 /** What each partner had at the start of the period, put in, took back and holds at the end, with the exact share. */
 function PartnersCard({ report }: { report: FinReport }) {
   const rows = report.partners ?? [];
@@ -306,6 +430,7 @@ export function FinanceReportsPage() {
               <AccountStatements accounts={ready.accounts} />
             )}
           </Card>
+          <MonthsCard report={ready} desktop={desktop} />
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <CategoryCard title="Income by category" rows={ready.incomeCategories} total={ready.period.income} bar="bg-brand-500" />
             <CategoryCard title="Expenses by category" rows={ready.expenseCategories} total={ready.period.expense} bar="bg-amber-400" />
