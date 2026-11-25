@@ -6,6 +6,7 @@ import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { useIsDesktop } from "../../utils/useIsDesktop";
+import { AttentionCard } from "./AttentionCard";
 import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, cx } from "../../ui";
 import { LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { EntryDialog } from "./EntryDialog";
@@ -421,6 +422,7 @@ export function FinanceDashboardPage() {
       {load.status === "error" && <LoadError message={load.message} onRetry={() => { setLoad({ status: "loading" }); void refresh(days); }} />}
       {load.status === "ready" && (
         <>
+          <AttentionCard canLock={canEdit} />
           <ResultPanel data={load.data} />
           <div style={{ "--i": 1 } as React.CSSProperties} className="fade-up grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
             <TrendCard data={load.data} />

@@ -5,7 +5,7 @@ import { Layout } from "./components/Layout";
 import { LoginPage } from "./features/auth/LoginPage";
 import { ProtectedRoute } from "./features/auth/ProtectedRoute";
 import { RequireRole } from "./features/auth/RequireRole";
-import { ADMIN_SCREEN_ROLES, canViewAll, FINANCE_ROLES, SITE_PROGRESS_ROLES, VIEW_ALL_ROLES } from "./permissions";
+import { ADMIN_SCREEN_ROLES, canViewAll, FINANCE_ROLES, MANAGEMENT_ROLES, SITE_PROGRESS_ROLES, VIEW_ALL_ROLES } from "./permissions";
 import { useAuth } from "./contexts/AuthContext";
 import { NotFound } from "./pages/NotFound";
 
@@ -69,6 +69,9 @@ const StaffPayrollPage = lazy(() =>
 );
 const FinanceDashboardPage = lazy(() =>
   import("./features/finance/FinanceDashboardPage").then((m) => ({ default: m.FinanceDashboardPage })),
+);
+const FinanceSetupPage = lazy(() =>
+  import("./features/finance/FinanceSetupPage").then((m) => ({ default: m.FinanceSetupPage })),
 );
 const BillsPage = lazy(() =>
   import("./features/finance/BillsPage").then((m) => ({ default: m.BillsPage })),
@@ -214,6 +217,14 @@ export default function App() {
               element={
                 <RequireRole roles={FINANCE_ROLES}>
                   <FinanceDashboardPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/setup"
+              element={
+                <RequireRole roles={MANAGEMENT_ROLES}>
+                  <FinanceSetupPage />
                 </RequireRole>
               }
             />

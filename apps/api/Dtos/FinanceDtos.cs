@@ -435,3 +435,11 @@ public sealed record RecurringSkip(int Id, string Description, string Month, str
 
 /// <summary>What a run of the due journals did: how many were posted, and which months were left (for example because the month is locked).</summary>
 public sealed record RecurringRunResult(int Posted, IReadOnlyList<RecurringSkip> Skipped);
+
+// ---- what needs attention ----
+public sealed record FinAttentionItem(int Count, decimal Amount);
+
+/// <summary>What to act on: overdue and soon-due bills, cheques and invoices, expenses waiting for approval, a finished month still open, and the next VAT return.</summary>
+public sealed record FinAttention(
+    FinAttentionItem OverdueBills, FinAttentionItem BillsDueSoon, FinAttentionItem OverdueCheques, FinAttentionItem ChequesDueSoon, FinAttentionItem OverdueInvoices,
+    int PendingApprovals, string? OpenMonth, string VatPeriod, string VatDue, int VatDaysLeft);

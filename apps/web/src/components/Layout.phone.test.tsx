@@ -134,6 +134,7 @@ describe("Layout on a phone", () => {
       ["VAT", "/finance/vat"],
       ["Books", "/finance/books"],
       ["Finance Reports", "/finance/reports"],
+      ["Finance Setup", "/finance/setup"],
       ["Deductions", "/deductions"],
       ["Staff Attendance", "/staff"],
       ["Staff Payroll Summary", "/staff-payroll"],

@@ -1139,3 +1139,25 @@ export function removeFinBillFile(id: number, fileId: number): Promise<FinBill> 
 export function getFinBillFile(fileId: number): Promise<Blob> {
   return apiGetAnyFile(`/api/finance/bills/files/${fileId}`);
 }
+
+// ---- What needs attention ----
+export interface FinAttentionItem {
+  count: number;
+  amount: number;
+}
+export interface FinAttention {
+  overdueBills: FinAttentionItem;
+  billsDueSoon: FinAttentionItem;
+  overdueCheques: FinAttentionItem;
+  chequesDueSoon: FinAttentionItem;
+  overdueInvoices: FinAttentionItem;
+  pendingApprovals: number;
+  /** A finished month that has activity but is not locked yet, e.g. "October 2026". */
+  openMonth: string | null;
+  vatPeriod: string;
+  vatDue: string;
+  vatDaysLeft: number;
+}
+export function getFinAttention(): Promise<FinAttention> {
+  return apiGet<FinAttention>("/api/finance/attention");
+}

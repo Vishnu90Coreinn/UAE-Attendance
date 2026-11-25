@@ -1,5 +1,5 @@
 import type { Role } from "../api/auth";
-import { ADMIN_SCREEN_ROLES, FINANCE_ROLES, SITE_PROGRESS_ROLES, VIEW_ALL_ROLES } from "../permissions";
+import { ADMIN_SCREEN_ROLES, FINANCE_ROLES, MANAGEMENT_ROLES, SITE_PROGRESS_ROLES, VIEW_ALL_ROLES } from "../permissions";
 
 export interface NavItem {
   key: string;
@@ -48,6 +48,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "finance-vat", label: "VAT", shortLabel: "VAT", roles: FINANCE_ROLES, path: "/finance/vat" },
   { key: "finance-books", label: "Books", shortLabel: "Books", roles: FINANCE_ROLES, path: "/finance/books" },
   { key: "finance-reports", label: "Finance Reports", shortLabel: "Reports", roles: FINANCE_ROLES, path: "/finance/reports" },
+  { key: "finance-setup", label: "Finance Setup", shortLabel: "Setup", roles: MANAGEMENT_ROLES, path: "/finance/setup" },
   { key: "invoices", label: "Tax Invoices", shortLabel: "Invoices", roles: VIEW_ALL_ROLES, path: "/invoices" },
   { key: "letters", label: "HR Letters", shortLabel: "Letters", roles: ALL_ROLES, path: "/letters" },
   { key: "progress", label: "Site Progress", shortLabel: "Progress", roles: SITE_PROGRESS_ROLES, path: "/progress" },
@@ -60,7 +61,7 @@ export function navItemsForRole(role: Role, employeeId?: number | null, canSubmi
 }
 
 /** Most to least used on a phone: the first screens get bottom-bar slots, the rest go behind "More". */
-const PHONE_ORDER = ["my-attendance", "my-leave", "my-letters", "my-expenses", "my-profile", "dashboard", "attendance", "workers", "payroll", "leave", "finance-overview", "finance-accounts", "finance-expenses", "finance-bills", "finance-income", "finance-petty-cash", "finance-cheques", "finance-payees", "finance-partners", "finance-vat", "finance-books", "finance-reports", "deductions", "staff", "staff-payroll", "staff-leave", "progress", "invoices", "letters", "users", "settings"];
+const PHONE_ORDER = ["my-attendance", "my-leave", "my-letters", "my-expenses", "my-profile", "dashboard", "attendance", "workers", "payroll", "leave", "finance-overview", "finance-accounts", "finance-expenses", "finance-bills", "finance-income", "finance-petty-cash", "finance-cheques", "finance-payees", "finance-partners", "finance-vat", "finance-books", "finance-reports", "finance-setup", "deductions", "staff", "staff-payroll", "staff-leave", "progress", "invoices", "letters", "users", "settings"];
 /** A bottom bar holds five slots at most; when "More" is needed it takes the last one. */
 const PHONE_SLOTS = 5;
 

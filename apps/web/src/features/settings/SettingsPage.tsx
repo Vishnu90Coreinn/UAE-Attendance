@@ -9,9 +9,6 @@ import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { TextField } from "../../components/TextField";
 import { CompanyDocumentsCard } from "./CompanyDocumentsCard";
-import { FinanceCategoriesCard } from "../finance/FinanceCategoriesCard";
-import { StaffEntryCard } from "../finance/StaffEntryCard";
-import { FinanceMonthLocksCard } from "../finance/FinanceMonthLocksCard";
 import { StaffSettingsCard } from "../staff/StaffSettingsCard";
 import { LoadError, primaryButtonClass, SuccessRegion } from "../workers/WorkersFeedback";
 import {
@@ -348,9 +345,10 @@ export function SettingsPage() {
       {!readOnly && <StaffSettingsCard />}
       {!readOnly && (
         <div id="finance" className="max-w-4xl scroll-mt-20">
-          <FinanceCategoriesCard />
-          <div className="mt-6"><FinanceMonthLocksCard /></div>
-          <div className="mt-6"><StaffEntryCard /></div>
+          <Card>
+            <CardHeader title="Finance" description="The expense and income categories with their VAT, the month lock, and who may enter expenses have moved to their own page, next to the finance screens." />
+            <div className="px-5 pb-5"><a href="/finance/setup" className="inline-flex min-h-11 items-center rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700">Open Finance setup</a></div>
+          </Card>
         </div>
       )}
     </section>

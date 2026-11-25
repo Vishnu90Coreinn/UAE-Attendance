@@ -99,6 +99,7 @@ builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceLedgerService>(
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceVatService>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceInvoiceBridge>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceBillService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceAttentionService>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceLedgerExportService>();
 builder.Services.AddScoped<HrPayroll.Api.Controllers.LedgerSyncFilter>();
 builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceReportExportService>();

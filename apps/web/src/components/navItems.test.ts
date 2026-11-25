@@ -22,6 +22,7 @@ const MODULES = [
   "VAT",
   "Books",
   "Finance Reports",
+  "Finance Setup",
   "Tax Invoices",
   "HR Letters",
   "Site Progress",
@@ -46,7 +47,7 @@ describe("navItemsForRole", () => {
   });
 
   it("gives a Viewer (Partner) every screen except User Manager and Settings", () => {
-    expect(labelsFor("Viewer")).toEqual(["Dashboard", ...MODULES]);
+    expect(labelsFor("Viewer")).toEqual(["Dashboard", ...MODULES.filter((label) => label !== "Finance Setup")]);   // the partner reads the finance screens; setting them up is for the Manager and Administrator
   });
 
   it("gives HR every screen except User Manager and Settings", () => {
@@ -84,7 +85,7 @@ describe("navItemsForRole", () => {
       Bills: "/finance/bills",
       Income: "/finance/income",
       "Petty Cash": "/finance/petty-cash", Cheques: "/finance/cheques", Payees: "/finance/payees", Partners: "/finance/partners",
-      VAT: "/finance/vat", Books: "/finance/books", "Finance Reports": "/finance/reports",
+      VAT: "/finance/vat", Books: "/finance/books", "Finance Reports": "/finance/reports", "Finance Setup": "/finance/setup",
       "Staff Attendance": "/staff",
       "Staff Payroll Summary": "/staff-payroll",
       "Staff Leave": "/staff-leave",
@@ -130,6 +131,7 @@ describe("phoneNavFor", () => {
       "VAT",
       "Books",
       "Finance Reports",
+      "Finance Setup",
       "Deductions",
       "Staff Attendance",
       "Staff Payroll Summary",
