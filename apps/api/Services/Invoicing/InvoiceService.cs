@@ -17,7 +17,7 @@ public sealed record InvoiceFile(byte[] Content, string FileName, string Content
 /// Tax invoices: draft, issue (assigns the next gap-free number and locks), cancel, payments, duplicate, list and CSV.
 /// All amounts are computed here by <see cref="InvoiceCalculator"/>; whatever the browser previewed is never trusted.
 /// </summary>
-public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProvider time, IHttpContextAccessor httpContext)
+public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProvider time, IHttpContextAccessor httpContext, Finance.FinanceInvoiceBridge bridge, Finance.FinancePeriodService periods)
 {
     public const decimal MaxAmount = 999_999_999.99m;
     public const decimal MaxTotal = 9_999_999_999.99m;
@@ -155,6 +155,7 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
             if (invoice.Lines.Count == 0) errors["lines"] = ["Add at least one line before issuing."];
             if (invoice.Total <= 0) errors["lines"] = ["The invoice total must be above 0 before it can be issued."];
             if (errors.Count > 0) return new(400, Errors: errors);
+            if (await periods.LockedMessageAsync(invoice.InvoiceDate, ct) is { } lockedMonth) return new(409, Message: lockedMonth + " Change the invoice date, or ask a Manager to unlock the month.");
 
             var settings = await db.DocumentSettings
                 .FromSqlRaw("SELECT * FROM DocumentSettings WITH (UPDLOCK, HOLDLOCK) WHERE Id = 1")
@@ -195,6 +196,7 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
         if (invoice is null) return new(404);
         if (invoice.Status != InvoiceStatuses.Issued) return new(409, Message: "Only an issued invoice can be cancelled.");
         if (invoice.Payments.Count > 0) return new(409, Message: "This invoice has payments. Remove them before cancelling.");
+        if (await periods.LockedMessageAsync(Today, ct) is { } lockedMonth) return new(409, Message: lockedMonth);   // the cancellation is booked today
         invoice.Status = InvoiceStatuses.Cancelled;
         invoice.CancelledUtc = Now;
         invoice.CancelReason = reason;
@@ -226,7 +228,15 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
             if (invoice.Status != InvoiceStatuses.Issued) return new(409, Message: "Payments can only be recorded against an issued invoice.");
             var balance = invoice.Total - invoice.Payments.Sum(p => p.Amount);
             if (request.Amount > balance) return new(400, Errors: new() { ["amount"] = [$"The payment is more than the balance due ({balance.ToString("N2", CultureInfo.InvariantCulture)})."] });
-            var payment = new InvoicePayment { PaidDate = request.PaidDate!.Value, Amount = request.Amount!.Value, Method = method, Reference = reference, RecordedBy = Actor, RecordedUtc = Now };
+            int? entryId = null;
+            if (request.AccountId is { } accountId)
+            {
+                var made = await bridge.RecordAsync(invoice, request.PaidDate!.Value, request.Amount!.Value, accountId, reference.Length > 0 ? reference : null, ct);
+                if (made.Message is not null) return new(400, Errors: new() { [made.Field!] = [made.Message] });
+                entryId = made.Entry!.Id;
+            }
+
+            var payment = new InvoicePayment { PaidDate = request.PaidDate!.Value, Amount = request.Amount!.Value, Method = method, Reference = reference, RecordedBy = Actor, RecordedUtc = Now, FinEntryId = entryId };
             invoice.Payments.Add(payment);
             invoice.UpdatedUtc = Now;
             audit.Write("InvoicePaymentRecorded", entityType: nameof(Invoice), entityId: Id(id), details: new { number = invoice.Number, amount = payment.Amount, method });
@@ -246,6 +256,7 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
         if (invoice is null) return new(404);
         var payment = invoice.Payments.SingleOrDefault(p => p.Id == paymentId);
         if (payment is null) return new(404);
+        if (payment.FinEntryId is { } entryId && await bridge.VoidAsync(entryId, invoice.Number ?? "", ct) is { } blocked) return new(409, Message: blocked);
         invoice.Payments.Remove(payment);
         db.InvoicePayments.Remove(payment);
         invoice.UpdatedUtc = Now;
@@ -417,7 +428,7 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
             i.Id, i.Number, i.Status, DisplayStatus(i.Status, i.Total, paid), IsOverdue(i.Status, i.Total, paid, i.DueDate),
             i.ClientId, i.ClientName, i.ClientTrn, i.ClientAddress, i.InvoiceDate, i.DueDate, i.PaymentTerms, i.LpoRef, i.Project, i.Scope, i.Notes,
             i.Lines.OrderBy(l => l.LineNo).Select(l => new InvoiceLineResponse(l.LineNo, l.Description, l.Quantity, l.Rate, l.Taxable, l.Vat, l.Amount)).ToList(),
-            i.Payments.OrderBy(p => p.PaidDate).ThenBy(p => p.Id).Select(p => new InvoicePaymentResponse(p.Id, p.PaidDate, p.Amount, p.Method, p.Reference, p.RecordedBy)).ToList(),
+            i.Payments.OrderBy(p => p.PaidDate).ThenBy(p => p.Id).Select(p => new InvoicePaymentResponse(p.Id, p.PaidDate, p.Amount, p.Method, p.Reference, p.RecordedBy, p.FinEntryId != null)).ToList(),
             i.SubTotal, i.VatTotal, i.Total, paid, i.Status == InvoiceStatuses.Issued ? i.Total - paid : 0m, AmountInWords.Aed(i.Total),
             live, i.CreatedBy, i.IssuedUtc, i.IssuedBy, i.CancelledUtc, i.CancelReason, i.PcRef);
     }

@@ -111,6 +111,9 @@ public sealed class FinEntry
     /// <summary>EXP-000001 or INC-000001.</summary>
     public string EntryNo { get; set; } = "";
     public DateOnly EntryDate { get; set; }
+
+    /// <summary>Set when this income is a payment received against a tax invoice: it clears the receivable instead of earning revenue.</summary>
+    public int? InvoiceId { get; set; }
     public int CategoryId { get; set; }
     public FinCategory Category { get; set; } = null!;
 

@@ -32,6 +32,9 @@ public static class JournalSources
 
     /// <summary>The closing journal of a financial year (SourceId is the year): income and expenses move to retained earnings.</summary>
     public const string YearEnd = "YearEnd";
+
+    /// <summary>An issued tax invoice (SourceId is the invoice): receivable, sales and VAT.</summary>
+    public const string Invoice = "Invoice";
 }
 
 /// <summary>One account in the chart of accounts. Never deleted, only switched off.</summary>

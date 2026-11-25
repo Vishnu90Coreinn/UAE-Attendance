@@ -4,10 +4,11 @@ import {
   addPayment, cancelInvoice, deleteInvoice, duplicateInvoice, getInvoicePdf, issueInvoice, removePayment, type Invoice,
 } from "../../api/invoices";
 import { getDocumentSettings } from "../../api/documentSettings";
+import { listFinAccounts, type FinAccount } from "../../api/finance";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
-import { Button, Card, CardHeader, IconButton, Textarea, Table, TableScroll, THead, Th, TRow, Td } from "../../ui";
+import { Button, Card, CardHeader, IconButton, Select, Textarea, Table, TableScroll, THead, Th, TRow, Td } from "../../ui";
 import { downloadFile } from "./download";
 import { InvoiceDocument } from "./InvoiceDocument";
 import { formatMoney } from "./invoiceMath";
@@ -106,7 +107,7 @@ export function InvoiceView({ invoice, canWrite, onChanged, onEdit, onDeleted, o
                     <TRow key={p.id}>
                       <Td>{formatDate(p.paidDate)}</Td>
                       <Td numeric>{formatMoney(p.amount)}</Td>
-                      <Td>{p.method}</Td>
+                      <Td>{p.method}{p.inBooks === false && <span className="block text-xs text-ink-500">Not in the books</span>}</Td>
                       <Td>{p.reference || "-"}</Td>
                       <Td>{p.recordedBy}</Td>
                       {canWrite && issued && (
@@ -239,9 +240,24 @@ function PaymentDialog({ open, balance, invoiceId, onClose, onDone }: { open: bo
   const [amount, setAmount] = useState(String(balance));
   const [method, setMethod] = useState("Bank transfer");
   const [reference, setReference] = useState("");
+  const [accounts, setAccounts] = useState<FinAccount[]>([]);
+  const [accountId, setAccountId] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, setPending] = useState(false);
   const first = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    listFinAccounts().then((all) => {
+      if (cancelled) return;
+      const active = all.filter((a) => a.isActive);
+      setAccounts(active);
+      setAccountId((cur) => cur || (active[0] ? String(active[0].id) : ""));
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
   async function submit(event: FormEvent) {
     event.preventDefault();
     const found: Record<string, string> = {};
@@ -249,11 +265,12 @@ function PaymentDialog({ open, balance, invoiceId, onClose, onDone }: { open: bo
     else if (Number(amount) > balance) found.amount = `The payment is more than the balance due (${formatMoney(balance)}).`;
     if (!paidDate) found.paidDate = "Enter the payment date.";
     if (method.trim() === "") found.method = "Enter how it was paid.";
+    if (accounts.length > 0 && accountId === "") found.accountId = "Choose the account the money went into.";
     setErrors(found);
     if (Object.keys(found).length > 0) return;
     setPending(true);
     try {
-      onDone(await addPayment(invoiceId, { paidDate, amount: Number(amount), method, reference }));
+      onDone(await addPayment(invoiceId, { paidDate, amount: Number(amount), method, reference, accountId: accountId ? Number(accountId) : undefined }));
     } catch (e) {
       const server = fieldErrors(e);
       setErrors(Object.keys(server).length > 0 ? server : { amount: errorMessage(e) });
@@ -265,6 +282,11 @@ function PaymentDialog({ open, balance, invoiceId, onClose, onDone }: { open: bo
       <form onSubmit={submit} noValidate className="mt-3 space-y-4">
         <TextField label="Amount (AED)" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} error={errors.amount} hint={`Balance due ${formatMoney(balance)}`} inputRef={first} />
         <TextField label="Payment date" type="date" value={paidDate} onChange={(e) => setPaidDate(e.target.value)} error={errors.paidDate} max={todayInDubai()} />
+        {accounts.length > 0 && (
+          <Select label="Paid into" value={accountId} onChange={(e) => setAccountId(e.target.value)} error={errors.accountId} hint="The money is added to this account, so the books stay in step.">
+            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </Select>
+        )}
         <TextField label="Method" value={method} onChange={(e) => setMethod(e.target.value)} error={errors.method} maxLength={30} />
         <TextField label="Reference (optional)" value={reference} onChange={(e) => setReference(e.target.value)} error={errors.reference} maxLength={60} />
         <div className="flex flex-wrap justify-end gap-3">

@@ -103,6 +103,7 @@ public sealed class FinEntryConfiguration : IEntityTypeConfiguration<FinEntry>
         builder.HasIndex(e => e.EntryDate);
         builder.HasIndex(e => e.CategoryId);
         builder.HasIndex(e => new { e.ExternalSource, e.ExternalId }).IsUnique().HasFilter("[ExternalId] IS NOT NULL");
+        builder.HasIndex(e => e.InvoiceId).HasFilter("[InvoiceId] IS NOT NULL");
     }
 }
 

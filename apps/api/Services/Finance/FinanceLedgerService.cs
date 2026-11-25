@@ -20,7 +20,7 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
 
     // ---- chart of accounts -----------------------------------------------------------------------------------------
 
-    // The system's own accounts sit above these ranges (1500, 1600, 2150, 2200, 3800, 3900), so new accounts never run into them.
+    // The system's own accounts sit above these ranges (1500, 1550, 1600, 2150, 2200, 3800, 3900, 4900), so new accounts never run into them.
     private static (int Base, int Width) Range(string type) => type switch
     {
         LedgerTypes.Asset => (1100, 400), LedgerTypes.Liability => (2100, 40), LedgerTypes.Equity => (3100, 700),
@@ -43,6 +43,8 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
     public const string ChequesPayableCode = "2150";
     public const string OutputVatCode = "2200";
     public const string RetainedEarningsCode = "3800";
+    public const string ReceivablesCode = "1550";
+    public const string SalesCode = "4900";
 
     private static readonly (string Code, string Name, string Type)[] SystemAccounts =
     [
@@ -52,6 +54,8 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
         (ChequesPayableCode, "Cheques payable (not yet paid by the bank)", LedgerTypes.Liability),
         (OutputVatCode, "VAT payable (output VAT)", LedgerTypes.Liability),
         (RetainedEarningsCode, "Retained earnings", LedgerTypes.Equity),
+        (ReceivablesCode, "Accounts receivable (unpaid tax invoices)", LedgerTypes.Asset),
+        (SalesCode, "Sales (tax invoices)", LedgerTypes.Revenue),
     ];
 
     /// <summary>The accounts the system needs, made when first wanted. Their codes are reserved: nobody else can claim them.</summary>
@@ -71,6 +75,9 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
         if (db.ChangeTracker.HasChanges()) await db.SaveChangesAsync(ct);
         return existing;
     }
+
+    /// <summary>The ledger account unpaid invoices sit in; made when first wanted.</summary>
+    public async Task<int> ReceivablesAccountIdAsync(CancellationToken ct) => (await SystemAsync(ct))[ReceivablesCode].Id;
 
     private async Task<LedgerAccount> OpeningEquityAsync(CancellationToken ct) => (await SystemAsync(ct))[OpeningEquityCode];
 
@@ -110,11 +117,11 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
         return journal.Id;
     }
 
-    private async Task ReverseAsync(Journal original, IDbContextTransaction transaction, CancellationToken ct)
+    private async Task ReverseAsync(Journal original, IDbContextTransaction transaction, CancellationToken ct, DateOnly? on = null)
     {
         var journal = new Journal
         {
-            Number = await NextNumberAsync(transaction, ct), Date = original.Date, SourceType = original.SourceType, SourceId = original.SourceId, Revision = original.Revision,
+            Number = await NextNumberAsync(transaction, ct), Date = on ?? original.Date, SourceType = original.SourceType, SourceId = original.SourceId, Revision = original.Revision,
             Part = "Reversal", Description = "Reversal of " + original.Number + ": " + original.Description, ReversesJournalId = original.Id, CreatedUtc = DateTime.UtcNow,
         };
         foreach (var l in original.Lines) journal.Lines.Add(new JournalLine { LedgerAccountId = l.LedgerAccountId, Debit = l.Credit, Credit = l.Debit, Memo = l.Memo });
@@ -174,6 +181,15 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
                 {
                     var asset = finAccounts[e.AccountId].LedgerAccountId!.Value;
                     var lines = new List<(int, decimal, decimal, string?)>();
+                    if (e.InvoiceId is not null && e.Kind == FinEntryKinds.Income)
+                    {
+                        // Money received against a tax invoice clears what the customer owed; the sale was already booked when the invoice was issued.
+                        lines.Add((asset, e.Amount, 0m, null));
+                        lines.Add((system[ReceivablesCode].Id, 0m, e.Amount, null));
+                        await PostAsync(new Posting(JournalSources.Entry, e.Id, 0, e.EntryDate, $"{e.EntryNo} {e.Party}", lines));
+                        continue;
+                    }
+
                     switch (e.Kind)
                     {
                         case FinEntryKinds.Expense:
@@ -221,6 +237,23 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
                         [(finAccounts[t.ToAccountId].LedgerAccountId!.Value, t.Amount, 0m, null), (finAccounts[t.FromAccountId].LedgerAccountId!.Value, 0m, t.Amount, null)]));
                 else if (t.Status == FinStatuses.Voided && original is not null && Find(JournalSources.Transfer, t.Id, "Reversal") is null)
                     await UndoAsync(original);
+            }
+
+            // Tax invoices: issuing one books the sale (the customer owes us, we owe the tax office the VAT). Cancelling reverses it, dated the day it was cancelled.
+            foreach (var inv in await db.Invoices.AsNoTracking().Where(i => i.IssuedUtc != null).OrderBy(i => i.Id).ToListAsync(ct))
+            {
+                var original = Find(JournalSources.Invoice, inv.Id, "Post");
+                if (original is null)
+                    await PostAsync(new Posting(JournalSources.Invoice, inv.Id, 0, inv.InvoiceDate, $"{inv.Number} {inv.ClientName}",
+                        [(system[ReceivablesCode].Id, inv.Total, 0m, null), (system[SalesCode].Id, 0m, inv.SubTotal, null), (system[OutputVatCode].Id, 0m, inv.VatTotal, "VAT")]));
+
+                original ??= Find(JournalSources.Invoice, inv.Id, "Post");   // an invoice issued and cancelled between two syncs is posted and reversed in turn
+                if (original is not null && inv.Status == InvoiceStatuses.Cancelled && Find(JournalSources.Invoice, inv.Id, "Reversal") is null)
+                {
+                    await ReverseAsync(original, transaction, ct, DateOnly.FromDateTime((inv.CancelledUtc ?? DateTime.UtcNow).AddHours(4)));
+                    journals.Add(await db.Journals.Include(j => j.Lines).OrderByDescending(j => j.Id).FirstAsync(j => j.ReversesJournalId == original.Id, ct));
+                    reversed++;
+                }
             }
 
             // Cheques: while the bank has not paid (or received) a cheque, the money sits in "cheques payable" (or "cheques receivable"), so the bank in the books
@@ -395,6 +428,13 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
             var ledger = Balance(LedgerTypes.Equity, t?.Debit ?? 0m, t?.Credit ?? 0m);
             checks.Add(new("Partner capital", p.Name, ledger, p.NetCapital, ledger == p.NetCapital));
         }
+
+        var receivableId = (await SystemAsync(ct))[ReceivablesCode].Id;
+        totals.TryGetValue(receivableId, out var rt);
+        var ledgerOwed = rt is null ? 0m : rt.Debit - rt.Credit;
+        var invoices = await db.Invoices.AsNoTracking().Where(i => i.Status == InvoiceStatuses.Issued).Select(i => new { i.Total, Paid = i.Payments.Where(p => p.FinEntryId != null).Sum(p => p.Amount) }).ToListAsync(ct);
+        var owed = invoices.Sum(i => i.Total - i.Paid);
+        checks.Add(new("Receivables", "Unpaid tax invoices", ledgerOwed, owed, ledgerOwed == owed));
 
         var journalSums = await db.JournalLines.AsNoTracking().GroupBy(l => l.JournalId).Select(g => new { g.Key, Debit = g.Sum(l => l.Debit), Credit = g.Sum(l => l.Credit) }).ToListAsync(ct);
         var unbalanced = journalSums.Count(j => j.Debit != j.Credit);

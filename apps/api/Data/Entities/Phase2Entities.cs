@@ -129,6 +129,9 @@ public sealed class InvoicePayment
     public string Reference { get; set; } = "";
     public string RecordedBy { get; set; } = "";
     public DateTime RecordedUtc { get; set; }
+
+    /// <summary>The income entry that put this money in a bank or cash account; null for a payment recorded before invoices were tied to the books.</summary>
+    public int? FinEntryId { get; set; }
 }
 
 public static class LetterTypes

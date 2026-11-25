@@ -358,3 +358,11 @@ public sealed record FinVatReport(
 public sealed record FinYearResponse(
     int Year, string Status, decimal Revenue, decimal Expenses, decimal NetResult, string? JournalNumber, string? ClosedBy, DateTime? ClosedUtc,
     bool CanClose, bool CanReopen, string? Blocker);
+
+/// <summary>One unpaid (or part-paid) tax invoice in the receivables aging.</summary>
+public sealed record ReceivableRow(int InvoiceId, string Number, string Client, string InvoiceDate, string DueDate, decimal Total, decimal Paid, decimal Balance, int DaysOverdue, string Bucket);
+
+public sealed record ReceivableBucket(string Name, int Count, decimal Amount);
+
+/// <summary>Who owes the company money at a date, oldest first. <c>UnrecordedPayments</c> counts payments entered before invoices were tied to the books: they reduce an invoice here but not the ledger.</summary>
+public sealed record ReceivablesReport(string AsOf, IReadOnlyList<ReceivableRow> Rows, IReadOnlyList<ReceivableBucket> Buckets, decimal TotalOwed, int UnrecordedPayments);

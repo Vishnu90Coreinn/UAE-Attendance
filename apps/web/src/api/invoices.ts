@@ -42,6 +42,8 @@ export interface InvoicePayment {
   method: string;
   reference: string;
   recordedBy: string;
+  /** True when the money was put into a bank or cash account, so the books know about it. */
+  inBooks?: boolean;
 }
 
 export interface InvoiceCompany {
@@ -113,6 +115,8 @@ export interface PaymentInput {
   amount: number;
   method: string;
   reference: string;
+  /** The bank or cash account the money went into. */
+  accountId?: number;
 }
 
 export interface InvoiceClient {

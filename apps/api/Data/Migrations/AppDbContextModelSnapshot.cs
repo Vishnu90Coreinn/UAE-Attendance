@@ -802,6 +802,9 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<int?>("InvoiceId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -869,6 +872,9 @@ namespace HrPayroll.Api.Data.Migrations
 
                     b.HasIndex("EntryNo")
                         .IsUnique();
+
+                    b.HasIndex("InvoiceId")
+                        .HasFilter("[InvoiceId] IS NOT NULL");
 
                     b.HasIndex("PartnerId");
 
@@ -1490,6 +1496,9 @@ namespace HrPayroll.Api.Data.Migrations
                     b.Property<decimal>("Amount")
                         .HasPrecision(14, 2)
                         .HasColumnType("decimal(14,2)");
+
+                    b.Property<int?>("FinEntryId")
+                        .HasColumnType("int");
 
                     b.Property<int>("InvoiceId")
                         .HasColumnType("int");

@@ -156,6 +156,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         if (original.Status != FinStatuses.Active) return FinResult<FinEntryResponse>.Conflict($"{original.EntryNo} is already voided and cannot be corrected.");
         if (await db.FinEntries.AnyAsync(e => e.ReplacesEntryId == id, ct)) return FinResult<FinEntryResponse>.Conflict($"{original.EntryNo} has already been corrected.");
         if (await LinkedChequeMessageAsync(original.Id, original.EntryNo, ct) is { } linked) return FinResult<FinEntryResponse>.Conflict(linked);
+        if (original.InvoiceId is not null) return FinResult<FinEntryResponse>.Conflict($"{original.EntryNo} is a payment on a tax invoice. Remove the payment on the invoice and record it again.");
         return await SaveAsync(kind, form, original, ct);
     }
 
@@ -177,6 +178,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         if (entry.Status != FinStatuses.Active) return FinResult<FinEntryResponse>.Conflict($"{entry.EntryNo} is already voided.");
         if (await periods.LockedMessageAsync(entry.EntryDate, ct) is { } locked) return FinResult<FinEntryResponse>.Conflict(locked);
         if (await LinkedChequeMessageAsync(entry.Id, entry.EntryNo, ct) is { } linked) return FinResult<FinEntryResponse>.Conflict(linked);
+        if (entry.InvoiceId is not null) return FinResult<FinEntryResponse>.Conflict($"{entry.EntryNo} is a payment on a tax invoice. Remove the payment on the invoice instead.");
 
         entry.Status = FinStatuses.Voided;
         entry.VoidReason = text;

@@ -954,3 +954,33 @@ export function closeFinYear(year: number): Promise<FinYear> {
 export function reopenFinYear(year: number, reason: string): Promise<FinYear> {
   return apiPost<FinYear>(`/api/finance/ledger/years/${year}/reopen`, { reason });
 }
+
+// ---- Receivables (unpaid tax invoices) ----
+export interface ReceivableRow {
+  invoiceId: number;
+  number: string;
+  client: string;
+  invoiceDate: string;
+  dueDate: string;
+  total: number;
+  paid: number;
+  balance: number;
+  daysOverdue: number;
+  bucket: string;
+}
+export interface ReceivableBucket {
+  name: string;
+  count: number;
+  amount: number;
+}
+export interface ReceivablesReport {
+  asOf: string;
+  rows: ReceivableRow[];
+  buckets: ReceivableBucket[];
+  totalOwed: number;
+  /** Payments entered before invoices were tied to the books: they reduce an invoice here but not the ledger. */
+  unrecordedPayments: number;
+}
+export function getReceivables(asOf?: string): Promise<ReceivablesReport> {
+  return apiGet<ReceivablesReport>(`/api/finance/ledger/receivables${asOf ? `?asOf=${asOf}` : ""}`);
+}

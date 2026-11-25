@@ -14,13 +14,14 @@ import { ChartTab } from "./ChartTab";
 import { ManualJournalDialog } from "./ManualJournalDialog";
 import { MappingTab } from "./MappingTab";
 import { StatementsTab } from "./StatementsTab";
+import { ReceivablesTab } from "./ReceivablesTab";
 import { YearEndTab } from "./YearEndTab";
 import { VoidDialog } from "./VoidDialog";
 import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, Select, cx } from "../../ui";
 import { LoadError } from "../workers/WorkersFeedback";
 import { formatDay, formatMoney, quietZero, todayInUae } from "./financeFormat";
 
-type Tab = "trial" | "ledger" | "journals" | "pl" | "sheet" | "chart" | "mapping" | "year";
+type Tab = "trial" | "ledger" | "journals" | "pl" | "sheet" | "chart" | "mapping" | "year" | "receivables";
 type Load = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; trial: LedgerTrialBalance; check: LedgerCheckResult; chart: LedgerAccount[] };
 
 const TYPE_ORDER = ["Asset", "Liability", "Equity", "Revenue", "Expense"] as const;
@@ -305,7 +306,7 @@ export function BooksPage() {
         <>
           <CheckBanner check={ready.check} />
           <div role="tablist" aria-label="Books view" className="flex gap-1 overflow-x-auto border-b border-line">
-            {([["trial", "Trial balance"], ["pl", "Profit & loss"], ["sheet", "Balance sheet"], ["ledger", "Ledger"], ["journals", "Journals"], ["chart", "Chart of accounts"], ["mapping", "Where records post"], ["year", "Year end"]] as const).map(([key, label]) => (
+            {([["trial", "Trial balance"], ["pl", "Profit & loss"], ["sheet", "Balance sheet"], ["receivables", "Receivables"], ["ledger", "Ledger"], ["journals", "Journals"], ["chart", "Chart of accounts"], ["mapping", "Where records post"], ["year", "Year end"]] as const).map(([key, label]) => (
               <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
                 className={cx("min-h-11 shrink-0 whitespace-nowrap rounded-t-lg px-4 text-sm font-semibold", tab === key ? "border-b-2 border-brand-600 text-brand-700" : "text-ink-600 hover:bg-ink-50")}>
                 {label}
@@ -318,6 +319,7 @@ export function BooksPage() {
           {tab === "journals" && <Journals accounts={ready.chart} canEdit={canEdit} onChanged={() => void refresh()} />}
           {tab === "chart" && <ChartTab accounts={chart ?? []} variant={desktop ? "center" : "sheet"} canEdit={canEdit} onChanged={(m) => { setNotice(m); void refresh(); }} />}
           {tab === "mapping" && <MappingTab accounts={chart ?? []} canEdit={user?.role === "Administrator"} onChanged={() => void refresh()} />}
+          {tab === "receivables" && <ReceivablesTab />}
           {tab === "year" && <YearEndTab canClose={canEdit} canReopen={user?.role === "Administrator"} onChanged={() => void refresh()} />}
           {notice && tab === "chart" && <p role="status" className="text-sm text-green-800">{notice}</p>}
         </>

@@ -18,11 +18,11 @@ public sealed record CancelInvoiceRequest(string? Reason);
 /// <summary>Body of issue. A blank <c>Number</c> takes the next automatic number; a typed one is used as it is.</summary>
 public sealed record IssueInvoiceRequest(string? Number = null);
 
-public sealed record InvoicePaymentRequest(DateOnly? PaidDate, decimal? Amount, string? Method, string? Reference);
+public sealed record InvoicePaymentRequest(DateOnly? PaidDate, decimal? Amount, string? Method, string? Reference, int? AccountId = null);
 
 public sealed record InvoiceLineResponse(int LineNo, string Description, decimal Quantity, decimal Rate, decimal Taxable, decimal Vat, decimal Amount);
 
-public sealed record InvoicePaymentResponse(int Id, DateOnly PaidDate, decimal Amount, string Method, string Reference, string RecordedBy);
+public sealed record InvoicePaymentResponse(int Id, DateOnly PaidDate, decimal Amount, string Method, string Reference, string RecordedBy, bool InBooks = false);
 
 /// <summary>The company block printed on an invoice: live settings for a draft, the copy taken at issue for an issued invoice.</summary>
 public sealed record InvoiceCompany(
