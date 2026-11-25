@@ -110,7 +110,7 @@ public sealed class FinanceBillService(AppDbContext db, FinanceLedgerService led
             categories = await db.FinCategories.AsNoTracking().Where(c => wanted.Contains(c.Id)).ToDictionaryAsync(c => c.Id, ct);
             foreach (var l in lines)
             {
-                if (l.CategoryId is not { } c || !categories.TryGetValue(c, out var cat) || !cat.IsActive || cat.Kind != FinEntryKinds.Expense) { errors["lines"] = ["Every line needs an active expense category."]; break; }
+                if (l.CategoryId is not { } c || !categories.TryGetValue(c, out var cat) || !cat.IsActive || cat.Kind != FinEntryKinds.Expense || FinanceRules.IsVatSettlement(cat.Id)) { errors["lines"] = ["Every line needs an active expense category."]; break; }
                 if (FinanceRules.AmountError(l.Amount) is { } lineError) { errors["lines"] = [lineError]; break; }
                 if (FinanceRules.Clean(l.Note)?.Length > 200) { errors["lines"] = ["A line note takes 200 characters or fewer."]; break; }
             }

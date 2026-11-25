@@ -139,3 +139,17 @@ it("saves the bill even when its invoice file cannot be attached, and says so", 
   expect(await screen.findByText(/The invoice file could not be attached/)).toBeInTheDocument();
   expect(financeApi.createFinBill).toHaveBeenCalled();                                   // the bill itself was not lost
 });
+
+it("does not offer the VAT payment category on a supplier bill", async () => {
+  vi.mocked(financeApi.listFinCategories).mockResolvedValue([
+    { id: 1, kind: "Expense", name: "Company expenses", isActive: true, useCount: 0 },
+    { id: 13, kind: "Expense", name: "VAT paid to tax authority", isActive: true, useCount: 0 },
+  ]);
+  render(<MemoryRouter><BillsPage /></MemoryRouter>);
+
+  await userEvent.click(await screen.findByRole("button", { name: "Enter bill" }));
+  const dialog = await screen.findByRole("dialog");
+
+  expect(within(dialog).getByRole("option", { name: "Company expenses" })).toBeInTheDocument();
+  expect(within(dialog).queryByRole("option", { name: "VAT paid to tax authority" })).not.toBeInTheDocument();
+});

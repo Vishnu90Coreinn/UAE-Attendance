@@ -837,6 +837,20 @@ namespace HrPayroll.Api.Data.Migrations
                         },
                         new
                         {
+                            Id = 13,
+                            IsActive = true,
+                            Kind = "Expense",
+                            Name = "VAT paid to tax authority"
+                        },
+                        new
+                        {
+                            Id = 14,
+                            IsActive = true,
+                            Kind = "Income",
+                            Name = "VAT refund from tax authority"
+                        },
+                        new
+                        {
                             Id = 11,
                             IsActive = true,
                             Kind = "Capital",

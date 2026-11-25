@@ -5,7 +5,7 @@ import { ApiError } from "../../api/client";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
 import { Button, Select, Textarea } from "../../ui";
-import { formatMoney, todayInUae, parseMoneyInput, vatOf } from "./financeFormat";
+import { formatMoney, isVatSettlementCategory, todayInUae, parseMoneyInput, vatOf } from "./financeFormat";
 import { formatBytes, receiptProblem, RECEIPT_MAX_FILES, shrinkPhoto } from "./receiptFile";
 
 type FieldName = "amount" | "entryDate" | "categoryId" | "accountId" | "party" | "reference" | "notes" | "files" | "payeeId" | "lines";
@@ -58,6 +58,7 @@ export function EntryDialog({ kind, entry, accounts, categories, onClose, onSave
   const [taxInclusive, setTaxInclusive] = useState(true);
   const [payeeId, setPayeeId] = useState(entry?.payeeId ? String(entry.payeeId) : "");
   const [split, setSplit] = useState((entry?.lines?.length ?? 0) > 1);
+  const vatSettlement = !split && categoryId !== "" && isVatSettlementCategory(categoryId);
   const [lines, setLines] = useState<LineDraft[]>(() =>
     (entry?.lines?.length ?? 0) > 1 ? entry!.lines!.map((l) => ({ categoryId: String(l.categoryId), amount: String(l.amount), note: l.note ?? "" })) : [{ categoryId: "", amount: "", note: "" }, { categoryId: "", amount: "", note: "" }],
   );
@@ -162,7 +163,7 @@ export function EntryDialog({ kind, entry, accounts, categories, onClose, onSave
       const saved = submitMode ? await submitFinExpense(input) : entry ? await correctFinEntry(kind, entry.id, input) : await createFinEntry(kind, input);
       try {
         localStorage.setItem(LAST_ACCOUNT, accountId);
-        if (!split) localStorage.setItem(LAST_CATEGORY, categoryId);
+        if (!split && !vatSettlement) localStorage.setItem(LAST_CATEGORY, categoryId);
         localStorage.setItem(`hrpayroll.finance.last${kind}Tax`, taxTypeId);
       } catch {
         // Not remembering is harmless.
@@ -284,7 +285,8 @@ export function EntryDialog({ kind, entry, accounts, categories, onClose, onSave
             <button type="button" onClick={() => { setSplit(false); setErrors((e) => ({ ...e, lines: undefined })); }} className="mt-2 text-sm font-medium text-ink-600 hover:underline">Use one category instead</button>
           </fieldset>
         )}
-        {taxTypes.length > 0 && (
+        {vatSettlement && <p className="rounded-lg bg-ink-50 px-3 py-2.5 text-sm text-ink-700">This settles VAT with the tax authority. It carries no VAT of its own and is not a cost.</p>}
+        {taxTypes.length > 0 && !vatSettlement && (
           <fieldset className="rounded-lg border border-line p-4">
             <legend className="px-1 text-sm font-medium text-ink-800">VAT</legend>
             <div className="grid gap-3 sm:grid-cols-2">

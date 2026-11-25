@@ -34,7 +34,7 @@ public sealed class FinanceSubmitController(FinanceEntryService entries, Finance
         // The shared staff accounts show no balance; the petty cash a person holds shows theirs, so they know what is left.
         (await accounts.ListAsync(false, ct)).Where(a => a.StaffCanUse || (a.HolderUserId is { } h && h == FinanceRules.UserId(http)))
             .Select(a => a.HolderUserId is not null ? a with { OpeningBalance = 0m } : a with { OpeningBalance = 0m, Balance = 0m, AccountNumber = null, Iban = null, BankName = null }).ToList(),
-        await categories.ListAsync(FinEntryKinds.Expense, false, ct),
+        (await categories.ListAsync(FinEntryKinds.Expense, false, ct)).Where(c => !FinanceRules.IsVatSettlement(c.Id)).ToList(),
         await payees.ListAsync(FinEntryKinds.Expense, false, ct),
         await categories.TaxTypesAsync(ct)));
 

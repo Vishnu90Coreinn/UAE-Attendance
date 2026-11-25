@@ -88,3 +88,17 @@ it("sends 'no VAT recorded' as zero, so the server does not apply a default behi
   await waitFor(() => expect(financeApi.createFinEntry).toHaveBeenCalled());
   expect(vi.mocked(financeApi.createFinEntry).mock.calls[0][1].taxTypeId).toBe(0);
 });
+
+it("shows no VAT choice when the money goes to the tax authority, and says why", async () => {
+  vi.mocked(financeApi.listFinTaxTypes).mockResolvedValue(taxTypes);
+  const user = userEvent.setup();
+  render(<EntryDialog kind="Expense" accounts={[account]} categories={[...categories, { id: 13, kind: "Expense", name: "VAT paid to tax authority", isActive: true, useCount: 0 }]} variant="center" onClose={vi.fn()} onSaved={vi.fn()} />);
+  await screen.findByLabelText("VAT type");
+
+  await user.selectOptions(screen.getByLabelText("Category"), "13");
+
+  expect(screen.queryByLabelText("VAT type")).not.toBeInTheDocument();
+  expect(screen.getByText(/settles VAT with the tax authority/)).toBeInTheDocument();
+  await user.selectOptions(screen.getByLabelText("Category"), "1");
+  expect(screen.getByLabelText("VAT type")).toBeInTheDocument();      // an ordinary category brings it back
+});

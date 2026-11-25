@@ -132,8 +132,16 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
         if (unmapped.Count > 0)
         {
             var standard = await db.LedgerAccounts.Where(a => !a.IsSystem).ToDictionaryAsync(a => a.Code, ct);
+            var system = await SystemAsync(ct);
             foreach (var c in unmapped)
             {
+                if (FinanceRules.IsVatSettlement(c.Id))
+                {
+                    // Paying the tax authority clears what we owe it; a refund clears what it owed us. Neither is income or cost.
+                    c.LedgerAccountId = (c.Id == FinanceRules.VatPaymentCategoryId ? system[OutputVatCode] : system[InputVatCode]).Id;
+                    continue;
+                }
+
                 var type = c.Kind == FinEntryKinds.Income ? LedgerTypes.Revenue : LedgerTypes.Expense;
                 var match = StandardChart.FirstOrDefault(s => s.Category == c.Name && s.Type == type);
                 // The standard account is used only while it is still ours: same name, so a code the accountant reused for something else is never taken over.

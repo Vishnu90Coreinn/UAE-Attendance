@@ -108,3 +108,8 @@ export function vatOf(typed: number, treatment: string, ratePercent: number, inc
   if (treatment === "ReverseCharge") return { cash: typed, net: typed, tax: round((typed * ratePercent) / 100) };
   return { cash: typed, net: typed, tax: 0 };
 }
+
+/** Paying the tax authority (13) and a refund from it (14): they settle VAT, so they carry no VAT, and are not offered on supplier bills. */
+export function isVatSettlementCategory(id: number | string): boolean {
+  return Number(id) === 13 || Number(id) === 14;
+}

@@ -5,7 +5,7 @@ import { ApiError } from "../../api/client";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
 import { Button, Select, Textarea } from "../../ui";
-import { formatMoney, parseMoneyInput, todayInUae, vatOf } from "./financeFormat";
+import { formatMoney, isVatSettlementCategory, parseMoneyInput, todayInUae, vatOf } from "./financeFormat";
 import { formatBytes, receiptProblem, RECEIPT_MAX_FILES } from "./receiptFile";
 
 interface Line { category: string; amount: string; note: string }
@@ -20,7 +20,7 @@ function plusDays(iso: string, days: number): string {
 export function BillDialog({ categories, payees, taxTypes, variant, onClose, onSaved }: {
   categories: FinCategory[]; payees: FinPayee[]; taxTypes: FinTaxType[]; variant: "center" | "sheet"; onClose: () => void; onSaved: (bill: FinBill, note?: string) => void;
 }) {
-  const expense = categories.filter((c) => c.kind === "Expense" && c.isActive);
+  const expense = categories.filter((c) => c.kind === "Expense" && c.isActive && !isVatSettlementCategory(c.id));
   const [payeeId, setPayeeId] = useState("");
   const [supplier, setSupplier] = useState("");
   const [supplierRef, setSupplierRef] = useState("");

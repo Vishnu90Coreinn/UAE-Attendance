@@ -26,7 +26,7 @@ public sealed class FinanceVatService(AppDbContext db, TimeProvider time)
         if (errors.Count > 0) return FinResult<FinVatReport>.Invalid(errors);
 
         var entries = await db.FinEntries.AsNoTracking()
-            .Where(e => e.Status == FinStatuses.Active && e.InvoiceId == null && e.BillId == null && (e.Kind == FinEntryKinds.Expense || e.Kind == FinEntryKinds.Income) && e.EntryDate >= start && e.EntryDate <= end)
+            .Where(e => e.Status == FinStatuses.Active && e.InvoiceId == null && e.BillId == null && e.CategoryId != FinanceRules.VatPaymentCategoryId && e.CategoryId != FinanceRules.VatRefundCategoryId && (e.Kind == FinEntryKinds.Expense || e.Kind == FinEntryKinds.Income) && e.EntryDate >= start && e.EntryDate <= end)
             .Select(e => new { e.Kind, e.TaxTypeId, e.Amount, e.TaxAmount }).ToListAsync(ct);
         var list = entries.Select(e => new { e.Kind, e.TaxTypeId, e.Amount, e.TaxAmount }).ToList();
         // Tax invoices carry their VAT from the day they are issued (the tax point), whether or not they have been paid. A payment on one adds nothing here.

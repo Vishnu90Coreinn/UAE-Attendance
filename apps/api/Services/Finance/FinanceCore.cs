@@ -24,6 +24,14 @@ public static class FinanceRules
     /// <summary>The largest amount a decimal(12,2) column can hold.</summary>
     public const decimal MaxAmount = 9_999_999_999.99m;
 
+    /// <summary>
+    /// The two categories for settling VAT with the tax authority: money paid to it (clears "VAT payable") and money received from it (clears "VAT recoverable").
+    /// They carry no VAT of their own and are not part of the VAT return, bills or staff entry.
+    /// </summary>
+    public const int VatPaymentCategoryId = 13;
+    public const int VatRefundCategoryId = 14;
+    public static bool IsVatSettlement(int categoryId) => categoryId is VatPaymentCategoryId or VatRefundCategoryId;
+
     /// <summary>Today on UAE time, which is what "not in the future" means for the company.</summary>
     public static DateOnly Today(TimeProvider time) => StaffTime.Today(time);
 

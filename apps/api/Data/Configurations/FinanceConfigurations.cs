@@ -52,6 +52,9 @@ public sealed class FinCategoryConfiguration : IEntityTypeConfiguration<FinCateg
             new FinCategory { Id = 8, Kind = FinEntryKinds.Expense, Name = "Dubai Insurance" },
             new FinCategory { Id = 9, Kind = FinEntryKinds.Expense, Name = "Commission for Labor" },
             new FinCategory { Id = 10, Kind = FinEntryKinds.Income, Name = "Other income" },
+            // Settling VAT with the tax authority: posts to VAT payable / VAT recoverable, never to income or cost.
+            new FinCategory { Id = 13, Kind = FinEntryKinds.Expense, Name = "VAT paid to tax authority" },
+            new FinCategory { Id = 14, Kind = FinEntryKinds.Income, Name = "VAT refund from tax authority" },
             // Capital entries need a category row like every entry; these two are fixed and never offered in Settings or on the entry forms.
             new FinCategory { Id = 11, Kind = FinEntryKinds.Capital, Name = "Capital contribution" },
             new FinCategory { Id = 12, Kind = FinEntryKinds.CapitalOut, Name = "Capital returned" });

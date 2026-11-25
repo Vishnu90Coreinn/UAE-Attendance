@@ -274,6 +274,11 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
                     errors["lines"] = [$"The lines add up to AED {lineRows.Sum(l => l.Amount):N2} but the amount is AED {form.Amount:N2}."];
                 if (lineRows.Count > 0) category = lineRows.OrderByDescending(l => l.Amount).First().Category;
             }
+
+            // Settling VAT with the tax authority is booked by a Manager; staff entry and split lines do not offer it.
+            var vatLine = lineRows.Any(l => FinanceRules.IsVatSettlement(l.CategoryId));
+            if (((category is not null && FinanceRules.IsVatSettlement(category.Id) && pending) || (vatLine && lineRows.Count > 1)) && !errors.ContainsKey("categoryId"))
+                errors["categoryId"] = [pending ? "Choose one of the expense categories offered to you." : "A VAT payment or refund cannot be split across categories."];
         }
 
         FinAccount? account = null;
@@ -303,7 +308,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         FinTaxType? taxType = null;
         if (!capital && !errors.ContainsKey("amount"))
         {
-            var taxId = form.TaxTypeId is 0 ? null : form.TaxTypeId ?? category?.DefaultTaxTypeId;
+            var taxId = form.TaxTypeId is 0 || (category is not null && FinanceRules.IsVatSettlement(category.Id)) ? null : form.TaxTypeId ?? category?.DefaultTaxTypeId;   // settling VAT carries no VAT
             if (taxId is { } id)
             {
                 taxType = await db.FinTaxTypes.AsNoTracking().SingleOrDefaultAsync(t => t.Id == id, ct);
