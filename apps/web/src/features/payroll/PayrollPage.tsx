@@ -293,7 +293,7 @@ export function PayrollPage() {
           <>
             <div className="rounded-card border border-line bg-white p-4 shadow-card sm:hidden">
               <p className="text-xs font-semibold uppercase text-ink-600">Total net payroll (AED)</p>
-              <p className="mt-1 text-3xl font-bold tabular-nums text-ink-900">
+              <p className="mt-1 font-display text-3xl font-bold tabular-nums text-ink-900">
                 {report.totals.netPay.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
               <p className="mt-1 text-sm text-ink-600">

@@ -164,7 +164,7 @@ export function EntryDialog({ kind, entry, accounts, categories, onClose, onSave
 
         <fieldset className="rounded-lg border border-dashed border-ink-300 p-4" aria-describedby="receipt-help">
           <legend className="px-1 text-sm font-medium text-ink-800">{income ? "Attachment (optional)" : "Receipt or supplier invoice"}</legend>
-          <p id="receipt-help" className="text-sm text-ink-600">{income ? "Optional, for example a remittance advice or the cheque. A photo" : "Required. A photo, a PDF or a PNG, up to 5 MB each, at most {RECEIPT_MAX_FILES} files."}</p>
+          <p id="receipt-help" className="text-sm text-ink-600">{income ? "Optional, for example a remittance advice or the cheque. A photo" : `Required. A photo, a PDF or a PNG, up to 5 MB each, at most ${RECEIPT_MAX_FILES} files.`}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-ink-300 bg-white px-4 text-sm font-medium text-ink-800 hover:bg-ink-50 focus-within:outline-2 focus-within:outline-brand-500 md:min-h-10">
               <Camera aria-hidden="true" size={16} /> Take photo

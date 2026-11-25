@@ -93,14 +93,14 @@ export function StaffAttendancePage() {
         <div className="grid gap-6 p-5 lg:grid-cols-[auto_1fr] lg:items-center">
           <div className="flex items-end gap-6">
             <div>
-              <p className="text-5xl font-semibold leading-none tabular-nums text-ink-900">
+              <p className="font-display text-5xl font-semibold leading-none tabular-nums text-ink-900">
                 {dash.signedIn}
                 <span className="text-2xl font-normal text-ink-500"> / {dash.total}</span>
               </p>
               <p className="mt-1 text-sm text-ink-600">signed in today</p>
             </div>
             <div className="border-l border-line pl-6">
-              <p className="flex items-center gap-2 text-3xl font-semibold leading-none tabular-nums text-ink-900">
+              <p className="flex items-center gap-2 font-display text-3xl font-semibold leading-none tabular-nums text-ink-900">
                 {inOfficeNow > 0 && <LiveDot />}
                 {inOfficeNow}
               </p>

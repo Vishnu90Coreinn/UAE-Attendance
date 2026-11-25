@@ -29,14 +29,14 @@ function failure(error: unknown): string {
 function CapitalPanel({ data }: { data: FinPartners }) {
   const holders = data.partners.filter((p) => p.netCapital > 0);
   return (
-    <section aria-labelledby="total-capital" className="overflow-hidden rounded-card bg-sidebar text-white shadow-card">
+    <section aria-labelledby="total-capital" className="fade-up overflow-hidden rounded-card bg-sidebar text-white shadow-card">
       <div className="grid gap-6 p-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] md:p-7">
         <div>
           <p id="total-capital" className="flex items-center gap-2 text-sm font-medium text-white/75">
             <UsersRound aria-hidden="true" size={16} />
             Total capital
           </p>
-          <p className="mt-2 text-4xl font-semibold tracking-tight tabular-nums md:text-5xl">
+          <p className="mt-2 font-display text-4xl font-bold tracking-tight tabular-nums md:text-5xl">
             <span className="mr-2 text-lg font-medium text-white/70">AED</span>
             {formatMoney(data.totalCapital)}
           </p>
@@ -84,7 +84,7 @@ function PartnerCard({ partner, canEdit, onEdit, onAdd }: { partner: FinPartner;
         {!partner.isActive && <StatusBadge tone="neutral" variant="soft">Switched off</StatusBadge>}
       </header>
 
-      <p className="mt-4 text-4xl font-semibold tracking-tight tabular-nums text-brand-700">
+      <p className="mt-4 font-display text-4xl font-bold tracking-tight tabular-nums text-brand-700">
         {formatPercent(partner.share)}
         <span className="ml-2 text-sm font-medium tracking-normal text-ink-600">of the capital</span>
       </p>
@@ -257,7 +257,7 @@ export function PartnersPage() {
       {ready && ready.partners.partners.length > 0 && (
         <>
           <CapitalPanel data={ready.partners} />
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div style={{ "--i": 1 } as React.CSSProperties} className="fade-up grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {ready.partners.partners.map((p) => (
               <PartnerCard key={p.id} partner={p} canEdit={canEdit} onEdit={() => setEditing(p)} onAdd={() => setCapital({ kind: "Capital", partnerId: p.id })} />
             ))}

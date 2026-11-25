@@ -33,7 +33,7 @@ function TotalPanel({ accounts }: { accounts: FinAccount[] }) {
   const split = active.filter((a) => a.balance > 0).map((a, index) => ({ account: a, percent: sharePercent(a.balance, positive), color: SEGMENTS[index % SEGMENTS.length] }));
 
   return (
-    <section aria-labelledby="total-balance" className="overflow-hidden rounded-card bg-sidebar text-white shadow-card">
+    <section aria-labelledby="total-balance" className="fade-up overflow-hidden rounded-card bg-sidebar text-white shadow-card">
       <div className="grid gap-6 p-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] md:p-7">
         <div>
           <p id="total-balance" className="flex items-center gap-2 text-sm font-medium text-white/75">
@@ -42,7 +42,7 @@ function TotalPanel({ accounts }: { accounts: FinAccount[] }) {
           </p>
           <p className={cx("mt-2 flex flex-wrap items-baseline gap-x-2 tabular-nums", total < 0 && "text-red-200")}>
             <span className="text-lg font-medium text-white/70">AED</span>
-            <span className="text-4xl font-semibold tracking-tight md:text-5xl">{formatMoney(total)}</span>
+            <span className="font-display text-4xl font-bold tracking-tight md:text-5xl">{formatMoney(total)}</span>
           </p>
           <p className="mt-3 text-sm text-white/70">
             {active.length === 1 ? "1 account" : `${active.length} accounts`} · worked out from every entry and transfer
@@ -116,7 +116,7 @@ function AccountCard({ account, share, canEdit, onEdit, onTransfer, onSwitch }: 
 
       <p className={cx("mt-5 flex items-baseline gap-2 tabular-nums", overdrawn ? "text-danger" : "text-ink-900")}>
         <span className="text-sm font-medium text-ink-500">AED</span>
-        <span className="text-3xl font-semibold tracking-tight">{formatMoney(account.balance)}</span>
+        <span className="font-display text-3xl font-bold tracking-tight">{formatMoney(account.balance)}</span>
       </p>
       {account.isActive && share > 0 && (
         <div className="mt-3" aria-hidden="true">
@@ -305,7 +305,7 @@ export function AccountsPage() {
       {ready && ready.accounts.length > 0 && (
         <>
           <TotalPanel accounts={ready.accounts} />
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div style={{ "--i": 1 } as React.CSSProperties} className="fade-up grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {active.map((account) => (
               <AccountCard
                 key={account.id}

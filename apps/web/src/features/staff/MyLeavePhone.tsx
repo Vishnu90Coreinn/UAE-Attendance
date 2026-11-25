@@ -54,7 +54,7 @@ export function MyLeavePhone({
           <li key={b.leaveTypeId} className="rounded-2xl border border-line bg-white p-3.5 shadow-card">
             <p className="truncate text-sm font-semibold text-ink-700">{b.leaveType}</p>
             <p className="mt-1 flex items-baseline gap-1.5">
-              <span className="text-3xl font-bold leading-none tabular-nums text-ink-900">{b.remaining}</span>
+              <span className="font-display text-3xl font-bold leading-none tabular-nums text-ink-900">{b.remaining}</span>
               <span className="text-sm text-ink-600">of {b.entitlement} left</span>
             </p>
             <div className="mt-2.5">

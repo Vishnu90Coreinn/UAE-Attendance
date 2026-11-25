@@ -252,7 +252,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
         <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line bg-brand-50/60 px-5 py-4">
           <div>
             <p className="text-sm font-medium text-ink-600">{filtered ? `Total of the matching ${noun}${income ? "" : "s"}` : income ? "Total received" : "Total spent"} · {periodLabel}</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
+            <p className="mt-1 font-display text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
               {result ? <Amount value={result.total} /> : <span className="text-ink-400">...</span>}
             </p>
           </div>

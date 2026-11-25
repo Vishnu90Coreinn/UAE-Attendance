@@ -12,7 +12,7 @@ export function PageHeader({ title, description, actions }: PageHeaderProps) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
       <div className="min-w-0">
-        <h2 className="text-2xl font-semibold tracking-tight text-ink-900">{title}</h2>
+        <h2 className="font-display text-2xl font-bold tracking-tight text-ink-900 md:text-[1.75rem]">{title}</h2>
         {description && <p className="mt-1 max-w-2xl text-sm text-ink-600">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

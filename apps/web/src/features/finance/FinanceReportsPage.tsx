@@ -41,12 +41,12 @@ function BridgePanel({ report }: { report: FinReport }) {
     ...(totals.capital !== 0 ? [{ label: "Capital", value: Math.abs(totals.capital), sign: totals.capital < 0 ? "−" : "+" }] : []),
   ];
   return (
-    <section aria-labelledby="closing" className="overflow-hidden rounded-card bg-sidebar text-white shadow-card">
+    <section aria-labelledby="closing" className="fade-up overflow-hidden rounded-card bg-sidebar text-white shadow-card">
       <div className="p-5 md:p-7">
         <p id="closing" className="text-sm font-medium text-white/75">
           Closing balance · {formatDay(report.to)}
         </p>
-        <p className={cx("mt-2 text-4xl font-semibold tracking-tight tabular-nums md:text-5xl", totals.closing < 0 && "text-red-200")}>
+        <p className={cx("mt-2 font-display text-4xl font-bold tracking-tight tabular-nums md:text-5xl", totals.closing < 0 && "text-red-200")}>
           {totals.closing < 0 && <span aria-label="minus">−</span>}
           <span className="mr-2 text-lg font-medium text-white/70">AED</span>
           {formatMoney(Math.abs(totals.closing))}

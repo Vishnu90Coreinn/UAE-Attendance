@@ -75,6 +75,7 @@ export function Dialog({ open, onClose, title, children, initialFocusRef, descri
     <dialog
       ref={dialogRef}
       aria-labelledby={headingId}
+      data-variant={variant}
       aria-describedby={open ? descriptionId : undefined}
       onKeyDown={handleKeyDown}
       onCancel={handleCancel}
@@ -83,7 +84,7 @@ export function Dialog({ open, onClose, title, children, initialFocusRef, descri
     >
       {variant === "sheet" ? (
         <div className="flex items-center justify-between gap-3">
-          <h2 id={headingId} className="text-lg font-semibold text-ink-900">
+          <h2 id={headingId} className="font-display text-lg font-semibold text-ink-900">
             {title}
           </h2>
           <button
@@ -96,7 +97,7 @@ export function Dialog({ open, onClose, title, children, initialFocusRef, descri
           </button>
         </div>
       ) : (
-        <h2 id={headingId} className="text-xl font-semibold tracking-tight text-ink-900">
+        <h2 id={headingId} className="font-display text-xl font-semibold tracking-tight text-ink-900">
           {title}
         </h2>
       )}

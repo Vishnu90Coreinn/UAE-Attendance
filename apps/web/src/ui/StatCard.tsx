@@ -63,7 +63,7 @@ export function StatCard({ label, value, icon: Icon, note, tone = "brand", compa
           </span>
         )}
       </div>
-      <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight text-ink-900">{value}</p>
+      <p className="mt-2 font-display text-2xl font-semibold tabular-nums tracking-tight text-ink-900">{value}</p>
       {note && <p className="mt-1 text-xs text-ink-500">{note}</p>}
     </Card>
   );

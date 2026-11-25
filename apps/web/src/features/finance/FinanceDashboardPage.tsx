@@ -69,13 +69,13 @@ function ResultPanel({ data }: { data: FinDashboard }) {
     { key: "Expenses", value: current.expense, before: data.previous.expense, color: "bg-amber-300", icon: TrendingDown },
   ];
   return (
-    <section aria-labelledby="net-result" className="overflow-hidden rounded-card bg-sidebar text-white shadow-card">
+    <section aria-labelledby="net-result" className="fade-up overflow-hidden rounded-card bg-sidebar text-white shadow-card">
       <div className="grid gap-6 p-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] md:p-7">
         <div>
           <p id="net-result" className="text-sm font-medium text-white/75">
             Net result · {label}
           </p>
-          <p className={cx("mt-2 text-4xl font-semibold tracking-tight tabular-nums md:text-5xl", current.net < 0 && "text-red-200")}>
+          <p className={cx("mt-2 font-display text-4xl font-bold tracking-tight tabular-nums md:text-5xl", current.net < 0 && "text-red-200")}>
             {current.net < 0 && <span aria-label="minus">−</span>}
             <span className="mr-2 text-lg font-medium text-white/70">AED</span>
             {formatMoney(Math.abs(current.net))}
@@ -318,11 +318,11 @@ export function FinanceDashboardPage() {
       {load.status === "ready" && (
         <>
           <ResultPanel data={load.data} />
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          <div style={{ "--i": 1 } as React.CSSProperties} className="fade-up grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
             <TrendCard data={load.data} />
             <SpendingCard data={load.data} />
           </div>
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+          <div style={{ "--i": 2 } as React.CSSProperties} className="fade-up grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
             <BalancesCard data={load.data} />
             <LatestCard data={load.data} />
           </div>

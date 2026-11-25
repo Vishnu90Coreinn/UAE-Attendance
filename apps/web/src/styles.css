@@ -1,8 +1,6 @@
 @import "tailwindcss";
-@import "@fontsource/ibm-plex-sans/400.css";
-@import "@fontsource/ibm-plex-sans/500.css";
-@import "@fontsource/ibm-plex-sans/600.css";
-@import "@fontsource/ibm-plex-sans/700.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/plus-jakarta-sans";
 @import "@fontsource/ibm-plex-mono/500.css";
 
 /*
@@ -12,11 +10,13 @@
  * have not been migrated to the component kit yet already follow the new look.
  */
 @theme {
-  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  /* Titles and the big money figures. Body text, tables and forms stay Inter. */
+  --font-display: "Plus Jakarta Sans Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", monospace;
 
   /* Brand: deep teal from the company logo */
-  --color-brand-50: #e6f2f2;
+  --color-brand-50: #e9f4ef;
   --color-brand-100: #cce5e5;
   --color-brand-200: #99cbcc;
   --color-brand-300: #66b0b2;
@@ -39,8 +39,11 @@
   --color-ink-800: #1f343a;
   --color-ink-900: #13262a;
   --color-sidebar: #0c2a2d;
-  --color-canvas: #f5f7f8;
-  --color-line: #e3e8ea;
+  --color-canvas: #f3f6f3;
+  --color-line: #e0e8e3;
+  --color-mint-100: #dcefe6;
+  --color-pistachio: #d9e8a8;
+  --color-pistachio-hover: #e6f0bf;
 
   /* Status */
   --color-success: #15803d;
@@ -48,9 +51,11 @@
   --color-danger: #b91c1c;
   --color-info: #0369a1;
 
-  --radius-card: 0.75rem;
-  --shadow-card: 0 1px 2px rgb(19 38 42 / 0.05);
-  --shadow-pop: 0 8px 24px rgb(19 38 42 / 0.12);
+  --radius-lg: 0.625rem;
+  --radius-card: 1rem;
+  --shadow-card: 0 1px 2px rgb(16 40 36 / 0.04), 0 12px 28px -16px rgb(16 40 36 / 0.14);
+  --shadow-pop: 0 18px 48px -12px rgb(16 40 36 / 0.28), 0 2px 6px rgb(16 40 36 / 0.08);
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 
   /* Legacy remap: unmigrated screens pick up the brand and neutral palette. */
   --color-blue-50: #e6f2f2;
@@ -100,6 +105,50 @@
       transition-duration: 0.01ms !important;
     }
   }
+}
+
+/* Select: a custom chevron so every device draws the same control. */
+.select-control {
+  appearance: none;
+  padding-right: 2.5rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2351666b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.875rem center;
+  background-size: 1rem;
+}
+
+/* Dialogs fade and scale in over a softly blurred backdrop; a phone sheet slides up. */
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes sheet-in {
+  from { transform: translateY(24px); opacity: 0.6; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+dialog[open] { animation: dialog-in 200ms var(--ease-out); }
+dialog[open][data-variant="sheet"] { animation: sheet-in 260ms var(--ease-out); }
+dialog[open]::backdrop { animation: backdrop-in 200ms ease-out; backdrop-filter: blur(4px); }
+
+/* Content rises into place; give siblings a rising --i for a short stagger. */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.fade-up { animation: fade-up 360ms var(--ease-out) calc(var(--i, 0) * 50ms) both; }
+
+/* Loading placeholders shimmer instead of pulsing. */
+@keyframes shimmer {
+  to { background-position: -200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #e6ece9 0%, #f4f8f6 50%, #e6ece9 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
 }
 
 /* Login page motion (disabled globally by the prefers-reduced-motion rule above). */

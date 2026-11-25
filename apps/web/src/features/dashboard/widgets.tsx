@@ -118,7 +118,7 @@ export function LeadFigure({
       {!loading && !failed && (
         <>
           <p className="mt-0.5 flex items-baseline gap-2 tabular-nums">
-            <span className="text-5xl font-semibold leading-none tracking-tight text-ink-900 sm:text-6xl">{present}</span>
+            <span className="font-display text-5xl font-semibold leading-none tracking-tight text-ink-900 sm:text-6xl">{present}</span>
             <span className="text-2xl font-medium text-ink-500">/ {total}</span>
             <span className="ml-auto self-end text-sm font-semibold text-brand-700">{rate}%</span>
           </p>
@@ -158,7 +158,7 @@ export function DecisionFigure({ count, detail, to, loading }: { count: number; 
         <div className="mt-3"><Skeleton height={64} /></div>
       ) : (
         <div>
-          <p className="mt-1 text-4xl font-semibold leading-none tabular-nums">{count}</p>
+          <p className="mt-1 font-display text-4xl font-semibold leading-none tabular-nums">{count}</p>
           <p className={`mt-1.5 text-sm ${active ? "text-brand-100" : "text-ink-600"}`}>{detail}</p>
         </div>
       )}
@@ -179,7 +179,7 @@ export function ReceivablesFigure({ state }: { state: Load<InvoiceSummary[]> }) 
       {state.status === "error" && <p className="mt-3 text-sm text-red-800">Could not load.</p>}
       {t && (
         <div>
-          <p className="mt-1 truncate text-3xl font-semibold leading-none tabular-nums text-ink-900">{money.format(t.outstanding)}</p>
+          <p className="mt-1 truncate font-display text-3xl font-semibold leading-none tabular-nums text-ink-900">{money.format(t.outstanding)}</p>
           <p className={`mt-1.5 text-sm ${t.overdueCount > 0 ? "font-medium text-red-800" : "text-ink-600"}`}>
             {t.overdueCount > 0 ? `${t.overdueCount} overdue · AED ${money.format(t.overdue)}` : t.openCount > 0 ? `${t.openCount} open, none overdue` : "No unpaid invoices"}
           </p>
@@ -679,7 +679,7 @@ export function Payroll({ state, staffState }: { state: Load<PayrollReport>; sta
                 <span aria-hidden="true" className="pb-0.5 text-lg text-ink-400">=</span>
                 <div>
                   <dt className="text-xs font-semibold text-brand-700">Net payroll (AED)</dt>
-                  <dd className="text-2xl font-semibold tabular-nums text-ink-900">{money.format(totals!.netPay)}</dd>
+                  <dd className="font-display text-2xl font-semibold tabular-nums text-ink-900">{money.format(totals!.netPay)}</dd>
                 </div>
               </div>
             </dl>
