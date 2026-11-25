@@ -16,6 +16,7 @@ public sealed class FinanceBillService(AppDbContext db, FinanceLedgerService led
 {
     public const string PaymentCategoryName = "Supplier bill payments";
     private const int MaxLines = 50;
+    private const int ListCap = 500;
 
     private DateOnly Today => FinanceRules.Today(time);
 
@@ -55,15 +56,23 @@ public sealed class FinanceBillService(AppDbContext db, FinanceLedgerService led
             query = query.Where(b => b.SupplierName.Contains(text) || b.BillNo.Contains(text) || (b.SupplierRef != null && b.SupplierRef.Contains(text)));
         }
 
-        var all = await ToResponsesAsync(await query.OrderByDescending(b => b.BillDate).ThenByDescending(b => b.Id).Take(500).ToListAsync(ct), ct);
-        return (status ?? "all").ToLowerInvariant() switch
+        // What is paid or overdue depends on the payments, so those lists are worked out first and capped afterwards: a cap on the newest bills must never hide an old unpaid one.
+        var filter = (status ?? "all").ToLowerInvariant();
+        query = filter switch
         {
-            "unpaid" => all.Where(b => b.Display is "Open" or "PartPaid" or "Overdue").ToList(),
-            "overdue" => all.Where(b => b.Display == "Overdue").ToList(),
-            "paid" => all.Where(b => b.Display == "Paid").ToList(),
-            "voided" => all.Where(b => b.Display == "Voided").ToList(),
-            _ => all,
+            "voided" => query.Where(b => b.Status == FinBillStatuses.Voided),
+            "unpaid" or "overdue" or "paid" => query.Where(b => b.Status == FinBillStatuses.Open),
+            _ => query,
         };
+        var ordered = query.OrderByDescending(b => b.BillDate).ThenByDescending(b => b.Id);
+        var all = await ToResponsesAsync(filter is "all" or "voided" ? await ordered.Take(ListCap).ToListAsync(ct) : await ordered.ToListAsync(ct), ct);
+        return (filter switch
+        {
+            "unpaid" => all.Where(b => b.Display is "Open" or "PartPaid" or "Overdue"),
+            "overdue" => all.Where(b => b.Display == "Overdue"),
+            "paid" => all.Where(b => b.Display == "Paid"),
+            _ => all,
+        }).Take(ListCap).ToList();
     }
 
     public async Task<FinResult<FinBillResponse>> GetAsync(int id, CancellationToken ct)

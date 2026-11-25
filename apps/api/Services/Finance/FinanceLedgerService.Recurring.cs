@@ -64,6 +64,7 @@ public sealed partial class FinanceLedgerService
         else if (description.Length > 200) errors["description"] = ["Use 200 characters or fewer."];
         if (request.DayOfMonth is not (>= 1 and <= 31)) errors["dayOfMonth"] = ["Choose a day from 1 to 31. A shorter month uses its last day."];
         if (!TryMonth(request.StartMonth, out var start)) errors["startMonth"] = ["Choose the first month."];
+        else if (start < new DateOnly(FinanceRules.Today(time).Year - 2, 1, 1)) errors["startMonth"] = ["The first month cannot be more than two years back. Post anything older with an ordinary journal."];   // one click posts every month since, so a typo must not post hundreds
         DateOnly? end = null;
         if (!string.IsNullOrWhiteSpace(request.EndMonth))
         {

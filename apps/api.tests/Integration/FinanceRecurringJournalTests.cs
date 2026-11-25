@@ -91,6 +91,16 @@ public class FinanceRecurringJournalTests(ApiFixture api) : IClassFixture<ApiFix
     }
 
     [Fact]
+    public async Task AFirstMonthMoreThanTwoYearsBack_IsRefused()
+    {
+        var token = await ManagerAsync();
+        var (insurance, prepaid) = (await IdOfAsync(token, "5310"), await IdOfAsync(token, "1700"));
+        var tooOld = await SendAsync(HttpMethod.Post, "/api/finance/ledger/recurring", token, Template("Typo", insurance, prepaid, 10m, new DateOnly(2000, 1, 1)));
+        Assert.Equal(HttpStatusCode.BadRequest, tooOld.Status);
+        Assert.Contains("two years", tooOld.Body.GetProperty("errors").GetProperty("startMonth")[0].GetString());
+    }
+
+    [Fact]
     public async Task ADayBeyondTheEndOfAShortMonth_UsesTheLastDay_AndAFutureDayWaits()
     {
         var token = await ManagerAsync();

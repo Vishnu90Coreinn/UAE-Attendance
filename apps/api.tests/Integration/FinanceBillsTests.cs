@@ -199,3 +199,53 @@ public class FinanceBillsTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(HttpStatusCode.Conflict, (await UploadAsync(token, bill, ("late.pdf", Pdf))).Status);
     }
 }
+
+/// <summary>The "not fully paid" list is worked out before it is capped, so a pile of newer paid bills never hides an old unpaid one.</summary>
+public class FinanceBillsListCapTests(ApiFixture api) : IClassFixture<ApiFixture>
+{
+    [Fact]
+    public async Task AnOldUnpaidBill_StillShowsWhenMoreThanFiveHundredNewerBillsArePaid()
+    {
+        var token = (await TestWorkers.SignInAsync(api, Roles.Manager)).Token;
+        var today = TestFinance.Today;
+        var account = await TestFinance.AddAccountAsync(api.ConnectionString, opening: 1_000m, openingDate: today.AddDays(-900));
+        await using (var db = TestUsers.NewContext(api.ConnectionString))
+        {
+            var now = DateTime.UtcNow;
+            for (var i = 0; i < 505; i++)
+            {
+                var bill = new HrPayroll.Api.Data.Entities.FinBill
+                {
+                    BillNo = $"CAP-{i:0000}", SupplierName = "Bulk supplier", BillDate = today.AddDays(-400 + i / 2), DueDate = today.AddDays(30), Net = 10m, Total = 10m, CreatedBy = "tester", CreatedUtc = now,
+                };
+                bill.Lines.Add(new HrPayroll.Api.Data.Entities.FinBillLine { CategoryId = 1, Amount = 10m });
+                db.FinBills.Add(bill);
+            }
+
+            var old = new HrPayroll.Api.Data.Entities.FinBill { BillNo = "CAP-OLD", SupplierName = "Old supplier", BillDate = today.AddDays(-800), DueDate = today.AddDays(-770), Net = 10m, Total = 10m, CreatedBy = "tester", CreatedUtc = now };
+            old.Lines.Add(new HrPayroll.Api.Data.Entities.FinBillLine { CategoryId = 1, Amount = 10m });
+            db.FinBills.Add(old);
+            await db.SaveChangesAsync();
+            // The 505 newer bills are all paid in full by an expense entry that carries the bill's id.
+            foreach (var bill in db.FinBills.Where(b => b.BillNo.StartsWith("CAP-0")).ToList())
+            {
+                var entry = new HrPayroll.Api.Data.Entities.FinEntry
+                {
+                    Kind = "Expense", EntryNo = "EXP-C" + bill.Id.ToString("00000"), EntryDate = today.AddDays(-1), CategoryId = 1, Party = "Bulk supplier", AccountId = account.Id, Amount = 10m, CreatedBy = "tester", CreatedUtc = now, BillId = bill.Id,
+                };
+                entry.Lines.Add(new HrPayroll.Api.Data.Entities.FinEntryLine { CategoryId = 1, Amount = 10m });
+                db.FinEntries.Add(entry);
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/finance/bills?status=unpaid");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var response = await api.Client.SendAsync(request);
+        var list = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.EnumerateArray().ToList();
+
+        Assert.Single(list);                                                         // only the old one is still owed
+        Assert.Equal("CAP-OLD", list[0].GetProperty("billNo").GetString());
+    }
+}
