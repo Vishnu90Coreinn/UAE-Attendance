@@ -77,15 +77,17 @@ function KindList({ kind, title, hint, items, onChanged }: {
               </form>
             ) : (
               <>
-                <span className={`min-w-0 flex-1 break-words text-sm ${c.isActive ? "text-ink-900" : "text-ink-500 line-through"}`}>{c.name}</span>
+                <span className={`min-w-0 basis-full break-words text-[15px] font-medium sm:flex-1 sm:basis-0 ${c.isActive ? "text-ink-900" : "text-ink-500 line-through"}`}>{c.name}</span>
                 {!c.isActive && <StatusBadge tone="neutral" variant="soft">Switched off</StatusBadge>}
-                <span className="text-xs tabular-nums text-ink-500">{c.useCount === 1 ? "1 entry" : `${c.useCount} entries`}</span>
-                <Button size="sm" variant="ghost" icon={Pencil} onClick={() => setRenaming({ id: c.id, name: c.name })} aria-label={`Rename ${c.name}`}>
-                  Rename
-                </Button>
-                <Button size="sm" variant="ghost" icon={Power} disabled={pending} onClick={() => void run(() => updateFinCategory(c.id, c.name, !c.isActive))} aria-label={`${c.isActive ? "Switch off" : "Switch on"} ${c.name}`}>
-                  {c.isActive ? "Switch off" : "Switch on"}
-                </Button>
+                <span className="mr-auto text-xs tabular-nums text-ink-500 sm:mr-0">{c.useCount === 1 ? "1 entry" : `${c.useCount} entries`}</span>
+                <span className="flex gap-1">
+                  <Button size="sm" variant="ghost" icon={Pencil} className="px-2 text-ink-600" onClick={() => setRenaming({ id: c.id, name: c.name })} aria-label={`Rename ${c.name}`}>
+                    Rename
+                  </Button>
+                  <Button size="sm" variant="ghost" icon={Power} className="px-2 text-ink-600" disabled={pending} onClick={() => void run(() => updateFinCategory(c.id, c.name, !c.isActive))} aria-label={`${c.isActive ? "Switch off" : "Switch on"} ${c.name}`}>
+                    {c.isActive ? "Switch off" : "Switch on"}
+                  </Button>
+                </span>
               </>
             )}
           </li>

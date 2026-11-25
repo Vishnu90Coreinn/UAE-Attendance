@@ -108,7 +108,7 @@ function AccountCard({ account, share, canEdit, onEdit, onTransfer, onSwitch }: 
           <Icon size={20} />
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="break-words text-base font-semibold leading-snug text-ink-900">{account.name}</h3>
+          <h3 className="break-words font-display text-lg font-bold leading-snug text-ink-900">{account.name}</h3>
           <p className="mt-0.5 text-sm text-ink-600">{[account.kind === "Cash" ? "Cash" : "Bank account", account.bankName].filter(Boolean).join(" · ")}</p>
         </div>
         {!account.isActive && <StatusBadge tone="neutral" variant="soft">Switched off</StatusBadge>}
@@ -132,13 +132,13 @@ function AccountCard({ account, share, canEdit, onEdit, onTransfer, onSwitch }: 
         {account.accountNumber && (
           <div className="flex justify-between gap-3">
             <dt className="text-ink-600">Account no.</dt>
-            <dd className="font-mono text-ink-900">{account.accountNumber}</dd>
+            <dd className="font-mono text-[13px] text-ink-700">{account.accountNumber}</dd>
           </div>
         )}
         {account.iban && (
           <div className="flex justify-between gap-3">
             <dt className="text-ink-600">IBAN</dt>
-            <dd className="break-all text-right font-mono text-ink-900">{account.iban}</dd>
+            <dd className="break-all text-right font-mono text-[13px] text-ink-700">{account.iban}</dd>
           </div>
         )}
         <div className="flex justify-between gap-3">
@@ -149,7 +149,7 @@ function AccountCard({ account, share, canEdit, onEdit, onTransfer, onSwitch }: 
         </div>
       </dl>
 
-      <p className="mt-auto flex flex-wrap gap-x-4 text-sm font-medium text-brand-700">
+      <p className="mt-auto flex flex-wrap gap-x-4 text-[13px] font-medium text-brand-700">
         <Link to={`/finance/expenses?account=${account.id}&period=all`} className="inline-flex min-h-11 items-center gap-1 hover:underline md:min-h-9" aria-label={`Expenses paid from ${account.name}`}>
           Expenses <ArrowRight aria-hidden="true" size={14} />
         </Link>
@@ -189,23 +189,23 @@ function RecentTransfers({ transfers, canEdit, onVoid }: { transfers: FinTransfe
           {recent.map((t) => (
             <li key={t.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-2 px-5 py-3.5 sm:flex sm:items-center">
               <div className="sm:w-28 sm:shrink-0">
-                <p className="text-sm font-medium tabular-nums text-ink-900">{formatDay(t.transferDate)}</p>
+                <p className="text-[13px] font-medium tabular-nums text-ink-700">{formatDay(t.transferDate)}</p>
                 <p className="font-mono text-xs text-ink-500">{t.transferNo}</p>
               </div>
-              <p className="text-right text-base font-semibold tabular-nums text-ink-900 sm:order-last">
+              <p className="text-right sm:order-last">
                 <span className="mr-1 text-xs font-medium text-ink-500">AED</span>
-                {formatMoney(t.amount)}
+                <span className="font-display text-xl font-bold tabular-nums text-ink-900">{formatMoney(t.amount)}</span>
               </p>
               {canEdit && (
                 <p className="sm:order-last">
-                  <Button size="sm" variant="ghost" icon={Ban} onClick={() => onVoid(t)} aria-label={`Void ${t.transferNo}`}>Void</Button>
+                  <Button size="sm" variant="ghost" icon={Ban} className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => onVoid(t)} aria-label={`Void ${t.transferNo}`}>Void</Button>
                 </p>
               )}
               <p className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-ink-800 sm:flex-1">
-                <span className="font-medium">{t.fromAccountName}</span>
+                <span className="text-[15px] font-semibold">{t.fromAccountName}</span>
                 <ArrowRight aria-label="to" size={14} className="shrink-0 text-ink-500" />
-                <span className="font-medium">{t.toAccountName}</span>
-                {(t.reference || t.notes) && <span className="w-full text-ink-600">{[t.reference, t.notes].filter(Boolean).join(" · ")}</span>}
+                <span className="text-[15px] font-semibold">{t.toAccountName}</span>
+                {(t.reference || t.notes) && <span className="w-full text-[13px] text-ink-500">{[t.reference, t.notes].filter(Boolean).join(" · ")}</span>}
               </p>
             </li>
           ))}

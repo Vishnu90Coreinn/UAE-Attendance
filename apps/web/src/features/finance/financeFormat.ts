@@ -85,3 +85,8 @@ export function splitShares(amounts: number[], decimals = 1): number[] {
     });
   return floors.map((f) => f / unit);
 }
+
+/** Muted ink for an amount of exactly zero, so the figures that moved stand out; empty for any other amount. */
+export function quietZero(amount: number): string {
+  return amount === 0 ? "text-ink-400" : "";
+}

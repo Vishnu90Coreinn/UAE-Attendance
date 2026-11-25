@@ -7,7 +7,7 @@ import { useIsDesktop } from "../../utils/useIsDesktop";
 import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, Table, TableScroll, THead, Th, Td, TRow, cx } from "../../ui";
 import { saveBlob } from "../payroll/downloadPdf";
 import { ActionFailure, LoadError } from "../workers/WorkersFeedback";
-import { formatDay, formatMoney, formatPercent, formatShare, todayInUae } from "./financeFormat";
+import { formatDay, formatMoney, formatPercent, formatShare, quietZero, todayInUae } from "./financeFormat";
 import { presetRange, rangeProblem, type ReportPreset } from "./reportPeriods";
 
 const PRESETS: { key: ReportPreset; label: string }[] = [
@@ -95,12 +95,12 @@ function AccountsTable({ report }: { report: FinReport }) {
             <TRow key={a.accountId}>
               <Td className="font-medium text-ink-900">{a.name}{!a.isActive && <span className="ml-2 text-xs font-normal text-ink-500">(switched off)</span>}</Td>
               <Td numeric>{formatMoney(a.opening)}</Td>
-              <Td numeric>{formatMoney(a.income)}</Td>
-              <Td numeric>{formatMoney(a.expense)}</Td>
-              <Td numeric>{formatMoney(a.transfersIn)}</Td>
-              <Td numeric>{formatMoney(a.transfersOut)}</Td>
-              <Td numeric>{signed(a.capital)}</Td>
-              <Td numeric className="font-semibold text-ink-900">{signed(a.closing)}</Td>
+              <Td numeric className={quietZero(a.income)}>{formatMoney(a.income)}</Td>
+              <Td numeric className={quietZero(a.expense)}>{formatMoney(a.expense)}</Td>
+              <Td numeric className={quietZero(a.transfersIn)}>{formatMoney(a.transfersIn)}</Td>
+              <Td numeric className={quietZero(a.transfersOut)}>{formatMoney(a.transfersOut)}</Td>
+              <Td numeric className={quietZero(a.capital)}>{signed(a.capital)}</Td>
+              <Td numeric className="font-display text-base font-bold text-ink-900">{signed(a.closing)}</Td>
             </TRow>
           ))}
           <tr className="bg-ink-50 font-semibold text-ink-900">
@@ -125,11 +125,11 @@ function AccountStatements({ accounts }: { accounts: FinReportAccount[] }) {
     <ul className="divide-y divide-line">
       {accounts.map((a) => (
         <li key={a.accountId} className="px-5 py-4">
-          <p className="font-medium text-ink-900">{a.name}{!a.isActive && <span className="ml-2 text-xs font-normal text-ink-500">(switched off)</span>}</p>
+          <p className="text-[15px] font-semibold text-ink-900">{a.name}{!a.isActive && <span className="ml-2 text-xs font-normal text-ink-500">(switched off)</span>}</p>
           <dl className="mt-2 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm tabular-nums">
-            <dt className="text-ink-600">Opening</dt><dd className="text-right">{formatMoney(a.opening)}</dd>
-            <dt className="text-ink-600">Income</dt><dd className="text-right">+ {formatMoney(a.income)}</dd>
-            <dt className="text-ink-600">Expenses</dt><dd className="text-right">− {formatMoney(a.expense)}</dd>
+            <dt className="text-ink-500">Opening</dt><dd className="text-right text-ink-700">{formatMoney(a.opening)}</dd>
+            <dt className="text-ink-500">Income</dt><dd className={cx("text-right text-ink-700", quietZero(a.income))}>+ {formatMoney(a.income)}</dd>
+            <dt className="text-ink-500">Expenses</dt><dd className={cx("text-right text-ink-700", quietZero(a.expense))}>− {formatMoney(a.expense)}</dd>
             {a.capital !== 0 && (
               <>
                 <dt className="text-ink-600">Capital</dt><dd className="text-right">{a.capital < 0 ? "−" : "+"} {formatMoney(Math.abs(a.capital))}</dd>
@@ -140,8 +140,8 @@ function AccountStatements({ accounts }: { accounts: FinReportAccount[] }) {
                 <dt className="text-ink-600">Transfers in / out</dt><dd className="text-right">{formatMoney(a.transfersIn)} / {formatMoney(a.transfersOut)}</dd>
               </>
             )}
-            <dt className="border-t border-line pt-1 font-semibold text-ink-900">Closing</dt>
-            <dd className="border-t border-line pt-1 text-right font-semibold text-ink-900">AED {signed(a.closing)}</dd>
+            <dt className="border-t border-line pt-1.5 text-sm font-semibold text-ink-900">Closing</dt>
+            <dd className="border-t border-line pt-1.5 text-right font-display text-lg font-bold text-ink-900">AED {signed(a.closing)}</dd>
           </dl>
         </li>
       ))}
@@ -231,10 +231,10 @@ function MonthsCard({ report, desktop }: { report: FinReport; desktop: boolean }
                       {label.part && <span className="block text-xs font-normal text-ink-500">{label.part}</span>}
                     </Td>
                     <Td numeric>{m.entries}</Td>
-                    <Td numeric>{formatMoney(m.income)}</Td>
-                    <Td numeric>{formatMoney(m.expense)}</Td>
+                    <Td numeric className={quietZero(m.income)}>{formatMoney(m.income)}</Td>
+                    <Td numeric className={quietZero(m.expense)}>{formatMoney(m.expense)}</Td>
                     <Td numeric className={cx("font-semibold", m.net < 0 ? "text-danger" : "text-ink-900")}>{signed(m.net)}</Td>
-                    <Td numeric>{signed(m.capital)}</Td>
+                    <Td numeric className={quietZero(m.capital)}>{signed(m.capital)}</Td>
                     <Td><LockMark month={m} /></Td>
                   </TRow>
                 );
@@ -276,10 +276,10 @@ function MonthsCard({ report, desktop }: { report: FinReport; desktop: boolean }
                   <LockMark month={m} />
                 </div>
                 <dl className="mt-2 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm tabular-nums">
-                  <dt className="text-ink-600">Income</dt><dd className="text-right">{formatMoney(m.income)}</dd>
-                  <dt className="text-ink-600">Expenses</dt><dd className="text-right">{formatMoney(m.expense)}</dd>
+                  <dt className="text-ink-500">Income</dt><dd className={cx("text-right text-ink-700", quietZero(m.income))}>{formatMoney(m.income)}</dd>
+                  <dt className="text-ink-500">Expenses</dt><dd className={cx("text-right text-ink-700", quietZero(m.expense))}>{formatMoney(m.expense)}</dd>
                   <dt className="border-t border-line pt-1 font-semibold text-ink-900">Net</dt>
-                  <dd className={cx("border-t border-line pt-1 text-right font-semibold", m.net < 0 ? "text-danger" : "text-ink-900")}>AED {signed(m.net)}</dd>
+                  <dd className={cx("border-t border-line pt-1 text-right font-display text-base font-bold", m.net < 0 ? "text-danger" : "text-ink-900")}>AED {signed(m.net)}</dd>
                   <dt className="text-ink-500">{m.entries} {m.entries === 1 ? "entry" : "entries"}</dt>
                   <dd className="text-right text-ink-500">{m.capital !== 0 ? `Capital ${signed(m.capital)}` : ""}</dd>
                 </dl>

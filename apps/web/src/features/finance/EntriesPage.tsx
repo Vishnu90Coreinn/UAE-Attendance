@@ -70,8 +70,8 @@ function EntryMeta({ entry, locked }: { entry: FinEntry; locked: boolean }) {
 function EntryActions({ entry, onCorrect, onVoid }: { entry: FinEntry; onCorrect: () => void; onVoid: () => void }) {
   return (
     <span className="flex flex-wrap gap-1">
-      <Button size="sm" variant="ghost" icon={Pencil} onClick={onCorrect} aria-label={`Correct ${entry.entryNo}`}>Correct</Button>
-      <Button size="sm" variant="ghost" icon={Ban} onClick={onVoid} aria-label={`Void ${entry.entryNo}`}>Void</Button>
+      <Button size="sm" variant="ghost" icon={Pencil} className="text-ink-600" onClick={onCorrect} aria-label={`Correct ${entry.entryNo}`}>Correct</Button>
+      <Button size="sm" variant="ghost" icon={Ban} className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={onVoid} aria-label={`Void ${entry.entryNo}`}>Void</Button>
     </span>
   );
 }
@@ -326,7 +326,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
                     <Td className="max-w-md align-top">
                       <span className={cx("font-medium", e.status === "Voided" ? "text-ink-600 line-through" : "text-ink-900")}>{e.party}</span>
                       {(e.reference || e.notes) && (
-                        <span className="mt-0.5 line-clamp-2 block text-ink-600">
+                        <span className="mt-0.5 line-clamp-2 block text-[13px] text-ink-500">
                           {e.reference && <span className="mr-2 font-mono text-xs text-ink-500">Ref {e.reference}</span>}
                           {e.notes}
                         </span>
@@ -335,7 +335,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
                     </Td>
                     <Td className="align-top"><CategoryChip name={e.categoryName} /></Td>
                     <Td className="align-top text-ink-700">{e.accountName}</Td>
-                    <Td className={cx("whitespace-nowrap text-right align-top text-base font-semibold", e.status === "Voided" ? "text-ink-500 line-through" : "text-ink-900")}><Amount value={e.amount} /></Td>
+                    <Td className={cx("whitespace-nowrap text-right align-top font-display text-base font-bold", e.status === "Voided" ? "text-ink-500 line-through" : "text-ink-900")}><Amount value={e.amount} /></Td>
                     <Td className="align-top">
                       <RowTools entry={e} canAct={canEdit && e.status === "Active" && !lockedMonths.includes(e.entryDate.slice(0, 7))} onOpen={() => setViewing(e)} onCorrect={() => setCorrecting(e)} onVoid={() => setVoiding(e)} />
                     </Td>
@@ -350,21 +350,25 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
           {result.items.map((e) => (
             <li key={e.id}>
               <article aria-label={`${e.party} ${e.entryNo}`} className={cx("rounded-card border border-line p-4 shadow-card", e.status === "Voided" ? "bg-ink-50" : "bg-white")}>
+                {/* 1. who and how much lead; 2. when; 3. notes, account and reference are quiet; 4. actions are quietest */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className={cx("break-words text-base font-semibold", e.status === "Voided" ? "text-ink-600 line-through" : "text-ink-900")}>{e.party}</p>
-                    <p className="mt-0.5 text-sm text-ink-600"><span className="tabular-nums">{formatDay(e.entryDate)}</span> · <span className="font-mono text-xs">{e.entryNo}</span></p>
+                    <p className={cx("break-words text-[15px] font-semibold leading-snug", e.status === "Voided" ? "text-ink-500 line-through" : "text-ink-900")}>{e.party}</p>
+                    <p className="mt-0.5 text-xs text-ink-500"><span className="tabular-nums">{formatDay(e.entryDate)}</span> · <span className="font-mono">{e.entryNo}</span></p>
                   </div>
-                  <p className="shrink-0 text-lg font-semibold text-ink-900"><Amount value={e.amount} /></p>
+                  <p className={cx("shrink-0 text-right", e.status === "Voided" && "line-through")}>
+                    <span className="mr-1 text-xs font-medium text-ink-500">AED</span>
+                    <span className={cx("font-display text-xl font-bold tabular-nums", e.status === "Voided" ? "text-ink-500" : "text-ink-900")}>{formatMoney(e.amount)}</span>
+                  </p>
                 </div>
-                {e.notes && <p className="mt-2 line-clamp-2 text-sm text-ink-700">{e.notes}</p>}
-                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+                {e.notes && <p className="mt-2 line-clamp-2 text-[13px] leading-snug text-ink-600">{e.notes}</p>}
+                <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs text-ink-600">
                   <CategoryChip name={e.categoryName} />
-                  <span className="text-sm text-ink-600">{e.accountName}</span>
-                  {e.reference && <span className="font-mono text-xs text-ink-500">{e.reference}</span>}
+                  <span>{e.accountName}</span>
+                  {e.reference && <span className="font-mono text-ink-500">Ref {e.reference}</span>}
                 </div>
                 <div className="mt-1"><EntryMeta entry={e} locked={lockedMonths.includes(e.entryDate.slice(0, 7))} /></div>
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2">
+                <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-line/70 pt-1.5">
                   <ReceiptButton entry={e} onOpen={() => setViewing(e)} />
                   {canEdit && e.status === "Active" && !lockedMonths.includes(e.entryDate.slice(0, 7)) && <EntryActions entry={e} onCorrect={() => setCorrecting(e)} onVoid={() => setVoiding(e)} />}
                 </div>

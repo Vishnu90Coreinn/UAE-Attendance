@@ -14,7 +14,7 @@ import { CapitalDialog } from "./CapitalDialog";
 import { PartnerDialog } from "./PartnerDialog";
 import { ReceiptDialog } from "./ReceiptDialog";
 import { VoidDialog } from "./VoidDialog";
-import { formatDay, formatMoney, formatPercent } from "./financeFormat";
+import { formatDay, formatMoney, formatPercent, quietZero } from "./financeFormat";
 
 type Load = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; partners: FinPartners; accounts: FinAccount[] };
 
@@ -80,7 +80,7 @@ function PartnerCard({ partner, canEdit, onEdit, onAdd }: { partner: FinPartner;
   return (
     <article aria-label={partner.name} className={cx("flex flex-col rounded-card border border-line bg-white p-5 shadow-card", !partner.isActive && "bg-ink-50")}>
       <header className="flex items-start gap-3">
-        <h3 className="min-w-0 flex-1 break-words text-base font-semibold leading-snug text-ink-900">{partner.name}</h3>
+        <h3 className="min-w-0 flex-1 break-words font-display text-lg font-bold leading-snug text-ink-900">{partner.name}</h3>
         {!partner.isActive && <StatusBadge tone="neutral" variant="soft">Switched off</StatusBadge>}
       </header>
 
@@ -100,19 +100,19 @@ function PartnerCard({ partner, canEdit, onEdit, onAdd }: { partner: FinPartner;
       <dl className="mb-4 mt-4 grid gap-1.5 border-t border-line pt-4 text-sm">
         <div className="flex justify-between gap-3">
           <dt className="text-ink-600">Opening capital</dt>
-          <dd className="tabular-nums text-ink-900">AED {formatMoney(partner.openingCapital)}</dd>
+          <dd className={cx("tabular-nums text-ink-800", quietZero(partner.openingCapital))}>AED {formatMoney(partner.openingCapital)}</dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-ink-600">Added since opening</dt>
-          <dd className="tabular-nums text-ink-900">+ AED {formatMoney(partner.added)}</dd>
+          <dd className={cx("tabular-nums text-ink-800", quietZero(partner.added))}>+ AED {formatMoney(partner.added)}</dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-ink-600">Paid back</dt>
-          <dd className="tabular-nums text-ink-900">− AED {formatMoney(partner.returned)}</dd>
+          <dd className={cx("tabular-nums text-ink-800", quietZero(partner.returned))}>− AED {formatMoney(partner.returned)}</dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-ink-600">Last movement</dt>
-          <dd className="text-ink-900">{partner.lastMovementDate ? formatDay(partner.lastMovementDate) : "None yet"}</dd>
+          <dd className={partner.lastMovementDate ? "text-ink-800" : "text-ink-400"}>{partner.lastMovementDate ? formatDay(partner.lastMovementDate) : "None yet"}</dd>
         </div>
       </dl>
 
@@ -139,22 +139,23 @@ function MovementRow({ entry, canEdit, onCorrect, onVoid, onReceipts }: { entry:
   return (
     <li className={cx("grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-2 px-5 py-3.5 sm:flex sm:items-center", voided && "bg-ink-50")}>
       <div className="sm:w-28 sm:shrink-0">
-        <p className="text-sm font-medium tabular-nums text-ink-900">{formatDay(entry.entryDate)}</p>
+        <p className="text-[13px] font-medium tabular-nums text-ink-700">{formatDay(entry.entryDate)}</p>
         <p className="font-mono text-xs text-ink-500">{entry.entryNo}</p>
       </div>
-      <p className={cx("text-right text-base font-semibold tabular-nums sm:order-last sm:w-40", voided ? "text-ink-500 line-through" : "text-ink-900")}>
+      <p className={cx("text-right tabular-nums sm:order-last sm:w-40", voided && "line-through")}>
         <span className="sr-only">{putIn ? "Capital added " : "Capital returned "}</span>
-        <span aria-hidden="true">{putIn ? "+" : "−"}</span> <span className="mr-1 text-xs font-medium text-ink-500">AED</span>
-        {formatMoney(entry.amount)}
+        <span aria-hidden="true" className={cx("font-display text-xl font-bold", voided ? "text-ink-500" : putIn ? "text-brand-700" : "text-ink-900")}>{putIn ? "+" : "−"}</span>{" "}
+        <span className="mr-1 text-xs font-medium text-ink-500">AED</span>
+        <span className={cx("font-display text-xl font-bold", voided ? "text-ink-500" : "text-ink-900")}>{formatMoney(entry.amount)}</span>
       </p>
       <div className="col-span-2 min-w-0 sm:flex-1">
-        <p className="flex flex-wrap items-center gap-x-2 text-sm font-medium text-ink-900">
+        <p className="flex flex-wrap items-center gap-x-2 text-[15px] font-semibold text-ink-900">
           <Icon aria-hidden="true" size={14} className="shrink-0 text-ink-500" />
           {entry.party}
-          <span className="font-normal text-ink-600">{putIn ? "added capital" : "took capital back"}</span>
+          <span className="text-[13px] font-normal text-ink-600">{putIn ? "added capital" : "took capital back"}</span>
           {voided && <StatusBadge tone="neutral" variant="soft">Voided</StatusBadge>}
         </p>
-        <p className="text-sm text-ink-600">
+        <p className="text-xs text-ink-500">
           {[entry.accountName, entry.reference, entry.replacesEntryNo && `Corrects ${entry.replacesEntryNo}`, entry.replacedByEntryNo && `Replaced by ${entry.replacedByEntryNo}`].filter(Boolean).join(" · ")}
         </p>
         {voided && entry.voidReason && <p className="text-sm text-ink-600">Voided by {entry.voidedBy}: {entry.voidReason}</p>}
@@ -167,8 +168,8 @@ function MovementRow({ entry, canEdit, onCorrect, onVoid, onReceipts }: { entry:
         )}
         {canEdit && !voided && (
           <>
-            <Button size="sm" variant="ghost" icon={Pencil} onClick={onCorrect} aria-label={`Correct ${entry.entryNo}`}>Correct</Button>
-            <Button size="sm" variant="ghost" icon={Ban} onClick={onVoid} aria-label={`Void ${entry.entryNo}`}>Void</Button>
+            <Button size="sm" variant="ghost" icon={Pencil} className="text-ink-600" onClick={onCorrect} aria-label={`Correct ${entry.entryNo}`}>Correct</Button>
+            <Button size="sm" variant="ghost" icon={Ban} className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={onVoid} aria-label={`Void ${entry.entryNo}`}>Void</Button>
           </>
         )}
       </div>

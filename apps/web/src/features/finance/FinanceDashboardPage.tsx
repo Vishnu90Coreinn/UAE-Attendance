@@ -290,14 +290,14 @@ function LatestCard({ data }: { data: FinDashboard }) {
           {data.latest.map((e) => (
             <li key={`${e.kind}-${e.id}`} className="flex items-center gap-3 px-5 py-3">
               <div className="w-24 shrink-0">
-                <p className="text-sm font-medium tabular-nums text-ink-900">{formatDay(e.entryDate)}</p>
+                <p className="text-[13px] font-medium tabular-nums text-ink-700">{formatDay(e.entryDate)}</p>
                 <p className="font-mono text-xs text-ink-500">{e.entryNo}</p>
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-ink-900">{e.party}</p>
+                <p className="truncate text-[15px] font-semibold text-ink-900">{e.party}</p>
                 <p className="truncate text-xs text-ink-600">{e.kind === "Capital" || e.kind === "CapitalOut" ? `${KIND_WORDS[e.kind]} · ` : `${e.categoryName} · `}{e.accountName}</p>
               </div>
-              <p className={cx("text-right text-sm font-semibold tabular-nums", moneyIn(e.kind) ? "text-brand-700" : "text-ink-900")}>
+              <p className={cx("text-right font-display text-base font-bold tabular-nums", moneyIn(e.kind) ? "text-brand-700" : "text-ink-900")}>
                 <span className="sr-only">{KIND_WORDS[e.kind]} </span>
                 <span aria-hidden="true">{moneyIn(e.kind) ? "+" : "−"}</span> {formatMoney(e.amount)}
               </p>

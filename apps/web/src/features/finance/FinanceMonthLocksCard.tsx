@@ -68,8 +68,8 @@ export function FinanceMonthLocksCard() {
               const locked = row?.isLocked === true;
               return (
                 <li key={month} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
-                  <span className="w-36 text-sm font-medium text-ink-900">{label(month)}</span>
-                  <span className="min-w-0 flex-1 text-sm text-ink-600">
+                  <span className="w-36 text-[15px] font-semibold text-ink-900">{label(month)}</span>
+                  <span className="min-w-0 flex-1 text-[13px] text-ink-500">
                     {locked ? (
                       <><StatusBadge tone="info" icon={Lock} variant="icon">Locked</StatusBadge> <span className="ml-1">by {row.lockedBy} on {day(row.lockedUtc)}</span></>
                     ) : row?.unlockReason ? (
