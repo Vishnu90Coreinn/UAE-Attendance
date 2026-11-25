@@ -186,4 +186,20 @@ public class FinanceChequeBooksTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(2_000m, sheet.GetProperty("totalLiabilities").GetDecimal());  // and 2,000 of it is promised to the landlord
         Assert.Equal(3_000m, sheet.GetProperty("totalEquity").GetDecimal());       // equity is what is left: 5,000 less the 2,000 owed
     }
+
+    [Fact]
+    public async Task ALinkedCheque_CannotBeWrittenOrClearedIntoALockedMonth()
+    {
+        var token = await ManagerAsync();
+        var account = await TestFinance.AddAccountAsync(api.ConnectionString, opening: 50_000m, openingDate: new DateOnly(2018, 1, 1));
+        var entry = await TestFinance.AddEntryAsync(api.ConnectionString, account.Id, "Expense", 1_000m, new DateOnly(2018, 3, 5), categoryId: 5);
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Post, "/api/finance/month-locks/2018-03/lock", token)).Status);
+
+        var late = new { direction = "Issued", serial = "L-1", amount = 1_000m, partyName = "Landlord", issueDate = "2018-03-06", dueDate = "2018-03-06", accountId = account.Id, entryId = entry.Id };
+        var made = await SendAsync(HttpMethod.Post, "/api/finance/cheques", token, late);
+        Assert.Equal(HttpStatusCode.Conflict, made.Status);                      // the booking would land in a locked month
+
+        var open = await SendAsync(HttpMethod.Post, "/api/finance/cheques", token, new { late.direction, serial = "L-2", late.amount, late.partyName, issueDate = D(Today.AddDays(-2)), dueDate = D(Today.AddDays(10)), late.accountId, entryId = (int?)null });
+        Assert.Equal(HttpStatusCode.Created, open.Status);                       // unlinked cheques change no books, so a lock does not matter to them
+    }
 }

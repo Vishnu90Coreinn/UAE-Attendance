@@ -56,6 +56,7 @@ On the cut-over date (1 January 2027) the books in this app start from the closi
 
 Do this in a **test copy first** (section 5), then again in production. Order matters.
 
+0. **Check for invoices already issued in the app.** Open Tax Invoices. Every invoice that has been issued (test or real) posts its sale, VAT and receivable to the books on its **invoice date**, even when that is before the cut-over date, and would then be counted twice with the Daftra balances. Cancel any test invoices (the books reverse them) and make sure a real one is not also in the opening journal. Payments entered on an invoice before this version are marked "Not in the books"; they are not posted.
 1. **Accounts.** Finance > Accounts: one account per bank, cash and petty-cash. Opening balance = the **Daftra book balance** at the day before cut-over, opening date = the cut-over date.
 2. **Partners.** Opening capital for each partner, as at the same date.
 3. **Categories.** Settings > categories: check the expense and income categories match how the client works. Then Books > *Where records post*: point every category, account and partner at the ledger account the accountant chose. Do this **before** any month is locked: it is refused afterwards.

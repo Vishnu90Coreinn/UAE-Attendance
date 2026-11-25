@@ -11,9 +11,21 @@ public sealed record FinChequeFilter(string? Direction, string? Status, bool Ope
 /// The cheque register: cheques written and received, their dates and where each one stands. Tracking only. A cheque changes no balance;
 /// the expense or income it paid does. Open cheques are shown as money already committed or expected.
 /// </summary>
-public sealed class FinanceChequeService(AppDbContext db, IAuditLogger audit, IHttpContextAccessor http, TimeProvider time)
+public sealed class FinanceChequeService(AppDbContext db, IAuditLogger audit, IHttpContextAccessor http, TimeProvider time, FinancePeriodService periods)
 {
     private const int ListCap = 500;
+
+    /// <summary>
+    /// A cheque linked to an expense or income is booked in the ledger (when it is written, and again when it clears or is cancelled), so none of those dates may fall in a
+    /// locked month: a locked or closed period must not change. Null when nothing is in the way, otherwise the sentence to show.
+    /// </summary>
+    private async Task<string?> LockedBookingAsync(bool linked, CancellationToken ct, params DateOnly[] dates)
+    {
+        if (!linked) return null;
+        foreach (var date in dates.Distinct())
+            if (await periods.LockedMessageAsync(date, ct) is { } message) return message;
+        return null;
+    }
     private const int SummaryDays = 30;
 
     private FinChequeResponse ToResponse(FinCheque c, string? entryNo, DateOnly today) => new(
@@ -136,6 +148,7 @@ public sealed class FinanceChequeService(AppDbContext db, IAuditLogger audit, IH
             Status = direction == FinChequeDirections.Issued ? FinChequeStatuses.Issued : FinChequeStatuses.Received, EntryId = request.EntryId,
             Notes = FinanceRules.Clean(request.Notes), CreatedBy = FinanceRules.Actor(http), CreatedUtc = now, UpdatedUtc = now,
         };
+        if (await LockedBookingAsync(request.EntryId is not null, ct, v.Issue) is { } lockedNew) return FinResult<FinChequeResponse>.Conflict(lockedNew);
         db.FinCheques.Add(cheque);
         try
         {
@@ -162,6 +175,7 @@ public sealed class FinanceChequeService(AppDbContext db, IAuditLogger audit, IH
         if (!FinChequeStatuses.IsOpen(cheque.Status)) return FinResult<FinChequeResponse>.Conflict($"Cheque {cheque.Serial} is {cheque.Status.ToLowerInvariant()} and can no longer be edited.");
         var v = await ValidateAsync(request, cheque.Direction, id, ct);
         if (v.Errors.Count > 0) return FinResult<FinChequeResponse>.Invalid(v.Errors);
+        if (await LockedBookingAsync(cheque.EntryId is not null || request.EntryId is not null, ct, cheque.IssueDate, v.Issue) is { } lockedEdit) return FinResult<FinChequeResponse>.Conflict(lockedEdit);
 
         var before = new { cheque.Serial, cheque.Amount, cheque.PartyName, due = FinanceRules.Format(cheque.DueDate), cheque.AccountId, cheque.EntryId };
         cheque.Serial = v.Serial!;
@@ -211,6 +225,8 @@ public sealed class FinanceChequeService(AppDbContext db, IAuditLogger audit, IH
         else if (date > today) errors["date"] = ["The date cannot be in the future."];
         else if (date < cheque.IssueDate) errors["date"] = ["The date cannot be before the cheque was written."];
         if (errors.Count > 0) return FinResult<FinChequeResponse>.Invalid(errors);
+        // Clearing is booked on the date given; cancelling or bouncing undoes the booking made on the day it was written.
+        if (await LockedBookingAsync(cheque.EntryId is not null, ct, date, cheque.IssueDate) is { } lockedChange) return FinResult<FinChequeResponse>.Conflict(lockedChange);
 
         var from = cheque.Status;
         cheque.Status = next;

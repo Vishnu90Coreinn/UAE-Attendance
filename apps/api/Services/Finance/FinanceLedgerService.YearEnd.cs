@@ -54,7 +54,11 @@ public sealed partial class FinanceLedgerService
         if (new DateOnly(year, 12, 31) >= today) return $"{year} is not over yet. It can be closed from 1 January {year + 1}.";
         var first = await db.Journals.AsNoTracking().Where(j => j.SourceType != JournalSources.YearEnd).Select(j => j.Date.Year).MinAsync(ct);
         for (var y = first; y < year; y++)
-            if (!closes.ContainsKey(y)) return $"Close {y} first. Years are closed in order.";
+        {
+            // A year with no income or expense (a year that only holds opening balances) has nothing to close and must not hold up the years after it.
+            if (!closes.ContainsKey(y) && (await YearResultAsync(y, ct)).Rows.Count > 0) return $"Close {y} first. Years are closed in order.";
+        }
+
         if (closes.Keys.Any(y => y > year)) return "A later year is already closed. Reopen it first.";
         var pending = await db.FinEntries.CountAsync(e => e.Status == FinStatuses.Pending && e.EntryDate.Year == year, ct);
         if (pending > 0) return $"{pending} staff expense{(pending == 1 ? "" : "s")} dated in {year} still wait for approval. Approve or reject them first.";

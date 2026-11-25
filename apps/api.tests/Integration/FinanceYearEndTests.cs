@@ -124,3 +124,29 @@ public class FinanceYearEndPendingTests(ApiFixture api) : IClassFixture<ApiFixtu
         return (response.StatusCode, string.IsNullOrWhiteSpace(text) ? default : JsonDocument.Parse(text).RootElement);
     }
 }
+
+/// <summary>A year that only holds an opening balance has nothing to close, and must not hold up the next year.</summary>
+public class FinanceYearEndEmptyYearTests(ApiFixture api) : IClassFixture<ApiFixture>
+{
+    [Fact]
+    public async Task AYearWithOnlyAnOpeningBalance_DoesNotBlockTheNextYear()
+    {
+        var token = (await TestWorkers.SignInAsync(api, Roles.Manager)).Token;
+        var account = await TestFinance.AddAccountAsync(api.ConnectionString, opening: 5_000m, openingDate: new DateOnly(2019, 12, 31));
+        await TestFinance.AddEntryAsync(api.ConnectionString, account.Id, "Income", 1_000m, new DateOnly(2020, 2, 1));
+
+        async Task<(HttpStatusCode Status, JsonElement Body)> Send(HttpMethod m, string url)
+        {
+            var request = new HttpRequestMessage(m, url);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            var response = await api.Client.SendAsync(request);
+            var text = await response.Content.ReadAsStringAsync();
+            return (response.StatusCode, string.IsNullOrWhiteSpace(text) ? default : JsonDocument.Parse(text).RootElement);
+        }
+
+        var years = (await Send(HttpMethod.Get, "/api/finance/ledger/years")).Body;
+        var y2020 = years.EnumerateArray().Single(y => y.GetProperty("year").GetInt32() == 2020);
+        Assert.True(y2020.GetProperty("canClose").GetBoolean());                     // 2019 has only the opening balance, so nothing stands in the way
+        Assert.Equal(HttpStatusCode.OK, (await Send(HttpMethod.Post, "/api/finance/ledger/years/2020/close")).Status);
+    }
+}
