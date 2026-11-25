@@ -79,7 +79,7 @@ public class FinanceVatTests(ReceiptsFixture api) : IClassFixture<ReceiptsFixtur
         var accounts = (await SendAsync(HttpMethod.Get, "/api/finance/accounts", token)).Body.EnumerateArray();
         Assert.Equal(100_000m - 105m, accounts.Single(a => a.GetProperty("id").GetInt32() == account).GetProperty("balance").GetDecimal());   // the whole 105 left the bank
         var journal = await JournalOfAsync(token, "Included Co");
-        Assert.Equal(100m, journal["Company expenses"].Debit);                       // the cost is the net
+        Assert.Equal(100m, journal["General company expenses"].Debit);                       // the cost is the net
         Assert.Equal(5m, journal["VAT recoverable (input VAT)"].Debit);              // the VAT is claimable
     }
 
@@ -109,8 +109,8 @@ public class FinanceVatTests(ReceiptsFixture api) : IClassFixture<ReceiptsFixtur
         Assert.Equal(250m, made.Body.GetProperty("taxAmount").GetDecimal());
         Assert.Equal([3150m, 2100m], made.Body.GetProperty("lines").EnumerateArray().Select(l => l.GetProperty("amount").GetDecimal()));   // each line carries its VAT; they add up to the cash
         var journal = await JournalOfAsync(token, "Split VAT Co");
-        Assert.Equal(2000m, journal["Worker Accommodation Rent"].Debit);
-        Assert.Equal(3000m, journal["Commission for Labor"].Debit);
+        Assert.Equal(2000m, journal["Worker accommodation rent"].Debit);
+        Assert.Equal(3000m, journal["Recruitment commission"].Debit);
         Assert.Equal(250m, journal["VAT recoverable (input VAT)"].Debit);
     }
 
@@ -141,7 +141,7 @@ public class FinanceVatTests(ReceiptsFixture api) : IClassFixture<ReceiptsFixtur
         Assert.Equal(1000m, made.Body.GetProperty("amount").GetDecimal());   // nothing extra leaves the bank
         Assert.Equal(50m, made.Body.GetProperty("taxAmount").GetDecimal());
         var journal = await JournalOfAsync(token, "Abroad Ltd");
-        Assert.Equal(1000m, journal["Company expenses"].Debit);
+        Assert.Equal(1000m, journal["General company expenses"].Debit);
         Assert.Equal(50m, journal["VAT recoverable (input VAT)"].Debit);
         Assert.Equal(50m, journal["VAT payable (output VAT)"].Credit);
     }

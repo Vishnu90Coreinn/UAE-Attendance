@@ -367,3 +367,43 @@ public sealed class FinBillLineConfiguration : IEntityTypeConfiguration<FinBillL
         builder.HasOne(l => l.Category).WithMany().HasForeignKey(l => l.CategoryId).OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+public sealed class RecurringJournalConfiguration : IEntityTypeConfiguration<RecurringJournal>
+{
+    public void Configure(EntityTypeBuilder<RecurringJournal> builder)
+    {
+        builder.ToTable(t => t.HasCheckConstraint("CK_RecurringJournals_Day", "[DayOfMonth] BETWEEN 1 AND 31"));
+        builder.Property(r => r.Description).HasMaxLength(250).IsRequired();
+        builder.Property(r => r.StartMonth).HasColumnType("date");
+        builder.Property(r => r.EndMonth).HasColumnType("date");
+        builder.Property(r => r.CreatedBy).HasMaxLength(50).IsRequired();
+        builder.Property(r => r.CreatedUtc).HasColumnType("datetime2");
+        builder.Property(r => r.StoppedBy).HasMaxLength(50);
+        builder.Property(r => r.StoppedUtc).HasColumnType("datetime2");
+        builder.HasMany(r => r.Lines).WithOne(l => l.RecurringJournal).HasForeignKey(l => l.RecurringJournalId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public sealed class RecurringJournalLineConfiguration : IEntityTypeConfiguration<RecurringJournalLine>
+{
+    public void Configure(EntityTypeBuilder<RecurringJournalLine> builder)
+    {
+        builder.ToTable(t => t.HasCheckConstraint("CK_RecurringJournalLines_Side", "[Debit] >= 0 AND [Credit] >= 0 AND (([Debit] > 0 AND [Credit] = 0) OR ([Debit] = 0 AND [Credit] > 0))"));
+        builder.Property(l => l.Debit).HasPrecision(12, 2);
+        builder.Property(l => l.Credit).HasPrecision(12, 2);
+        builder.Property(l => l.Memo).HasMaxLength(200);
+        builder.HasOne(l => l.LedgerAccount).WithMany().HasForeignKey(l => l.LedgerAccountId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public sealed class RecurringJournalRunConfiguration : IEntityTypeConfiguration<RecurringJournalRun>
+{
+    public void Configure(EntityTypeBuilder<RecurringJournalRun> builder)
+    {
+        builder.Property(r => r.Month).HasColumnType("date");
+        builder.Property(r => r.PostedUtc).HasColumnType("datetime2");
+        builder.HasOne<RecurringJournal>().WithMany().HasForeignKey(r => r.RecurringJournalId).OnDelete(DeleteBehavior.Restrict);
+        // A month is posted once: the backstop against two requests racing.
+        builder.HasIndex(r => new { r.RecurringJournalId, r.Month }).IsUnique();
+    }
+}

@@ -56,6 +56,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<FinTaxType> FinTaxTypes => Set<FinTaxType>();
     public DbSet<LedgerAccount> LedgerAccounts => Set<LedgerAccount>();
     public DbSet<Journal> Journals => Set<Journal>();
+    public DbSet<RecurringJournal> RecurringJournals => Set<RecurringJournal>();
+    public DbSet<RecurringJournalLine> RecurringJournalLines => Set<RecurringJournalLine>();
+    public DbSet<RecurringJournalRun> RecurringJournalRuns => Set<RecurringJournalRun>();
     public DbSet<JournalLine> JournalLines => Set<JournalLine>();
     public DbSet<FinEntryLine> FinEntryLines => Set<FinEntryLine>();
 

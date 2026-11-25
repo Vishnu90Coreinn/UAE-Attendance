@@ -134,6 +134,24 @@ public sealed class LedgerController(FinanceLedgerService ledger, FinanceLedgerE
     [Authorize(Policy = Policies.Finance)]
     public async Task<IActionResult> Payables([FromQuery] string? asOf, CancellationToken ct) => Ok(await ledger.PayablesAsync(asOf, ct));
 
+    /// <summary>Journals set up to post every month (prepaid spreading, depreciation, accruals).</summary>
+    [HttpGet("recurring")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> Recurring(CancellationToken ct) => Ok(await ledger.RecurringAsync(ct));
+
+    [HttpPost("recurring")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> CreateRecurring([FromBody] RecurringJournalRequest? request, CancellationToken ct) => Map(await ledger.CreateRecurringAsync(request ?? new(), ct));
+
+    [HttpPost("recurring/{id:int}/stop")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> StopRecurring(int id, CancellationToken ct) => Map(await ledger.StopRecurringAsync(id, ct));
+
+    /// <summary>Post every month that has come due. Months in a locked period are left and reported.</summary>
+    [HttpPost("recurring/post-due")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> PostDueRecurring(CancellationToken ct) => Ok(await ledger.PostDueRecurringAsync(ct));
+
     [HttpPost("sync")]
     [Authorize(Policy = Policies.Finance)]
     public async Task<IActionResult> Sync(CancellationToken ct) => Ok(await ledger.SyncAsync(ct));

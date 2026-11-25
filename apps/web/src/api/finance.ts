@@ -1076,3 +1076,44 @@ export interface PayablesReport {
 export function getPayables(asOf?: string): Promise<PayablesReport> {
   return apiGet<PayablesReport>(`/api/finance/ledger/payables${asOf ? `?asOf=${asOf}` : ""}`);
 }
+
+// ---- Recurring journals ----
+export interface RecurringJournal {
+  id: number;
+  description: string;
+  dayOfMonth: number;
+  startMonth: string;
+  endMonth: string | null;
+  isActive: boolean;
+  lines: { accountCode: string; accountName: string; debit: number; credit: number; memo: string | null }[];
+  amount: number;
+  /** Months already posted, the next month to post (yyyy-MM), and how many months can be posted today. */
+  posted: number;
+  nextMonth: string | null;
+  due: number;
+  createdBy: string;
+  stoppedBy: string | null;
+}
+export interface RecurringJournalInput {
+  description: string;
+  dayOfMonth: number;
+  startMonth: string;
+  endMonth?: string;
+  lines: { accountId: number; debit?: number; credit?: number; memo?: string }[];
+}
+export interface RecurringRunResult {
+  posted: number;
+  skipped: { id: number; description: string; month: string; reason: string }[];
+}
+export function listRecurringJournals(): Promise<RecurringJournal[]> {
+  return apiGet<RecurringJournal[]>("/api/finance/ledger/recurring");
+}
+export function createRecurringJournal(input: RecurringJournalInput): Promise<RecurringJournal> {
+  return apiPost<RecurringJournal>("/api/finance/ledger/recurring", input);
+}
+export function stopRecurringJournal(id: number): Promise<RecurringJournal> {
+  return apiPost<RecurringJournal>(`/api/finance/ledger/recurring/${id}/stop`, {});
+}
+export function postDueRecurringJournals(): Promise<RecurringRunResult> {
+  return apiPost<RecurringRunResult>("/api/finance/ledger/recurring/post-due", {});
+}

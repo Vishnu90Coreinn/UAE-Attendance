@@ -411,3 +411,27 @@ public sealed record PayableRow(int BillId, string BillNo, string Supplier, stri
 
 /// <summary>What the company owes suppliers at a date, oldest first.</summary>
 public sealed record PayablesReport(string AsOf, IReadOnlyList<PayableRow> Rows, IReadOnlyList<ReceivableBucket> Buckets, decimal TotalOwed);
+
+// ---- recurring journals ----
+public sealed class RecurringJournalRequest
+{
+    public string? Description { get; init; }
+    public int? DayOfMonth { get; init; }
+
+    /// <summary>yyyy-MM.</summary>
+    public string? StartMonth { get; init; }
+
+    /// <summary>yyyy-MM; omitted runs until stopped.</summary>
+    public string? EndMonth { get; init; }
+    public List<ManualJournalLineRequest>? Lines { get; init; }
+}
+
+/// <summary><c>NextMonth</c> is the next month that will post (yyyy-MM), or null when it is finished or stopped. <c>Due</c> counts the months that can be posted today.</summary>
+public sealed record RecurringJournalResponse(
+    int Id, string Description, int DayOfMonth, string StartMonth, string? EndMonth, bool IsActive, IReadOnlyList<JournalLineResponse> Lines, decimal Amount,
+    int Posted, string? NextMonth, int Due, string CreatedBy, string? StoppedBy);
+
+public sealed record RecurringSkip(int Id, string Description, string Month, string Reason);
+
+/// <summary>What a run of the due journals did: how many were posted, and which months were left (for example because the month is locked).</summary>
+public sealed record RecurringRunResult(int Posted, IReadOnlyList<RecurringSkip> Skipped);

@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from "react";
 import { Loader2, Plus, Save, X } from "lucide-react";
-import { postManualJournal, type LedgerAccount } from "../../api/finance";
+import { createRecurringJournal, postManualJournal, type LedgerAccount } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
@@ -15,12 +15,18 @@ interface Row {
 }
 const blank = (): Row => ({ accountId: "", debit: "", credit: "", memo: "" });
 
-/** A journal posted by hand: lines of debits and credits that must balance. It is kept, and undone only by a reversal. */
-export function ManualJournalDialog({ accounts, variant, onClose, onPosted }: { accounts: LedgerAccount[]; variant: "center" | "sheet"; onClose: () => void; onPosted: (number: string) => void }) {
+/**
+ * A journal posted by hand: lines of debits and credits that must balance. It is kept, and undone only by a reversal.
+ * In recurring mode the same lines are saved as a template that posts every month (a day of the month, a first month and an optional last month) instead of one dated journal.
+ */
+export function ManualJournalDialog({ accounts, variant, onClose, onPosted, recurring = false }: { accounts: LedgerAccount[]; variant: "center" | "sheet"; onClose: () => void; onPosted: (label: string) => void; recurring?: boolean }) {
   const [date, setDate] = useState(todayInUae());
+  const [day, setDay] = useState("1");
+  const [startMonth, setStartMonth] = useState(todayInUae().slice(0, 7));
+  const [endMonth, setEndMonth] = useState("");
   const [description, setDescription] = useState("");
   const [rows, setRows] = useState<Row[]>([blank(), blank()]);
-  const [errors, setErrors] = useState<{ date?: string; description?: string; lines?: string }>({});
+  const [errors, setErrors] = useState<{ date?: string; description?: string; lines?: string; dayOfMonth?: string; startMonth?: string; endMonth?: string }>({});
   const [general, setGeneral] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const first = useRef<HTMLInputElement>(null);
@@ -36,7 +42,9 @@ export function ManualJournalDialog({ accounts, variant, onClose, onPosted }: { 
     event.preventDefault();
     const next: typeof errors = {};
     if (!description.trim()) next.description = "Enter what this journal is for.";
-    if (!date) next.date = "Enter the date.";
+    if (!recurring && !date) next.date = "Enter the date.";
+    if (recurring && !startMonth) next.startMonth = "Choose the first month.";
+    if (recurring && endMonth && endMonth < startMonth) next.endMonth = "The last month cannot be before the first.";
     const parsed = rows.map((r) => ({ accountId: Number(r.accountId), debit: r.debit.trim() ? parseMoneyInput(r.debit) : null, credit: r.credit.trim() ? parseMoneyInput(r.credit) : null, memo: r.memo.trim() }));
     if (parsed.some((r) => !r.accountId || (r.debit === null) === (r.credit === null) || (r.debit ?? r.credit ?? 0) <= 0)) next.lines = "Every line needs an account and either a debit or a credit above zero.";
     else if (!balanced) next.lines = `Debits are ${formatMoney(debit / 100)} and credits are ${formatMoney(credit / 100)}. They must be equal.`;
@@ -46,14 +54,16 @@ export function ManualJournalDialog({ accounts, variant, onClose, onPosted }: { 
 
     setPending(true);
     try {
-      const saved = await postManualJournal({
-        date, description: description.trim(),
-        lines: parsed.map((r) => ({ accountId: r.accountId, debit: r.debit ?? undefined, credit: r.credit ?? undefined, memo: r.memo || undefined })),
-      });
-      onPosted(saved.number);
+      const lines = parsed.map((r) => ({ accountId: r.accountId, debit: r.debit ?? undefined, credit: r.credit ?? undefined, memo: r.memo || undefined }));
+      if (recurring) {
+        const saved = await createRecurringJournal({ description: description.trim(), dayOfMonth: Number(day), startMonth, endMonth: endMonth || undefined, lines });
+        onPosted(saved.description);
+      } else {
+        onPosted((await postManualJournal({ date, description: description.trim(), lines })).number);
+      }
     } catch (error) {
       if (error instanceof ApiError && error.fieldErrors) {
-        setErrors({ date: error.fieldErrors.date?.join(" "), description: error.fieldErrors.description?.join(" "), lines: error.fieldErrors.lines?.join(" ") });
+        setErrors({ date: error.fieldErrors.date?.join(" "), description: error.fieldErrors.description?.join(" "), lines: error.fieldErrors.lines?.join(" "), dayOfMonth: error.fieldErrors.dayOfMonth?.join(" "), startMonth: error.fieldErrors.startMonth?.join(" "), endMonth: error.fieldErrors.endMonth?.join(" ") });
       } else {
         setGeneral(error instanceof ApiError ? error.message : "Something went wrong. Please try again.");
       }
@@ -63,12 +73,25 @@ export function ManualJournalDialog({ accounts, variant, onClose, onPosted }: { 
   }
 
   return (
-    <Dialog open title="Post a journal" onClose={pending ? () => {} : onClose} initialFocusRef={first} variant={variant} size="wide">
+    <Dialog open title={recurring ? "Set up a monthly journal" : "Post a journal"} onClose={pending ? () => {} : onClose} initialFocusRef={first} variant={variant} size="wide">
       <form onSubmit={submit} noValidate className="mt-4 space-y-4">
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <TextField label="Date" type="date" value={date} max={todayInUae()} onChange={(e) => setDate(e.target.value)} error={errors.date} inputRef={first} />
-          <TextField label="What it is for" value={description} onChange={(e) => setDescription(e.target.value)} error={errors.description} maxLength={280} autoComplete="off" />
-        </div>
+        {recurring ? (
+          <>
+            <TextField label="What it is for" value={description} onChange={(e) => setDescription(e.target.value)} error={errors.description} maxLength={200} autoComplete="off" inputRef={first} hint="For example: Spread annual insurance. The month is added to the description each time it posts." />
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Select label="Day of the month" value={day} onChange={(e) => setDay(e.target.value)} error={errors.dayOfMonth} hint="A shorter month uses its last day.">
+                {Array.from({ length: 31 }, (_, n) => n + 1).map((d) => <option key={d} value={d}>{d}</option>)}
+              </Select>
+              <TextField label="First month" type="month" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} error={errors.startMonth} />
+              <TextField label="Last month (optional)" type="month" value={endMonth} onChange={(e) => setEndMonth(e.target.value)} error={errors.endMonth} hint="Leave empty to repeat until you stop it." />
+            </div>
+          </>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <TextField label="Date" type="date" value={date} max={todayInUae()} onChange={(e) => setDate(e.target.value)} error={errors.date} inputRef={first} />
+            <TextField label="What it is for" value={description} onChange={(e) => setDescription(e.target.value)} error={errors.description} maxLength={280} autoComplete="off" />
+          </div>
+        )}
         <ul className="space-y-3">
           {rows.map((r, i) => (
             <li key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] sm:items-end">
@@ -103,7 +126,7 @@ export function ManualJournalDialog({ accounts, variant, onClose, onPosted }: { 
           <Button variant="secondary" onClick={onClose} disabled={pending}>Cancel</Button>
           <Button type="submit" disabled={pending}>
             {pending ? <Loader2 aria-hidden="true" size={16} className="animate-spin" /> : <Save aria-hidden="true" size={16} />}
-            Post journal
+            {recurring ? "Save monthly journal" : "Post journal"}
           </Button>
         </div>
       </form>

@@ -2276,6 +2276,120 @@ namespace HrPayroll.Api.Data.Migrations
                     b.ToTable("PushDevices", (string)null);
                 });
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.RecurringJournal", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DayOfMonth")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<DateOnly?>("EndMonth")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<DateOnly>("StartMonth")
+                        .HasColumnType("date");
+
+                    b.Property<string>("StoppedBy")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("StoppedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("RecurringJournals", t =>
+                        {
+                            t.HasCheckConstraint("CK_RecurringJournals_Day", "[DayOfMonth] BETWEEN 1 AND 31");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.RecurringJournalLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Credit")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<decimal>("Debit")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<int>("LedgerAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Memo")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("RecurringJournalId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LedgerAccountId");
+
+                    b.HasIndex("RecurringJournalId");
+
+                    b.ToTable("RecurringJournalLines", t =>
+                        {
+                            t.HasCheckConstraint("CK_RecurringJournalLines_Side", "[Debit] >= 0 AND [Credit] >= 0 AND (([Debit] > 0 AND [Credit] = 0) OR ([Debit] = 0 AND [Credit] > 0))");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.RecurringJournalRun", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("JournalId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("Month")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("PostedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("RecurringJournalId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecurringJournalId", "Month")
+                        .IsUnique();
+
+                    b.ToTable("RecurringJournalRuns");
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.SiteProgressFloor", b =>
                 {
                     b.Property<int>("Id")
@@ -3368,6 +3482,34 @@ namespace HrPayroll.Api.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.RecurringJournalLine", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.LedgerAccount", "LedgerAccount")
+                        .WithMany()
+                        .HasForeignKey("LedgerAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.RecurringJournal", "RecurringJournal")
+                        .WithMany("Lines")
+                        .HasForeignKey("RecurringJournalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("LedgerAccount");
+
+                    b.Navigation("RecurringJournal");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.RecurringJournalRun", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.RecurringJournal", null)
+                        .WithMany()
+                        .HasForeignKey("RecurringJournalId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.SiteProgressFloor", b =>
                 {
                     b.HasOne("HrPayroll.Api.Data.Entities.SiteProgressReport", "Report")
@@ -3512,6 +3654,11 @@ namespace HrPayroll.Api.Data.Migrations
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.PayrollPeriod", b =>
                 {
                     b.Navigation("Details");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.RecurringJournal", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.SiteProgressReport", b =>

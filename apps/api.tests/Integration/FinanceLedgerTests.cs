@@ -71,12 +71,12 @@ public class FinanceLedgerTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(20_000m - 156.45m - 5_000m, (await StatementAsync(token, ledgerId)).GetProperty("closing").GetDecimal());
         var plainJournal = (await SendAsync(HttpMethod.Get, $"/api/finance/ledger/journals?source=Entry&sourceId={plain.Id}", token)).Body.GetProperty("items").EnumerateArray().Single();
         var plainLines = plainJournal.GetProperty("lines").EnumerateArray().ToList();
-        Assert.Equal(156.45m, plainLines.Single(l => l.GetProperty("accountName").GetString() == "Company expenses").GetProperty("debit").GetDecimal());
+        Assert.Equal(156.45m, plainLines.Single(l => l.GetProperty("accountName").GetString() == "General company expenses").GetProperty("debit").GetDecimal());
         Assert.Equal(156.45m, plainLines.Single(l => l.GetProperty("accountName").GetString() == account.Name).GetProperty("credit").GetDecimal());
         var journal = (await SendAsync(HttpMethod.Get, "/api/finance/ledger/journals?source=Entry", token)).Body.GetProperty("items").EnumerateArray()
             .Single(j => j.GetProperty("description").GetString()!.EndsWith("Agent"));
         var debits = journal.GetProperty("lines").EnumerateArray().Where(l => l.GetProperty("debit").GetDecimal() > 0).Select(l => (l.GetProperty("accountName").GetString(), l.GetProperty("debit").GetDecimal())).ToList();
-        Assert.Equal([("Commission for Labor", 3_000m), ("Worker Accommodation Rent", 2_000m)], debits);
+        Assert.Equal([("Recruitment commission", 3_000m), ("Worker accommodation rent", 2_000m)], debits);
     }
 
     [Fact]

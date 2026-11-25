@@ -66,8 +66,8 @@ public class FinanceStatementsTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(report.GetProperty("period").GetProperty("net").GetDecimal(), pl.GetProperty("netProfit").GetDecimal());   // the books and the finance report agree
         Assert.Equal(report.GetProperty("period").GetProperty("expense").GetDecimal(), pl.GetProperty("totalExpenses").GetDecimal());
         var expenses = pl.GetProperty("expenses").EnumerateArray().ToDictionary(l => l.GetProperty("name").GetString()!, l => l.GetProperty("amount").GetDecimal());
-        Assert.Equal(12_000m, expenses["Worker Accommodation Rent"]);
-        Assert.Equal(600m, expenses["Dubai Insurance"]);
+        Assert.Equal(12_000m, expenses["Worker accommodation rent"]);
+        Assert.Equal(600m, expenses["Insurance"]);
         Assert.Equal(0, pl.GetProperty("manualJournals").GetInt32());
         Assert.Equal(pl.GetProperty("totalExpenses").GetDecimal(), pl.GetProperty("expenses").EnumerateArray().Sum(l => l.GetProperty("amount").GetDecimal()));
     }

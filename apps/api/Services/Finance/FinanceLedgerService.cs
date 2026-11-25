@@ -85,13 +85,63 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
 
     private async Task<LedgerAccount> OpeningEquityAsync(CancellationToken ct) => (await SystemAsync(ct))[OpeningEquityCode];
 
+    /// <summary>
+    /// The chart every company starts with: short, English, and standard for a small UAE business. Made once, on first use; the codes of accounts that already exist are left alone, and the
+    /// accountant can rename or add to it. A category named in the last column posts to its account until it is pointed elsewhere.
+    /// </summary>
+    public static readonly (string Code, string Name, string Type, string? Category)[] StandardChart =
+    [
+        ("1700", "Prepaid expenses", LedgerTypes.Asset, null),
+        ("1750", "Security deposits paid", LedgerTypes.Asset, null),
+        ("1800", "Fixed assets (at cost)", LedgerTypes.Asset, null),
+        ("1850", "Accumulated depreciation", LedgerTypes.Asset, null),
+        ("2400", "Accrued expenses", LedgerTypes.Liability, null),
+        ("2450", "Accrued wages", LedgerTypes.Liability, null),
+        ("2500", "Loans payable", LedgerTypes.Liability, null),
+        ("4100", "Other income", LedgerTypes.Revenue, "Other income"),
+        ("5100", "Salaries and wages", LedgerTypes.Expense, "Monthly Salary"),
+        ("5110", "Salary advances", LedgerTypes.Expense, "Salary Advance"),
+        ("5200", "Worker accommodation rent", LedgerTypes.Expense, "Worker Accommodation Rent"),
+        ("5210", "Worker transportation", LedgerTypes.Expense, "Worker Transportation"),
+        ("5220", "Office rent", LedgerTypes.Expense, "Office Rent"),
+        ("5300", "Government fees and worker procedures", LedgerTypes.Expense, "Government-related procedures for workers"),
+        ("5310", "Insurance", LedgerTypes.Expense, "Dubai Insurance"),
+        ("5320", "Recruitment commission", LedgerTypes.Expense, "Commission for Labor"),
+        ("5400", "General company expenses", LedgerTypes.Expense, "Company expenses"),
+        ("5500", "Depreciation", LedgerTypes.Expense, null),
+        ("5600", "Bank charges", LedgerTypes.Expense, null),
+        ("5700", "Other expenses", LedgerTypes.Expense, null),
+    ];
+
+    private async Task EnsureStandardChartAsync(CancellationToken ct)
+    {
+        var codes = (await db.LedgerAccounts.Select(a => a.Code).ToListAsync(ct)).ToHashSet();
+        foreach (var (code, name, type, _) in StandardChart)
+            if (!codes.Contains(code)) db.LedgerAccounts.Add(new LedgerAccount { Code = code, Name = name, Type = type, CreatedUtc = DateTime.UtcNow });
+        if (db.ChangeTracker.HasChanges()) await db.SaveChangesAsync(ct);
+    }
+
     /// <summary>Gives every account, category and partner its ledger account, making one where none is set yet.</summary>
     private async Task EnsureMappingAsync(CancellationToken ct)
     {
         foreach (var a in await db.FinAccounts.Where(x => x.LedgerAccountId == null).ToListAsync(ct))
             a.LedgerAccountId = (await NewAccountAsync(LedgerTypes.Asset, a.Name, ct)).Id;
-        foreach (var c in await db.FinCategories.Where(x => x.LedgerAccountId == null).ToListAsync(ct))
-            c.LedgerAccountId = (await NewAccountAsync(c.Kind == FinEntryKinds.Income ? LedgerTypes.Revenue : LedgerTypes.Expense, c.Name, ct)).Id;
+        // Capital entries post through the partner, so the two capital categories need no ledger account.
+        var unmapped = await db.FinCategories.Where(x => x.LedgerAccountId == null && (x.Kind == FinEntryKinds.Expense || x.Kind == FinEntryKinds.Income)).ToListAsync(ct);
+        if (unmapped.Count > 0)
+        {
+            await EnsureStandardChartAsync(ct);
+            var standard = await db.LedgerAccounts.Where(a => !a.IsSystem).ToDictionaryAsync(a => a.Code, ct);
+            foreach (var c in unmapped)
+            {
+                var type = c.Kind == FinEntryKinds.Income ? LedgerTypes.Revenue : LedgerTypes.Expense;
+                var match = StandardChart.FirstOrDefault(s => s.Category == c.Name && s.Type == type);
+                // The standard account is used only while it is still ours: same name, so a code the accountant reused for something else is never taken over.
+                c.LedgerAccountId = match.Code is not null && standard.TryGetValue(match.Code, out var own) && own.Name == match.Name && own.IsActive
+                    ? own.Id
+                    : (await NewAccountAsync(type, c.Name, ct)).Id;
+            }
+        }
         foreach (var p in await db.FinPartners.Where(x => x.LedgerAccountId == null).ToListAsync(ct))
             p.LedgerAccountId = (await NewAccountAsync(LedgerTypes.Equity, "Capital: " + p.Name, ct)).Id;
         await db.SaveChangesAsync(ct);

@@ -2,7 +2,7 @@
 
 For DE AKS BE GLASS & ALUMINIUM CO. L.L.C S.O.C. Plain steps, in order. Nothing here is done yet.
 
-Companion documents: `docs/phase4-ledger-plan.md` (what the books do), `docs/DEPLOY.md` (how to release), `docs/finance-client-roadmap.md`.
+Companion documents: `docs/finance-chart-of-accounts.md` (the starting chart, how each thing is booked, and the Daftra crosswalk for the opening balances), `docs/phase4-ledger-plan.md` (what the books do), `docs/DEPLOY.md` (how to release), `docs/finance-client-roadmap.md`.
 
 ## 0. The idea in one paragraph
 
@@ -43,7 +43,7 @@ Do this in a **test copy first** (section 5), then again in production. Order ma
 5. **Opening journal for everything with no screen.** Books > Journals > New journal, dated the **cut-over date**, one journal for the whole opening trial balance, using *Opening balance equity (3900)* as the balancing line:
    - VAT payable or recoverable (2200 or 1500), from item 6.
    - Retained earnings brought forward (3800), from item 7.
-   - Anything in item 8 (supplier balances, prepaid items, loans), on accounts the accountant adds under Books > Chart of accounts.
+   - Anything in item 8 (supplier balances, prepaid items, loans). The starting chart already has accounts for prepaid expenses, deposits, fixed assets, accrued expenses and wages and loans; see the crosswalk in `docs/finance-chart-of-accounts.md`. Prepaid items are spread afterwards with a monthly journal (Books > Monthly journals).
    - **Do not** post to *Accounts receivable (1550)* or *Accounts payable (2300)* by hand: they must equal the unpaid invoices and unpaid bills in the app, and a safety check fails otherwise. Enter unpaid supplier bills under Finance > Bills instead (section 4).
    - Bank, cash and partner capital are **not** in this journal; steps 1 and 2 already post them.
 6. **Check the opening position.** Books > Trial balance as at the cut-over date must agree with the Daftra trial balance, line by line. *Opening balance equity (3900)* should come to **zero**. If it does not, something is missing or entered twice: fix it before going on.

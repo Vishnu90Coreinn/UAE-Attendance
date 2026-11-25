@@ -89,3 +89,52 @@ public sealed class JournalLine
     public decimal Credit { get; set; }
     public string? Memo { get; set; }
 }
+
+/// <summary>
+/// A journal the accountant wants made every month (prepaid rent or insurance spread over its term, depreciation, a regular accrual). Each month it comes due, it is posted as an
+/// ordinary manual journal. The template is never deleted, only stopped.
+/// </summary>
+public sealed class RecurringJournal
+{
+    public int Id { get; set; }
+    public string Description { get; set; } = "";
+
+    /// <summary>1 to 31. A month with fewer days uses its last day.</summary>
+    public int DayOfMonth { get; set; }
+
+    /// <summary>The first day of the first month it posts in.</summary>
+    public DateOnly StartMonth { get; set; }
+
+    /// <summary>The first day of the last month it posts in; null runs until it is stopped.</summary>
+    public DateOnly? EndMonth { get; set; }
+    public bool IsActive { get; set; } = true;
+    public string CreatedBy { get; set; } = "";
+    public DateTime CreatedUtc { get; set; }
+    public string? StoppedBy { get; set; }
+    public DateTime? StoppedUtc { get; set; }
+    public List<RecurringJournalLine> Lines { get; set; } = [];
+}
+
+public sealed class RecurringJournalLine
+{
+    public int Id { get; set; }
+    public int RecurringJournalId { get; set; }
+    public RecurringJournal RecurringJournal { get; set; } = null!;
+    public int LedgerAccountId { get; set; }
+    public LedgerAccount LedgerAccount { get; set; } = null!;
+    public decimal Debit { get; set; }
+    public decimal Credit { get; set; }
+    public string? Memo { get; set; }
+}
+
+/// <summary>One month of a recurring journal that has been posted. A month is posted once, even if its journal is later reversed.</summary>
+public sealed class RecurringJournalRun
+{
+    public int Id { get; set; }
+    public int RecurringJournalId { get; set; }
+
+    /// <summary>The first day of the month.</summary>
+    public DateOnly Month { get; set; }
+    public int JournalId { get; set; }
+    public DateTime PostedUtc { get; set; }
+}
