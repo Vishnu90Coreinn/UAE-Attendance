@@ -7,8 +7,8 @@ import { Button, cx } from "../../ui";
 import { formatBytes } from "./receiptFile";
 
 /** Shows a receipt (an image, or a PDF in a frame). Several receipts get a tab each. */
-export function ReceiptDialog({ title, files, variant, onClose, mine = false }: { title: string; files: FinAttachment[]; variant: "center" | "sheet"; onClose: () => void; mine?: boolean }) {
-  const [index, setIndex] = useState(0);
+export function ReceiptDialog({ title, files, variant, onClose, mine = false, fetchFile, startIndex = 0 }: { title: string; files: FinAttachment[]; variant: "center" | "sheet"; onClose: () => void; mine?: boolean; fetchFile?: (id: number) => Promise<Blob>; startIndex?: number }) {
+  const [index, setIndex] = useState(startIndex);
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const file = files[index];
@@ -18,7 +18,7 @@ export function ReceiptDialog({ title, files, variant, onClose, mine = false }: 
     let made: string | null = null;
     setUrl(null);
     setError(null);
-    getFinReceipt(file.id, mine)
+    (fetchFile ? fetchFile(file.id) : getFinReceipt(file.id, mine))
       .then((blob) => {
         if (cancelled) return;
         made = URL.createObjectURL(blob);

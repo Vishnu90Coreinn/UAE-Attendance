@@ -407,3 +407,18 @@ public sealed class RecurringJournalRunConfiguration : IEntityTypeConfiguration<
         builder.HasIndex(r => new { r.RecurringJournalId, r.Month }).IsUnique();
     }
 }
+
+public sealed class FinBillAttachmentConfiguration : IEntityTypeConfiguration<FinBillAttachment>
+{
+    public void Configure(EntityTypeBuilder<FinBillAttachment> builder)
+    {
+        builder.Property(a => a.FileName).HasMaxLength(120).IsRequired();
+        builder.Property(a => a.ContentType).HasMaxLength(40).IsRequired();
+        builder.Property(a => a.StoredName).HasMaxLength(80).IsRequired();
+        builder.Property(a => a.Sha256).HasMaxLength(64).IsRequired();
+        builder.Property(a => a.UploadedBy).HasMaxLength(50).IsRequired();
+        builder.Property(a => a.UploadedUtc).HasColumnType("datetime2");
+        builder.HasOne(a => a.Bill).WithMany().HasForeignKey(a => a.BillId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(a => a.BillId);
+    }
+}

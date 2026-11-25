@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { FileText, Plus, Wallet } from "lucide-react";
+import { FileText, Paperclip, Plus, Wallet, X } from "lucide-react";
 import {
-  listFinAccounts, listFinBills, listFinCategories, listFinPayees, listFinTaxTypes, removeFinBillPayment, voidFinBill,
+  getFinBillFile, listFinAccounts, listFinBills, listFinCategories, listFinPayees, listFinTaxTypes, removeFinBillFile, removeFinBillPayment, uploadFinBillFiles, voidFinBill,
   type FinAccount, type FinBill, type FinBillDisplay, type FinBillFilter, type FinCategory, type FinPayee, type FinTaxType,
 } from "../../api/finance";
 import { ApiError } from "../../api/client";
@@ -14,6 +14,7 @@ import { Button, Card, EmptyState, LoadingState, PageHeader, Select, StatusBadge
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { BillDialog } from "./BillDialog";
 import { BillPayDialog } from "./BillPayDialog";
+import { ReceiptDialog } from "./ReceiptDialog";
 import { formatDay, formatMoney } from "./financeFormat";
 
 type Load = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; bills: FinBill[]; accounts: FinAccount[]; categories: FinCategory[]; payees: FinPayee[]; taxTypes: FinTaxType[] };
@@ -57,7 +58,7 @@ function ReasonDialog({ ask, variant, onClose, onDone }: { ask: Reasoning; varia
   );
 }
 
-function BillRow({ bill, canEdit, onPay, onVoid, onTakeBack }: { bill: FinBill; canEdit: boolean; onPay: () => void; onVoid: () => void; onTakeBack: (entryId: number, entryNo: string) => void }) {
+function BillRow({ bill, canEdit, onPay, onVoid, onTakeBack, onOpenFile, onAddFiles, onRemoveFile }: { bill: FinBill; canEdit: boolean; onPay: () => void; onVoid: () => void; onTakeBack: (entryId: number, entryNo: string) => void; onOpenFile: (index: number) => void; onAddFiles: (files: File[]) => void; onRemoveFile: (fileId: number, name: string) => void }) {
   const voided = bill.status === "Voided";
   return (
     <li className="space-y-2 px-5 py-4">
@@ -90,8 +91,26 @@ function BillRow({ bill, canEdit, onPay, onVoid, onTakeBack }: { bill: FinBill; 
           ))}
         </ul>
       )}
+      {(bill.files?.length ?? 0) > 0 && (
+        <ul className="flex flex-wrap gap-2" aria-label={`Supplier invoice for ${bill.billNo}`}>
+          {bill.files!.map((f, i) => (
+            <li key={f.id} className="flex items-center rounded-full bg-ink-50 text-[13px] text-ink-800">
+              <button type="button" onClick={() => onOpenFile(i)} className="inline-flex min-h-9 max-w-56 items-center gap-1.5 rounded-full px-3 hover:bg-ink-100" aria-label={`View ${f.fileName}`}>
+                <FileText aria-hidden="true" size={14} className="shrink-0" /><span className="truncate">{f.fileName}</span>
+              </button>
+              {canEdit && !voided && <button type="button" onClick={() => onRemoveFile(f.id, f.fileName)} aria-label={`Remove ${f.fileName}`} className="mr-1 inline-flex size-7 items-center justify-center rounded-full text-ink-600 hover:bg-ink-200"><X aria-hidden="true" size={14} /></button>}
+            </li>
+          ))}
+        </ul>
+      )}
       {canEdit && !voided && (
         <div className="flex flex-wrap gap-1">
+          {(bill.files?.length ?? 0) < 5 && (
+            <label className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-ink-700 hover:bg-ink-50 focus-within:outline-2 focus-within:outline-brand-500">
+              <Paperclip aria-hidden="true" size={14} /> Attach invoice
+              <input type="file" accept="application/pdf,image/jpeg,image/png" multiple className="sr-only" aria-label={`Attach the supplier's invoice to ${bill.billNo}`} onChange={(e) => { const picked = Array.from(e.target.files ?? []); e.target.value = ""; if (picked.length > 0) onAddFiles(picked); }} />
+            </label>
+          )}
           {bill.balance > 0 && <Button size="sm" variant="ghost" icon={Wallet} className="text-brand-700" onClick={onPay} aria-label={`Pay ${bill.billNo}`}>Pay</Button>}
           {bill.paid === 0 && <Button size="sm" variant="ghost" className="text-red-700 hover:bg-red-50" onClick={onVoid} aria-label={`Void ${bill.billNo}`}>Void</Button>}
         </div>
@@ -112,6 +131,7 @@ export function BillsPage() {
   const [entering, setEntering] = useState(false);
   const [paying, setPaying] = useState<FinBill | null>(null);
   const [asking, setAsking] = useState<Reasoning | null>(null);
+  const [viewing, setViewing] = useState<{ bill: FinBill; index: number } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -137,6 +157,17 @@ export function BillsPage() {
 
   const ready = load.status === "ready" ? load : null;
   const owed = (ready?.bills ?? []).filter((b) => b.status === "Open").reduce((sum, b) => sum + b.balance, 0);
+  async function changeFiles(run: () => Promise<FinBill>, done: string) {
+    setProblem(null);
+    setMessage(null);
+    try {
+      await run();
+      setMessage(done);
+      await refresh();
+    } catch (error) {
+      setProblem(failure(error));
+    }
+  }
   const finish = (text: string) => { setAsking(null); setPaying(null); setProblem(null); setMessage(text); void refresh(); };
 
   return (
@@ -168,6 +199,9 @@ export function BillsPage() {
             <ul className="divide-y divide-line border-t border-line">
               {ready.bills.map((b) => (
                 <BillRow key={b.id} bill={b} canEdit={canEdit} onPay={() => setPaying(b)}
+                  onOpenFile={(index) => setViewing({ bill: b, index })}
+                  onAddFiles={(picked) => void changeFiles(() => uploadFinBillFiles(b.id, picked), `The supplier's invoice was attached to ${b.billNo}.`)}
+                  onRemoveFile={(fileId, name) => void changeFiles(() => removeFinBillFile(b.id, fileId), `${name} was removed from ${b.billNo}.`)}
                   onVoid={() => setAsking({ title: `Void ${b.billNo}`, label: "Reason for voiding", confirm: "Void bill", run: (r) => voidFinBill(b.id, r), done: `${b.billNo} was voided.` })}
                   onTakeBack={(entryId, entryNo) => setAsking({ title: `Take back ${entryNo}`, label: "Reason for taking the payment back", confirm: "Take payment back", run: (r) => removeFinBillPayment(b.id, entryId, r), done: `The payment was taken back. ${b.billNo} is owed again.` })} />
               ))}
@@ -175,8 +209,9 @@ export function BillsPage() {
           )}
         </Card>
       )}
-      {ready && entering && <BillDialog categories={ready.categories} payees={ready.payees} taxTypes={ready.taxTypes} variant={variant} onClose={() => setEntering(false)} onSaved={(b) => { setEntering(false); finish(`${b.billNo} was entered. It is owed until you pay it.`); }} />}
+      {ready && entering && <BillDialog categories={ready.categories} payees={ready.payees} taxTypes={ready.taxTypes} variant={variant} onClose={() => setEntering(false)} onSaved={(b, note) => { setEntering(false); finish(`${b.billNo} was entered. It is owed until you pay it.`); if (note) setProblem(note); }} />}
       {ready && paying && <BillPayDialog bill={paying} accounts={ready.accounts} variant={variant} onClose={() => setPaying(null)} onPaid={(b) => finish(`Payment saved. ${b.billNo} ${b.balance === 0 ? "is fully paid" : `still owes AED ${formatMoney(b.balance)}`}.`)} />}
+      {viewing && viewing.bill.files && <ReceiptDialog title={`Supplier invoice, ${viewing.bill.billNo}`} files={viewing.bill.files} startIndex={viewing.index} variant={variant} onClose={() => setViewing(null)} fetchFile={getFinBillFile} />}
       {asking && <ReasonDialog ask={asking} variant={variant} onClose={() => setAsking(null)} onDone={finish} />}
     </section>
   );

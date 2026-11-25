@@ -41,6 +41,26 @@ public sealed class FinanceBillsController(FinanceBillService bills) : Controlle
     [Authorize(Policy = Policies.Finance)]
     public async Task<IActionResult> RemovePayment(int id, int entryId, [FromBody] FinVoidRequest? request, CancellationToken ct) => Map(await bills.RemovePaymentAsync(id, entryId, request?.Reason, ct));
 
+    [HttpPost("{id:int}/files")]
+    [Authorize(Policy = Policies.Finance)]
+    [RequestSizeLimit(30_000_000)]
+    public async Task<IActionResult> AddFiles(int id, [FromForm] List<IFormFile>? files, CancellationToken ct) => Map(await bills.AddFilesAsync(id, files ?? [], ct));
+
+    [HttpDelete("{id:int}/files/{fileId:int}")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> RemoveFile(int id, int fileId, CancellationToken ct) => Map(await bills.RemoveFileAsync(id, fileId, ct));
+
+    [HttpGet("files/{fileId:int}")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> File(int fileId, CancellationToken ct)
+    {
+        var found = await bills.OpenFileAsync(fileId, ct);
+        if (found is null) return Problem(statusCode: 404, title: "The file was not found.");
+        Response.Headers.XContentTypeOptions = "nosniff";
+        Response.Headers.ContentDisposition = $"inline; filename=\"supplier-invoice{System.IO.Path.GetExtension(found.Value.File.StoredName)}\"";
+        return base.File(found.Value.Content, found.Value.File.ContentType);
+    }
+
     [HttpPost("{id:int}/void")]
     [Authorize(Policy = Policies.Finance)]
     public async Task<IActionResult> Void(int id, [FromBody] FinVoidRequest? request, CancellationToken ct) => Map(await bills.VoidAsync(id, request?.Reason, ct));

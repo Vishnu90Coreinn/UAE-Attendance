@@ -1,11 +1,12 @@
-import { useRef, useState, type FormEvent } from "react";
-import { Loader2, Plus, Save, Trash2 } from "lucide-react";
-import { createFinBill, type FinBill, type FinCategory, type FinPayee, type FinTaxType } from "../../api/finance";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { FileText, Loader2, Paperclip, Plus, Save, Trash2, X } from "lucide-react";
+import { createFinBill, uploadFinBillFiles, type FinBill, type FinCategory, type FinPayee, type FinTaxType } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
 import { Button, Select, Textarea } from "../../ui";
 import { formatMoney, parseMoneyInput, todayInUae, vatOf } from "./financeFormat";
+import { formatBytes, receiptProblem, RECEIPT_MAX_FILES } from "./receiptFile";
 
 interface Line { category: string; amount: string; note: string }
 
@@ -17,7 +18,7 @@ function plusDays(iso: string, days: number): string {
 
 /** A bill from a supplier, entered when it arrives: the cost is booked now and the supplier is owed until it is paid. Line amounts are before VAT. */
 export function BillDialog({ categories, payees, taxTypes, variant, onClose, onSaved }: {
-  categories: FinCategory[]; payees: FinPayee[]; taxTypes: FinTaxType[]; variant: "center" | "sheet"; onClose: () => void; onSaved: (bill: FinBill) => void;
+  categories: FinCategory[]; payees: FinPayee[]; taxTypes: FinTaxType[]; variant: "center" | "sheet"; onClose: () => void; onSaved: (bill: FinBill, note?: string) => void;
 }) {
   const expense = categories.filter((c) => c.kind === "Expense" && c.isActive);
   const [payeeId, setPayeeId] = useState("");
@@ -28,6 +29,7 @@ export function BillDialog({ categories, payees, taxTypes, variant, onClose, onS
   const [taxTypeId, setTaxTypeId] = useState(taxTypes.find((t) => t.treatment === "Standard")?.id.toString() ?? "");
   const [lines, setLines] = useState<Line[]>([{ category: "", amount: "", note: "" }]);
   const [notes, setNotes] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [general, setGeneral] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -39,6 +41,23 @@ export function BillDialog({ categories, payees, taxTypes, variant, onClose, onS
 
   function setLine(i: number, patch: Partial<Line>) {
     setLines((cur) => cur.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  }
+
+  function addFiles(event: ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    for (const file of picked) {
+      const problem = receiptProblem(file);
+      if (problem) return setErrors((cur) => ({ ...cur, files: problem }));
+    }
+    setFiles((cur) => {
+      if (cur.length + picked.length > RECEIPT_MAX_FILES) {
+        setErrors((e) => ({ ...e, files: `Attach at most ${RECEIPT_MAX_FILES} files.` }));
+        return cur;
+      }
+      setErrors((e) => ({ ...e, files: "" }));
+      return [...cur, ...picked];
+    });
   }
 
   async function submit(event: FormEvent) {
@@ -54,10 +73,17 @@ export function BillDialog({ categories, payees, taxTypes, variant, onClose, onS
     if (Object.keys(found).length > 0) return;
     setPending(true);
     try {
-      onSaved(await createFinBill({
+      const saved = await createFinBill({
         supplierName: supplier.trim(), payeeId: payeeId ? Number(payeeId) : null, supplierRef: supplierRef.trim(), billDate, dueDate, notes: notes.trim(),
         taxTypeId: taxTypeId ? Number(taxTypeId) : null, lines: lines.map((l) => ({ categoryId: Number(l.category), amount: parseMoneyInput(l.amount)!, note: l.note.trim() })),
-      }));
+      });
+      if (files.length === 0) return onSaved(saved);
+      try {
+        onSaved(await uploadFinBillFiles(saved.id, files));
+      } catch (uploadError) {
+        // The bill is saved; only the invoice file failed, so say so instead of losing the bill.
+        onSaved(saved, `The invoice file could not be attached: ${uploadError instanceof ApiError ? uploadError.message : "please try again from the bill."}`);
+      }
     } catch (error) {
       if (error instanceof ApiError && error.fieldErrors) {
         const mapped: Record<string, string> = {};
@@ -107,6 +133,27 @@ export function BillDialog({ categories, payees, taxTypes, variant, onClose, onS
           </Select>
         )}
         <Textarea label="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={2000} />
+        <fieldset className="rounded-lg border border-dashed border-ink-300 p-4">
+          <legend className="px-1 text-sm font-medium text-ink-800">Supplier's invoice (optional)</legend>
+          <p className="text-sm text-ink-600">A PDF, JPEG or PNG, up to 5 MB each, at most {RECEIPT_MAX_FILES} files. You can also add it later from the bill.</p>
+          <label className="mt-3 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-ink-300 bg-white px-4 text-sm font-medium text-ink-800 hover:bg-ink-50 focus-within:outline-2 focus-within:outline-brand-500 md:min-h-10">
+            <Paperclip aria-hidden="true" size={16} /> Choose file
+            <input type="file" accept="application/pdf,image/jpeg,image/png" multiple className="sr-only" onChange={addFiles} />
+          </label>
+          {files.length > 0 && (
+            <ul className="mt-3 space-y-2">
+              {files.map((f, i) => (
+                <li key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-lg bg-ink-50 px-3 py-2 text-sm">
+                  <FileText aria-hidden="true" size={16} className="shrink-0 text-ink-500" />
+                  <span className="min-w-0 flex-1 truncate text-ink-900">{f.name}</span>
+                  <span className="shrink-0 text-ink-500">{formatBytes(f.size)}</span>
+                  <button type="button" onClick={() => setFiles((cur) => cur.filter((_, n) => n !== i))} aria-label={`Remove ${f.name}`} className="inline-flex size-9 items-center justify-center rounded-lg text-ink-600 hover:bg-ink-200"><X aria-hidden="true" size={16} /></button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {errors.files && <p role="alert" className="mt-2 text-sm text-danger">{errors.files}</p>}
+        </fieldset>
         {general && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{general}</p>}
         <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
           <Button variant="secondary" onClick={onClose} disabled={pending}>Cancel</Button>

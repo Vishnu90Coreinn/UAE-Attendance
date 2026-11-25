@@ -12,7 +12,7 @@ namespace HrPayroll.Api.Services.Finance;
 /// Supplier bills. Entering one books the cost (and VAT) and the debt to the supplier; paying it adds an expense entry from a bank or cash account that
 /// clears the debt (not a second cost). A bill is voided, never deleted, and only while nothing has been paid on it.
 /// </summary>
-public sealed class FinanceBillService(AppDbContext db, FinanceLedgerService ledger, FinancePeriodService periods, IAuditLogger audit, IHttpContextAccessor http, TimeProvider time)
+public sealed class FinanceBillService(AppDbContext db, FinanceLedgerService ledger, FinancePeriodService periods, IAuditLogger audit, IHttpContextAccessor http, TimeProvider time, IReceiptStore store)
 {
     public const string PaymentCategoryName = "Supplier bill payments";
     private const int MaxLines = 50;
@@ -30,6 +30,7 @@ public sealed class FinanceBillService(AppDbContext db, FinanceLedgerService led
         var payments = await db.FinEntries.AsNoTracking().Include(e => e.Account)
             .Where(e => e.BillId != null && ids.Contains(e.BillId.Value) && e.Status == FinStatuses.Active).OrderBy(e => e.EntryDate).ThenBy(e => e.Id).ToListAsync(ct);
         var types = await db.FinTaxTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, t => t.Name, ct);
+        var files = (await db.FinBillAttachments.AsNoTracking().Where(f => ids.Contains(f.BillId)).OrderBy(f => f.Id).ToListAsync(ct)).ToLookup(f => f.BillId);
         var today = Today;
         return bills.Select(b =>
         {
@@ -38,7 +39,8 @@ public sealed class FinanceBillService(AppDbContext db, FinanceLedgerService led
             return new FinBillResponse(b.Id, b.BillNo, b.SupplierName, b.PayeeId, b.SupplierRef, FinanceRules.Format(b.BillDate), FinanceRules.Format(b.DueDate), b.Notes, b.Status, Display(b, paid, today),
                 b.TaxTypeId, b.TaxTypeId is { } t ? types.GetValueOrDefault(t) : null, b.TaxAmount, b.Net, b.Total, paid, b.Status == FinBillStatuses.Voided ? 0m : b.Total - paid,
                 b.Lines.OrderBy(l => l.Id).Select(l => new FinBillLineResponse(l.CategoryId, l.Category.Name, l.Amount, l.Note)).ToList(),
-                mine.Select(p => new FinBillPaymentResponse(p.Id, p.EntryNo, FinanceRules.Format(p.EntryDate), p.Amount, p.Account.Name, p.Reference)).ToList(), b.VoidReason, b.CreatedBy);
+                mine.Select(p => new FinBillPaymentResponse(p.Id, p.EntryNo, FinanceRules.Format(p.EntryDate), p.Amount, p.Account.Name, p.Reference)).ToList(), b.VoidReason, b.CreatedBy,
+                files[b.Id].Select(f => new FinAttachmentResponse(f.Id, f.FileName, f.ContentType, f.SizeBytes)).ToList());
         }).ToList();
     }
 
@@ -250,5 +252,77 @@ public sealed class FinanceBillService(AppDbContext db, FinanceLedgerService led
         audit.Write("FinBillVoided", entityType: nameof(FinBill), entityId: bill.Id.ToString(), details: new { bill.BillNo, bill.Total, reason = text });
         await db.SaveChangesAsync(ct);
         return FinResult<FinBillResponse>.Ok((await GetAsync(id, ct)).Value!);
+    }
+
+    // ---- the supplier's invoice -------------------------------------------------------------------------------------
+
+    /// <summary>Keeps the supplier's invoice (PDF, JPEG or PNG, up to 5 MB each, at most 5 per bill) with the bill. Judged by the file's own bytes, like every receipt.</summary>
+    public async Task<FinResult<FinBillResponse>> AddFilesAsync(int id, IReadOnlyList<IFormFile> files, CancellationToken ct)
+    {
+        var bill = await db.FinBills.SingleOrDefaultAsync(b => b.Id == id, ct);
+        if (bill is null) return FinResult<FinBillResponse>.NotFound("The bill was not found.");
+        if (bill.Status == FinBillStatuses.Voided) return FinResult<FinBillResponse>.Conflict($"{bill.BillNo} is voided, so files cannot be added.");
+        if (await periods.LockedMessageAsync(bill.BillDate, ct) is { } locked) return FinResult<FinBillResponse>.Conflict(locked);
+        if (files.Count == 0) return FinResult<FinBillResponse>.Invalid("files", "Choose a file to attach.");
+        var existing = await db.FinBillAttachments.CountAsync(f => f.BillId == id, ct);
+        if (existing + files.Count > ReceiptFile.MaxFiles) return FinResult<FinBillResponse>.Invalid("files", $"Attach at most {ReceiptFile.MaxFiles} files to a bill.");
+
+        var incoming = new List<(string Name, byte[] Bytes, string ContentType, string Extension)>();
+        foreach (var file in files)
+        {
+            if (file.Length == 0 || file.Length > ReceiptFile.MaxBytes) return FinResult<FinBillResponse>.Invalid("files", $"{file.FileName}: each file must be larger than 0 and at most 5 MB.");
+            await using var stream = file.OpenReadStream();
+            var bytes = new byte[file.Length];
+            await stream.ReadExactlyAsync(bytes, ct);
+            if (ReceiptFile.Detect(bytes) is not { } kind) return FinResult<FinBillResponse>.Invalid("files", $"{file.FileName}: attach a PDF, JPEG or PNG file.");
+            incoming.Add((ReceiptFile.CleanName(file.FileName, kind.Extension), bytes, kind.ContentType, kind.Extension));
+        }
+
+        var stored = new List<string>();
+        try
+        {
+            var actor = FinanceRules.Actor(http);
+            foreach (var (name, bytes, contentType, extension) in incoming)
+            {
+                var storedName = await store.SaveAsync(bytes, extension, ct);
+                stored.Add(storedName);
+                db.FinBillAttachments.Add(new FinBillAttachment
+                {
+                    BillId = id, FileName = name, ContentType = contentType, SizeBytes = bytes.Length, StoredName = storedName,
+                    Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant(), UploadedBy = actor, UploadedUtc = DateTime.UtcNow,
+                });
+            }
+
+            audit.Write("FinBillFilesAdded", entityType: nameof(FinBill), entityId: id.ToString(), details: new { bill.BillNo, files = incoming.Select(i => i.Name).ToArray() });
+            await db.SaveChangesAsync(ct);
+        }
+        catch
+        {
+            foreach (var name in stored) store.Delete(name);   // no orphan files when the database refuses
+            throw;
+        }
+
+        return FinResult<FinBillResponse>.Ok((await GetAsync(id, ct)).Value!);
+    }
+
+    public async Task<FinResult<FinBillResponse>> RemoveFileAsync(int id, int fileId, CancellationToken ct)
+    {
+        var file = await db.FinBillAttachments.SingleOrDefaultAsync(f => f.Id == fileId && f.BillId == id, ct);
+        if (file is null) return FinResult<FinBillResponse>.NotFound("The file was not found.");
+        var bill = await db.FinBills.AsNoTracking().SingleAsync(b => b.Id == id, ct);
+        if (await periods.LockedMessageAsync(bill.BillDate, ct) is { } locked) return FinResult<FinBillResponse>.Conflict(locked);
+        db.FinBillAttachments.Remove(file);
+        audit.Write("FinBillFileRemoved", entityType: nameof(FinBill), entityId: id.ToString(), details: new { bill.BillNo, file = file.FileName });
+        await db.SaveChangesAsync(ct);
+        store.Delete(file.StoredName);
+        return FinResult<FinBillResponse>.Ok((await GetAsync(id, ct)).Value!);
+    }
+
+    public async Task<(FinBillAttachment File, Stream Content)?> OpenFileAsync(int fileId, CancellationToken ct)
+    {
+        var file = await db.FinBillAttachments.AsNoTracking().SingleOrDefaultAsync(f => f.Id == fileId, ct);
+        if (file is null) return null;
+        var stream = store.Open(file.StoredName);
+        return stream is null ? null : (file, stream);
     }
 }

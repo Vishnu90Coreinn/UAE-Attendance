@@ -405,7 +405,7 @@ public sealed record FinBillPaymentResponse(int EntryId, string EntryNo, string 
 public sealed record FinBillResponse(
     int Id, string BillNo, string SupplierName, int? PayeeId, string? SupplierRef, string BillDate, string DueDate, string? Notes, string Status, string Display,
     int? TaxTypeId, string? TaxType, decimal TaxAmount, decimal Net, decimal Total, decimal Paid, decimal Balance, IReadOnlyList<FinBillLineResponse> Lines,
-    IReadOnlyList<FinBillPaymentResponse> Payments, string? VoidReason, string CreatedBy);
+    IReadOnlyList<FinBillPaymentResponse> Payments, string? VoidReason, string CreatedBy, IReadOnlyList<FinAttachmentResponse>? Files = null);
 
 public sealed record PayableRow(int BillId, string BillNo, string Supplier, string? SupplierRef, string BillDate, string DueDate, decimal Total, decimal Paid, decimal Balance, int DaysOverdue, string Bucket);
 

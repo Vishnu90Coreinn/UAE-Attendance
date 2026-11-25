@@ -104,3 +104,38 @@ it("shows a Viewer the bills but no buttons to change them", async () => {
   expect(screen.queryByRole("button", { name: "Enter bill" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /^Pay / })).not.toBeInTheDocument();
 });
+
+it("shows the supplier's invoice on a bill, opens it, and attaches another", async () => {
+  vi.mocked(financeApi.listFinBills).mockResolvedValue([bill({ files: [{ id: 5, fileName: "supplier-77.pdf", contentType: "application/pdf", sizeBytes: 2048 }] })]);
+  vi.mocked(financeApi.getFinBillFile).mockResolvedValue(new Blob(["%PDF-"], { type: "application/pdf" }));
+  vi.mocked(financeApi.uploadFinBillFiles).mockResolvedValue(bill());
+  URL.createObjectURL = vi.fn(() => "blob:invoice");
+  URL.revokeObjectURL = vi.fn();
+  render(<MemoryRouter><BillsPage /></MemoryRouter>);
+
+  await userEvent.click(await screen.findByRole("button", { name: "View supplier-77.pdf" }));
+  await waitFor(() => expect(financeApi.getFinBillFile).toHaveBeenCalledWith(5));          // opened from the bill's own endpoint, not the entry receipts
+  expect(await screen.findByTitle(/supplier-77.pdf/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Close" }));
+
+  const file = new File(["%PDF-1.4"], "second.pdf", { type: "application/pdf" });
+  await userEvent.upload(screen.getByLabelText("Attach the supplier's invoice to BILL-000001"), file);
+  await waitFor(() => expect(financeApi.uploadFinBillFiles).toHaveBeenCalledWith(1, [file]));
+});
+
+it("saves the bill even when its invoice file cannot be attached, and says so", async () => {
+  vi.mocked(financeApi.createFinBill).mockResolvedValue(bill());
+  vi.mocked(financeApi.uploadFinBillFiles).mockRejectedValue(new Error("network"));
+  render(<MemoryRouter><BillsPage /></MemoryRouter>);
+
+  await userEvent.click(await screen.findByRole("button", { name: "Enter bill" }));
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.type(within(dialog).getByLabelText("Supplier"), "Gulf Aluminium Supplies");
+  await userEvent.selectOptions(within(dialog).getByLabelText("Category 1"), "1");
+  await userEvent.type(within(dialog).getByLabelText("Amount 1"), "100");
+  await userEvent.upload(within(dialog).getByLabelText(/Choose file/), new File(["%PDF-1.4"], "inv.pdf", { type: "application/pdf" }));
+  await userEvent.click(within(dialog).getByRole("button", { name: "Enter bill" }));
+
+  expect(await screen.findByText(/The invoice file could not be attached/)).toBeInTheDocument();
+  expect(financeApi.createFinBill).toHaveBeenCalled();                                   // the bill itself was not lost
+});

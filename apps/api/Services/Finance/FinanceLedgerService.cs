@@ -127,10 +127,10 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
         foreach (var a in await db.FinAccounts.Where(x => x.LedgerAccountId == null).ToListAsync(ct))
             a.LedgerAccountId = (await NewAccountAsync(LedgerTypes.Asset, a.Name, ct)).Id;
         // Capital entries post through the partner, so the two capital categories need no ledger account.
+        await EnsureStandardChartAsync(ct);   // every database has the standard accounts, including ones that were set up before them
         var unmapped = await db.FinCategories.Where(x => x.LedgerAccountId == null && (x.Kind == FinEntryKinds.Expense || x.Kind == FinEntryKinds.Income)).ToListAsync(ct);
         if (unmapped.Count > 0)
         {
-            await EnsureStandardChartAsync(ct);
             var standard = await db.LedgerAccounts.Where(a => !a.IsSystem).ToDictionaryAsync(a => a.Code, ct);
             foreach (var c in unmapped)
             {

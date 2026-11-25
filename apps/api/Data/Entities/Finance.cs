@@ -387,6 +387,21 @@ public sealed class FinBill
     public List<FinBillLine> Lines { get; set; } = [];
 }
 
+/// <summary>The supplier's invoice (or a photo of it) kept with a bill. The file lives in the receipts folder; only its details are here.</summary>
+public sealed class FinBillAttachment
+{
+    public int Id { get; set; }
+    public int BillId { get; set; }
+    public FinBill Bill { get; set; } = null!;
+    public string FileName { get; set; } = "";
+    public string ContentType { get; set; } = "";
+    public long SizeBytes { get; set; }
+    public string StoredName { get; set; } = "";
+    public string Sha256 { get; set; } = "";
+    public string UploadedBy { get; set; } = "";
+    public DateTime UploadedUtc { get; set; }
+}
+
 public sealed class FinBillLine
 {
     public int Id { get; set; }

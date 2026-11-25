@@ -141,4 +141,61 @@ public class FinanceBillsTests(ApiFixture api) : IClassFixture<ApiFixture>
         var locked = await SendAsync(HttpMethod.Post, "/api/finance/bills", token, Bill(new DateOnly(2022, 3, 10), new DateOnly(2022, 4, 10), null, (1, 100m)));
         Assert.Equal(HttpStatusCode.Conflict, locked.Status);
     }
+
+    private static readonly byte[] Pdf = "%PDF-1.4 supplier invoice"u8.ToArray();
+
+    private async Task<(HttpStatusCode Status, JsonElement Body)> UploadAsync(string token, int bill, params (string Name, byte[] Bytes)[] files)
+    {
+        var content = new MultipartFormDataContent();
+        foreach (var (name, bytes) in files) content.Add(new ByteArrayContent(bytes), "files", name);
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/finance/bills/{bill}/files") { Content = content };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var response = await api.Client.SendAsync(request);
+        var text = await response.Content.ReadAsStringAsync();
+        return (response.StatusCode, string.IsNullOrWhiteSpace(text) ? default : JsonDocument.Parse(text).RootElement);
+    }
+
+    [Fact]
+    public async Task TheSuppliersInvoice_CanBeKeptWithTheBill_ReadBack_AndRemoved()
+    {
+        var token = await ManagerAsync();
+        var bill = (await EnterAsync(token, Bill(Today.AddDays(-3), Today.AddDays(27), 1, (1, 400m)))).GetProperty("id").GetInt32();
+        Assert.Equal(0, (await SendAsync(HttpMethod.Get, $"/api/finance/bills/{bill}", token)).Body.GetProperty("files").GetArrayLength());
+
+        var added = await UploadAsync(token, bill, ("supplier-77.pdf", Pdf));
+        Assert.Equal(HttpStatusCode.OK, added.Status);
+        var file = added.Body.GetProperty("files")[0];
+        Assert.Equal("supplier-77.pdf", file.GetProperty("fileName").GetString());
+        Assert.Equal("application/pdf", file.GetProperty("contentType").GetString());
+
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/finance/bills/files/{file.GetProperty("id").GetInt32()}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var download = await api.Client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, download.StatusCode);
+        Assert.Equal(Pdf, await download.Content.ReadAsByteArrayAsync());
+
+        var removed = await SendAsync(HttpMethod.Delete, $"/api/finance/bills/{bill}/files/{file.GetProperty("id").GetInt32()}", token);
+        Assert.Equal(HttpStatusCode.OK, removed.Status);
+        Assert.Equal(0, removed.Body.GetProperty("files").GetArrayLength());
+        var gone = new HttpRequestMessage(HttpMethod.Get, $"/api/finance/bills/files/{file.GetProperty("id").GetInt32()}");
+        gone.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        Assert.Equal(HttpStatusCode.NotFound, (await api.Client.SendAsync(gone)).StatusCode);
+    }
+
+    [Fact]
+    public async Task AFileThatIsNotAPdfOrImage_IsRefused_NoMatterWhatItIsCalled_AndAVoidedBillTakesNone()
+    {
+        var token = await ManagerAsync();
+        var bill = (await EnterAsync(token, Bill(Today.AddDays(-3), Today.AddDays(27), null, (1, 50m)))).GetProperty("id").GetInt32();
+
+        var script = await UploadAsync(token, bill, ("invoice.pdf", "<script>alert(1)</script>"u8.ToArray()));
+        Assert.Equal(HttpStatusCode.BadRequest, script.Status);                    // judged by its bytes, not its name
+        Assert.True(script.Body.GetProperty("errors").TryGetProperty("files", out _));
+        Assert.Equal(HttpStatusCode.BadRequest, (await UploadAsync(token, bill)).Status);   // nothing chosen
+        var six = Enumerable.Range(0, 6).Select(i => ($"f{i}.pdf", Pdf)).ToArray();
+        Assert.Equal(HttpStatusCode.BadRequest, (await UploadAsync(token, bill, six)).Status);   // at most five
+
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Post, $"/api/finance/bills/{bill}/void", token, new { reason = "Wrong supplier" })).Status);
+        Assert.Equal(HttpStatusCode.Conflict, (await UploadAsync(token, bill, ("late.pdf", Pdf))).Status);
+    }
 }

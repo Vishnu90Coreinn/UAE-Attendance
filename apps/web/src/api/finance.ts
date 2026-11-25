@@ -1,4 +1,4 @@
-import { apiGet, apiGetAnyFile, apiGetBlob, apiGetFile, apiPost, apiPostForm, apiPut, apiPutForm } from "./client";
+import { apiDeleteJson, apiGet, apiGetAnyFile, apiGetBlob, apiGetFile, apiPost, apiPostForm, apiPut, apiPutForm } from "./client";
 
 /** Custody is petty cash held by one staff member. */
 export type FinAccountKind = "Bank" | "Cash" | "Custody";
@@ -1023,6 +1023,8 @@ export interface FinBill {
   payments: FinBillPayment[];
   voidReason: string | null;
   createdBy: string;
+  /** The supplier's invoice, kept with the bill. */
+  files?: FinAttachment[];
 }
 export interface FinBillInput {
   supplierName: string;
@@ -1116,4 +1118,16 @@ export function stopRecurringJournal(id: number): Promise<RecurringJournal> {
 }
 export function postDueRecurringJournals(): Promise<RecurringRunResult> {
   return apiPost<RecurringRunResult>("/api/finance/ledger/recurring/post-due", {});
+}
+
+export function uploadFinBillFiles(id: number, files: File[]): Promise<FinBill> {
+  const form = new FormData();
+  for (const file of files) form.append("files", file);
+  return apiPostForm<FinBill>(`/api/finance/bills/${id}/files`, form);
+}
+export function removeFinBillFile(id: number, fileId: number): Promise<FinBill> {
+  return apiDeleteJson<FinBill>(`/api/finance/bills/${id}/files/${fileId}`, {});
+}
+export function getFinBillFile(fileId: number): Promise<Blob> {
+  return apiGetAnyFile(`/api/finance/bills/files/${fileId}`);
 }
