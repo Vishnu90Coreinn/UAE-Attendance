@@ -36,6 +36,8 @@ export function FinanceMonthLocksCard() {
   const [error, setError] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
+  const [through, setThrough] = useState("");
+  const [confirmThrough, setConfirmThrough] = useState(false);
 
   const load = useCallback(() => {
     listFinMonthLocks().then(setLocks).catch((e) => setError(e instanceof ApiError ? e.message : "Something went wrong. Please try again."));
@@ -55,6 +57,31 @@ export function FinanceMonthLocksCard() {
     }
   }
 
+  const months = recentMonths();
+  const lockedNow = new Set((locks ?? []).filter((l) => l.isLocked).map((l) => l.month));
+  const newestLocked = months.find((m) => lockedNow.has(m));
+  // An open month with a locked month after it: something can still change behind the lock, which is almost always a mistake.
+  const gaps = newestLocked ? months.filter((m) => m < newestLocked && !lockedNow.has(m)) : [];
+  const target = through || months[1];   // the month that just ended, unless another is chosen
+  const toLock = months.filter((m) => m <= target && !lockedNow.has(m)).reverse();   // oldest first
+
+  async function lockThrough() {
+    setConfirmThrough(false);
+    setError(null);
+    for (const month of toLock) {
+      setPending(month);
+      try {
+        await lockFinMonth(month);
+      } catch (e) {
+        setError(`${label(month)} could not be locked: ${e instanceof ApiError ? e.message : "something went wrong."} The months before it are locked.`);
+        break;
+      }
+    }
+
+    setPending(null);
+    load();
+  }
+
   return (
     <Card>
       <CardHeader title="Month lock" description="Lock a month once the accountant has what they need. Nothing dated in a locked month can be added, corrected or voided until it is unlocked, with a reason." />
@@ -62,8 +89,37 @@ export function FinanceMonthLocksCard() {
         {error && <p role="alert" className="mb-3 text-sm text-danger">{error}</p>}
         {!locks && !error && <p className="text-sm text-ink-600">Loading months...</p>}
         {locks && (
+          <div className="mb-4 rounded-lg bg-ink-50 p-3">
+            <p className="text-sm font-medium text-ink-900">{newestLocked ? `Locked up to ${label(newestLocked)}.` : "No month is locked yet."}</p>
+            {gaps.length > 0 && (
+              <p role="status" className="mt-1 text-sm text-amber-900">
+                {gaps.length === 1 ? `${label(gaps[0])} is still open` : `${gaps.length} months (${label(gaps[gaps.length - 1])} to ${label(gaps[0])}) are still open`} although {label(newestLocked!)} is locked. Lock {gaps.length === 1 ? "it" : "them"} too, so nothing can change behind a locked month.
+              </p>
+            )}
+            <div className="mt-3 flex flex-wrap items-end gap-2">
+              <label className="text-sm text-ink-700">
+                <span className="block text-xs font-medium text-ink-600">Lock every month up to</span>
+                <select value={target} onChange={(e) => setThrough(e.target.value)} className="select-control mt-1 min-h-11 rounded-lg border border-line bg-white px-3 text-sm text-ink-900 md:min-h-10">
+                  {months.map((m) => <option key={m} value={m}>{label(m)}</option>)}
+                </select>
+              </label>
+              {confirmThrough ? (
+                <>
+                  <Button icon={Lock} disabled={pending !== null} onClick={() => void lockThrough()}>Yes, lock {toLock.length} month{toLock.length === 1 ? "" : "s"}</Button>
+                  <Button variant="secondary" onClick={() => setConfirmThrough(false)}>Not now</Button>
+                </>
+              ) : (
+                <Button variant="secondary" icon={Lock} disabled={toLock.length === 0 || pending !== null} onClick={() => setConfirmThrough(true)}>
+                  {toLock.length === 0 ? "Already locked" : `Lock ${toLock.length} month${toLock.length === 1 ? "" : "s"}`}
+                </Button>
+              )}
+            </div>
+            {confirmThrough && <p className="mt-2 text-sm text-ink-700">Nothing dated in {toLock.length === 1 ? label(toLock[0]) : `${label(toLock[0])} to ${label(toLock[toLock.length - 1])}`} can then be added, corrected or voided until it is unlocked, with a reason.</p>}
+          </div>
+        )}
+        {locks && (
           <ul className="divide-y divide-line rounded-lg border border-line">
-            {recentMonths().map((month) => {
+            {months.map((month) => {
               const row = locks.find((l) => l.month === month);
               const locked = row?.isLocked === true;
               return (

@@ -19,8 +19,8 @@ beforeEach(() => {
 it("lists the last twelve months, all open to start with", async () => {
   render(<FinanceMonthLocksCard />);
 
-  expect(await screen.findByText(thisMonthLabel)).toBeInTheDocument();
-  expect(screen.getAllByRole("button", { name: /^Lock / })).toHaveLength(12);
+  expect((await screen.findAllByText(thisMonthLabel)).length).toBeGreaterThan(0);
+  expect(screen.getAllByRole("button", { name: /^Lock [A-Z][a-z]+ \d{4}$/ })).toHaveLength(12);
 });
 
 it("locks a month", async () => {
@@ -59,4 +59,31 @@ it("shows the server's message when a lock is refused", async () => {
   await user.click(await screen.findByRole("button", { name: `Lock ${thisMonthLabel}` }));
 
   expect(await screen.findByRole("alert")).toHaveTextContent("already locked");
+});
+
+it("locks every month up to the one chosen, oldest first, after asking", async () => {
+  const lockFor = (m: string) => ({ month: m, isLocked: true, lockedBy: "m", lockedUtc: "2026-11-24T08:00:00Z", unlockedBy: null, unlockedUtc: null, unlockReason: null });
+  vi.mocked(financeApi.lockFinMonth).mockImplementation(async (m) => lockFor(m));
+  const user = userEvent.setup();
+  render(<FinanceMonthLocksCard />);
+
+  await user.click(await screen.findByRole("button", { name: /^Lock 11 months$/ }));          // the month that just ended and the ten before it
+  expect(financeApi.lockFinMonth).not.toHaveBeenCalled();                                     // it asks first
+  await user.click(screen.getByRole("button", { name: /^Yes, lock 11 months$/ }));
+
+  await waitFor(() => expect(financeApi.lockFinMonth).toHaveBeenCalledTimes(11));
+  const asked = vi.mocked(financeApi.lockFinMonth).mock.calls.map((c) => c[0]);
+  expect([...asked].sort()).toEqual(asked);                                                  // oldest first, so a failure leaves no gap
+  expect(asked).not.toContain(month);                                                        // the current month is not finished, so it is left open
+});
+
+it("warns when a month is open although a later one is locked", async () => {
+  const [y, m] = month.split("-").map(Number);
+  const idx = y * 12 + (m - 1);
+  const key = (back: number) => `${Math.floor((idx - back) / 12)}-${String(((idx - back) % 12) + 1).padStart(2, "0")}`;
+  vi.mocked(financeApi.listFinMonthLocks).mockResolvedValue([{ month: key(1), isLocked: true, lockedBy: "m", lockedUtc: "2026-11-24T08:00:00Z", unlockedBy: null, unlockedUtc: null, unlockReason: null }]);
+  render(<FinanceMonthLocksCard />);
+
+  expect(await screen.findByText(/Locked up to /)).toBeInTheDocument();
+  expect(screen.getByRole("status")).toHaveTextContent(/still open although .* is locked/);
 });

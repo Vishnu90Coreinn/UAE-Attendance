@@ -70,6 +70,7 @@ it("lets a Manager post a journal only when debits equal credits, and sends it",
   vi.mocked(financeApi.postManualJournal).mockResolvedValue({ id: 9, number: "JNL-000009", date: "2026-11-24", sourceType: "Manual", sourceId: 1, part: "Post", description: "Bank charge", lines: [], isManual: true });
   render(<BooksPage />);
 
+  await user.click(await screen.findByRole("tab", { name: "Records" }));
   await user.click(await screen.findByRole("tab", { name: "Journals" }));
   await user.click(await screen.findByRole("button", { name: "Post a journal" }));
   await user.type(screen.getByLabelText("What it is for"), "Bank charge not yet entered");
@@ -99,8 +100,25 @@ it("offers the Partner no way to post, reverse, edit or remap", async () => {
   const user = userEvent.setup();
   render(<BooksPage />);
 
+  await user.click(await screen.findByRole("tab", { name: "Records" }));
   await user.click(await screen.findByRole("tab", { name: "Journals" }));
   expect(screen.queryByRole("button", { name: "Post a journal" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("tab", { name: "Setup" }));
   await user.click(screen.getByRole("tab", { name: "Chart of accounts" }));
   expect(screen.queryByRole("button", { name: "Add account" })).not.toBeInTheDocument();
+});
+
+it("groups the eleven views into four sections, so none is hidden off the end of a strip", async () => {
+  const user = userEvent.setup();
+  vi.mocked(financeApi.getReceivables).mockResolvedValue({ asOf: "2026-11-25", rows: [], buckets: [], totalOwed: 0, unrecordedPayments: 0 });
+  vi.mocked(financeApi.getPayables).mockResolvedValue({ asOf: "2026-11-25", rows: [], buckets: [], totalOwed: 0 });
+  render(<BooksPage />);
+
+  await screen.findByRole("tab", { name: "Statements" });
+  expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Statements", "Owed", "Records", "Setup", "Trial balance", "Profit & loss", "Balance sheet"]);
+  await user.click(screen.getByRole("tab", { name: "Owed" }));
+  expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Statements", "Owed", "Records", "Setup", "Receivables", "Payables"]);
+  await user.click(screen.getByRole("tab", { name: "Setup" }));
+  expect(screen.getByRole("tab", { name: "Year end" })).toBeInTheDocument();
+  expect(screen.getByRole("tab", { name: "Where records post" })).toBeInTheDocument();
 });

@@ -26,6 +26,14 @@ import { formatDay, formatMoney, quietZero, todayInUae } from "./financeFormat";
 type Tab = "trial" | "ledger" | "journals" | "pl" | "sheet" | "chart" | "mapping" | "year" | "receivables" | "payables" | "recurring";
 type Load = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; trial: LedgerTrialBalance; check: LedgerCheckResult; chart: LedgerAccount[] };
 
+/** The eleven views, in four groups, so every one is visible and none is lost off the end of a scrolling strip. */
+const GROUPS: { key: string; label: string; tabs: readonly (readonly [Tab, string])[] }[] = [
+  { key: "statements", label: "Statements", tabs: [["trial", "Trial balance"], ["pl", "Profit & loss"], ["sheet", "Balance sheet"]] },
+  { key: "owed", label: "Owed", tabs: [["receivables", "Receivables"], ["payables", "Payables"]] },
+  { key: "records", label: "Records", tabs: [["ledger", "Ledger"], ["journals", "Journals"], ["recurring", "Monthly journals"]] },
+  { key: "setup", label: "Setup", tabs: [["chart", "Chart of accounts"], ["mapping", "Where records post"], ["year", "Year end"]] },
+];
+
 const TYPE_ORDER = ["Asset", "Liability", "Equity", "Revenue", "Expense"] as const;
 const GROUP_LABEL = { Asset: "Assets", Liability: "Liabilities", Equity: "Equity", Revenue: "Revenue", Expense: "Expenses" } as const;
 
@@ -281,6 +289,7 @@ export function BooksPage() {
   const desktop = useIsDesktop();
   const [notice, setNotice] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("trial");
+  const group = GROUPS.find((g) => g.tabs.some(([key]) => key === tab)) ?? GROUPS[0];
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [accountId, setAccountId] = useState<number | null>(null);
 
@@ -307,8 +316,16 @@ export function BooksPage() {
       {ready && (
         <>
           <CheckBanner check={ready.check} />
+          <div role="tablist" aria-label="Books section" className="grid grid-cols-4 gap-1 rounded-lg bg-ink-100 p-1">
+            {GROUPS.map((g) => (
+              <button key={g.key} type="button" role="tab" aria-selected={group.key === g.key} onClick={() => setTab(g.tabs[0][0])}
+                className={cx("min-h-11 rounded-md px-2 text-sm font-semibold", group.key === g.key ? "bg-white text-brand-700 shadow-sm" : "text-ink-700 hover:bg-white/60")}>
+                {g.label}
+              </button>
+            ))}
+          </div>
           <div role="tablist" aria-label="Books view" className="flex gap-1 overflow-x-auto border-b border-line">
-            {([["trial", "Trial balance"], ["pl", "Profit & loss"], ["sheet", "Balance sheet"], ["receivables", "Receivables"], ["payables", "Payables"], ["ledger", "Ledger"], ["journals", "Journals"], ["recurring", "Monthly journals"], ["chart", "Chart of accounts"], ["mapping", "Where records post"], ["year", "Year end"]] as const).map(([key, label]) => (
+            {group.tabs.map(([key, label]) => (
               <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
                 className={cx("min-h-11 shrink-0 whitespace-nowrap rounded-t-lg px-4 text-sm font-semibold", tab === key ? "border-b-2 border-brand-600 text-brand-700" : "text-ink-600 hover:bg-ink-50")}>
                 {label}

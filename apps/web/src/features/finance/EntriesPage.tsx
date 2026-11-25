@@ -55,6 +55,20 @@ function ReceiptButton({ entry, onOpen }: { entry: FinEntry; onOpen: () => void 
   );
 }
 
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** Why an entry in an old month cannot be changed, said once at the top: the newest locked month, and that the Manager can unlock it. */
+function LockNote({ months }: { months: string[] }) {
+  const newest = [...months].sort().at(-1)!;
+  const [year, month] = newest.split("-").map(Number);
+  return (
+    <p className="flex items-center gap-2 rounded-lg bg-ink-50 px-3 py-2 text-sm text-ink-700">
+      <Lock aria-hidden="true" size={14} className="shrink-0 text-ink-500" />
+      <span>Locked up to {MONTH_NAMES[month - 1]} {year}. Entries dated in a locked month cannot be added, corrected or voided until a Manager unlocks the month (Finance setup).</span>
+    </p>
+  );
+}
+
 /** Voided, corrected and locked-month notes under an entry's name. Words as well as colour. */
 function EntryMeta({ entry, locked }: { entry: FinEntry; locked: boolean }) {
   return (
@@ -296,6 +310,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
           </>
         }
       />
+      {lockedMonths.length > 0 && <LockNote months={lockedMonths} />}
       <SuccessRegion message={message} />
 
       <Card className="overflow-hidden">
