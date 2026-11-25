@@ -54,7 +54,8 @@ public static class ReceiptFile
 
     public static string CleanName(string? name, string extension)
     {
-        var file = Path.GetFileName(name ?? "");
+        // Windows paths use "\\", Linux only "/": treat both as separators so the result is the same on every host.
+        var file = Path.GetFileName((name ?? "").Replace('\\', '/'));
         var cleaned = new string(file.Where(c => !char.IsControl(c) && c is not ('<' or '>' or '"' or '|' or '?' or '*' or ':' or '\\' or '/')).ToArray()).Trim();
         if (cleaned.Length == 0) cleaned = "receipt" + extension;
         return cleaned.Length > 120 ? cleaned[..120] : cleaned;
