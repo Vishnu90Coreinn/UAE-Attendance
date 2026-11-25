@@ -11,7 +11,7 @@ import { useAttendanceSummary } from "../features/attendance/useAttendanceSummar
 import { useIsDesktop } from "../utils/useIsDesktop";
 import { AccountMenu } from "./AccountMenu";
 import { Breadcrumbs } from "./Breadcrumbs";
-import { navItemsForRole } from "./navItems";
+import { activeNavItem, navItemsForRole } from "./navItems";
 import { QuickSearch } from "./QuickSearch";
 import { PhoneShell } from "./PhoneShell";
 import { Sidebar } from "./Sidebar";
@@ -55,8 +55,8 @@ export function Layout() {
   const { pathname } = useLocation();
   // Each screen names the browser tab, so tabs and history are told apart.
   useEffect(() => {
-    const here = tabs.find((item) => item.path && (pathname === item.path || pathname.startsWith(`${item.path}/`)));
-    document.title = here ? `${here.label} Â· ${SHORT_NAME}` : `${SHORT_NAME} HR & Payroll`;
+    const here = activeNavItem(tabs, pathname);
+    document.title = here ? `${here.label} · ${SHORT_NAME}` : `${SHORT_NAME} HR & Payroll`;
   }, [pathname, tabs]);
   const attendanceSummary = useAttendanceSummary(!!user);
   // Managers see what is waiting for them; supervisors see what was sent back to them.

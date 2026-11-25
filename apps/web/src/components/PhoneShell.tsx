@@ -5,7 +5,7 @@ import type { CurrentUser } from "../api/auth";
 import { roleLabel } from "../permissions";
 import { Dialog } from "./Dialog";
 import { NAV_ICONS as ICONS } from "./navIcons";
-import { phoneNavFor, type NavItem } from "./navItems";
+import { activeNavItem, needsExactMatch, phoneNavFor, type NavItem } from "./navItems";
 import { usePushToggle } from "../usePushToggle";
 
 /**
@@ -42,7 +42,7 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
   const push = usePushToggle(user?.username);
   const { pathname } = useLocation();
   const { tabs, more } = user ? phoneNavFor(user.role, user.employeeId) : { tabs: [], more: [] };
-  const moreActive = more.some((item) => item.path && pathname.startsWith(item.path));
+  const moreActive = !!activeNavItem([...tabs, ...more], pathname) && more.some((item) => item.key === activeNavItem([...tabs, ...more], pathname)?.key);
 
   function tabContent(item: NavItem, active: boolean) {
     const Icon = ICONS[item.key] ?? Ellipsis;
@@ -111,6 +111,7 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
             <NavLink
               key={item.key}
               to={item.path!}
+              end={needsExactMatch([...tabs, ...more], item)}
               className={slotClass}
             >
               {({ isActive }) => tabContent(item, isActive)}
@@ -141,6 +142,7 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
               <li key={item.key}>
                 <NavLink
                   to={item.path!}
+                  end={needsExactMatch([...tabs, ...more], item)}
                   onClick={() => setMoreOpen(false)}
                   className={({ isActive }) =>
                     `${sheetRowClass} ${isActive ? "bg-brand-50 text-brand-800" : "text-ink-800 hover:bg-ink-100"}`

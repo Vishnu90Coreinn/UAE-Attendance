@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import * as financeApi from "../../api/finance";
@@ -36,7 +37,7 @@ beforeEach(() => {
 });
 
 it("lists income with its own wording and asks the server for income", async () => {
-  render(<IncomePage />);
+  render(<MemoryRouter><IncomePage /></MemoryRouter>);
 
   expect((await screen.findAllByText("111,767.04")).length).toBe(2); // the total and the row
   expect(screen.getByRole("heading", { name: "Income" })).toBeInTheDocument();
@@ -48,7 +49,7 @@ it("lists income with its own wording and asks the server for income", async () 
 
 it("offers only income categories when adding", async () => {
   const user = userEvent.setup();
-  render(<IncomePage />);
+  render(<MemoryRouter><IncomePage /></MemoryRouter>);
   await user.click(await screen.findByRole("button", { name: "Add income" }));
   const dialog = await screen.findByRole("dialog");
 
@@ -61,7 +62,7 @@ it("offers only income categories when adding", async () => {
 it("saves income without any attachment", async () => {
   vi.mocked(financeApi.createFinEntry).mockResolvedValue({ ...entry, id: 4, entryNo: "INC-000004", amount: 250, party: "Client A" });
   const user = userEvent.setup();
-  render(<IncomePage />);
+  render(<MemoryRouter><IncomePage /></MemoryRouter>);
   await user.click(await screen.findByRole("button", { name: "Add income" }));
   const dialog = await screen.findByRole("dialog");
 
@@ -77,7 +78,7 @@ it("saves income without any attachment", async () => {
 
 it("gives the Partner no add button", async () => {
   signIn("Viewer");
-  render(<IncomePage />);
+  render(<MemoryRouter><IncomePage /></MemoryRouter>);
   await screen.findAllByText("111,767.04");
   expect(screen.queryByRole("button", { name: "Add income" })).not.toBeInTheDocument();
 });

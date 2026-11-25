@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { navItemsForRole, phoneNavFor } from "./navItems";
+import { activeNavItem, navItemsForRole, needsExactMatch, phoneNavFor } from "./navItems";
 
 const MODULES = [
   "Worker Directory",
@@ -10,7 +10,7 @@ const MODULES = [
   "Staff Payroll Summary",
   "Deductions",
   "Leave Management",
-  "Finance",
+  "Finance Overview",
   "Accounts",
   "Expenses",
   "Income",
@@ -72,7 +72,7 @@ describe("navItemsForRole", () => {
       "Payroll Summary": "/payroll",
       "Deductions": "/deductions",
       "Leave Management": "/leave",
-      Finance: "/finance",
+      "Finance Overview": "/finance",
       Accounts: "/finance/accounts",
       Expenses: "/finance/expenses",
       Income: "/finance/income",
@@ -111,7 +111,7 @@ describe("phoneNavFor", () => {
     expect(labels(tabs)).toEqual(["Dashboard", "Daily Attendance", "Worker Directory", "Payroll Summary"]);
     expect(labels(more)).toEqual([
       "Leave Management",
-      "Finance",
+      "Finance Overview",
   "Accounts",
       "Expenses",
       "Income",
@@ -151,5 +151,23 @@ describe("phoneNavFor", () => {
   it("keeps every screen reachable exactly once", () => {
     const { tabs, more } = phoneNavFor("Manager");
     expect(labels([...tabs, ...more]).sort()).toEqual(labels(navItemsForRole("Manager")).sort());
+  });
+});
+
+describe("activeNavItem", () => {
+  const items = navItemsForRole("Manager");
+
+  it("picks the screen under /finance, not the overview that is a prefix of it", () => {
+    expect(activeNavItem(items, "/finance")?.label).toBe("Finance Overview");
+    expect(activeNavItem(items, "/finance/expenses")?.label).toBe("Expenses");
+    expect(activeNavItem(items, "/finance/partners")?.label).toBe("Partners");
+    expect(activeNavItem(items, "/finance/reports")?.label).toBe("Finance Reports");
+  });
+
+  it("finds nothing for an unknown path", () => expect(activeNavItem(items, "/nowhere")).toBeUndefined());
+
+  it("asks the overview link to match exactly, and leaves the others alone", () => {
+    expect(needsExactMatch(items, items.find((i) => i.key === "finance-overview")!)).toBe(true);
+    expect(needsExactMatch(items, items.find((i) => i.key === "finance-expenses")!)).toBe(false);
   });
 });

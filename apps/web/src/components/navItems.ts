@@ -33,7 +33,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "staff-payroll", label: "Staff Payroll Summary", shortLabel: "Staff Pay", roles: VIEW_ALL_ROLES, path: "/staff-payroll" },
   { key: "deductions", label: "Deductions", shortLabel: "Deductions", roles: VIEW_ALL_ROLES, path: "/deductions" },
   { key: "leave", label: "Leave Management", shortLabel: "Leave", roles: ALL_ROLES, path: "/leave" },
-  { key: "finance-overview", label: "Finance", shortLabel: "Finance", roles: FINANCE_ROLES, path: "/finance" },
+  { key: "finance-overview", label: "Finance Overview", shortLabel: "Finance", roles: FINANCE_ROLES, path: "/finance" },
   { key: "finance-accounts", label: "Accounts", shortLabel: "Accounts", roles: FINANCE_ROLES, path: "/finance/accounts" },
   { key: "finance-expenses", label: "Expenses", shortLabel: "Expenses", roles: FINANCE_ROLES, path: "/finance/expenses" },
   { key: "finance-income", label: "Income", shortLabel: "Income", roles: FINANCE_ROLES, path: "/finance/income" },
@@ -65,4 +65,16 @@ export function phoneNavFor(role: Role, employeeId?: number | null): { tabs: Nav
     .sort((a, b) => rank(a) - rank(b));
   if (items.length <= PHONE_SLOTS) return { tabs: items, more: [] };
   return { tabs: items.slice(0, PHONE_SLOTS - 1), more: items.slice(PHONE_SLOTS - 1) };
+}
+
+/** The item whose path matches best, which is the longest: /finance/expenses is Expenses, not the /finance overview above it. */
+export function activeNavItem(items: NavItem[], pathname: string): NavItem | undefined {
+  return items
+    .filter((item) => item.path && (pathname === item.path || pathname.startsWith(`${item.path}/`)))
+    .sort((a, b) => b.path!.length - a.path!.length)[0];
+}
+
+/** True when another item's path sits under this item's path, so this item's link must match exactly to be highlighted. */
+export function needsExactMatch(items: NavItem[], item: NavItem): boolean {
+  return !!item.path && items.some((other) => other !== item && !!other.path && other.path.startsWith(`${item.path}/`));
 }

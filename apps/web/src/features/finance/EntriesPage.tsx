@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Ban, Lock, Paperclip, Pencil, Plus, ReceiptText, Search, SlidersHorizontal, X } from "lucide-react";
+import { Ban, Download, Lock, Paperclip, Pencil, Plus, ReceiptText, Search, SlidersHorizontal, X } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { listFinAccounts, listFinCategories, listFinEntries, listFinMonthLocks, voidFinEntry, type FinAccount, type FinCategory, type FinEntry, type FinEntryFilter, type FinEntryKind, type FinEntryList } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { useIsDesktop } from "../../utils/useIsDesktop";
-import { Button, Card, EmptyState, LoadingState, PageHeader, Select, StatusBadge, Table, TableScroll, THead, Th, TRow, Td, cx } from "../../ui";
+import { Button, Card, EmptyState, IconButton, LoadingState, PageHeader, Select, SortTh, StatusBadge, Table, TableScroll, THead, Th, TRow, Td, cx, useSort } from "../../ui";
 import { TextField } from "../../components/TextField";
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { EntryDialog } from "./EntryDialog";
 import { ReceiptDialog } from "./ReceiptDialog";
 import { VoidDialog } from "./VoidDialog";
+import { saveBlob } from "../payroll/downloadPdf";
+import { entriesCsv } from "./entriesCsv";
 import { formatDay, formatMoney, parseMoneyInput, todayInUae } from "./financeFormat";
 
 type Preset = "month" | "30" | "year" | "all";
@@ -73,6 +76,31 @@ function EntryActions({ entry, onCorrect, onVoid }: { entry: FinEntry; onCorrect
   );
 }
 
+/** The table's last column: the file (with how many), correct and void as icons, so nothing is pushed off the edge of the table. */
+function RowTools({ entry, canAct, onOpen, onCorrect, onVoid }: { entry: FinEntry; canAct: boolean; onOpen: () => void; onCorrect: () => void; onVoid: () => void }) {
+  const count = entry.attachments.length;
+  const word = entry.kind === "Income" ? "attachment" : "receipt";
+  return (
+    <span className="flex items-center justify-end gap-0.5">
+      {count > 0 ? (
+        <button type="button" onClick={onOpen} aria-label={`View ${count === 1 ? word : `${count} ${word}s`} for ${entry.entryNo}`} title={`View ${word}${count === 1 ? "" : "s"}`}
+          className="inline-flex size-9 items-center justify-center gap-0.5 rounded-lg text-sm font-medium text-brand-700 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
+          <Paperclip aria-hidden="true" size={16} />
+          {count > 1 && <span className="text-xs">{count}</span>}
+        </button>
+      ) : entry.kind === "Expense" ? (
+        <span className="px-2 text-xs text-ink-500">No receipt</span>
+      ) : null}
+      {canAct && (
+        <>
+          <IconButton icon={Pencil} label={`Correct ${entry.entryNo}`} onClick={onCorrect} />
+          <IconButton icon={Ban} label={`Void ${entry.entryNo}`} onClick={onVoid} />
+        </>
+      )}
+    </span>
+  );
+}
+
 function CategoryChip({ name }: { name: string }) {
   return <span className="inline-block max-w-full truncate rounded-full bg-ink-100 px-2.5 py-0.5 text-xs font-medium text-ink-700">{name}</span>;
 }
@@ -93,11 +121,13 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
   const { user } = useAuth();
   const canEdit = isManagement(user?.role);
   const desktop = useIsDesktop();
-  const [preset, setPreset] = useState<Preset>("month");
-  const [from, setFrom] = useState(() => presetRange("month").from);
-  const [to, setTo] = useState(() => presetRange("month").to);
+  // Arriving from an account card ("?account=3&period=all") opens that account's whole history.
+  const [params] = useSearchParams();
+  const [preset, setPreset] = useState<Preset>(() => (params.get("period") === "all" ? "all" : "month"));
+  const [from, setFrom] = useState(() => presetRange(params.get("period") === "all" ? "all" : "month").from);
+  const [to, setTo] = useState(() => presetRange(params.get("period") === "all" ? "all" : "month").to);
   const [categoryId, setCategoryId] = useState("");
-  const [accountId, setAccountId] = useState("");
+  const [accountId, setAccountId] = useState(() => params.get("account") ?? "");
   const [min, setMin] = useState("");
   const [max, setMax] = useState("");
   const [search, setSearch] = useState("");
@@ -166,6 +196,20 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
     setTo(range.to);
   }
 
+  const { sorted, sort, toggle } = useSort(result?.items ?? [], {
+    date: (e) => `${e.entryDate}${String(e.id).padStart(8, "0")}`,
+    party: (e) => e.party.toLowerCase(),
+    category: (e) => e.categoryName.toLowerCase(),
+    account: (e) => e.accountName.toLowerCase(),
+    amount: (e) => e.amount,
+  });
+
+  function downloadCsv() {
+    if (!result) return;
+    const stamp = `${from || "start"}_${to || "today"}`;
+    saveBlob(new Blob([entriesCsv(result.items, kind)], { type: "text/csv;charset=utf-8" }), `${income ? "Income" : "Expenses"}_${stamp}.csv`);
+  }
+
   const activeFilterCount = [categoryId, accountId, min, max].filter(Boolean).length;
   const filtered = Boolean(categoryId || accountId || min || max || query.trim());
   const periodLabel = preset === "all" && !from && !to ? "All time" : from && to ? `${formatDay(from)} to ${formatDay(to)}` : from ? `From ${formatDay(from)}` : to ? `Until ${formatDay(to)}` : "All time";
@@ -195,7 +239,12 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
       <PageHeader
         title={income ? "Income" : "Expenses"}
         description={income ? "Money the company has received. Entered by hand; it is not linked to the Tax Invoice module." : "Money the company has paid out, each with its receipt."}
-        actions={canEdit && lists && <Button icon={Plus} onClick={() => setAdding(true)}>{income ? "Add income" : "Add expense"}</Button>}
+        actions={
+          <>
+            {result && result.items.length > 0 && <Button variant="secondary" icon={Download} onClick={downloadCsv}>Download CSV</Button>}
+            {canEdit && lists && <Button icon={Plus} onClick={() => setAdding(true)}>{income ? "Add income" : "Add expense"}</Button>}
+          </>
+        }
       />
       <SuccessRegion message={message} />
 
@@ -262,28 +311,34 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
             <Table>
               <THead>
                 <tr>
-                  <Th>Date</Th><Th>{income ? "Received from" : "Paid to"}</Th><Th>Category</Th><Th>Account</Th><Th align="right">Amount</Th><Th>{income ? "Attachment" : "Receipt"}</Th>{canEdit && <Th><span className="sr-only">Actions</span></Th>}
+                  <SortTh label="Date" sortKey="date" sort={sort} onToggle={toggle} className="px-4 py-3 text-left font-semibold" />
+                  <SortTh label={income ? "Received from" : "Paid to"} sortKey="party" sort={sort} onToggle={toggle} className="px-4 py-3 text-left font-semibold" />
+                  <SortTh label="Category" sortKey="category" sort={sort} onToggle={toggle} className="px-4 py-3 text-left font-semibold" />
+                  <SortTh label="Account" sortKey="account" sort={sort} onToggle={toggle} className="px-4 py-3 text-left font-semibold" />
+                  <SortTh label="Amount" sortKey="amount" sort={sort} onToggle={toggle} align="right" className="px-4 py-3 text-right font-semibold" />
+                  <Th><span className="sr-only">{income ? "Attachment and actions" : "Receipt and actions"}</span></Th>
                 </tr>
               </THead>
               <tbody>
-                {result.items.map((e) => (
+                {sorted.map((e) => (
                   <TRow key={e.id} className={e.status === "Voided" ? "bg-ink-50 text-ink-500" : undefined}>
                     <Td className="whitespace-nowrap align-top"><span className="font-medium tabular-nums text-ink-900">{formatDay(e.entryDate)}</span><br /><span className="font-mono text-xs text-ink-500">{e.entryNo}</span></Td>
                     <Td className="max-w-md align-top">
                       <span className={cx("font-medium", e.status === "Voided" ? "text-ink-600 line-through" : "text-ink-900")}>{e.party}</span>
-                      {e.reference && <span className="ml-2 font-mono text-xs text-ink-500">{e.reference}</span>}
-                      {e.notes && <span className="mt-0.5 line-clamp-2 block text-ink-600">{e.notes}</span>}
+                      {(e.reference || e.notes) && (
+                        <span className="mt-0.5 line-clamp-2 block text-ink-600">
+                          {e.reference && <span className="mr-2 font-mono text-xs text-ink-500">Ref {e.reference}</span>}
+                          {e.notes}
+                        </span>
+                      )}
                       <EntryMeta entry={e} locked={lockedMonths.includes(e.entryDate.slice(0, 7))} />
                     </Td>
                     <Td className="align-top"><CategoryChip name={e.categoryName} /></Td>
                     <Td className="align-top text-ink-700">{e.accountName}</Td>
                     <Td className={cx("whitespace-nowrap text-right align-top text-base font-semibold", e.status === "Voided" ? "text-ink-500 line-through" : "text-ink-900")}><Amount value={e.amount} /></Td>
-                    <Td className="align-top"><ReceiptButton entry={e} onOpen={() => setViewing(e)} /></Td>
-                    {canEdit && (
-                      <Td className="align-top">
-                        {e.status === "Active" && !lockedMonths.includes(e.entryDate.slice(0, 7)) && <EntryActions entry={e} onCorrect={() => setCorrecting(e)} onVoid={() => setVoiding(e)} />}
-                      </Td>
-                    )}
+                    <Td className="align-top">
+                      <RowTools entry={e} canAct={canEdit && e.status === "Active" && !lockedMonths.includes(e.entryDate.slice(0, 7))} onOpen={() => setViewing(e)} onCorrect={() => setCorrecting(e)} onVoid={() => setVoiding(e)} />
+                    </Td>
                   </TRow>
                 ))}
               </tbody>

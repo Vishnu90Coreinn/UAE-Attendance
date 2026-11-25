@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import * as financeApi from "../../api/finance";
@@ -37,7 +38,7 @@ beforeEach(() => {
 });
 
 it("shows the server's total and each expense with its receipt button", async () => {
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
 
   expect(await screen.findByText("515.65")).toBeInTheDocument();
   expect(screen.getByText("Royal Palm Business Center")).toBeInTheDocument();
@@ -48,7 +49,7 @@ it("shows the server's total and each expense with its receipt button", async ()
 
 it("asks the server again, with the filter, when a category is chosen", async () => {
   const user = userEvent.setup();
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
   await screen.findByText("515.65");
 
   await user.click(screen.getByRole("button", { name: /Filters/ }));
@@ -60,7 +61,7 @@ it("asks the server again, with the filter, when a category is chosen", async ()
 
 it("searches after the person stops typing", async () => {
   const user = userEvent.setup();
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
   await screen.findByText("515.65");
 
   await user.type(screen.getByPlaceholderText(/search paid to/i), "palm");
@@ -70,7 +71,7 @@ it("searches after the person stops typing", async () => {
 
 it("starts on this month and can switch to all time", async () => {
   const user = userEvent.setup();
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
   await screen.findByText("515.65");
   expect(screen.getByRole("button", { name: "This month" })).toHaveAttribute("aria-pressed", "true");
 
@@ -80,19 +81,19 @@ it("starts on this month and can switch to all time", async () => {
 });
 
 it("lets a Manager add an expense but gives the Partner no button", async () => {
-  const { unmount } = render(<ExpensesPage />);
+  const { unmount } = render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
   expect(await screen.findByRole("button", { name: "Add expense" })).toBeInTheDocument();
   unmount();
 
   signIn("Viewer");
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
   await screen.findByText("515.65");
   expect(screen.queryByRole("button", { name: "Add expense" })).not.toBeInTheDocument();
 });
 
 it("refuses to save an expense without a receipt, before it reaches the server", async () => {
   const user = userEvent.setup();
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
   await user.click(await screen.findByRole("button", { name: "Add expense" }));
   const dialog = await screen.findByRole("dialog");
 
@@ -108,7 +109,7 @@ it("refuses to save an expense without a receipt, before it reaches the server",
 it("saves an expense with its receipt and shows the new number", async () => {
   vi.mocked(financeApi.createFinEntry).mockResolvedValue(entry({ id: 9, entryNo: "EXP-000009", amount: 20, party: "Cafe" }));
   const user = userEvent.setup();
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
   await user.click(await screen.findByRole("button", { name: "Add expense" }));
   const dialog = await screen.findByRole("dialog");
 
@@ -126,7 +127,7 @@ it("saves an expense with its receipt and shows the new number", async () => {
 
 it("rejects a text file as a receipt on the spot", async () => {
   const user = userEvent.setup({ applyAccept: false });
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
   await user.click(await screen.findByRole("button", { name: "Add expense" }));
   const dialog = await screen.findByRole("dialog");
 
@@ -138,7 +139,7 @@ it("rejects a text file as a receipt on the spot", async () => {
 it("shows the server's field message under the field", async () => {
   vi.mocked(financeApi.createFinEntry).mockRejectedValue(new ApiError(400, "Invalid", undefined, undefined, { entryDate: ["RAKBANK Current opens on 1 Jun 2026. The date cannot be earlier."] }));
   const user = userEvent.setup();
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
   await user.click(await screen.findByRole("button", { name: "Add expense" }));
   const dialog = await screen.findByRole("dialog");
   await user.type(within(dialog).getByLabelText("Amount (AED)"), "20");
@@ -156,7 +157,7 @@ it("opens a receipt in a dialog", async () => {
   URL.createObjectURL = vi.fn(() => "blob:receipt");
   URL.revokeObjectURL = vi.fn();
   const user = userEvent.setup();
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
 
   await user.click(await screen.findByRole("button", { name: "View receipt for EXP-000001" }));
 
@@ -166,12 +167,12 @@ it("opens a receipt in a dialog", async () => {
 
 it("explains an empty period and offers a retry on failure", async () => {
   vi.mocked(financeApi.listFinEntries).mockResolvedValueOnce({ items: [], total: 0, count: 0, truncated: false });
-  const { unmount } = render(<ExpensesPage />);
+  const { unmount } = render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
   expect(await screen.findByText("No expenses match")).toBeInTheDocument();
   unmount();
 
   vi.mocked(financeApi.listFinEntries).mockRejectedValueOnce(new ApiError(500, "The server had a problem."));
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
   expect(await screen.findByRole("alert")).toHaveTextContent("The server had a problem.");
   expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
 });
@@ -181,7 +182,7 @@ it("explains an empty period and offers a retry on failure", async () => {
 it("voids an expense only with a reason, then reloads", async () => {
   vi.mocked(financeApi.voidFinEntry).mockResolvedValue(entry({ status: "Voided", voidReason: "Entered twice" }));
   const user = userEvent.setup();
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
   await user.click(await screen.findByRole("button", { name: "Void EXP-000001" }));
   const dialog = await screen.findByRole("dialog");
 
@@ -199,7 +200,7 @@ it("voids an expense only with a reason, then reloads", async () => {
 it("shows the server's reason in the dialog when a void is refused", async () => {
   vi.mocked(financeApi.voidFinEntry).mockRejectedValue(new ApiError(409, "November 2026 is locked (by manager1 on 24 Nov 2026)."));
   const user = userEvent.setup();
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
   await user.click(await screen.findByRole("button", { name: "Void EXP-000001" }));
   const dialog = await screen.findByRole("dialog");
   await user.type(within(dialog).getByLabelText("Reason"), "Wrong");
@@ -211,7 +212,7 @@ it("shows the server's reason in the dialog when a void is refused", async () =>
 it("corrects an expense: the form opens filled in, receipts can be kept, and the replacement is announced", async () => {
   vi.mocked(financeApi.correctFinEntry).mockResolvedValue(entry({ id: 12, entryNo: "EXP-000012", amount: 480, replacesEntryId: 1, replacesEntryNo: "EXP-000001" }));
   const user = userEvent.setup();
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
   await user.click(await screen.findByRole("button", { name: "Correct EXP-000001" }));
   const dialog = await screen.findByRole("dialog");
 
@@ -229,7 +230,7 @@ it("corrects an expense: the form opens filled in, receipts can be kept, and the
 
 it("refuses a correction that would leave the expense with no receipt", async () => {
   const user = userEvent.setup();
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
   await user.click(await screen.findByRole("button", { name: "Correct EXP-000001" }));
   const dialog = await screen.findByRole("dialog");
 
@@ -244,7 +245,7 @@ it("shows voided rows only on request, with the word Voided and the reason, and 
   const voided = entry({ id: 3, entryNo: "EXP-000003", party: "Mistaken Ltd", status: "Voided", voidReason: "Entered twice", voidedBy: "manager1", replacedByEntryNo: "EXP-000004" });
   vi.mocked(financeApi.listFinEntries).mockResolvedValue({ items: [voided], total: 0, count: 0, truncated: false });
   const user = userEvent.setup();
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
 
   await user.click(await screen.findByLabelText(/Show voided expenses/));
 
@@ -258,7 +259,7 @@ it("shows voided rows only on request, with the word Voided and the reason, and 
 
 it("takes the change buttons away from an expense in a locked month and says why", async () => {
   vi.mocked(financeApi.listFinMonthLocks).mockResolvedValue([{ month: "2026-11", isLocked: true, lockedBy: "manager1", lockedUtc: "2026-11-24T08:00:00Z", unlockedBy: null, unlockedUtc: null, unlockReason: null }]);
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
 
   expect((await screen.findAllByText("Locked month")).length).toBeGreaterThan(0);
   expect(screen.queryByRole("button", { name: "Void EXP-000001" })).not.toBeInTheDocument();
@@ -267,7 +268,7 @@ it("takes the change buttons away from an expense in a locked month and says why
 
 it("gives the Partner no void or correct buttons", async () => {
   signIn("Viewer");
-  render(<ExpensesPage />);
+  render(<MemoryRouter><ExpensesPage /></MemoryRouter>);
   await screen.findByText("EXP-000001");
   expect(screen.queryByRole("button", { name: /^(Void|Correct) / })).not.toBeInTheDocument();
 });

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeftRight, ArrowRight, Ban, Landmark, Plus, Power, Wallet } from "lucide-react";
+import { Link } from "react-router-dom";
 import { listFinAccounts, listFinTransfers, setFinAccountActive, voidFinTransfer, type FinAccount, type FinTransfer } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
@@ -147,8 +148,17 @@ function AccountCard({ account, share, canEdit, onEdit, onTransfer, onSwitch }: 
         </div>
       </dl>
 
+      <p className="mt-auto flex flex-wrap gap-x-4 text-sm font-medium text-brand-700">
+        <Link to={`/finance/expenses?account=${account.id}&period=all`} className="inline-flex min-h-11 items-center gap-1 hover:underline md:min-h-9" aria-label={`Expenses paid from ${account.name}`}>
+          Expenses <ArrowRight aria-hidden="true" size={14} />
+        </Link>
+        <Link to={`/finance/income?account=${account.id}&period=all`} className="inline-flex min-h-11 items-center gap-1 hover:underline md:min-h-9" aria-label={`Income received into ${account.name}`}>
+          Income <ArrowRight aria-hidden="true" size={14} />
+        </Link>
+      </p>
+
       {canEdit && (
-        <div className="mt-auto flex flex-wrap gap-2 border-t border-line pt-4">
+        <div className="flex flex-wrap gap-2 border-t border-line pt-4">
           {account.isActive && (
             <Button size="sm" variant="secondary" icon={ArrowLeftRight} onClick={onTransfer} aria-label={`Transfer from ${account.name}`}>
               Transfer

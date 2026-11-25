@@ -3,7 +3,7 @@ import { ChevronDown } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cx } from "../ui";
 import { NAV_GROUPS, NAV_ICONS } from "./navIcons";
-import type { NavItem } from "./navItems";
+import { needsExactMatch, type NavItem } from "./navItems";
 
 interface SidebarProps {
   items: NavItem[];
@@ -91,6 +91,7 @@ export function Sidebar({ items, collapsed, attendanceAttention }: SidebarProps)
                   {item.path ? (
                     <NavLink
                       to={item.path}
+                      end={needsExactMatch(items, item)}
                       title={collapsed ? item.label : undefined}
                       className={({ isActive }) =>
                         cx(

@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, Landmark, ReceiptText, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { ArrowRight, HandCoins, Landmark, ReceiptText, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { Link } from "react-router-dom";
-import { getFinDashboard, type FinDashboard, type FinWindow } from "../../api/finance";
+import { getFinDashboard, listFinCategories, type FinCategory, type FinDashboard, type FinEntryKind, type FinWindow } from "../../api/finance";
 import { ApiError } from "../../api/client";
-import { Card, CardHeader, EmptyState, LoadingState, PageHeader, cx } from "../../ui";
-import { LoadError } from "../workers/WorkersFeedback";
-import { formatDay, formatMoney, sharePercent, sumMoney } from "./financeFormat";
+import { useAuth } from "../../contexts/AuthContext";
+import { isManagement } from "../../permissions";
+import { useIsDesktop } from "../../utils/useIsDesktop";
+import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, cx } from "../../ui";
+import { LoadError, SuccessRegion } from "../workers/WorkersFeedback";
+import { EntryDialog } from "./EntryDialog";
+import { changeWords, formatCompact, formatDay, formatMoney, sharePercent, sumMoney } from "./financeFormat";
 
 const WINDOWS: { days: FinWindow; label: string; long: string }[] = [
   { days: 7, label: "7 days", long: "last 7 days" },
@@ -61,8 +65,8 @@ function ResultPanel({ data }: { data: FinDashboard }) {
   const scale = Math.max(current.income, current.expense, 1);
   const label = WINDOWS.find((w) => w.days === data.days)?.long ?? `last ${data.days} days`;
   const bars = [
-    { key: "Income", value: current.income, color: "bg-brand-300", icon: TrendingUp },
-    { key: "Expenses", value: current.expense, color: "bg-amber-300", icon: TrendingDown },
+    { key: "Income", value: current.income, before: data.previous.income, color: "bg-brand-300", icon: TrendingUp },
+    { key: "Expenses", value: current.expense, before: data.previous.expense, color: "bg-amber-300", icon: TrendingDown },
   ];
   return (
     <section aria-labelledby="net-result" className="overflow-hidden rounded-card bg-sidebar text-white shadow-card">
@@ -94,6 +98,10 @@ function ResultPanel({ data }: { data: FinDashboard }) {
               <div className="mt-1.5 h-3 overflow-hidden rounded-full bg-white/10" aria-hidden="true">
                 <div className={cx("h-full rounded-full", b.color)} style={{ width: `${b.value > 0 ? Math.max((b.value / scale) * 100, 1.5) : 0}%` }} />
               </div>
+              <p className="mt-1 text-xs text-white/65 tabular-nums">
+                Before: AED {formatMoney(b.before)}
+                {changeWords(b.value, b.before) && <> · <span className="font-medium text-white/85">{changeWords(b.value, b.before)}</span></>}
+              </p>
             </li>
           ))}
         </ul>
@@ -110,13 +118,20 @@ function TrendCard({ data }: { data: FinDashboard }) {
   const busy = buckets.some((b) => b.income > 0 || b.expense > 0);
   return (
     <Card>
-      <CardHeader title={`Income and expenses by ${unit}`} description={`Tallest bar: AED ${formatMoney(peak)}`} />
+      <CardHeader title={`Income and expenses by ${unit}`} description={`Each pair of bars is one ${unit}. Exact figures are on the Reports page.`} />
       <div className="px-5 pb-5">
         {!busy ? (
           <p className="py-8 text-center text-sm text-ink-600">Nothing was recorded in this period.</p>
         ) : (
           <>
-            <div className="flex h-40 items-end gap-px sm:gap-0.5" role="img" aria-label={`Income and expenses for each ${unit}, ${formatDay(data.from)} to ${formatDay(data.to)}. Figures are in the table below.`}>
+            <div className="relative">
+              {[1, 0.5, 0].map((fraction) => (
+                <div key={fraction} aria-hidden="true" className="pointer-events-none absolute inset-x-0 flex items-center gap-2" style={{ bottom: `${fraction * 100}%`, transform: "translateY(50%)" }}>
+                  <span className="w-12 shrink-0 text-right text-[11px] tabular-nums text-ink-500">{formatCompact(peak * fraction)}</span>
+                  <span className={cx("h-px flex-1", fraction === 0 ? "bg-ink-300" : "bg-ink-100")} />
+                </div>
+              ))}
+            <div className="ml-14 flex h-40 items-end gap-px sm:gap-0.5" role="img" aria-label={`Income and expenses for each ${unit}, ${formatDay(data.from)} to ${formatDay(data.to)}. Figures are in the table below.`}>
               {buckets.map((b) => (
                 <div key={b.start} title={`${b.label}: income AED ${formatMoney(b.income)}, expenses AED ${formatMoney(b.expense)}`} className="flex h-full min-w-0 flex-1 items-end justify-center gap-px">
                   <span className="block w-1/2 rounded-t-sm bg-brand-500" style={{ height: `${(b.income / peak) * 100}%`, minHeight: b.income > 0 ? 2 : 0 }} />
@@ -124,7 +139,8 @@ function TrendCard({ data }: { data: FinDashboard }) {
                 </div>
               ))}
             </div>
-            <div className="mt-2 flex justify-between text-xs text-ink-600">
+            </div>
+            <div className="ml-14 mt-2 flex justify-between text-xs text-ink-600">
               <span>{buckets[0]?.label}</span>
               <span>{buckets[buckets.length - 1]?.label}</span>
             </div>
@@ -194,7 +210,7 @@ function SpendingCard({ data }: { data: FinDashboard }) {
       {data.spending.length === 0 ? (
         <EmptyState icon={ReceiptText} title="No expenses in this period" description="Spending appears here, biggest category first." />
       ) : (
-        <ol className="grid gap-4 px-5 pb-5">
+        <ol className="grid grid-cols-1 gap-4 px-5 pb-5">
           {data.spending.map((s) => (
             <li key={s.categoryId ?? "rest"}>
               <div className="flex items-baseline justify-between gap-3 text-sm">
@@ -249,6 +265,12 @@ function LatestCard({ data }: { data: FinDashboard }) {
 
 /** Where the company stands: the period's net result, where the money went, the balances now, and what was recorded last. */
 export function FinanceDashboardPage() {
+  const { user } = useAuth();
+  const canEdit = isManagement(user?.role);
+  const desktop = useIsDesktop();
+  const [categories, setCategories] = useState<FinCategory[]>([]);
+  const [adding, setAdding] = useState<FinEntryKind | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [days, setDays] = useState<FinWindow>(30);
   const [load, setLoad] = useState<Load>({ status: "loading" });
 
@@ -268,9 +290,29 @@ export function FinanceDashboardPage() {
     void refresh(days);
   }, [days, refresh]);
 
+  useEffect(() => {
+    if (!canEdit) return;
+    listFinCategories(true).then(setCategories).catch(() => {});
+  }, [canEdit]);
+
   return (
     <section className="space-y-5">
-      <PageHeader title="Finance" description="Income, expenses and balances for the company, worked out from every recorded entry." actions={<PeriodPicker value={days} onChange={(d) => { setLoad({ status: "loading" }); setDays(d); }} />} />
+      <PageHeader
+        title="Finance"
+        description="Income, expenses and balances for the company, worked out from every recorded entry."
+        actions={
+          <>
+            {canEdit && load.status === "ready" && (
+              <>
+                <Button variant="secondary" icon={HandCoins} onClick={() => setAdding("Income")}>Add income</Button>
+                <Button icon={ReceiptText} onClick={() => setAdding("Expense")}>Add expense</Button>
+              </>
+            )}
+            <PeriodPicker value={days} onChange={(d) => { setLoad({ status: "loading" }); setDays(d); }} />
+          </>
+        }
+      />
+      <SuccessRegion message={message} />
       {load.status === "loading" && <LoadingState label="Loading the overview..." withCards />}
       {load.status === "error" && <LoadError message={load.message} onRetry={() => { setLoad({ status: "loading" }); void refresh(days); }} />}
       {load.status === "ready" && (
@@ -284,6 +326,20 @@ export function FinanceDashboardPage() {
             <BalancesCard data={load.data} />
             <LatestCard data={load.data} />
           </div>
+          {adding && (
+            <EntryDialog
+              kind={adding}
+              accounts={load.data.accounts.filter((a) => a.isActive)}
+              categories={categories.filter((c) => c.kind === adding && c.isActive)}
+              variant={desktop ? "center" : "sheet"}
+              onClose={() => setAdding(null)}
+              onSaved={(entry) => {
+                setAdding(null);
+                setMessage(`${entry.entryNo}: AED ${formatMoney(entry.amount)} ${entry.kind === "Income" ? "received from" : "paid to"} ${entry.party} was recorded.`);
+                void refresh(days);
+              }}
+            />
+          )}
         </>
       )}
     </section>

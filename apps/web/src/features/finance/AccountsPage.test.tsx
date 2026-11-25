@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import * as financeApi from "../../api/finance";
@@ -34,7 +35,7 @@ beforeEach(() => {
 });
 
 it("shows the total balance, each account with its balance, and the recent transfers", async () => {
-  render(<AccountsPage />);
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
 
   expect(await screen.findByText("1,500.00")).toBeInTheDocument(); // 1150.25 + 349.75
   const rak = screen.getByRole("article", { name: "RAKBANK Current" });
@@ -46,7 +47,7 @@ it("shows the total balance, each account with its balance, and the recent trans
 });
 
 it("lets a Manager add an account, transfer and switch accounts off", async () => {
-  render(<AccountsPage />);
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
   await screen.findByText("1,500.00");
 
   expect(screen.getByRole("button", { name: "Add account" })).toBeInTheDocument();
@@ -58,7 +59,7 @@ it("lets a Manager add an account, transfer and switch accounts off", async () =
 it("gives the read-only Partner the figures but no way to change anything", async () => {
   signIn("Viewer");
   vi.mocked(financeApi.listFinAccounts).mockResolvedValue([account({ accountNumber: "••••8001" }), cash]);
-  render(<AccountsPage />);
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
 
   expect(await screen.findByText("1,500.00")).toBeInTheDocument();
   expect(screen.getByText("••••8001")).toBeInTheDocument();
@@ -71,7 +72,7 @@ it("gives the read-only Partner the figures but no way to change anything", asyn
 it("explains an empty page and, for a Manager, offers the first account", async () => {
   vi.mocked(financeApi.listFinAccounts).mockResolvedValue([]);
   vi.mocked(financeApi.listFinTransfers).mockResolvedValue([]);
-  render(<AccountsPage />);
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
 
   expect(await screen.findByText("No accounts yet")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Add the first account" })).toBeInTheDocument();
@@ -81,7 +82,7 @@ it("tells a Partner who sees no accounts that a Manager adds them", async () => 
   signIn("Viewer");
   vi.mocked(financeApi.listFinAccounts).mockResolvedValue([]);
   vi.mocked(financeApi.listFinTransfers).mockResolvedValue([]);
-  render(<AccountsPage />);
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
 
   expect(await screen.findByText(/a manager adds the company's accounts/i)).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /add/i })).not.toBeInTheDocument();
@@ -89,7 +90,7 @@ it("tells a Partner who sees no accounts that a Manager adds them", async () => 
 
 it("marks an overdrawn account with a word, not just a colour", async () => {
   vi.mocked(financeApi.listFinAccounts).mockResolvedValue([account({ balance: -50.75 }), cash]);
-  render(<AccountsPage />);
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
 
   const rak = await screen.findByRole("article", { name: "RAKBANK Current" });
   expect(within(rak).getByText("Overdrawn")).toBeInTheDocument();
@@ -99,7 +100,7 @@ it("marks an overdrawn account with a word, not just a colour", async () => {
 it("shows a retry when the accounts cannot be loaded", async () => {
   vi.mocked(financeApi.listFinAccounts).mockRejectedValueOnce(new ApiError(500, "The server had a problem."));
   const user = userEvent.setup();
-  render(<AccountsPage />);
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
 
   expect(await screen.findByRole("alert")).toHaveTextContent("The server had a problem.");
   await user.click(screen.getByRole("button", { name: "Retry" }));
@@ -109,7 +110,7 @@ it("shows a retry when the accounts cannot be loaded", async () => {
 it("shows the server's reason when an account still holding money is switched off", async () => {
   vi.mocked(financeApi.setFinAccountActive).mockRejectedValue(new ApiError(409, "This account still holds AED 349.75. Transfer or record the remaining amount first."));
   const user = userEvent.setup();
-  render(<AccountsPage />);
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
   await screen.findByText("1,500.00");
 
   await user.click(screen.getByRole("button", { name: "Switch off Main cash" }));
@@ -121,7 +122,7 @@ it("shows the server's reason when an account still holding money is switched of
 it("shows a field message from the server under the account name", async () => {
   vi.mocked(financeApi.createFinAccount).mockRejectedValue(new ApiError(400, "Invalid", undefined, undefined, { name: ["An account with this name already exists."] }));
   const user = userEvent.setup();
-  render(<AccountsPage />);
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
   await screen.findByText("1,500.00");
 
   await user.click(screen.getByRole("button", { name: "Add account" }));
@@ -134,7 +135,7 @@ it("shows a field message from the server under the account name", async () => {
 
 it("refuses a transfer to the same account before it reaches the server", async () => {
   const user = userEvent.setup();
-  render(<AccountsPage />);
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
   await screen.findByText("1,500.00");
 
   await user.click(screen.getAllByRole("button", { name: "Transfer" })[0]);
@@ -150,7 +151,7 @@ it("refuses a transfer to the same account before it reaches the server", async 
 it("sends a valid transfer and shows its number", async () => {
   vi.mocked(financeApi.createFinTransfer).mockResolvedValue({ ...transfer, id: 8, transferNo: "TRF-000008", amount: 25.5 });
   const user = userEvent.setup();
-  render(<AccountsPage />);
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
   await screen.findByText("1,500.00");
 
   await user.click(screen.getAllByRole("button", { name: "Transfer" })[0]);
@@ -167,7 +168,7 @@ it("sends a valid transfer and shows its number", async () => {
 it("voids a transfer with a reason and shows the confirmation", async () => {
   vi.mocked(financeApi.voidFinTransfer).mockResolvedValue({ ...transfer, status: "Voided", voidReason: "Cancelled by bank" });
   const user = userEvent.setup();
-  render(<AccountsPage />);
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
   await user.click(await screen.findByRole("button", { name: "Void TRF-000007" }));
   const dialog = await screen.findByRole("dialog");
 
@@ -180,7 +181,7 @@ it("voids a transfer with a reason and shows the confirmation", async () => {
 
 it("gives the Partner no void button on transfers", async () => {
   signIn("Viewer");
-  render(<AccountsPage />);
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
   await screen.findByText("TRF-000007");
   expect(screen.queryByRole("button", { name: /Void TRF/ })).not.toBeInTheDocument();
 });

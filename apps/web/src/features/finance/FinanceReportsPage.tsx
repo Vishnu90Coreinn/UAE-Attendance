@@ -156,7 +156,7 @@ function CategoryCard({ title, rows, total, bar }: { title: string; rows: FinRep
       {rows.length === 0 ? (
         <p className="px-5 pb-6 text-sm text-ink-600">Nothing was recorded in this period.</p>
       ) : (
-        <ol className="grid gap-4 px-5 pb-5">
+        <ol className="grid grid-cols-1 gap-4 px-5 pb-5">
           {rows.map((c) => (
             <li key={c.categoryId}>
               <div className="flex items-baseline justify-between gap-3 text-sm">

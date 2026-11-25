@@ -5,9 +5,16 @@ import { beforeEach, expect, it, vi } from "vitest";
 import * as financeApi from "../../api/finance";
 import type { FinDashboard } from "../../api/finance";
 import { ApiError } from "../../api/client";
+import { useAuth } from "../../contexts/AuthContext";
 import { FinanceDashboardPage } from "./FinanceDashboardPage";
 
 vi.mock("../../api/finance");
+vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
+vi.mock("../../utils/useIsDesktop", () => ({ useIsDesktop: () => true }));
+
+function signIn(role: "Manager" | "Viewer") {
+  vi.mocked(useAuth).mockReturnValue({ status: "signedIn", user: { id: 1, username: "u", role }, token: "t", login: vi.fn(), logout: vi.fn() });
+}
 
 function data(overrides: Partial<FinDashboard> = {}): FinDashboard {
   return {
@@ -26,7 +33,12 @@ function data(overrides: Partial<FinDashboard> = {}): FinDashboard {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  signIn("Manager");
   vi.mocked(financeApi.getFinDashboard).mockResolvedValue(data());
+  vi.mocked(financeApi.listFinCategories).mockResolvedValue([
+    { id: 1, kind: "Expense", name: "Rent", isActive: true, useCount: 1 },
+    { id: 10, kind: "Income", name: "Other income", isActive: true, useCount: 1 },
+  ]);
 });
 
 const view = () => render(<MemoryRouter><FinanceDashboardPage /></MemoryRouter>);
@@ -79,4 +91,39 @@ it("shows a negative net with a minus sign and offers a retry when loading fails
   vi.mocked(financeApi.getFinDashboard).mockRejectedValueOnce(new ApiError(500, "Server error"));
   view();
   expect(await screen.findByText(/server error/i)).toBeInTheDocument();
+});
+
+it("says how income and expenses compare with the days before, in words", async () => {
+  view();
+  const panel = await screen.findByRole("region", { name: /net result/i });
+  expect(within(panel).getByText(/Before: AED 2,000.00/)).toBeInTheDocument();
+  expect(within(panel).getByText("up 150.0%")).toBeInTheDocument(); // income 5,000 against 2,000
+  expect(within(panel).getByText("up 20.0%")).toBeInTheDocument(); // expenses 1,800.50 against 1,500
+});
+
+it("lets a Manager add an expense or income from the overview, and refreshes afterwards", async () => {
+  vi.mocked(financeApi.createFinEntry).mockResolvedValue({
+    id: 5, kind: "Income", entryNo: "INC-000005", entryDate: "2026-11-25", categoryId: 10, categoryName: "Other income", party: "Client", accountId: 1, accountName: "RAKBANK Current",
+    amount: 750, reference: null, notes: null, status: "Active", voidReason: null, createdBy: "m", createdUtc: "2026-11-25T08:00:00Z", attachments: [],
+    voidedBy: null, voidedUtc: null, replacesEntryId: null, replacesEntryNo: null, replacedByEntryNo: null,
+  });
+  vi.mocked(financeApi.listFinParties).mockResolvedValue([]);
+  view();
+  await userEvent.click(await screen.findByRole("button", { name: "Add income" }));
+  await userEvent.type(screen.getByLabelText("Amount (AED)"), "750");
+  await userEvent.selectOptions(screen.getByLabelText("Category"), "10");
+  await userEvent.selectOptions(screen.getByLabelText("Received into"), "1");
+  await userEvent.type(screen.getByLabelText("Received from"), "Client");
+  await userEvent.click(screen.getByRole("button", { name: "Save income" }));
+  await waitFor(() => expect(financeApi.createFinEntry).toHaveBeenCalledWith("Income", expect.objectContaining({ amount: 750, accountId: 1, categoryId: 10 })));
+  expect(await screen.findByText(/INC-000005/)).toBeInTheDocument();
+  expect(vi.mocked(financeApi.getFinDashboard).mock.calls.length).toBeGreaterThan(1);
+});
+
+it("gives a Partner (Viewer) no buttons that add anything", async () => {
+  signIn("Viewer");
+  view();
+  await screen.findByRole("region", { name: /net result/i });
+  expect(screen.queryByRole("button", { name: /add (income|expense)/i })).not.toBeInTheDocument();
+  expect(financeApi.listFinCategories).not.toHaveBeenCalled();
 });

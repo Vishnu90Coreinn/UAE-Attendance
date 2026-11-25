@@ -40,3 +40,19 @@ export function parseMoneyInput(text: string): number | null {
 export function formatPercent(value: number): string {
   return `${value.toFixed(2)}%`;
 }
+
+/** 111.8k, 2.4M: a short form for chart axes, where exact figures sit in the labels and tables. */
+export function formatCompact(amount: number): string {
+  const abs = Math.abs(amount);
+  if (abs >= 1_000_000) return `${(amount / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
+  if (abs >= 1_000) return `${(amount / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}k`;
+  return String(Math.round(amount));
+}
+
+/** How the current figure compares with the one before, in words: "up 12.5%", "down 8.0%" or "no change"; null when there is nothing to compare with. */
+export function changeWords(current: number, previous: number): string | null {
+  if (previous <= 0) return null;
+  const percent = ((current - previous) / previous) * 100;
+  if (Math.abs(percent) < 0.05) return "no change";
+  return `${percent > 0 ? "up" : "down"} ${Math.abs(percent).toFixed(1)}%`;
+}
