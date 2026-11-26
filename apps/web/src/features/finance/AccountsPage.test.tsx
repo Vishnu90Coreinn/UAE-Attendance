@@ -60,8 +60,9 @@ it("lets a Manager add an account, transfer and switch accounts off", async () =
 
   expect(screen.getByRole("button", { name: "Add account" })).toBeInTheDocument();
   expect(screen.getAllByRole("button", { name: "Transfer" }).length).toBeGreaterThan(0);
-  expect(screen.getByRole("button", { name: "Edit RAKBANK Current" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Switch off Main cash" })).toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole("button", { name: "More actions for Main cash" }));
+  expect(screen.getByRole("menuitem", { name: "Edit details" })).toBeInTheDocument();
+  expect(screen.getByRole("menuitem", { name: "Deactivate account" })).toBeInTheDocument();
 });
 
 it("gives the read-only Partner the figures but no way to change anything", async () => {
@@ -73,8 +74,7 @@ it("gives the read-only Partner the figures but no way to change anything", asyn
   expect(screen.getByText("••••8001")).toBeInTheDocument();
   expect(screen.queryByText("0353713938001")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Add account" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: /^Edit / })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: /Switch off/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /More actions/ })).not.toBeInTheDocument();
 });
 
 it("explains an empty page and, for a Manager, offers the first account", async () => {
@@ -121,8 +121,9 @@ it("shows the server's reason when an account still holding money is switched of
   render(<MemoryRouter><AccountsPage /></MemoryRouter>);
   await screen.findByText("1,500.00");
 
-  await user.click(screen.getByRole("button", { name: "Switch off Main cash" }));
-  await user.click(await screen.findByRole("button", { name: "Switch off", hidden: false }));
+  await user.click(screen.getByRole("button", { name: "More actions for Main cash" }));
+  await user.click(screen.getByRole("menuitem", { name: "Deactivate account" }));
+  await user.click(await screen.findByRole("button", { name: "Deactivate account" }));
 
   expect(await screen.findByRole("alert")).toHaveTextContent("still holds AED 349.75");
 });
@@ -177,9 +178,13 @@ it("voids a transfer with a reason and shows the confirmation", async () => {
   vi.mocked(financeApi.voidFinTransfer).mockResolvedValue({ ...transfer, status: "Voided", voidReason: "Cancelled by bank" });
   const user = userEvent.setup();
   render(<MemoryRouter><AccountsPage /></MemoryRouter>);
-  await user.click(await screen.findByRole("button", { name: "Void TRF-000007" }));
+  await user.click(await screen.findByRole("button", { name: "Void transfer TRF-000007" }));
   const dialog = await screen.findByRole("dialog");
 
+  expect(within(dialog).getByRole("button", { name: "Void" })).toBeDisabled();
+  await user.type(within(dialog).getByLabelText("Reason"), "no");
+  expect(within(dialog).getByRole("button", { name: "Void" })).toBeDisabled();
+  await user.clear(within(dialog).getByLabelText("Reason"));
   await user.type(within(dialog).getByLabelText("Reason"), "Cancelled by bank");
   await user.click(within(dialog).getByRole("button", { name: "Void" }));
 
@@ -191,5 +196,51 @@ it("gives the Partner no void button on transfers", async () => {
   signIn("Viewer");
   render(<MemoryRouter><AccountsPage /></MemoryRouter>);
   await screen.findByText("TRF-000007");
-  expect(screen.queryByRole("button", { name: /Void TRF/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Void transfer/ })).not.toBeInTheDocument();
+});
+
+it("masks the IBAN until asked, and copies the whole of it", async () => {
+  vi.mocked(financeApi.listFinAccounts).mockResolvedValue([account({ iban: "AE070331234567890123456" }), cash]);
+  const user = userEvent.setup();
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
+  const rak = await screen.findByRole("article", { name: "RAKBANK Current" });
+
+  expect(within(rak).getByText("AE07 •••• 3456")).toBeInTheDocument();
+  await user.click(within(rak).getByRole("button", { name: "Show IBAN of RAKBANK Current" }));
+  expect(within(rak).getByText("AE070331234567890123456")).toBeInTheDocument();
+  await user.click(within(rak).getByRole("button", { name: "Copy IBAN of RAKBANK Current" }));
+  expect(await within(rak).findByText("IBAN copied")).toBeInTheDocument();
+  expect(await navigator.clipboard.readText()).toBe("AE070331234567890123456");
+});
+
+it("says how many cheques are pending and what the balance will be, with a way to see them", async () => {
+  vi.mocked(financeApi.listFinAccounts).mockResolvedValue([account({ unclearedCheques: 100, bankBalance: 1250.25 }), cash]);
+  vi.mocked(financeApi.listFinCheques).mockResolvedValue({ items: [{ id: 1, accountId: 1, entryId: 5 }], count: 1, openIssued: 100, openReceived: 0, truncated: false } as unknown as Awaited<ReturnType<typeof financeApi.listFinCheques>>);
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
+  const rak = await screen.findByRole("article", { name: "RAKBANK Current" });
+
+  const notice = within(rak).getByRole("status");
+  expect(notice).toHaveTextContent("1 cheque pending · AED 100.00 not yet cleared. Expected balance after clearing: AED 1,150.25.");
+  expect(within(rak).getByRole("link", { name: "View cheques" })).toHaveAttribute("href", "/finance/cheques");
+});
+
+it("shows a voided transfer as voided, struck through and with no button", async () => {
+  vi.mocked(financeApi.listFinTransfers).mockResolvedValue([{ ...transfer, status: "Voided", voidReason: "Twice" }]);
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
+
+  expect(await screen.findByText("Voided")).toBeInTheDocument();
+  expect(screen.getByText("400.00")).toHaveClass("line-through");
+  expect(screen.queryByRole("button", { name: /Void transfer/ })).not.toBeInTheDocument();
+  expect(financeApi.listFinTransfers).toHaveBeenCalledWith(true);
+});
+
+it("gives focus back to the button that opened a dialog", async () => {
+  const user = userEvent.setup();
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
+  const opener = await screen.findByRole("button", { name: "Void transfer TRF-000007" });
+
+  await user.click(opener);
+  await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Cancel" }));
+
+  expect(opener).toHaveFocus();
 });

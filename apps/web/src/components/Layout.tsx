@@ -8,6 +8,7 @@ import { FINANCE_ROLES, isManagement, roleLabel } from "../permissions";
 import { useAuth } from "../contexts/AuthContext";
 import { ChangePasswordDialog } from "../features/auth/ChangePasswordDialog";
 import { useAttendanceSummary } from "../features/attendance/useAttendanceSummary";
+import { useLeaveWaiting } from "../features/dashboard/useLeaveWaiting";
 import { useIsDesktop } from "../utils/useIsDesktop";
 import { AccountMenu } from "./AccountMenu";
 import { Breadcrumbs } from "./Breadcrumbs";
@@ -63,6 +64,14 @@ export function Layout() {
   const attendanceAttention = isManagement(user?.role)
     ? (attendanceSummary?.submittedTotal ?? 0)
     : (attendanceSummary?.rejectedTotal ?? 0);
+  // Each menu entry counts its own module; the bell counts every decision waiting, the same way the dashboard does.
+  const manages = isManagement(user?.role);
+  const leaveWaiting = useLeaveWaiting(manages, pathname);
+  const decisions = (attendanceSummary?.submitted?.length ?? 0) + leaveWaiting.leave + leaveWaiting.staffLeave;
+  const bell = manages
+    ? { count: decisions, to: "/dashboard", title: "Needs your decision", label: decisions > 0 ? `Needs your decision: ${decisions} ${decisions === 1 ? "item" : "items"}` : "Needs your decision: nothing" }
+    : { count: attendanceAttention, to: "/attendance", title: "Attendance alerts", label: attendanceAttention > 0 ? `Attendance alerts: ${attendanceAttention} need attention` : "Attendance alerts: none" };
+  const badges = { attendance: attendanceAttention, leave: leaveWaiting.leave, "staff-leave": leaveWaiting.staffLeave };
 
   function handleSignOut() {
     forgetDeviceOnSignOut();
@@ -136,15 +145,15 @@ export function Layout() {
         {user && (
           <div className="flex shrink-0 items-center gap-1.5">
             <Link
-              to="/attendance"
-              aria-label={attendanceAttention > 0 ? `Attendance alerts: ${attendanceAttention} need attention` : "Attendance alerts: none"}
-              title="Attendance alerts"
+              to={bell.to}
+              aria-label={bell.label}
+              title={bell.title}
               className={`${headerButtonClass} relative`}
             >
               <Bell aria-hidden="true" size={18} />
-              {attendanceAttention > 0 && (
-                <span aria-hidden="true" className="absolute right-0.5 top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[0.625rem] font-bold text-ink-900">
-                  {attendanceAttention}
+              {bell.count > 0 && (
+                <span aria-hidden="true" className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[0.625rem] font-bold leading-none text-ink-900 ring-2 ring-white">
+                  {bell.count}
                 </span>
               )}
             </Link>
@@ -155,7 +164,7 @@ export function Layout() {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <Sidebar items={tabs} collapsed={sidebarCollapsed} attendanceAttention={attendanceAttention} />
+        <Sidebar items={tabs} collapsed={sidebarCollapsed} badges={badges} />
         <div className="min-w-0 flex-1 overflow-y-auto">
           <main id="main" tabIndex={-1} className="mx-auto w-full max-w-[90rem] px-6 py-8 outline-none lg:px-8">
             <Breadcrumbs items={tabs} />

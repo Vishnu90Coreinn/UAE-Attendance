@@ -107,8 +107,8 @@ export function updateFinCategory(id: number, name: string, isActive: boolean): 
   return apiPut<FinCategory>(`/api/finance/categories/${id}`, { name, isActive });
 }
 
-export function listFinTransfers(): Promise<FinTransfer[]> {
-  return apiGet("/api/finance/transfers");
+export function listFinTransfers(includeVoided = false): Promise<FinTransfer[]> {
+  return apiGet(`/api/finance/transfers${includeVoided ? "?includeVoided=true" : ""}`);
 }
 export function createFinTransfer(input: FinTransferInput): Promise<FinTransfer> {
   return apiPost<FinTransfer>("/api/finance/transfers", input);

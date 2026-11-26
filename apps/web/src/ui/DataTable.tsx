@@ -57,10 +57,12 @@ interface SortThProps {
   onToggle: (key: string) => void;
   className?: string;
   align?: "right";
+  /** Keeps the heading's button 44px high, for pages that must be easy to tap. */
+  tall?: boolean;
 }
 
 /** Column heading that sorts when pressed and tells assistive technology the current order. */
-export function SortTh({ label, sortKey, sort, onToggle, className, align }: SortThProps) {
+export function SortTh({ label, sortKey, sort, onToggle, className, align, tall }: SortThProps) {
   const active = sort?.key === sortKey;
   const Icon = !active ? ArrowUpDown : sort.dir === "asc" ? ArrowUp : ArrowDown;
   return (
@@ -71,6 +73,7 @@ export function SortTh({ label, sortKey, sort, onToggle, className, align }: Sor
         className={cx(
           "group inline-flex items-center gap-1 rounded uppercase tracking-[inherit] hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500",
           align === "right" && "flex-row-reverse",
+          tall && "min-h-11",
         )}
       >
         {label}

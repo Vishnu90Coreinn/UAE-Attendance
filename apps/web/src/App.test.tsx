@@ -290,7 +290,7 @@ describe("App", () => {
       await screen.findByRole("heading", { name: /^Good (morning|afternoon|evening), / }, { timeout: 10000 }),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
-    expect(await screen.findByText("Across 1 day")).toBeInTheDocument();
+    expect(await screen.findByText("1 attendance approval")).toBeInTheDocument();
   }, 20000);
 
   it("opens the Worker Directory at the root for a Supervisor, who has no dashboard", async () => {

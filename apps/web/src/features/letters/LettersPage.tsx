@@ -246,6 +246,8 @@ export function LettersPage() {
   const [tab, setTab] = useState<Tab>("requests");
   const [opened, setOpened] = useState<LetterRecord | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
+  // Where the requests list puts "New request": level with the page title, while the list keeps the state it opens.
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
 
   async function open(id: number) {
     setOpenError(null);
@@ -282,6 +284,7 @@ export function LettersPage() {
               ? "Ask HR for a certificate and follow its progress."
               : "A supervisor requests a certificate, HR prepares it, and a manager approves it before it can be downloaded."
           }
+          actions={tab === "requests" && roles.canRaise ? <div ref={setHeaderSlot} /> : undefined}
         />
       ) : (
         <div className="mb-5">
@@ -317,7 +320,7 @@ export function LettersPage() {
       {openError && <ActionFailure message={openError} />}
       <div role="tabpanel" id={`letters-panel-${tab}`} aria-labelledby={`letters-tab-${tab}`}>
         {tab === "requests" ? (
-          <RequestsPanel roles={roles} defaultStatus={role === "Manager" ? "PendingApproval" : ""} />
+          <RequestsPanel roles={roles} defaultStatus={role === "Manager" ? "PendingApproval" : ""} headerSlot={headerSlot} />
         ) : (
           <IssuedLog onOpen={(id) => void open(id)} />
         )}

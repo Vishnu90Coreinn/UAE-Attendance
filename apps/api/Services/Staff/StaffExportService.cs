@@ -10,6 +10,9 @@ using UglyToad.PdfPig.Writer;
 namespace HrPayroll.Api.Services.Staff;
 
 /// <summary>Excel and PDF downloads of the office attendance report and the leave balance report.</summary>
+/// <summary>What narrows the requests listed in a leave export, beside the year and department.</summary>
+public sealed record LeaveExportFilter(string? Status, string? Search, DateOnly? From, DateOnly? To);
+
 public sealed class StaffExportService(
     AppDbContext db, StaffAttendanceService attendance, StaffLeaveService leave, Microsoft.Extensions.Configuration.IConfiguration configuration)
 {
@@ -62,10 +65,13 @@ public sealed class StaffExportService(
         return await BuildAsync(table, new Table("DETAIL", table.Subtitle, table.FileStem, table.Columns, table.Rows, []), format, ct);
     }
 
-    public async Task<LeaveExportResult> LeaveBalancesAsync(int? year, string? department, AttendanceExportFormat format, CancellationToken ct)
+    public async Task<LeaveExportResult> LeaveBalancesAsync(int? year, string? department, AttendanceExportFormat format, CancellationToken ct, LeaveExportFilter? filter = null)
     {
         var y = year ?? DateTime.UtcNow.Year;
         var rows = await leave.AllBalancesAsync(y, department, ct);
+        var search = filter?.Search?.Trim();
+        bool Wanted(string name, string code) => string.IsNullOrEmpty(search) || name.Contains(search, StringComparison.OrdinalIgnoreCase) || code.Contains(search, StringComparison.OrdinalIgnoreCase);
+        rows = rows.Where(r => Wanted(r.Name, r.Code)).ToList();
         var types = rows.SelectMany(r => r.Balances).GroupBy(b => b.LeaveTypeId).Select(g => (g.Key, g.First().LeaveType)).OrderBy(t => t.Key).ToList();
         var columns = new List<(string, double, bool)> { ("ID", 0.8, false), ("EMPLOYEE", 2.2, false), ("DEPT", 1.3, false) };
         columns.AddRange(types.Select(t => (t.LeaveType.ToUpperInvariant() + " USED/LEFT", 1.4, true)));
@@ -78,7 +84,12 @@ public sealed class StaffExportService(
         var table = new Table("STAFF LEAVE BALANCES", $"Year {y}{(string.IsNullOrWhiteSpace(department) ? "" : "  |  " + department)}", $"Staff_Leave_{y}",
             columns.ToArray(), body, ["Used counts approved leave only; pending requests are not deducted until approved."]);
 
-        var requests = await leave.ListAsync(null, null, department, y, ct);
+        // The list of requests follows the screen's filters: status, who, and any day inside the date range.
+        var requests = (await leave.ListAsync(filter?.Status, null, department, y, ct))
+            .Where(r => Wanted(r.Name, r.Code))
+            .Where(r => filter?.From is not { } first || string.CompareOrdinal(r.EndDate, first.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)) >= 0)
+            .Where(r => filter?.To is not { } last || string.CompareOrdinal(r.StartDate, last.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)) <= 0)
+            .ToList();
         var detail = new Table("LEAVE REQUESTS", table.Subtitle, table.FileStem,
             [("ID", 0.8, false), ("EMPLOYEE", 2, false), ("TYPE", 1.4, false), ("FROM", 1, false), ("TO", 1, false), ("DAYS", 0.5, true), ("STATUS", 0.9, false), ("DECIDED BY", 1.1, false)],
             requests.Select(r => new[] { r.Code, r.Name, r.LeaveType, Date(r.StartDate), Date(r.EndDate), N(r.Days), r.Status, r.DecidedBy ?? "" }).ToList(), []);

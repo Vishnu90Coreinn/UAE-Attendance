@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { CheckCircle2, ChevronRight, RefreshCw, type LucideIcon } from "lucide-react";
+import { Check, CheckCircle2, ChevronRight, Eye, EyeOff, Minus, Palmtree, RefreshCw, UserCheck, UserX, type LucideIcon } from "lucide-react";
 import type { AttendanceSummary } from "../../api/attendance";
 import type { LeaveRequest } from "../../api/leave";
 import type { InvoiceSummary } from "../../api/invoices";
@@ -28,7 +28,8 @@ const whole = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 const dayFmt = new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
 /** "2026-11-21" as "Sat 21 Nov", the way people say a date. */
 const shortDay = (iso: string) => dayFmt.format(new Date(`${iso}T00:00:00Z`)).replace(",", "");
-const dayRange = (a: string, b: string) => (a === b ? shortDay(a) : `${shortDay(a)} \u2013 ${shortDay(b)}`);
+const dayMonthFmt = new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", day: "numeric", month: "short" });
+const dayMonth = (iso: string) => dayMonthFmt.format(new Date(`${iso}T00:00:00Z`));
 const clock = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dubai", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
 const focusClass = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500";
@@ -37,7 +38,15 @@ export interface QuickAction {
   to: string;
   label: string;
   icon: LucideIcon;
+  /** Nothing left to do: drawn as a switched-off button saying so. */
+  done?: boolean;
 }
+
+/** The quiet link in a region's corner. */
+const cornerLink = "ml-auto inline-flex min-h-11 items-center rounded px-2 text-xs font-semibold text-brand-700 hover:bg-brand-50";
+
+/** Whether anybody has been marked that day. Approved leave writes its own records, so leave alone does not count as marking. */
+export const nothingRecorded = (day: TrendDay) => day.present + day.absent === 0 && (day.notRecorded > 0 || day.onLeave === 0);
 
 function Skeleton({ height }: { height: number }) {
   return <div role="status" aria-label="Loading" style={{ height }} className="rounded bg-ink-100 motion-safe:animate-pulse" />;
@@ -93,9 +102,11 @@ function Dimension({ value, color }: { value: number; color: string }) {
 export function LeadFigure({
   trend,
   staff,
+  canRecord = false,
 }: {
   trend: Load<TrendDay[]>;
   staff: Load<StaffDashboard>;
+  canRecord?: boolean;
 }) {
   const days = trend.status === "ready" ? trend.value : null;
   const site = days ? days[days.length - 1] : null;
@@ -107,6 +118,27 @@ export function LeadFigure({
   const present = (site?.present ?? 0) + (office?.signedIn ?? 0);
   const total = (site?.total ?? 0) + (office?.total ?? 0);
   const rate = total > 0 ? Math.round((present / total) * 100) : 0;
+  const siteUnmarked = !!site && site.total > 0 && nothingRecorded(site);
+  // Nobody marked and nobody signed in: a 0% would read as an empty site, when the day simply has not been recorded.
+  if (!loading && !failed && siteUnmarked && (office?.signedIn ?? 0) === 0) {
+    return (
+      <div className="min-w-0 bg-white px-4 py-3 sm:px-5">
+        <p className="text-sm font-semibold text-ink-800">On the job today</p>
+        <p className="mt-2 flex items-center gap-2 font-display text-2xl font-semibold text-ink-500">
+          <Minus aria-hidden="true" size={22} />
+          Attendance not marked yet
+        </p>
+        <p className="mt-1 text-sm text-ink-600">{site.total} site workers{office ? ` · ${office.total} office staff` : ""}</p>
+        <Link
+          to="/attendance"
+          className={`mt-2 inline-flex min-h-11 items-center gap-1.5 rounded border border-ink-300 bg-white px-4 text-sm font-semibold text-ink-800 hover:border-brand-500 hover:text-brand-700 ${focusClass}`}
+        >
+          {canRecord ? "Mark attendance" : "Open attendance"}
+          <ChevronRight aria-hidden="true" size={16} />
+        </Link>
+      </div>
+    );
+  }
   return (
     <Link to="/attendance" className={`group relative block min-w-0 bg-white px-4 py-3 transition-colors hover:bg-brand-50 sm:px-5 ${focusClass}`}>
       <p className="flex items-center justify-between gap-2 text-sm font-semibold text-ink-800">
@@ -134,6 +166,7 @@ export function LeadFigure({
               <> · office closed ({officeAll.dayType.toLowerCase()})</>
             ) : null}
           </p>
+          {siteUnmarked && <p className="mt-1 text-sm text-ink-600">Site attendance isn't marked yet.</p>}
         </>
       )}
     </Link>
@@ -205,6 +238,11 @@ export function invoiceTotals(invoices: InvoiceSummary[]) {
     openCount: open.length,
     overdue: sum(late, (i) => i.balanceDue),
     overdueCount: late.length,
+    aging: {
+      current: sum(open.filter((i) => daysBetween(i.dueDate, today) <= 0), (i) => i.balanceDue),
+      upTo30: sum(open.filter((i) => daysBetween(i.dueDate, today) >= 1 && daysBetween(i.dueDate, today) <= 30), (i) => i.balanceDue),
+      over30: sum(open.filter((i) => daysBetween(i.dueDate, today) > 30), (i) => i.balanceDue),
+    },
     billedThisMonth: sum(billed, (i) => i.total),
     billedCount: billed.length,
     collectedOfBilled: sum(billed, (i) => i.amountPaid),
@@ -225,7 +263,7 @@ export function Invoices({ state }: { state: Load<InvoiceSummary[]> }) {
       title="Tax invoices"
       note={t ? `${t.billedCount} issued this month` : undefined}
       action={
-        <Link to="/invoices" className={`ml-auto rounded px-1.5 py-0.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 ${focusClass}`}>
+        <Link to="/invoices" className={`${cornerLink} ${focusClass}`}>
           All invoices
         </Link>
       }
@@ -249,6 +287,16 @@ export function Invoices({ state }: { state: Load<InvoiceSummary[]> }) {
               <dd className={`text-base font-medium tabular-nums ${t.overdueCount > 0 ? "text-red-800" : "text-ink-900"}`}>{money.format(t.overdue)}</dd>
             </div>
           </dl>
+          {t.outstanding > 0 && (
+            <dl aria-label="Outstanding by how late it is" className="mt-2 grid grid-cols-3 gap-x-4 border-t border-dashed border-ink-200 pt-2">
+              {([["Current", t.aging.current], ["1–30 days late", t.aging.upTo30], ["Over 30 days late", t.aging.over30]] as const).map(([label, value]) => (
+                <div key={label}>
+                  <dt className="text-xs text-ink-600">{label}</dt>
+                  <dd className={`text-sm tabular-nums ${value === 0 ? "text-ink-500" : "font-medium text-ink-900"}`}>{money.format(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
           {t.unpaid.length === 0 ? (
             <p className="mt-4 text-sm text-ink-600">Every issued invoice is paid.</p>
           ) : (
@@ -306,7 +354,7 @@ export function SheetHeader({
               onClick={onRefresh}
               disabled={refreshing}
               aria-label={updatedAt ? `Refresh figures. Last updated at ${clock.format(updatedAt)}` : "Refresh figures"}
-              className={`inline-flex min-h-8 items-center gap-1.5 rounded px-2 text-xs font-medium text-ink-600 transition-colors hover:bg-brand-50 hover:text-brand-700 disabled:cursor-wait ${focusClass}`}
+              className={`inline-flex min-h-11 items-center gap-1.5 rounded px-2 text-xs font-medium text-ink-600 transition-colors hover:bg-brand-50 hover:text-brand-700 disabled:cursor-wait ${focusClass}`}
             >
               <RefreshCw aria-hidden="true" size={13} className={refreshing ? "motion-safe:animate-spin" : ""} />
               {refreshing ? "Updating\u2026" : updatedAt ? `Updated ${clock.format(updatedAt)}` : "Refresh"}
@@ -318,11 +366,17 @@ export function SheetHeader({
       </div>
       {actions.length > 0 && (
         <ul className="flex flex-wrap gap-2">
-          {actions.map(({ to, label, icon: Icon }, index) => (
+          {actions.map(({ to, label, icon: Icon, done }, index) => (
             <li key={label}>
+              {done ? (
+                <button type="button" disabled className="inline-flex min-h-11 cursor-default items-center gap-1.5 rounded border border-ink-200 bg-ink-100 px-3 text-sm font-semibold text-ink-600">
+                  <Check aria-hidden="true" size={16} className="shrink-0 text-green-700" />
+                  {label}
+                </button>
+              ) : (
               <Link
                 to={to}
-                className={`inline-flex min-h-9 items-center gap-1.5 rounded px-3 text-sm font-semibold transition-colors ${focusClass} ${
+                className={`inline-flex min-h-11 items-center gap-1.5 rounded px-3 text-sm font-semibold transition-colors ${focusClass} ${
                   index === 0
                     ? "bg-brand-600 text-white hover:bg-brand-700"
                     : "border border-ink-300 bg-white text-ink-800 hover:border-brand-500 hover:text-brand-700"
@@ -331,6 +385,7 @@ export function SheetHeader({
                 <Icon aria-hidden="true" size={16} className="shrink-0" />
                 {label}
               </Link>
+              )}
             </li>
           ))}
         </ul>
@@ -347,9 +402,14 @@ function Swatch({ color }: { color: string }) {
  * The week as a plain bar chart: one bar per day for people present, on a scale from 0 to the head-count. Anything out
  * of the ordinary that day (absent, on leave) is written under the bar, so nothing depends on reading colours.
  */
+/** Grey diagonal strokes: "nobody has recorded this", which is not the same as nobody being there. */
+const HATCH = `repeating-linear-gradient(135deg, ${STATUS.open}55 0 3px, transparent 3px 7px)`;
+
 function Panes({ days }: { days: TrendDay[] }) {
   const max = Math.max(...days.map((d) => d.total), 1);
   return (
+    <>
+    <p className="mb-2 text-right text-xs text-ink-600">Head-count {max}</p>
     <div className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-2">
       <div aria-hidden="true" className="relative h-24 text-right text-xs tabular-nums text-ink-500">
         <span className="absolute right-0 top-0 -translate-y-1/2">{max}</span>
@@ -365,6 +425,7 @@ function Panes({ days }: { days: TrendDay[] }) {
         <ol className="relative grid grid-cols-7 gap-1.5 sm:gap-2">
           {days.map((day, index) => {
             const today = index === days.length - 1;
+            const unrecorded = nothingRecorded(day);
             const rate = day.total > 0 ? Math.round((day.present / day.total) * 100) : 0;
             const rows = [
               ["Present", day.present, STATUS.present],
@@ -377,17 +438,21 @@ function Panes({ days }: { days: TrendDay[] }) {
               <li key={day.date} className="group relative min-w-0">
                 <button
                   type="button"
-                  aria-label={`${day.label} ${day.date}: ${day.present} present, ${day.absent} absent, ${day.onLeave} on leave, ${day.notRecorded} not recorded`}
+                  aria-label={unrecorded ? `${day.label} ${day.date}: not recorded${day.onLeave > 0 ? `, ${day.onLeave} on leave` : ""}` : `${day.label} ${day.date}: ${day.present} present, ${day.absent} absent, ${day.onLeave} on leave, ${day.notRecorded} not recorded`}
                   className={`block w-full rounded-[3px] text-center ${today ? "bg-brand-50" : "hover:bg-ink-50"} ${focusClass}`}
                 >
                   <span className="flex h-24 items-end justify-center px-1.5">
-                    <span
-                      className="block w-full max-w-10 rounded-t-[3px]"
-                      style={{ height: `${(day.present / max) * 100}%`, background: STATUS.present, opacity: today ? 1 : 0.8 }}
-                    />
+                    {unrecorded ? (
+                      <span data-unrecorded className="block h-full w-full max-w-10 rounded-t-[3px] border border-dashed border-ink-300" style={{ backgroundImage: HATCH }} />
+                    ) : (
+                      <span
+                        className="block w-full max-w-10 rounded-t-[3px]"
+                        style={{ height: `${(day.present / max) * 100}%`, background: STATUS.present, opacity: today ? 1 : 0.8 }}
+                      />
+                    )}
                   </span>
                   <span className={`mt-1 block text-xs ${today ? "font-semibold text-ink-900" : "text-ink-600"}`}>{today ? "Today" : day.label}</span>
-                  <span className="block text-sm font-semibold tabular-nums text-ink-900">{day.present}</span>
+                  <span className={`block text-sm font-semibold tabular-nums ${unrecorded ? "text-ink-500" : "text-ink-900"}`}>{unrecorded ? "–" : day.present}</span>
                   <span className="flex min-h-9 flex-col items-center justify-start pb-1 text-xs leading-tight">
                     {day.absent > 0 && <span className="font-medium text-red-800">{day.absent} absent</span>}
                     {day.onLeave > 0 && <span className="font-medium text-violet-800">{day.onLeave} leave</span>}
@@ -419,6 +484,13 @@ function Panes({ days }: { days: TrendDay[] }) {
         </ol>
       </div>
     </div>
+    <ul aria-label="Chart key" className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-700">
+      <li className="inline-flex items-center gap-1.5"><Swatch color={STATUS.present} /><UserCheck aria-hidden="true" size={14} />Present</li>
+      <li className="inline-flex items-center gap-1.5"><UserX aria-hidden="true" size={14} className="text-red-800" />Absent</li>
+      <li className="inline-flex items-center gap-1.5"><Palmtree aria-hidden="true" size={14} className="text-violet-800" />On leave</li>
+      <li className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="inline-block size-2.5 rounded-[2px] border border-ink-400" style={{ backgroundImage: HATCH }} />– Not recorded</li>
+    </ul>
+    </>
   );
 }
 
@@ -475,16 +547,26 @@ export function Waiting({
   const staffRequests = staff.status === "ready" ? staff.value : [];
   const total = days.length + requests.length + staffRequests.length;
   const today = dubaiToday();
-  const age = (iso: string) => {
-    const n = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${iso}T00:00:00Z`)) / 86_400_000);
-    return n <= 0 ? "today" : n === 1 ? "yesterday" : `${n} days ago`;
+  /** "14–15 Dec", or "30 Nov – 2 Dec" across months. */
+  const range = (a: string, b: string) => {
+    if (a === b) return dayMonth(a);
+    return a.slice(0, 7) === b.slice(0, 7) ? `${Number(a.slice(8))}–${dayMonth(b)}` : `${dayMonth(a)} – ${dayMonth(b)}`;
   };
-  const span = (a: string, b: string, n: number) => `${dayRange(a, b)} (${n} ${n === 1 ? "day" : "days"})`;
+  const span = (a: string, b: string, n: number) => `${range(a, b)} · ${n} ${n === 1 ? "day" : "days"}`;
+  /** Late: leave whose dates have gone by without a decision, or anything that has waited more than two days. */
+  const lateness = (since: string, ends?: string) => {
+    if (ends && ends < today) return "Overdue";
+    const waited = daysBetween(since, today);
+    return waited > 2 ? `${waited} days old` : null;
+  };
+  const row = (key: string, to: string, tag: string, title: string, detail: string, cta: string, since: string, ends?: string) => ({ key, to, tag, title, detail, cta, since, late: lateness(since, ends) });
   const rows = [
-    ...days.slice(0, 4).map((day) => ({ key: `d-${day.date}`, to: "/attendance", tag: "Attendance", title: shortDay(day.date), detail: `${day.count} ${day.count === 1 ? "entry" : "entries"} to approve · ${age(day.date)}`, cta: "Approve" })),
-    ...requests.slice(0, 4).map((r) => ({ key: `l-${r.id}`, to: "/leave", tag: "Site leave", title: r.workerName, detail: `${r.leaveType} · ${span(r.startDate, r.endDate, r.days)}`, cta: "Decide" })),
-    ...staffRequests.slice(0, 4).map((r) => ({ key: `s-${r.id}`, to: "/staff-leave", tag: "Office leave", title: r.name, detail: `${r.leaveType} · ${span(r.startDate, r.endDate, r.days)}`, cta: "Decide" })),
-  ];
+    ...days.map((day) => row(`d-${day.date}`, "/attendance", "Attendance", shortDay(day.date), `${day.count} ${day.count === 1 ? "entry" : "entries"} to approve`, "Approve", day.date)),
+    ...requests.map((r) => row(`l-${r.id}`, "/leave", "Site leave", r.workerName, `${r.leaveType} · ${span(r.startDate, r.endDate, r.days)}`, "Decide", (r.createdUtc ?? today).slice(0, 10), r.endDate)),
+    ...staffRequests.map((r) => row(`s-${r.id}`, "/staff-leave", "Office leave", r.name, `${r.leaveType} · ${span(r.startDate, r.endDate, r.days)}`, "Decide", (r.createdUtc ?? today).slice(0, 10), r.endDate)),
+  ]
+    .sort((a, b) => a.since.localeCompare(b.since))
+    .slice(0, 8);
   if (!loading && !failed && total === 0) {
     return (
       <section className="flex items-center gap-2.5 px-4 py-3 text-sm sm:px-5">
@@ -505,8 +587,11 @@ export function Waiting({
               <Link to={row.to} className={`flex min-h-11 items-center gap-3 rounded px-2 py-1.5 hover:bg-brand-50 ${focusClass}`}>
                 <Tag>{row.tag}</Tag>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-ink-900">{row.title}</span>
-                  <span className="line-clamp-2 text-xs text-ink-600">{row.detail}</span>
+                  <span className="flex flex-wrap items-center gap-x-2 text-sm font-medium text-ink-900">
+                    {row.title}
+                    {row.late && <span className="rounded-[3px] bg-amber-100 px-1.5 text-xs font-semibold text-amber-900">{row.late}</span>}
+                  </span>
+                  <span className="block text-xs text-ink-600">{row.detail}</span>
                 </span>
                 <span className="inline-flex shrink-0 items-center gap-0.5 text-xs font-semibold text-brand-700">
                   {row.cta}
@@ -594,7 +679,7 @@ export function OfficeToday({ state }: { state: Load<StaffDashboard> }) {
         ) : undefined
       }
       action={
-        <Link to="/staff" className={`ml-auto rounded px-1.5 py-0.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 ${focusClass}`}>
+        <Link to="/staff" className={`${cornerLink} ${focusClass}`}>
           Open
         </Link>
       }
@@ -632,6 +717,8 @@ export function Payroll({ state, staffState }: { state: Load<PayrollReport>; sta
       ]
     : [];
   const report = ready ? { period: workers.period, status: workers.status, lines } : null;
+  // Pay by name is not left on a screen others can see over a shoulder: it is shown when asked for.
+  const [revealed, setRevealed] = useState(false);
   const earners = report ? [...report.lines].filter((l) => l.netPay > 0).sort((a, b) => b.netPay - a.netPay).slice(0, 3) : [];
   const top = earners[0]?.netPay ?? 1;
   const totals = ready
@@ -654,7 +741,7 @@ export function Payroll({ state, staffState }: { state: Load<PayrollReport>; sta
       title="Payroll"
       note={report ? `${report.period} · ${report.status}` : undefined}
       action={
-        <Link to="/payroll" className={`ml-auto rounded px-1.5 py-0.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 ${focusClass}`}>
+        <Link to="/payroll" className={`${cornerLink} ${focusClass}`}>
           Report
         </Link>
       }
@@ -685,8 +772,16 @@ export function Payroll({ state, staffState }: { state: Load<PayrollReport>; sta
             </dl>
           </div>
           <div>
-            <p className="mb-1.5 text-xs font-medium text-ink-600">Highest net pay</p>
-            {earners.length === 0 ? (
+            <button
+              type="button"
+              onClick={() => setRevealed((v) => !v)}
+              aria-expanded={revealed}
+              className={`-ml-2 inline-flex min-h-11 items-center gap-1.5 rounded px-2 text-xs font-semibold text-brand-700 hover:bg-brand-50 ${focusClass}`}
+            >
+              {revealed ? <EyeOff aria-hidden="true" size={14} /> : <Eye aria-hidden="true" size={14} />}
+              {revealed ? "Hide highest net pay" : "Show highest net pay"}
+            </button>
+            {!revealed ? null : earners.length === 0 ? (
               <p className="text-sm text-ink-600">No positive net pay yet this month.</p>
             ) : (
               <ol className="space-y-1.5">

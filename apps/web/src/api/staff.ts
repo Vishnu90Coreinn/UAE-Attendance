@@ -307,9 +307,18 @@ export const getLeaveBalances = (year: number, department?: string) =>
 export const approveStaffLeave = (id: number, note: string) => apiPost<StaffLeave>(`/api/staff/leave/${id}/approve`, { note });
 export const rejectStaffLeave = (id: number, note: string) => apiPost<StaffLeave>(`/api/staff/leave/${id}/reject`, { note });
 
-export function getStaffLeaveFile(format: "pdf" | "excel", year: number, department?: string): Promise<Blob> {
+/** What narrows the list of requests in an export, beside the year and department. */
+export interface StaffLeaveExportFilters {
+  status?: string;
+  search?: string;
+  from?: string;
+  to?: string;
+}
+
+export function getStaffLeaveFile(format: "pdf" | "excel", year: number, department?: string, filters: StaffLeaveExportFilters = {}): Promise<Blob> {
   const query = new URLSearchParams({ year: String(year) });
   if (department) query.set("department", department);
+  for (const [key, value] of Object.entries(filters)) if (value) query.set(key, value);
   const path = `/api/staff/leave/export/${format}?${query}`;
   return format === "pdf" ? apiGetBlob(path) : apiGetFile(path, EXCEL_TYPE);
 }

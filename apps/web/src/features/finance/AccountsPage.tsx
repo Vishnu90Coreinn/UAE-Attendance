@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeftRight, ArrowRight, Ban, Landmark, Plus, Power, Wallet } from "lucide-react";
-import { Link } from "react-router-dom";
-import { listFinAccounts, listFinTransfers, setFinAccountActive, voidFinTransfer, type FinAccount, type FinTransfer } from "../../api/finance";
+import { ArrowLeftRight, ArrowRight, Landmark, Plus, Power } from "lucide-react";
+import { listFinAccounts, listFinCheques, listFinTransfers, setFinAccountActive, voidFinTransfer, type FinAccount, type FinCheque, type FinTransfer } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { useAuth } from "../../contexts/AuthContext";
@@ -9,29 +8,33 @@ import { isManagement } from "../../permissions";
 import { useIsDesktop } from "../../utils/useIsDesktop";
 import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, StatusBadge, cx } from "../../ui";
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
+import { AccountCard } from "./AccountCard";
 import { AccountDialog } from "./AccountDialog";
 import { TransferDialog } from "./TransferDialog";
 import { VoidDialog } from "./VoidDialog";
 import { formatDay, formatMoney, formatShare, splitShares, sumMoney } from "./financeFormat";
 
-type Load = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; accounts: FinAccount[]; transfers: FinTransfer[] };
-
-/** Segment colours for the composition bar. The legend names every segment, so colour is never the only cue. */
-const SEGMENTS = ["bg-brand-200", "bg-brand-400", "bg-amber-300", "bg-sky-300", "bg-ink-300"];
+type Load = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; accounts: FinAccount[]; transfers: FinTransfer[]; cheques: FinCheque[] };
 
 function failure(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something went wrong. Please try again.";
 }
 
-/** Total balance on a deep panel, with how it is split across the accounts. */
+/** Total balance on a deep panel, split into what is in banks and what is in cash. */
 function TotalPanel({ accounts }: { accounts: FinAccount[] }) {
   const active = accounts.filter((a) => a.isActive);
   const total = sumMoney(active.map((a) => a.balance));
   const bank = sumMoney(active.filter((a) => a.kind === "Bank").map((a) => a.balance));
-  const cash = sumMoney(active.filter((a) => a.kind === "Cash" || a.kind === "Custody").map((a) => a.balance));
+  const cash = sumMoney(active.filter((a) => a.kind !== "Bank").map((a) => a.balance));
+  // Shares are of money held: an overdrawn account holds none.
   const holders = active.filter((a) => a.balance > 0);
   const percents = splitShares(holders.map((a) => a.balance), 1);
-  const split = holders.map((a, index) => ({ account: a, percent: percents[index], color: SEGMENTS[index % SEGMENTS.length] }));
+  const held = (isBank: boolean) => sumMoney(holders.filter((a) => (a.kind === "Bank") === isBank).map((a) => a.balance));
+  const [bankShare, cashShare] = splitShares([held(true), held(false)], 1);
+  const groups = [
+    { name: "Banks", share: bankShare, color: "bg-amber-300" },
+    { name: "Cash & petty cash", share: cashShare, color: "bg-teal-400" },
+  ];
 
   return (
     <section aria-labelledby="total-balance" className="fade-up overflow-hidden rounded-card bg-sidebar text-white shadow-card">
@@ -60,27 +63,35 @@ function TotalPanel({ accounts }: { accounts: FinAccount[] }) {
           </dl>
         </div>
         <div className="self-end">
-          {split.length > 0 ? (
+          {holders.length > 0 ? (
             <>
               <p className="text-sm font-medium text-white/75">Where the money sits</p>
-              <div
-                role="img"
-                aria-label={`Share of the total by account: ${split.map((s) => `${s.account.name} ${formatShare(s.percent)}`).join(", ")}`}
-                className="mt-3 flex h-3 gap-0.5 overflow-hidden rounded-full"
-              >
-                {split.map((s) => (
-                  <span key={s.account.id} style={{ width: `${Math.max(s.percent, 2)}%` }} className={cx("block h-full", s.color)} />
+              <div role="img" aria-label={`Banks ${formatShare(bankShare)}, cash and petty cash ${formatShare(cashShare)}`} className="mt-3 flex h-3 gap-0.5 overflow-hidden rounded-full">
+                {groups.filter((g) => g.share > 0).map((g) => (
+                  <span key={g.name} style={{ width: `${Math.max(g.share, 1.5)}%` }} className={cx("block h-full", g.color)} />
                 ))}
               </div>
               <ul className="mt-3 grid gap-1.5 text-sm">
-                {split.map((s) => (
-                  <li key={s.account.id} className="flex items-center gap-2">
-                    <span aria-hidden="true" className={cx("size-2.5 shrink-0 rounded-sm", s.color)} />
-                    <span className="min-w-0 flex-1 truncate">{s.account.name}</span>
-                    <span className="font-semibold tabular-nums">{formatShare(s.percent)}</span>
+                {groups.map((g) => (
+                  <li key={g.name} className="flex items-center gap-2">
+                    <span aria-hidden="true" className={cx("size-2.5 shrink-0 rounded-sm", g.color)} />
+                    <span className="min-w-0 flex-1">{g.name}</span>
+                    <span className="font-semibold tabular-nums">{formatShare(g.share)}</span>
                   </li>
                 ))}
               </ul>
+              <details className="mt-1 text-sm">
+                <summary className="flex min-h-11 w-fit cursor-pointer items-center font-medium text-white/80 hover:text-white">Per account</summary>
+                <ul className="grid gap-1.5">
+                  {holders.map((a, index) => (
+                    <li key={a.id} className="flex items-center gap-2">
+                      <span aria-hidden="true" className={cx("size-2.5 shrink-0 rounded-sm", a.kind === "Bank" ? "bg-amber-300" : "bg-teal-400")} />
+                      <span className="min-w-0 flex-1 truncate">{a.name}</span>
+                      <span className="font-semibold tabular-nums">{formatShare(percents[index])}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             </>
           ) : (
             <p className="text-sm text-white/70">No money is held yet. Balances appear here as soon as an account has an opening balance or entries.</p>
@@ -91,131 +102,52 @@ function TotalPanel({ accounts }: { accounts: FinAccount[] }) {
   );
 }
 
-function AccountCard({ account, share, canEdit, onEdit, onTransfer, onSwitch }: {
-  account: FinAccount;
-  share: number;
-  canEdit: boolean;
-  onEdit: () => void;
-  onTransfer: () => void;
-  onSwitch: () => void;
-}) {
-  const Icon = account.kind === "Bank" ? Landmark : Wallet;
-  const overdrawn = account.balance < 0;
-  return (
-    <article aria-label={account.name} className={cx("flex flex-col rounded-card border border-line bg-white p-5 shadow-card", !account.isActive && "bg-ink-50")}>
-      <header className="flex items-start gap-3">
-        <span aria-hidden="true" className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
-          <Icon size={20} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="break-words font-display text-lg font-bold leading-snug text-ink-900">{account.name}</h3>
-          <p className="mt-0.5 text-sm text-ink-600">{[account.kind === "Cash" ? "Cash" : account.kind === "Custody" ? `Petty cash held by ${account.holderName ?? "staff"}` : "Bank account", account.bankName].filter(Boolean).join(" · ")}</p>
-        </div>
-        {!account.isActive && <StatusBadge tone="neutral" variant="soft">Switched off</StatusBadge>}
-        {overdrawn && account.isActive && <StatusBadge tone="danger">Overdrawn</StatusBadge>}
-      </header>
-
-      <p className={cx("mt-5 flex items-baseline gap-2 tabular-nums", overdrawn ? "text-danger" : "text-ink-900")}>
-        <span className="text-sm font-medium text-ink-500">AED</span>
-        <span className="font-display text-3xl font-bold tracking-tight">{formatMoney(account.balance)}</span>
-      </p>
-      {(account.unclearedCheques ?? 0) !== 0 && account.bankBalance !== undefined && (
-        <p className="mt-1 text-[13px] text-ink-600">
-          Expected bank balance before reconciliation: <span className="font-semibold tabular-nums text-ink-800">AED {formatMoney(account.bankBalance)}</span>. Cheques of AED{" "}
-          <span className="tabular-nums">{formatMoney(Math.abs(account.unclearedCheques ?? 0))}</span> {(account.unclearedCheques ?? 0) > 0 ? "have not been paid by the bank yet" : "have not reached the bank yet"}.
-        </p>
-      )}
-      {account.isActive && share > 0 && (
-        <div className="mt-3" aria-hidden="true">
-          <div className="h-1.5 overflow-hidden rounded-full bg-ink-100">
-            <div className="h-full rounded-full bg-brand-500" style={{ width: `${share}%` }} />
-          </div>
-        </div>
-      )}
-      {account.isActive && share > 0 && <p className="mt-1 text-[13px] text-ink-600">{formatShare(share)} of the total</p>}
-
-      <dl className="mb-4 mt-4 grid gap-1.5 border-t border-line pt-4 text-sm">
-        {account.accountNumber && (
-          <div className="flex justify-between gap-3">
-            <dt className="text-ink-600">Account no.</dt>
-            <dd className="font-mono text-[13px] text-ink-700">{account.accountNumber}</dd>
-          </div>
-        )}
-        {account.iban && (
-          <div className="flex justify-between gap-3">
-            <dt className="text-ink-600">IBAN</dt>
-            <dd className="break-all text-right font-mono text-[13px] text-ink-700">{account.iban}</dd>
-          </div>
-        )}
-        <div className="flex justify-between gap-3">
-          <dt className="text-ink-600">Opening</dt>
-          <dd className="tabular-nums text-ink-900">
-            AED {formatMoney(account.openingBalance)} <span className="text-ink-500">on {formatDay(account.openingDate)}</span>
-          </dd>
-        </div>
-      </dl>
-
-      <p className="mt-auto flex flex-wrap gap-x-4 text-[13px] font-medium text-brand-700">
-        <Link to={`/finance/expenses?account=${account.id}&period=all`} className="inline-flex min-h-11 items-center gap-1 hover:underline md:min-h-9" aria-label={`Expenses paid from ${account.name}`}>
-          Expenses <ArrowRight aria-hidden="true" size={14} />
-        </Link>
-        <Link to={`/finance/income?account=${account.id}&period=all`} className="inline-flex min-h-11 items-center gap-1 hover:underline md:min-h-9" aria-label={`Income received into ${account.name}`}>
-          Income <ArrowRight aria-hidden="true" size={14} />
-        </Link>
-      </p>
-
-      {canEdit && (
-        <div className="flex flex-wrap gap-2 border-t border-line pt-4">
-          {account.isActive && (
-            <Button size="sm" variant="secondary" icon={ArrowLeftRight} onClick={onTransfer} aria-label={`Transfer from ${account.name}`}>
-              Transfer
-            </Button>
-          )}
-          <Button size="sm" variant="ghost" onClick={onEdit} aria-label={`Edit ${account.name}`}>
-            Edit
-          </Button>
-          <Button size="sm" variant="ghost" icon={Power} onClick={onSwitch} aria-label={`${account.isActive ? "Switch off" : "Switch on"} ${account.name}`}>
-            {account.isActive ? "Switch off" : "Switch on"}
-          </Button>
-        </div>
-      )}
-    </article>
-  );
-}
+const TRANSFERS_SHOWN = 8;
 
 function RecentTransfers({ transfers, canEdit, onVoid }: { transfers: FinTransfer[]; canEdit: boolean; onVoid: (t: FinTransfer) => void }) {
-  const recent = transfers.filter((t) => t.status === "Active").slice(0, 8);
+  const [all, setAll] = useState(false);
+  const rows = all ? transfers : transfers.slice(0, TRANSFERS_SHOWN);
   return (
     <Card>
-      <CardHeader title="Recent transfers" description="Money moved between the company's own accounts. Not counted as an expense or income." />
-      {recent.length === 0 ? (
+      <CardHeader title={all ? "All transfers" : "Recent transfers"} description="Money moved between the company's own accounts. Not counted as an expense or income." />
+      {transfers.length === 0 ? (
         <EmptyState icon={ArrowLeftRight} title="No transfers yet" description="When money moves between two accounts it is listed here." />
       ) : (
         <ul className="divide-y divide-line">
-          {recent.map((t) => (
-            <li key={t.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-2 px-5 py-3.5 sm:flex sm:items-center">
-              <div className="sm:w-28 sm:shrink-0">
+          {rows.map((t) => {
+            const voided = t.status !== "Active";
+            return (
+              <li key={t.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-5 py-3 md:grid-cols-[7rem_8rem_minmax(0,1fr)_11rem_5.5rem]">
                 <p className="text-[13px] font-medium tabular-nums text-ink-700">{formatDay(t.transferDate)}</p>
-                <p className="font-mono text-[13px] text-ink-500">{t.transferNo}</p>
-              </div>
-              <p className="text-right sm:order-last">
-                <span className="mr-1 text-xs font-medium text-ink-500">AED</span>
-                <span className="font-display text-xl font-bold tabular-nums text-ink-900">{formatMoney(t.amount)}</span>
-              </p>
-              {canEdit && (
-                <p className="sm:order-last">
-                  <Button size="sm" variant="ghost" icon={Ban} className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => onVoid(t)} aria-label={`Void ${t.transferNo}`}>Void</Button>
+                <p className="font-mono text-[13px] tabular-nums text-ink-500 max-md:text-right">{t.transferNo}</p>
+                <p className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-ink-800 md:col-span-1">
+                  <span className="text-[15px] font-semibold">{t.fromAccountName}</span>
+                  <ArrowRight aria-label="to" size={14} className="shrink-0 text-ink-500" />
+                  <span className="text-[15px] font-semibold">{t.toAccountName}</span>
+                  {(t.reference || t.notes) && <span className="w-full text-[13px] text-ink-500">{[t.reference, t.notes].filter(Boolean).join(" · ")}</span>}
                 </p>
-              )}
-              <p className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-ink-800 sm:flex-1">
-                <span className="text-[15px] font-semibold">{t.fromAccountName}</span>
-                <ArrowRight aria-label="to" size={14} className="shrink-0 text-ink-500" />
-                <span className="text-[15px] font-semibold">{t.toAccountName}</span>
-                {(t.reference || t.notes) && <span className="w-full text-[13px] text-ink-500">{[t.reference, t.notes].filter(Boolean).join(" · ")}</span>}
-              </p>
-            </li>
-          ))}
+                <p className="tabular-nums md:text-right">
+                  <span className="mr-1 text-xs font-medium text-ink-500">AED</span>
+                  <span className={cx("font-display text-lg font-bold", voided ? "text-ink-500 line-through" : "text-ink-900")}>{formatMoney(t.amount)}</span>
+                </p>
+                <div className="flex justify-end">
+                  {voided ? (
+                    <StatusBadge tone="neutral" variant="soft">Voided</StatusBadge>
+                  ) : canEdit ? (
+                    <Button variant="ghost" className="text-ink-600" onClick={() => onVoid(t)} aria-label={`Void transfer ${t.transferNo}`}>Void</Button>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
         </ul>
+      )}
+      {transfers.length > TRANSFERS_SHOWN && (
+        <div className="border-t border-line px-5 py-1">
+          <button type="button" onClick={() => setAll((v) => !v)} aria-expanded={all} className="inline-flex min-h-11 items-center text-sm font-semibold text-brand-700 hover:underline">
+            {all ? "Show recent transfers only" : `View all transfers (${transfers.length})`}
+          </button>
+        </div>
       )}
     </Card>
   );
@@ -238,8 +170,13 @@ export function AccountsPage() {
 
   const refresh = useCallback(async () => {
     try {
-      const [accounts, transfers] = await Promise.all([listFinAccounts(), listFinTransfers()]);
-      setLoad({ status: "ready", accounts, transfers });
+      // The cheques only say how many are pending: if they cannot be read the accounts still show.
+      const [accounts, transfers, cheques] = await Promise.all([
+        listFinAccounts(),
+        listFinTransfers(true),
+        Promise.resolve(listFinCheques({ openOnly: true })).then((list) => list?.items ?? []).catch(() => [] as FinCheque[]),
+      ]);
+      setLoad({ status: "ready", accounts, transfers, cheques });
     } catch (error) {
       setLoad({ status: "error", message: failure(error) });
     }
@@ -252,7 +189,6 @@ export function AccountsPage() {
   const ready = load.status === "ready" ? load : null;
   const active = useMemo(() => ready?.accounts.filter((a) => a.isActive) ?? [], [ready]);
   const off = useMemo(() => ready?.accounts.filter((a) => !a.isActive) ?? [], [ready]);
-  const cardShares = splitShares(active.map((a) => a.balance), 1);
   const variant = desktop ? "center" : "sheet";
 
   async function confirmSwitch() {
@@ -261,7 +197,7 @@ export function AccountsPage() {
     setProblem(null);
     try {
       await setFinAccountActive(switching.id, !switching.isActive);
-      setMessage(`${switching.name} was ${switching.isActive ? "switched off" : "switched on"}.`);
+      setMessage(`${switching.name} was ${switching.isActive ? "deactivated" : "reactivated"}.`);
       setSwitching(null);
       await refresh();
     } catch (error) {
@@ -272,11 +208,20 @@ export function AccountsPage() {
     }
   }
 
+  const shownAccounts = showOff ? [...active, ...off] : active;
+  const sections = [
+    { title: "Bank accounts", accounts: shownAccounts.filter((a) => a.kind === "Bank") },
+    { title: "Cash & petty cash", accounts: shownAccounts.filter((a) => a.kind !== "Bank") },
+  ].filter((group) => group.accounts.length > 0);
+  // Cheques tied to an entry are the ones that make the bank differ from the books.
+  const pendingCheques = (id: number) => ready?.cheques.filter((c) => c.accountId === id && c.entryId != null).length ?? 0;
+  const quiet = (a: FinAccount) => a.entryCount === 0 && !(ready?.transfers.some((t) => t.status === "Active" && (t.fromAccountId === a.id || t.toAccountId === a.id)) ?? false);
+
   return (
     <section className="space-y-5">
       <PageHeader
         title="Accounts"
-        description="The company's bank and cash accounts. Balances are worked out from the opening balance, every entry and every transfer."
+        description="Bank and cash balances, calculated from opening balances, entries and transfers."
         actions={
           canEdit && ready && (
             <>
@@ -312,33 +257,31 @@ export function AccountsPage() {
       {ready && ready.accounts.length > 0 && (
         <>
           <TotalPanel accounts={ready.accounts} />
-          <div style={{ "--i": 1 } as React.CSSProperties} className="fade-up grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {active.map((account) => (
-              <AccountCard
-                key={account.id}
-                account={account}
-                share={cardShares[active.indexOf(account)]}
-                canEdit={canEdit}
-                onEdit={() => setEditing(account)}
-                onTransfer={() => setTransferFrom(account.id)}
-                onSwitch={() => setSwitching(account)}
-              />
-            ))}
-          </div>
           {off.length > 0 && (
-            <div>
-              <Button variant="ghost" onClick={() => setShowOff((v) => !v)} aria-expanded={showOff}>
-                {showOff ? "Hide" : "Show"} switched-off accounts ({off.length})
-              </Button>
-              {showOff && (
-                <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {off.map((account) => (
-                    <AccountCard key={account.id} account={account} share={0} canEdit={canEdit} onEdit={() => setEditing(account)} onTransfer={() => {}} onSwitch={() => setSwitching(account)} />
-                  ))}
-                </div>
-              )}
-            </div>
+            <label className="flex h-11 w-fit cursor-pointer items-center gap-2 text-sm font-medium text-ink-700">
+              <input type="checkbox" className="size-5" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} />
+              Show inactive ({off.length})
+            </label>
           )}
+          {sections.map((group) => (
+            <div key={group.title} style={{ "--i": 1 } as React.CSSProperties} className="fade-up">
+              <h3 className="mb-3 font-display text-base font-semibold text-ink-900">{group.title}</h3>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {group.accounts.map((account) => (
+                  <AccountCard
+                    key={account.id}
+                    account={account}
+                    quiet={quiet(account)}
+                    chequeCount={pendingCheques(account.id)}
+                    canEdit={canEdit}
+                    onEdit={() => setEditing(account)}
+                    onTransfer={() => setTransferFrom(account.id)}
+                    onSwitch={() => setSwitching(account)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
           <RecentTransfers transfers={ready.transfers} canEdit={canEdit} onVoid={setVoidingTransfer} />
         </>
       )}
@@ -373,7 +316,8 @@ export function AccountsPage() {
       {voidingTransfer && (
         <VoidDialog
           title={`Void ${voidingTransfer.transferNo}?`}
-          message={`AED ${formatMoney(voidingTransfer.amount)} moved from ${voidingTransfer.fromAccountName} to ${voidingTransfer.toAccountName} will be reversed in both balances. The record stays, with who voided it and why.`}
+          message={`AED ${formatMoney(voidingTransfer.amount)} moved from ${voidingTransfer.fromAccountName} to ${voidingTransfer.toAccountName} will be reversed in both balances. This can't be undone. The record stays, with who voided it and why.`}
+          minReason={3}
           confirmLabel="Void"
           variant={variant}
           onClose={() => setVoidingTransfer(null)}
@@ -387,13 +331,13 @@ export function AccountsPage() {
       )}
       <ConfirmDialog
         open={switching !== null}
-        title={switching?.isActive ? "Switch off this account?" : "Switch this account on?"}
+        title={switching?.isActive ? "Deactivate this account?" : "Reactivate this account?"}
         message={
           switching?.isActive
-            ? `${switching.name} will no longer be offered for new entries. Its past entries and balance history stay. An account can only be switched off when it holds AED 0.00.`
+            ? `${switching.name} will no longer be offered for new entries. Its past entries and balance history stay. An account can only be deactivated when it holds AED 0.00.`
             : `${switching?.name ?? "This account"} will be offered for new entries again.`
         }
-        confirmLabel={switching?.isActive ? "Switch off" : "Switch on"}
+        confirmLabel={switching?.isActive ? "Deactivate account" : "Reactivate account"}
         confirmIcon={Power}
         pending={pending}
         onConfirm={() => void confirmSwitch()}
