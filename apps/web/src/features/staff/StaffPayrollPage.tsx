@@ -3,7 +3,7 @@ import { Download, FileText } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { getStaffPayroll, getStaffPayrollFile, getStaffPayslip, type StaffPayrollSummary } from "../../api/staff";
-import { Button, Card, CardHeader, Input, LoadingState, PageHeader } from "../../ui";
+import { Button, Card, CardHeader, Input, LoadingState, PageHeader, Toolbar } from "../../ui";
 import { formatRate } from "../../utils/money";
 import { saveBlob } from "../payroll/downloadPdf";
 import { ActionFailure } from "../workers/WorkersFeedback";
@@ -73,9 +73,10 @@ export function StaffPayrollPage() {
       <PageHeader
         title="Staff Payroll Summary"
         description="Monthly salary beside attendance for office employees. Site workers have their own Payroll Summary."
-        actions={
-          <>
-            <Input label="Month" type="month" value={month} max={todayInUae().slice(0, 7)} onChange={(e) => e.target.value && setMonth(e.target.value)} />
+      />
+      <Toolbar className="mb-4">
+          <div className="max-sm:w-full"><Input label="Month" type="month" value={month} max={todayInUae().slice(0, 7)} onChange={(e) => e.target.value && setMonth(e.target.value)} /></div>
+          <div className="flex flex-wrap gap-2">
             <Button variant="secondary" icon={Download} onClick={() => void download("excel")} disabled={!summary}>Excel</Button>
             <Button variant="secondary" icon={Download} onClick={() => void download("pdf")} disabled={!summary}>PDF</Button>
             {canIssue && (
@@ -83,9 +84,8 @@ export function StaffPayrollPage() {
                 All payslips
               </Button>
             )}
-          </>
-        }
-      />
+          </div>
+      </Toolbar>
       {failure && <ActionFailure message={failure} />}
       {!summary && !failure && <LoadingState label="Loading..." withCards />}
       {summary && (
@@ -134,7 +134,7 @@ export function StaffPayrollPage() {
                           <td className="px-4 py-3">
                             <RateBar value={expected > 0 ? ((r.presentDays + r.leaveDays) / expected) * 100 : null} label={`${r.presentDays} present, ${r.leaveDays} on leave, ${r.absentDays} absent`} />
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-ink-700">
+                          <td className="px-3 py-3 text-ink-700">
                             <span className={r.absentDays > 0 ? "font-medium text-red-800" : ""}>{r.absentDays} absent</span>
                             {r.leaveDays > 0 && (
                               <>

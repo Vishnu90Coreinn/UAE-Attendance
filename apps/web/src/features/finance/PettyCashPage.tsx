@@ -18,6 +18,19 @@ function failure(error: unknown): string {
 }
 
 /** Cash given to staff to spend for the company: what each person holds, what they have submitted that waits for approval, and giving or taking back cash. */
+function Figure({ label, value, note }: { label: string; value: number; note: string }) {
+  return (
+    <div className="min-w-0 flex-1 basis-56 px-5 py-4">
+      <dt className="text-xs font-medium uppercase tracking-wide text-ink-500">{label}</dt>
+      <dd className={cx("mt-1 font-display text-2xl font-bold tabular-nums", value === 0 ? "text-ink-400" : "text-ink-900")}>
+        <span className="mr-1 text-sm font-medium text-ink-500">AED</span>
+        {formatMoney(value)}
+      </dd>
+      <dd className="mt-0.5 text-[13px] text-ink-500">{note}</dd>
+    </div>
+  );
+}
+
 export function PettyCashPage() {
   const { user } = useAuth();
   const canEdit = isManagement(user?.role);
@@ -72,7 +85,12 @@ export function PettyCashPage() {
 
       {ready && holders.length > 0 && (
         <>
-          <p className="text-sm text-ink-600">Staff hold <span className="font-display text-base font-bold tabular-nums text-ink-900">AED {formatMoney(total)}</span> in total. It is still the company's money and is part of the total on the Accounts page.</p>
+          <Card>
+            <dl className="flex flex-wrap divide-y divide-line sm:divide-x sm:divide-y-0">
+              <Figure label="Held by staff" value={total} note="Still the company's money, and part of the total on the Accounts page" />
+              <Figure label="Waiting for approval" value={ready.waiting.filter((e) => holders.some((h) => h.id === e.accountId)).reduce((sum, e) => sum + e.amount, 0)} note="Expenses not yet taken from what they hold" />
+            </dl>
+          </Card>
           <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {holders.map((a) => {
               const waiting = ready.waiting.filter((e) => e.accountId === a.id);

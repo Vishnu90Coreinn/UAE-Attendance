@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { PageHeader } from "../../ui";
+import { buttonClass, PageHeader, sectionLinkClass, sectionNavClass } from "../../ui";
 import { FinanceCategoriesCard } from "./FinanceCategoriesCard";
 import { FinanceMonthLocksCard } from "./FinanceMonthLocksCard";
 import { StaffEntryCard } from "./StaffEntryCard";
@@ -12,12 +12,12 @@ import { FinanceTaxPeriodCard } from "./FinanceTaxPeriodCard";
 export function FinanceSetupPage() {
   return (
     <section className="space-y-6">
-      <PageHeader title="Finance setup" description="The lists the finance screens use, which months are closed to changes, and which staff may enter expenses. The books' accounts are under Books > Setup." />
-      <nav aria-label="On this page" className="flex flex-wrap gap-2 text-sm">
+      <PageHeader title="Finance setup" description="The lists the finance screens use, which months are closed to changes, and which staff may enter expenses."
+        actions={<Link to="/finance/books" className={buttonClass("secondary", "md")}>Chart of accounts and mapping</Link>} />
+      <nav aria-label="On this page" className={sectionNavClass}>
         {[["categories", "Categories and VAT"], ["month-lock", "Month lock"], ["staff-entry", "Staff who enter expenses"]].map(([id, label]) => (
-          <a key={id} href={`#${id}`} className="inline-flex min-h-9 items-center rounded-full border border-line bg-white px-3 font-medium text-ink-800 hover:bg-ink-50">{label}</a>
+          <a key={id} href={`#${id}`} className={sectionLinkClass(false)}>{label}</a>
         ))}
-        <Link to="/finance/books" className="inline-flex min-h-9 items-center rounded-full border border-line bg-white px-3 font-medium text-brand-700 hover:bg-brand-50">Chart of accounts and mapping</Link>
       </nav>
       {/* The width of every other finance page; on a very wide screen the long category list sits beside the shorter cards. */}
       <div className="grid items-start gap-6 2xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">

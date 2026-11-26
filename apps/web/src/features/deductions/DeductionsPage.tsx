@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { LoadingState, PageHeader, buttonClass, cx, inputClass } from "../../ui";
+import { LoadingState, PageHeader, buttonClass, cx, inputClass, Toolbar } from "../../ui";
 import { Plus, Save } from "lucide-react";
 import {
   createDeductionType,
@@ -217,7 +217,7 @@ export function DeductionsPage() {
         description="Advances, loans and other deductions for the month. Each deduction needs a reason. Finalised months are locked."
       />
 
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <Toolbar>
         <div>
           <label htmlFor="deduction-month" className="mb-1 block text-sm font-medium text-ink-800">
             Month
@@ -262,7 +262,7 @@ export function DeductionsPage() {
             </button>
           </div>
         )}
-      </div>
+      </Toolbar>
 
       {finalised && (
         <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">

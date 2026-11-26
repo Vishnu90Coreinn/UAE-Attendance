@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { LoadingState, PageHeader, cx, inputClass } from "../../ui";
+import { LoadingState, PageHeader, Toolbar, cx, inputClass } from "../../ui";
 import {
   Download,
   LockKeyhole,
@@ -172,7 +172,7 @@ export function PayrollPage() {
     <section className="payroll-page min-w-0 space-y-4">
       <div className="payroll-controls space-y-4">
         <PageHeader title="Payroll Summary" description="Review monthly pay, then export the report." />
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <Toolbar>
           <div className="flex items-end gap-2 max-sm:w-full">
             <div className="min-w-0 max-sm:flex-1">
               <label
@@ -210,7 +210,7 @@ export function PayrollPage() {
               onClick={exportPdf}
               disabled={!ready || stale || busy || !!dialog}
               aria-busy={exporting}
-              className={`${primaryButtonClass} disabled:cursor-not-allowed disabled:opacity-60 max-sm:order-first`}
+              className={`${primaryButtonClass} disabled:cursor-not-allowed disabled:opacity-60 max-sm:order-first sm:order-last`}
             >
               <Download aria-hidden="true" size={16} />
               {exporting ? "Exporting..." : "Export PDF"}
@@ -259,7 +259,7 @@ export function PayrollPage() {
               </button>
             )}
           </div>
-        </div>
+        </Toolbar>
         <SuccessRegion message={success} />
         {error && <ActionFailure message={error} />}
         {report?.status === "Draft" && (

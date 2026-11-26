@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Card, CardHeader, LoadingState, PageHeader } from "../../ui";
+import { Card, CardHeader, LoadingState, PageHeader, sectionLinkClass, sectionNavClass } from "../../ui";
 import { Loader2, Save, TriangleAlert } from "lucide-react";
 import { useOutletContext } from "react-router-dom";
 import type { LayoutContext } from "../../components/LayoutContext";
@@ -74,16 +74,14 @@ function SectionNav({ showStaff }: { showStaff: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showStaff]);
   return (
-    <nav aria-label="Settings sections" className="sticky top-0 z-20 -mx-1 mb-4 flex flex-wrap gap-2 bg-canvas/95 px-1 py-2 text-sm backdrop-blur">
+    <nav aria-label="Settings sections" className={`sticky top-0 z-20 mb-4 bg-canvas/95 backdrop-blur ${sectionNavClass}`}>
       {sections.map(([id, label]) => (
         <a
           key={id}
           href={`#${id}`}
           aria-current={active === id ? "true" : undefined}
           onClick={() => setActive(id)}
-          className={`rounded-full border px-3 py-1.5 font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
-            active === id ? "border-brand-600 bg-brand-600 text-white" : "border-line bg-white text-ink-700 hover:border-brand-300 hover:text-brand-700"
-          }`}
+          className={sectionLinkClass(active === id)}
         >
           {label}
         </a>
