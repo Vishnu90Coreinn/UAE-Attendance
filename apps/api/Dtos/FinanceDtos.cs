@@ -443,3 +443,9 @@ public sealed record FinAttentionItem(int Count, decimal Amount);
 public sealed record FinAttention(
     FinAttentionItem OverdueBills, FinAttentionItem BillsDueSoon, FinAttentionItem OverdueCheques, FinAttentionItem ChequesDueSoon, FinAttentionItem OverdueInvoices,
     int PendingApprovals, string? OpenMonth, string VatPeriod, string VatDue, int VatDaysLeft);
+
+// ---- search across the finance records ----
+/// <summary><c>Type</c> is Expense, Income, Bill, Cheque or Invoice. <c>Number</c> is what the screen lists it by.</summary>
+public sealed record FinSearchHit(string Type, int Id, string Number, string Name, string Date, decimal Amount, string Status);
+
+public sealed record FinSearchResult(IReadOnlyList<FinSearchHit> Hits);

@@ -8,6 +8,7 @@ import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { useIsDesktop } from "../../utils/useIsDesktop";
+import { useUrlSearch } from "../../utils/useUrlSearch";
 import { Button, Card, EmptyState, LoadingState, PageHeader, Select, StatusBadge, cx, type StatusTone } from "../../ui";
 import { TextField } from "../../components/TextField";
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
@@ -88,6 +89,7 @@ export function ChequesPage() {
   const [direction, setDirection] = useState<"" | FinChequeDirection>("");
   const [view, setView] = useState<"open" | "all">("open");
   const [search, setSearch] = useState("");
+  useUrlSearch((q) => { setSearch(q); setView("all"); setDirection(""); });   // a cheque picked in the top bar, cleared or not
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [editing, setEditing] = useState<FinCheque | "new" | null>(null);
   const [moving, setMoving] = useState<{ cheque: FinCheque; status: FinChequeStatus } | null>(null);

@@ -6,6 +6,7 @@ import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { useIsDesktop } from "../../utils/useIsDesktop";
+import { useUrlSearch } from "../../utils/useUrlSearch";
 import { Button, Card, EmptyState, IconButton, LoadingState, PageHeader, Select, SortTh, StatusBadge, Table, TableScroll, THead, Th, TRow, Td, cx, useSort } from "../../ui";
 import { TextField } from "../../components/TextField";
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
@@ -194,6 +195,18 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
   const [correcting, setCorrecting] = useState<FinEntry | null>(null);
   const [lockedMonths, setLockedMonths] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+
+  // A record picked in the top bar: search for it across all dates and accounts.
+  useUrlSearch((q) => {
+    setSearch(q);
+    setQuery(q);
+    setPreset("all");
+    const range = presetRange("all");
+    setFrom(range.from);
+    setTo(range.to);
+    setCategoryId("");
+    setAccountId("");
+  });
 
   useEffect(() => {
     const id = window.setTimeout(() => setQuery(search), 300);

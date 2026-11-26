@@ -1161,3 +1161,17 @@ export interface FinAttention {
 export function getFinAttention(): Promise<FinAttention> {
   return apiGet<FinAttention>("/api/finance/attention");
 }
+
+// ---- search across the finance records ----
+export interface FinSearchHit {
+  type: "Expense" | "Income" | "Bill" | "Cheque" | "Invoice";
+  id: number;
+  number: string;
+  name: string;
+  date: string;
+  amount: number;
+  status: string;
+}
+export function searchFinance(q: string): Promise<{ hits: FinSearchHit[] }> {
+  return apiGet<{ hits: FinSearchHit[] }>(`/api/finance/search?q=${encodeURIComponent(q)}`);
+}

@@ -47,7 +47,11 @@ export function InvoicesPage() {
   const canWrite = isManagement(user?.role);
   const [mode, setMode] = useState<Mode>(() => (canWrite && hasNewParam() ? { kind: "new" } : { kind: "list" }));
   useEffect(clearNewParam, []);
-  const [filters, setFilters] = useState<InvoiceFilters>({});
+  // "?q=INV-…" is how the top bar opens the list on one invoice.
+  const [filters, setFilters] = useState<InvoiceFilters>(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    return q ? { q } : {};
+  });
   const [rows, setRows] = useState<InvoiceSummary[] | null>(null);
   const [clients, setClients] = useState<InvoiceClient[]>([]);
   const [error, setError] = useState<string | null>(null);

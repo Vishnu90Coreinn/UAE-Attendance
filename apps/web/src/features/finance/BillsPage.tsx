@@ -10,6 +10,7 @@ import { TextField } from "../../components/TextField";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { useIsDesktop } from "../../utils/useIsDesktop";
+import { useUrlSearch } from "../../utils/useUrlSearch";
 import { Button, Card, EmptyState, LoadingState, PageHeader, Select, StatusBadge, cx, type StatusTone } from "../../ui";
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { BillDialog } from "./BillDialog";
@@ -127,6 +128,7 @@ export function BillsPage() {
   const variant = desktop ? "center" : "sheet";
   const [filter, setFilter] = useState<FinBillFilter>("unpaid");
   const [search, setSearch] = useState("");
+  useUrlSearch((q) => { setSearch(q); setFilter("all"); });   // a bill picked in the top bar, paid or not
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [entering, setEntering] = useState(false);
   const [paying, setPaying] = useState<FinBill | null>(null);

@@ -4,7 +4,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { COMPANY_NAME, SHORT_NAME } from "../branding";
 import { forgetDeviceOnSignOut } from "../push";
 import { getPayrollSettings, type PayrollSettings } from "../api/settings";
-import { isManagement, roleLabel } from "../permissions";
+import { FINANCE_ROLES, isManagement, roleLabel } from "../permissions";
 import { useAuth } from "../contexts/AuthContext";
 import { ChangePasswordDialog } from "../features/auth/ChangePasswordDialog";
 import { useAttendanceSummary } from "../features/attendance/useAttendanceSummary";
@@ -131,7 +131,7 @@ export function Layout() {
           </p>
         </div>
         <div className="flex min-w-0 flex-1 justify-center px-2">
-          <QuickSearch items={tabs} />
+          <QuickSearch items={tabs} records={!!user && FINANCE_ROLES.includes(user.role)} />
         </div>
         {user && (
           <div className="flex shrink-0 items-center gap-1.5">

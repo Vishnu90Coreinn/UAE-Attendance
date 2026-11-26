@@ -167,3 +167,10 @@ it("shows what is overdue and due soon, and lists unpaid bills in the order they
   const names = screen.getAllByText(/(Old|Later) Co/).map((e) => e.textContent);
   expect(names).toEqual(["Old Co", "Later Co"]);
 });
+
+it("opens on the bill the top bar asked for, paid or not", async () => {
+  render(<MemoryRouter initialEntries={["/finance/bills?q=BILL-000007"]}><BillsPage /></MemoryRouter>);
+
+  await waitFor(() => expect(financeApi.listFinBills).toHaveBeenLastCalledWith("all", "BILL-000007"));
+  expect(screen.getByLabelText("Search")).toHaveValue("BILL-000007");
+});
