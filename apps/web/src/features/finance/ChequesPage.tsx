@@ -67,7 +67,7 @@ function ChequeRow({ cheque, canEdit, onEdit, onStatus }: { cheque: FinCheque; c
         {cheque.isPostDated && cheque.isOpen && !cheque.isOverdue && <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800">Post-dated</span>}
       </div>
       {canEdit && cheque.isOpen && (
-        <div className="col-span-2 flex flex-wrap gap-1 sm:order-last sm:col-span-1">
+        <div className="col-span-2 -ml-3 flex flex-wrap gap-1 sm:order-last sm:col-span-1">
           {cheque.nextStatuses.map((status) => (
             <Button key={status} size="sm" variant="ghost" className={STATUS_ACTIONS[status].danger ? "text-red-700 hover:bg-red-50 hover:text-red-800" : "text-brand-700"} onClick={() => onStatus(status)} aria-label={`${STATUS_ACTIONS[status].label}: cheque ${cheque.serial}`}>
               {STATUS_ACTIONS[status].label}

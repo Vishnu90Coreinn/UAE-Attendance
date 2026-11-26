@@ -19,10 +19,15 @@ export function FinanceSetupPage() {
         ))}
         <Link to="/finance/books" className="inline-flex min-h-9 items-center rounded-full border border-line bg-white px-3 font-medium text-brand-700 hover:bg-brand-50">Chart of accounts and mapping</Link>
       </nav>
-      <div id="categories" className="max-w-4xl scroll-mt-20"><FinanceCategoriesCard /></div>
-      <div id="tax-period" className="max-w-4xl scroll-mt-20"><FinanceTaxPeriodCard /></div>
-      <div id="month-lock" className="max-w-4xl scroll-mt-20"><FinanceMonthLocksCard /></div>
-      <div id="staff-entry" className="max-w-4xl scroll-mt-20"><StaffEntryCard /></div>
+      {/* The width of every other finance page; on a very wide screen the long category list sits beside the shorter cards. */}
+      <div className="grid items-start gap-6 2xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <div id="categories" className="min-w-0 scroll-mt-20"><FinanceCategoriesCard /></div>
+        <div className="min-w-0 space-y-6">
+          <div id="tax-period" className="scroll-mt-20"><FinanceTaxPeriodCard /></div>
+          <div id="month-lock" className="scroll-mt-20"><FinanceMonthLocksCard /></div>
+          <div id="staff-entry" className="scroll-mt-20"><StaffEntryCard /></div>
+        </div>
+      </div>
     </section>
   );
 }

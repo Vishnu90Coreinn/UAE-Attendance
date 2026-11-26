@@ -65,7 +65,7 @@ it("says when the return for the quarter is due, and offers the downloads under 
   await screen.findByText("VAT to pay");
   expect(screen.getByText(/VAT period has not been confirmed/)).toBeInTheDocument();
   expect(screen.queryByText(/Estimated filing deadline/)).not.toBeInTheDocument();
-  expect(screen.getByText("Download these figures:")).toBeInTheDocument();
+  expect(screen.getByRole("group", { name: "Download these figures" })).toBeInTheDocument();
   const [from, to] = vi.mocked(financeApi.getFinVatReport).mock.calls[0];
   expect(from).toMatch(/-(01|04|07|10)-01$/);          // the first day of a quarter
   expect(to >= from).toBe(true);

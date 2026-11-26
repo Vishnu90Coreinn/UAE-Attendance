@@ -8,7 +8,7 @@ import { isManagement } from "../../permissions";
 import { useIsDesktop } from "../../utils/useIsDesktop";
 import { AttentionCard } from "./AttentionCard";
 import { GetStartedCard } from "./GetStartedCard";
-import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, cx } from "../../ui";
+import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, cx, segmentClass, segmentGroupClass } from "../../ui";
 import { LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { EntryDialog } from "./EntryDialog";
 import { changeWords, formatCompact, formatDay, formatMoney, formatShare, splitShares, sumMoney } from "./financeFormat";
@@ -44,7 +44,7 @@ function comparison(data: FinDashboard): string {
 
 function PeriodPicker({ value, onChange }: { value: FinWindow; onChange: (days: FinWindow) => void }) {
   return (
-    <div role="radiogroup" aria-label="Period" className="inline-flex rounded-lg border border-line bg-white p-0.5 shadow-card">
+    <div role="radiogroup" aria-label="Period" className={segmentGroupClass}>
       {WINDOWS.map((w) => (
         <button
           key={w.days}
@@ -52,10 +52,7 @@ function PeriodPicker({ value, onChange }: { value: FinWindow; onChange: (days: 
           role="radio"
           aria-checked={value === w.days}
           onClick={() => onChange(w.days)}
-          className={cx(
-            "min-h-11 rounded-md px-4 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 sm:min-h-9",
-            value === w.days ? "bg-sidebar text-white" : "text-ink-700 hover:bg-ink-50",
-          )}
+          className={segmentClass(value === w.days)}
         >
           {w.label}
         </button>
@@ -193,7 +190,7 @@ function BalancesCard({ data }: { data: FinDashboard }) {
               <li key={a.id} className="px-5 py-3.5">
                 <div className="flex items-center gap-3">
                   <Icon aria-hidden="true" size={18} className="shrink-0 text-brand-700" />
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink-900">{a.name}</span>
+                  <span className="min-w-0 flex-1 break-words text-sm font-medium text-ink-900">{a.name}</span>
                   <span className={cx("text-base font-semibold tabular-nums", a.balance < 0 ? "text-danger" : "text-ink-900")}>
                     {a.balance < 0 && "−"}AED {formatMoney(Math.abs(a.balance))}
                   </span>
@@ -227,7 +224,7 @@ function SpendingCard({ data }: { data: FinDashboard }) {
           {data.spending.map((s) => (
             <li key={s.categoryId ?? "rest"}>
               <div className="flex items-baseline justify-between gap-3 text-sm">
-                <span className="min-w-0 flex-1 truncate font-medium text-ink-900">{s.name}</span>
+                <span className="min-w-0 flex-1 break-words font-medium text-ink-900">{s.name}</span>
                 <span className="font-semibold tabular-nums text-ink-900">AED {formatMoney(s.amount)}</span>
                 <span className="w-14 text-right tabular-nums text-ink-600">{formatShare(s.share)}</span>
               </div>
@@ -412,13 +409,13 @@ export function FinanceDashboardPage() {
         description="Income, expenses and balances for the company, worked out from every recorded entry."
         actions={
           <>
+            <PeriodPicker value={days} onChange={(d) => { setLoad({ status: "loading" }); setDays(d); }} />
             {canEdit && load.status === "ready" && (
               <>
                 <Button variant="secondary" icon={HandCoins} onClick={() => setAdding("Income")}>Add income</Button>
                 <Button icon={ReceiptText} onClick={() => setAdding("Expense")}>Add expense</Button>
               </>
             )}
-            <PeriodPicker value={days} onChange={(d) => { setLoad({ status: "loading" }); setDays(d); }} />
           </>
         }
       />

@@ -29,7 +29,7 @@ it("lists who was paid with the total for each, and who paid us on the other tab
   render(<PayeesPage />);
 
   expect(await screen.findByText("M S K Luxuries")).toBeInTheDocument();
-  expect(screen.getByText("AED 24,000.00")).toBeInTheDocument();
+  expect(screen.getByText("24,000.00")).toHaveTextContent("AED24,000.00");
   expect(screen.getByText("2 entries")).toBeInTheDocument();
   expect(screen.queryByText("One by Binghatti")).not.toBeInTheDocument();
 

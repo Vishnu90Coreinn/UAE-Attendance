@@ -73,7 +73,7 @@ export function ImportDialog({ kind, variant, onClose, onImported }: ImportDialo
         </p>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" icon={Download} onClick={() => void template()}>Download the template</Button>
-          <Button icon={Upload} disabled={pending !== null} onClick={() => picker.current?.click()}>{file ? "Choose another file" : "Choose the Excel file"}</Button>
+          <Button variant="secondary" icon={Upload} disabled={pending !== null} onClick={() => picker.current?.click()}>{file ? "Choose another file" : "Choose the Excel file"}</Button>
           <input ref={picker} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" aria-label="Excel file" onChange={(e) => void choose(e)} />
         </div>
         {file && <p className="flex items-center gap-2 text-sm text-ink-700"><FileSpreadsheet aria-hidden="true" size={16} /> {file.name}</p>}

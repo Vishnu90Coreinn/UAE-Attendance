@@ -60,9 +60,9 @@ function KindList({ kind, title, hint, items, taxTypes, onChanged }: {
         {items.map((c) => c.isSystem || isVatSettlementCategory(c.id) ? (
           // Categories the app needs: shown so nobody wonders where the money went, but nothing about them can be changed here.
           <li key={c.id} className="flex flex-wrap items-center gap-2 bg-ink-50 px-3 py-2">
-            <span className="min-w-0 basis-full break-words text-[15px] font-medium text-ink-900 sm:flex-1 sm:basis-0">{c.name}</span>
+            <span className="min-w-0 flex-1 break-words text-[15px] font-medium text-ink-900">{c.name}</span>
             <StatusBadge tone="neutral" variant="soft">System</StatusBadge>
-            <span className="text-[13px] text-ink-600">{isVatSettlementCategory(c.id) ? "Settles VAT with the tax authority. No VAT of its own." : "Posted by the app. Not offered on entry forms."}</span>
+            <span className="basis-full text-[13px] text-ink-600">{isVatSettlementCategory(c.id) ? "Settles VAT with the tax authority. No VAT of its own." : "Posted by the app. Not offered on entry forms."}</span>
           </li>
         ) : (
           <li key={c.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
@@ -164,13 +164,13 @@ export function FinanceCategoriesCard() {
   return (
     <Card>
       <CardHeader title="Finance categories" description="The lists offered when an expense or income is recorded, with the VAT type each one offers first (the accountant decides this per category). Categories are renamed or switched off, never deleted, so old entries keep theirs." />
-      <div className="grid gap-8 p-5 lg:grid-cols-2">
+      <div className="grid gap-8 p-5">
         {failed && (
-          <p role="alert" className="text-sm text-danger lg:col-span-2">
+          <p role="alert" className="text-sm text-danger">
             {failed}
           </p>
         )}
-        {!categories && !failed && <p className="text-sm text-ink-600 lg:col-span-2">Loading categories...</p>}
+        {!categories && !failed && <p className="text-sm text-ink-600">Loading categories...</p>}
         {categories && KINDS.map((k) => <KindList key={k.kind} {...k} items={categories.filter((c) => c.kind === k.kind)} taxTypes={taxTypes} onChanged={changed} />)}
       </div>
     </Card>

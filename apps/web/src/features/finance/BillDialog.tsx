@@ -20,7 +20,7 @@ function plusDays(iso: string, days: number): string {
 export function BillDialog({ categories, payees, taxTypes, variant, onClose, onSaved }: {
   categories: FinCategory[]; payees: FinPayee[]; taxTypes: FinTaxType[]; variant: "center" | "sheet"; onClose: () => void; onSaved: (bill: FinBill, note?: string) => void;
 }) {
-  const expense = categories.filter((c) => c.kind === "Expense" && c.isActive && !isVatSettlementCategory(c.id));
+  const expense = categories.filter((c) => c.kind === "Expense" && c.isActive && !c.isSystem && !isVatSettlementCategory(c.id));
   const [payeeId, setPayeeId] = useState("");
   const [supplier, setSupplier] = useState("");
   const [supplierRef, setSupplierRef] = useState("");

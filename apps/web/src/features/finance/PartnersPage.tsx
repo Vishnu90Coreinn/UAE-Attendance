@@ -100,15 +100,15 @@ function PartnerCard({ partner, canEdit, onEdit, onAdd }: { partner: FinPartner;
       <dl className="mb-4 mt-4 grid gap-1.5 border-t border-line pt-4 text-sm">
         <div className="flex justify-between gap-3">
           <dt className="text-ink-600">Opening capital</dt>
-          <dd className={cx("tabular-nums text-ink-800", quietZero(partner.openingCapital))}>AED {formatMoney(partner.openingCapital)}</dd>
+          <dd className={cx("whitespace-nowrap tabular-nums text-ink-800", quietZero(partner.openingCapital))}>AED {formatMoney(partner.openingCapital)}</dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-ink-600">Added since opening</dt>
-          <dd className={cx("tabular-nums text-ink-800", quietZero(partner.added))}>+ AED {formatMoney(partner.added)}</dd>
+          <dd className={cx("whitespace-nowrap tabular-nums text-ink-800", quietZero(partner.added))}>+ AED {formatMoney(partner.added)}</dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-ink-600">Paid back</dt>
-          <dd className={cx("tabular-nums text-ink-800", quietZero(partner.returned))}>− AED {formatMoney(partner.returned)}</dd>
+          <dd className={cx("whitespace-nowrap tabular-nums text-ink-800", quietZero(partner.returned))}>− AED {formatMoney(partner.returned)}</dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-ink-600">Last movement</dt>

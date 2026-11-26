@@ -4,7 +4,7 @@ import { getFinReport, getFinReportFile, type FinGranularity, type FinReport, ty
 import { ApiError } from "../../api/client";
 import { TextField } from "../../components/TextField";
 import { useIsDesktop } from "../../utils/useIsDesktop";
-import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, Table, TableScroll, THead, Th, Td, TRow, cx } from "../../ui";
+import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, Table, TableScroll, THead, Th, Td, TRow, cx, segmentClass, segmentGroupClass } from "../../ui";
 import { saveBlob } from "../payroll/downloadPdf";
 import { ActionFailure, LoadError } from "../workers/WorkersFeedback";
 import { formatDay, formatMoney, formatPercent, formatShare, quietZero, todayInUae } from "./financeFormat";
@@ -213,13 +213,15 @@ function MonthsCard({ report, desktop, grain, onGrain, dailyOk }: { report: FinR
   return (
     <Card>
       <CardHeader title={{ day: "Day by day", week: "Week by week", month: "Month by month", year: "Year by year" }[grain]} description="To compare with another system, set the period to whole months. A locked month has been checked and closed." />
-      <div role="group" aria-label="Group the table by" className="flex flex-wrap gap-2 px-5 pb-3">
+      <div className="px-5 py-3">
+      <div role="group" aria-label="Group the table by" className={segmentGroupClass}>
         {GRAINS.map((g) => (
           <button key={g.key} type="button" aria-pressed={grain === g.key} disabled={g.key === "day" && !dailyOk} onClick={() => onGrain(g.key)}
-            className={cx("min-h-11 rounded-full border px-3.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 md:min-h-9", grain === g.key ? "border-brand-600 bg-brand-600 text-white" : "border-line bg-white text-ink-700 hover:border-brand-300")}>
+            className={segmentClass(grain === g.key)}>
             {g.label}
           </button>
         ))}
+      </div>
       </div>
       {months.length === 0 ? null : desktop ? (
         <TableScroll>
@@ -455,8 +457,8 @@ export function FinanceReportsPage() {
       <PageHeader title="Reports" description="Where each account started and ended, and what moved it, for any period. Voided entries are never counted." />
 
       <Card>
-        <div className="grid gap-4 p-5 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-end">
-          <div role="radiogroup" aria-label="Period" className="inline-flex flex-wrap rounded-lg border border-line bg-white p-0.5">
+        <div className="flex flex-wrap items-end gap-3 p-5">
+          <div role="radiogroup" aria-label="Period" className={segmentGroupClass}>
             {PRESETS.map((p) => (
               <button
                 key={p.key}
@@ -464,20 +466,17 @@ export function FinanceReportsPage() {
                 role="radio"
                 aria-checked={preset === p.key}
                 onClick={() => choose(p.key)}
-                className={cx(
-                  "min-h-11 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 sm:min-h-9 sm:px-4",
-                  preset === p.key ? "bg-sidebar text-white" : "text-ink-700 hover:bg-ink-50",
-                )}
+                className={segmentClass(preset === p.key)}
               >
                 {p.label}
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-3 lg:max-w-md">
+          <div className="grid w-full grid-cols-2 gap-3 sm:w-auto sm:grid-cols-[11rem_11rem]">
             <TextField label="From date" type="date" value={range.from} max={today} onChange={(e) => { setPreset("custom"); setRange({ ...range, from: e.target.value }); }} />
             <TextField label="To date" type="date" value={range.to} max={today} onChange={(e) => { setPreset("custom"); setRange({ ...range, to: e.target.value }); }} />
           </div>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Download this report">
+          <div className="flex flex-wrap gap-2 xl:ml-auto" role="group" aria-label="Download this report">
             {FILES.map((f) => (
               <Button key={f.format} variant="secondary" icon={f.icon} disabled={!!rangeError || busy !== null} onClick={() => void download(f.format, f.extension)}>
                 {busy === f.format ? "Preparing..." : f.label}

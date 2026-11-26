@@ -65,8 +65,8 @@ export function ChartTab({ accounts, variant, canEdit, onChanged }: { accounts: 
   const [editing, setEditing] = useState<LedgerAccount | "new" | null>(null);
   return (
     <Card>
-      <CardHeader title="Chart of accounts" description="Accounts are never deleted, only switched off. Opening balance equity is needed by the system." />
-      {canEdit && <div className="px-5 pb-3"><Button icon={Plus} onClick={() => setEditing("new")}>Add account</Button></div>}
+      <CardHeader title="Chart of accounts" description="Accounts are never deleted, only switched off. Opening balance equity is needed by the system."
+        actions={canEdit ? <Button size="sm" icon={Plus} onClick={() => setEditing("new")}>Add account</Button> : undefined} />
       <ul className="divide-y divide-line border-t border-line">
         {accounts.map((a) => (
           <li key={a.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3">

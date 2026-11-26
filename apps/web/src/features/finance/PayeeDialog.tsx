@@ -33,7 +33,7 @@ export function PayeeDialog({ payee, kind, categories, variant, onClose, onSaved
   const [general, setGeneral] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
-  const options = categories.filter((c) => c.kind === chosenKind && c.isActive);
+  const options = categories.filter((c) => c.kind === chosenKind && c.isActive && !c.isSystem);
 
   async function submit(event: FormEvent) {
     event.preventDefault();

@@ -238,19 +238,17 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
     <Dialog open title={entry ? (income ? "Correct income" : "Correct expense") : income ? "Add income" : "Add expense"} onClose={pending ? () => {} : onClose} initialFocusRef={amountRef} variant={variant} size="wide">
       <form onSubmit={submit} noValidate className="mt-4 space-y-4">
         {entry && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{entry.entryNo} will be voided and kept, and what you save here replaces it with a new number.</p>}
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
+        <div className="grid gap-4 sm:grid-cols-2">
           <TextField label="Date" type="date" value={date} max={todayInUae()} onChange={(e) => setDate(e.target.value)} error={errors.entryDate} />
-          <div>
-            {payees.length > 0 && (
-              <div className="mb-3">
-                <Select label={income ? "Saved source (optional)" : "Saved payee (optional)"} value={payeeId} error={errors.payeeId} onChange={(e) => pickPayee(e.target.value)}>
-                  <option value="">Type a name instead</option>
-                  {payees.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </Select>
-              </div>
-            )}
+          {payees.length > 0 && (
+            <Select label={income ? "Saved source (optional)" : "Saved payee (optional)"} value={payeeId} error={errors.payeeId} onChange={(e) => pickPayee(e.target.value)}>
+              <option value="">Type a name instead</option>
+              {payees.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </Select>
+          )}
+          <div className={payees.length > 0 ? "sm:col-span-2" : undefined}>
             <TextField label={income ? "Received from" : "Paid to"} value={party} onChange={(e) => { setParty(e.target.value); setPayeeId(""); }} error={errors.party} maxLength={120} autoComplete="off" list={`fin-${kind}-parties`} />
             <datalist id={`fin-${kind}-parties`}>
               {suggestions.map((s) => (

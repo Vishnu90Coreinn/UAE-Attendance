@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { getFinVatFile, getFinanceTaxPeriod, type FinanceTaxPeriodSettings, getFinVatReport, type FinReportFormat, type FinVatReport, type FinVatRow } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { TextField } from "../../components/TextField";
-import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, cx } from "../../ui";
+import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, cx, segmentClass, segmentGroupClass } from "../../ui";
 import { LoadError } from "../workers/WorkersFeedback";
 import { saveBlob } from "../payroll/downloadPdf";
 import { formatDay, formatMoney, quietZero, todayInUae } from "./financeFormat";
@@ -34,11 +34,11 @@ function Block({ title, rows, vatLabel }: { title: string; rows: FinVatRow[]; va
         <p className="border-t border-line px-5 py-4 text-sm text-ink-600">Nothing with a VAT type in this period.</p>
       ) : (
         <div className="overflow-x-auto border-t border-line">
-          <table className="w-full min-w-[30rem] text-sm">
+          <table className="w-full min-w-[30rem] table-fixed text-sm">
             <caption className="sr-only">{title}: net amount and VAT for each VAT type</caption>
             <thead className="bg-ink-50 text-xs uppercase tracking-wide text-ink-600">
               <tr>
-                <th scope="col" className="px-4 py-2.5 text-left font-semibold">VAT type</th>
+                <th scope="col" className="w-[40%] px-4 py-2.5 text-left font-semibold">VAT type</th>
                 <th scope="col" className="px-4 py-2.5 text-right font-semibold">Entries</th>
                 <th scope="col" className="px-4 py-2.5 text-right font-semibold">Net</th>
                 <th scope="col" className="px-4 py-2.5 text-right font-semibold">{vatLabel}</th>
@@ -107,19 +107,26 @@ export function VatPage() {
         description="The VAT return figures for a period, from the VAT type on each expense and income. Check them with your accountant before filing."
       />
       <Card>
-        <div className="space-y-3 px-5 py-4">
-          <div role="group" aria-label="Period" className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-end gap-3 p-5">
+          <div role="group" aria-label="Period" className={segmentGroupClass}>
             {PRESETS.map((p) => (
               <button key={p.key} type="button" aria-pressed={preset === p.key} onClick={() => { periodTouched.current = true; setPreset(p.key); const v = taxPeriod?.confirmed && p.key !== "year" ? assignedVatPeriod(today, taxPeriod.months, taxPeriod.startMonth, p.key === "lastQuarter" ? -1 : 0) : null; setRange(v ? { from: v.from, to: v.to > today ? today : v.to } : rangeFor(p.key, today)); }}
-                className={cx("min-h-11 rounded-full border px-3.5 text-sm font-medium md:min-h-9", preset === p.key ? "border-brand-600 bg-brand-600 text-white" : "border-line bg-white text-ink-700 hover:border-brand-300")}>
+                className={segmentClass(preset === p.key)}>
                 {taxPeriod?.confirmed && p.key !== "year" ? (p.key === "quarter" ? "This VAT period" : "Last VAT period") : p.label}
               </button>
             ))}
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid w-full grid-cols-2 gap-3 sm:w-auto sm:grid-cols-[11rem_11rem]">
             <TextField label="From" type="date" value={range.from} max={today} onChange={(e) => { periodTouched.current = true; setPreset("custom"); setRange((r) => ({ ...r, from: e.target.value })); }} />
             <TextField label="To" type="date" value={range.to} max={today} onChange={(e) => { periodTouched.current = true; setPreset("custom"); setRange((r) => ({ ...r, to: e.target.value })); }} />
           </div>
+          {report && (
+            <div role="group" aria-label="Download these figures" className="flex flex-wrap gap-2 xl:ml-auto">
+              <Button variant="secondary" icon={Download} disabled={busy !== null} onClick={() => void download("xlsx", "xlsx")}>Excel</Button>
+              <Button variant="secondary" icon={Download} disabled={busy !== null} onClick={() => void download("pdf", "pdf")}>PDF</Button>
+              <Button variant="secondary" icon={Download} disabled={busy !== null} onClick={() => void download("csv", "csv")}>CSV</Button>
+            </div>
+          )}
         </div>
       </Card>
 
@@ -140,7 +147,7 @@ export function VatPage() {
           {!taxPeriod?.confirmed && <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">VAT period has not been confirmed. These are calendar shortcuts; select the actual assigned dates before filing. <Link className="underline" to="/finance/setup#tax-period">Configure the assigned VAT period</Link>.</p>}
           {filing && (
             <p className="rounded-lg bg-ink-50 px-4 py-3 text-sm text-ink-800">
-              Estimated filing deadline for <strong>{filing.label}</strong> ({formatDay(filing.from)} to {formatDay(filing.to)}) is <strong>{formatDay(vatDueDate(filing.to))}</strong>.
+              Estimated filing deadline for <strong>{formatDay(filing.from)} to {formatDay(filing.to)}</strong> is <strong>{formatDay(vatDueDate(filing.to))}</strong>.
               {filing.to > today && " The period is not over, so these figures are so far."} Confirm the deadline in EmaraTax, including holiday extensions.
             </p>
           )}
@@ -150,15 +157,9 @@ export function VatPage() {
               <Link to="/finance/income" className="font-medium underline">Review income</Link> and <Link to="/finance/expenses" className="font-medium underline">review expenses</Link> to classify these entries before filing.
             </p>
           )}
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <div className="space-y-5">
             <Block title="Sales" rows={report.sales} vatLabel="VAT charged" />
             <Block title="Purchases" rows={report.purchases} vatLabel="VAT / recoverable" />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-ink-600">Download these figures:</span>
-            <Button variant="secondary" icon={Download} disabled={busy !== null} onClick={() => void download("xlsx", "xlsx")}>Excel</Button>
-            <Button variant="secondary" icon={Download} disabled={busy !== null} onClick={() => void download("pdf", "pdf")}>PDF</Button>
-            <Button variant="secondary" icon={Download} disabled={busy !== null} onClick={() => void download("csv", "csv")}>CSV</Button>
           </div>
           {report.sales.length === 0 && report.purchases.length === 0 && unrecorded === 0 && (
             <Card><EmptyState icon={Receipt} title="No entries in this period" description="Record an expense or income and choose its VAT type." /></Card>

@@ -52,7 +52,7 @@ function ReasonDialog({ ask, variant, onClose, onDone }: { ask: Reasoning; varia
         {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
           <Button variant="secondary" onClick={onClose} disabled={pending}>Cancel</Button>
-          <Button type="submit" disabled={pending}>{ask.confirm}</Button>
+          <Button type="submit" variant="danger" disabled={pending}>{ask.confirm}</Button>
         </div>
       </form>
     </Dialog>
@@ -71,12 +71,12 @@ function BillRow({ bill, canEdit, onPay, onVoid, onTakeBack, onOpenFile, onAddFi
           </p>
           <p className="text-[13px] text-ink-600">{bill.lines.map((l) => l.category).join(", ")}{bill.taxAmount > 0 && <> · VAT {formatMoney(bill.taxAmount)} · {bill.recoverableTaxPercent ?? 100}% recoverable</>}</p>
         </div>
-        <p className="text-right">
+        <p className="text-right sm:w-44">
           <span className="mr-1 text-xs font-medium text-ink-500">AED</span>
           <span className={cx("font-display text-xl font-bold tabular-nums", voided ? "text-ink-500 line-through" : "text-ink-900")}>{formatMoney(bill.total)}</span>
           {!voided && bill.paid > 0 && <span className="block text-[13px] text-ink-600">{formatMoney(bill.balance)} still owed</span>}
         </p>
-        <div className="flex flex-wrap items-center gap-2 sm:w-52">
+        <div className="flex flex-wrap items-center gap-2 sm:w-64">
           <StatusBadge tone={TONES[bill.display]} variant="soft">{WORDS[bill.display]}</StatusBadge>
           {!voided && bill.balance > 0 && <span className={cx("text-[13px] tabular-nums", bill.display === "Overdue" ? "font-semibold text-danger" : "text-ink-700")}>{bill.display === "Overdue" ? "Overdue since " : "Due "}{formatDay(bill.dueDate)}</span>}
         </div>
@@ -105,7 +105,7 @@ function BillRow({ bill, canEdit, onPay, onVoid, onTakeBack, onOpenFile, onAddFi
         </ul>
       )}
       {canEdit && !voided && (
-        <div className="flex flex-wrap gap-1">
+        <div className="-ml-3 flex flex-wrap gap-1">
           {(bill.files?.length ?? 0) < 5 && (
             <label className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-ink-700 hover:bg-ink-50 focus-within:outline-2 focus-within:outline-brand-500">
               <Paperclip aria-hidden="true" size={14} /> Attach invoice

@@ -127,7 +127,7 @@ export function AccountDialog({ account, defaultKind, onClose, onSaved, variant 
           <input type="checkbox" className="mt-0.5 size-5" checked={staffCanUse} onChange={(e) => setStaffCanUse(e.target.checked)} />
           <span>
             Staff may choose this account when they submit an expense
-            <span className="block text-[13px] text-ink-600">Only for staff a Manager has allowed in Settings. Their expenses wait for approval and never show balances.</span>
+            <span className="block text-[13px] text-ink-600">Only for staff a Manager has allowed in Finance setup. Their expenses wait for approval and never show balances.</span>
           </span>
         </label>
         {general && (

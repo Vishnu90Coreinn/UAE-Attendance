@@ -7,7 +7,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { useIsDesktop } from "../../utils/useIsDesktop";
 import { useUrlSearch } from "../../utils/useUrlSearch";
-import { Button, Card, EmptyState, IconButton, LoadingState, PageHeader, Select, SortTh, StatusBadge, Table, TableScroll, THead, Th, TRow, Td, cx, useSort } from "../../ui";
+import { Button, Card, EmptyState, IconButton, LoadingState, PageHeader, Select, SortTh, StatusBadge, Table, TableScroll, THead, Th, TRow, Td, cx, useSort, segmentClass, segmentGroupClass } from "../../ui";
 import { TextField } from "../../components/TextField";
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { EntryDialog } from "./EntryDialog";
@@ -133,7 +133,7 @@ function RowTools({ entry, canAct, onOpen, onCorrect, onVoid }: { entry: FinEntr
 }
 
 function CategoryChip({ name }: { name: string }) {
-  return <span className="inline-block max-w-full truncate rounded-full bg-ink-100 px-2.5 py-0.5 text-xs font-medium text-ink-700">{name}</span>;
+  return <span className="inline-block max-w-44 break-words rounded-xl bg-ink-100 px-2.5 py-0.5 text-xs font-medium text-ink-700">{name}</span>;
 }
 
 /** One chip for an ordinary entry; for a split entry, the categories with the part each one has. */
@@ -141,7 +141,7 @@ function Categories({ entry }: { entry: FinEntry }) {
   const lines = entry.lines ?? [];
   if (lines.length < 2) return <CategoryChip name={entry.categoryName} />;
   return (
-    <span className="flex flex-col items-start gap-1">
+    <span className="flex max-w-52 flex-col items-start gap-1">
       <span className="inline-block rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-800">Split in {lines.length}</span>
       {lines.map((l, i) => (
         <span key={i} className="text-[13px] text-ink-600">
@@ -346,10 +346,10 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
         </div>
 
         <div className="space-y-4 px-5 py-4">
-          <div role="group" aria-label="Period" className="flex flex-wrap gap-2">
+          <div role="group" aria-label="Period" className={segmentGroupClass}>
             {PRESETS.map((p) => (
               <button key={p.key} type="button" aria-pressed={preset === p.key} onClick={() => choose(p.key)}
-                className={cx("min-h-11 rounded-full border px-3.5 text-sm font-medium md:min-h-9", preset === p.key ? "border-brand-600 bg-brand-600 text-white" : "border-line bg-white text-ink-700 hover:border-brand-300")}>
+                className={segmentClass(preset === p.key)}>
                 {p.label}
               </button>
             ))}
@@ -420,7 +420,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
                       <EntryMeta entry={e} locked={lockedMonths.includes(e.entryDate.slice(0, 7))} />
                     </Td>
                     <Td className="align-top"><Categories entry={e} /></Td>
-                    <Td className="align-top text-ink-700">{e.accountName}</Td>
+                    <Td className="align-top text-ink-700"><span className="block min-w-28">{e.accountName}</span></Td>
                     <Td className={cx("whitespace-nowrap text-right align-top font-display text-base font-bold", e.status === "Voided" ? "text-ink-500 line-through" : "text-ink-900")}><Amount value={e.amount} /></Td>
                     <Td className="align-top">
                       <RowTools entry={e} canAct={canEdit && e.status === "Active" && e.invoiceId == null && e.billId == null && !lockedMonths.includes(e.entryDate.slice(0, 7))} onOpen={() => setViewing(e)} onCorrect={() => setCorrecting(e)} onVoid={() => setVoiding(e)} />

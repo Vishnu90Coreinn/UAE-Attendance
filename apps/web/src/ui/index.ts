@@ -4,6 +4,7 @@ export { cx } from "./cx";
 export { EmptyState } from "./EmptyState";
 export { Field, Input, Select, Textarea, controlClass, inputClass } from "./Field";
 export { PageHeader } from "./PageHeader";
+export { segmentClass, segmentGroupClass } from "./segmented";
 export { Skeleton } from "./Skeleton";
 export { StatCard } from "./StatCard";
 export { StatusBadge, type StatusTone } from "./StatusBadge";

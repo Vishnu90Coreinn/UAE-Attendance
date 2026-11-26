@@ -76,7 +76,7 @@ function Downloads({ make, formats = ["xlsx", "pdf", "csv"], name }: { make: (f:
     }
   }
   return (
-    <div className="flex flex-wrap items-center gap-2 px-5 pb-3">
+    <div className="flex flex-wrap items-center gap-2">
       {formats.map((f) => (
         <Button key={f} size="sm" variant="secondary" icon={Download} disabled={busy !== null} onClick={() => void run(f)}>{f === "xlsx" ? "Excel" : f.toUpperCase()}</Button>
       ))}
@@ -88,9 +88,10 @@ function Downloads({ make, formats = ["xlsx", "pdf", "csv"], name }: { make: (f:
 function TrialBalance({ trial, asOf, onDate, onOpen }: { trial: LedgerTrialBalance; asOf: string; onDate: (date: string) => void; onOpen: (a: LedgerAccount) => void }) {
   return (
     <Card>
-      <CardHeader title="Trial balance" description={`As at ${formatDay(trial.asOf)}. Total debits must equal total credits.`} />
-      <div className="px-5 pb-3 sm:max-w-xs"><TextField label="Trial balance as at" type="date" value={asOf} max={todayInUae()} onChange={(e) => { if (e.target.value) onDate(e.target.value); }} /></div>
-      {trial.asOf === asOf ? <Downloads make={(f) => downloadTrialBalance(f, trial.asOf)} name={`Trial_Balance_${trial.asOf}`} /> : <p role="status" className="px-5 pb-3 text-sm text-ink-600">Loading the trial balance for {formatDay(asOf)}. Downloads are available when the selected report is ready.</p>}
+      <CardHeader title="Trial balance" description={`As at ${formatDay(trial.asOf)}. Total debits must equal total credits.`}
+        actions={trial.asOf === asOf ? <Downloads make={(f) => downloadTrialBalance(f, trial.asOf)} name={`Trial_Balance_${trial.asOf}`} /> : undefined} />
+      <div className="px-5 py-3 sm:max-w-xs"><TextField label="Trial balance as at" type="date" value={asOf} max={todayInUae()} onChange={(e) => { if (e.target.value) onDate(e.target.value); }} /></div>
+      {trial.asOf !== asOf && <p role="status" className="px-5 pb-3 text-sm text-ink-600">Loading the trial balance for {formatDay(asOf)}. Downloads are available when the selected report is ready.</p>}
       {trial.accounts.length === 0 ? (
         <EmptyState icon={BookOpen} title="Nothing posted yet" description="Entries, transfers and opening balances post here by themselves." />
       ) : (
@@ -155,8 +156,9 @@ function LedgerView({ accounts, accountId, onAccount }: { accounts: LedgerAccoun
 
   return (
     <Card>
-      <CardHeader title="Ledger" description="Every line that touched one account, with a running balance." />
-      <div className="grid gap-3 px-5 pb-4 sm:grid-cols-3">
+      <CardHeader title="Ledger" description="Every line that touched one account, with a running balance."
+        actions={accountId !== null ? <Downloads make={(f) => downloadLedger(accountId, from, to, f)} formats={["xlsx", "pdf", "csv"]} name={`Ledger_${accounts.find((a) => a.id === accountId)?.code ?? accountId}_${from}_${to}`} /> : undefined} />
+      <div className="grid gap-3 px-5 py-4 sm:grid-cols-3">
         <Select label="Ledger account" value={accountId === null ? "" : String(accountId)} onChange={(e) => onAccount(e.target.value ? Number(e.target.value) : null)}>
           <option value="">Choose an account</option>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}
@@ -166,7 +168,6 @@ function LedgerView({ accounts, accountId, onAccount }: { accounts: LedgerAccoun
       </div>
       {error && <p role="alert" className="px-5 pb-4 text-sm text-danger">{error}</p>}
       {accountId === null && <p className="border-t border-line px-5 py-6 text-sm text-ink-600">Choose an account, or open one from the trial balance.</p>}
-      {accountId !== null && <Downloads make={(f) => downloadLedger(accountId, from, to, f)} formats={["xlsx", "pdf", "csv"]} name={`Ledger_${accounts.find((a) => a.id === accountId)?.code ?? accountId}_${from}_${to}`} />}
       {statement && (
         <div className="overflow-x-auto border-t border-line">
           <table className="w-full min-w-[40rem] text-sm">
@@ -224,12 +225,12 @@ function Journals({ accounts, canEdit, onChanged }: { accounts: LedgerAccount[];
   };
   return (
     <Card>
-      <CardHeader title="Journals" description="Every posting, newest first. A reversal undoes an earlier one; nothing is ever edited or deleted." />
-      <div className="flex flex-wrap items-center gap-2 px-5 pb-3">
-        {canEdit && <Button icon={Plus} onClick={() => setPosting(true)}>Post a journal</Button>}
-      </div>
-      <Downloads make={downloadJournals} formats={["xlsx", "pdf", "csv"]} name="Journals" />
-      {message && <p role="status" className="px-5 pb-3 text-sm text-green-800">{message}</p>}
+      <CardHeader title="Journals" description="Every posting, newest first. A reversal undoes an earlier one; nothing is ever edited or deleted."
+        actions={<>
+          <Downloads make={downloadJournals} formats={["xlsx", "pdf", "csv"]} name="Journals" />
+          {canEdit && <Button size="sm" icon={Plus} onClick={() => setPosting(true)}>Post a journal</Button>}
+        </>} />
+      {message && <p role="status" className="px-5 py-3 text-sm text-green-800">{message}</p>}
       {error && <p role="alert" className="px-5 pb-4 text-sm text-danger">{error}</p>}
       {!list && !error && <p className="px-5 pb-5 text-sm text-ink-600">Loading...</p>}
       {list && (

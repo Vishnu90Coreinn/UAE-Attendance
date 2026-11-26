@@ -95,6 +95,25 @@ public class FinanceAccountantReviewTests(ApiFixture api) : IClassFixture<ApiFix
     }
 
     [Fact]
+    public async Task ABillCannotUseOneOfTheAppsOwnCategories()
+    {
+        var token = await ManagerAsync();
+        int own;
+        await using (var db = TestUsers.NewContext(api.ConnectionString))
+        {
+            var category = new FinCategory { Kind = "Expense", Name = TestFinance.Unique("Own"), IsSystem = true };
+            db.FinCategories.Add(category);
+            await db.SaveChangesAsync();
+            own = category.Id;
+        }
+        var bill = new { supplierName = TestFinance.Unique("Supplier"), billDate = TestFinance.Today.ToString("yyyy-MM-dd"), dueDate = TestFinance.Today.ToString("yyyy-MM-dd"), lines = new[] { new { categoryId = own, amount = 100m } } };
+
+        var response = await api.PostAsync("/api/finance/bills", bill, token);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task DuplicateSupplierReference_IsProtectedAcrossConcurrentRequests()
     {
         var token = await ManagerAsync();

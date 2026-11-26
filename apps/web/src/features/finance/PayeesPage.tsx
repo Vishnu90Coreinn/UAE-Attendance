@@ -90,7 +90,7 @@ export function PayeesPage() {
                     <p className="text-[13px] text-ink-500">{[p.defaultCategoryName, p.phone, p.taxNumber && `Tax no. ${p.taxNumber}`].filter(Boolean).join(" · ") || "No usual category"}</p>
                   </div>
                   <p className="text-right text-sm">
-                    <span className={cx("font-display text-base font-bold tabular-nums text-ink-900", quietZero(p.total))}>AED {formatMoney(p.total)}</span>
+                    <span className={cx("font-display text-base font-bold tabular-nums text-ink-900", quietZero(p.total))}><span className="mr-1 text-xs font-medium text-ink-500">AED</span>{formatMoney(p.total)}</span>
                     <span className="block text-[13px] text-ink-500">{p.entryCount === 1 ? "1 entry" : `${p.entryCount} entries`}</span>
                   </p>
                   {canEdit && (
