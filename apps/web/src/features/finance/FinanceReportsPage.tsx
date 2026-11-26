@@ -286,7 +286,7 @@ function MonthsCard({ report, desktop, grain, onGrain, dailyOk }: { report: FinR
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-medium text-ink-900">{label.name}</p>
-                    {label.part && <p className="text-xs text-ink-500">{label.part}</p>}
+                    {label.part && <p className="text-[13px] text-ink-500">{label.part}</p>}
                   </div>
                   <LockMark month={m} />
                 </div>

@@ -7,6 +7,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { useIsDesktop } from "../../utils/useIsDesktop";
 import { AttentionCard } from "./AttentionCard";
+import { GetStartedCard } from "./GetStartedCard";
 import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, cx } from "../../ui";
 import { LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { EntryDialog } from "./EntryDialog";
@@ -125,6 +126,9 @@ function TrendCard({ data }: { data: FinDashboard }) {
   const peak = Math.max(...buckets.flatMap((b) => [b.income, b.expense]), 1);
   const unit = data.granularity === "day" ? "day" : "month";
   const busy = buckets.some((b) => b.income > 0 || b.expense > 0);
+  // The figures for one pair of bars, chosen by pointing at it or tapping it: a tooltip alone is no use on a phone.
+  const [picked, setPicked] = useState<string | null>(null);
+  const shown = buckets.find((b) => b.start === picked);
   return (
     <Card>
       <CardHeader title={`Income and expenses by ${unit}`} description={`Each pair of bars is one ${unit}. Exact figures are on the Reports page.`} />
@@ -142,21 +146,22 @@ function TrendCard({ data }: { data: FinDashboard }) {
               ))}
             <div className="ml-14 flex h-40 items-end gap-px sm:gap-0.5" role="img" aria-label={`Income and expenses for each ${unit}, ${formatDay(data.from)} to ${formatDay(data.to)}. Figures are in the table below.`}>
               {buckets.map((b) => (
-                <div key={b.start} title={`${b.label}: income AED ${formatMoney(b.income)}, expenses AED ${formatMoney(b.expense)}`} className="flex h-full min-w-0 flex-1 items-end justify-center gap-px">
+                <div key={b.start} data-bucket={b.start} title={`${b.label}: income AED ${formatMoney(b.income)}, expenses AED ${formatMoney(b.expense)}`} onClick={() => setPicked(b.start)} onMouseEnter={() => setPicked(b.start)} className={cx("flex h-full min-w-0 flex-1 cursor-pointer items-end justify-center gap-px", picked === b.start && "bg-ink-100")}>
                   <span className="block w-1/2 rounded-t-sm bg-brand-500" style={{ height: `${(b.income / peak) * 100}%`, minHeight: b.income > 0 ? 2 : 0 }} />
                   <span className="block w-1/2 rounded-t-sm bg-amber-400" style={{ height: `${(b.expense / peak) * 100}%`, minHeight: b.expense > 0 ? 2 : 0 }} />
                 </div>
               ))}
             </div>
             </div>
-            <div className="ml-14 mt-2 flex justify-between text-xs text-ink-600">
+            <div className="ml-14 mt-2 flex justify-between text-[13px] text-ink-600">
               <span>{buckets[0]?.label}</span>
               <span>{buckets[buckets.length - 1]?.label}</span>
             </div>
             <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-ink-800">
-              <span className="flex items-center gap-2"><span aria-hidden="true" className="size-2.5 rounded-sm bg-brand-500" />Income</span>
-              <span className="flex items-center gap-2"><span aria-hidden="true" className="size-2.5 rounded-sm bg-amber-400" />Expenses</span>
+              <span className="flex items-center gap-2"><span aria-hidden="true" className="size-2.5 rounded-sm bg-brand-500" />Income (left bar)</span>
+              <span className="flex items-center gap-2"><span aria-hidden="true" className="size-2.5 rounded-sm bg-amber-400" />Expenses (right bar)</span>
             </p>
+            <p aria-live="polite" className="mt-1 min-h-5 text-sm tabular-nums text-ink-700">{shown ? `${shown.label}: income AED ${formatMoney(shown.income)}, expenses AED ${formatMoney(shown.expense)}` : "Point at or tap a pair of bars for its figures."}</p>
             <table className="sr-only">
               <caption>Income and expenses by {unit}</caption>
               <thead><tr><th>{unit}</th><th>Income</th><th>Expenses</th></tr></thead>
@@ -260,17 +265,17 @@ function ChequesCard() {
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-ink-500">Due in {summary.days} days</p>
           <p className={cx("font-display text-xl font-bold tabular-nums", summary.dueSoonIssued === 0 ? "text-ink-400" : "text-ink-900")}>AED {formatMoney(summary.dueSoonIssued)}</p>
-          <p className="text-xs text-ink-500">{summary.dueSoonIssuedCount === 1 ? "1 cheque to pay" : `${summary.dueSoonIssuedCount} cheques to pay`}</p>
+          <p className="text-[13px] text-ink-500">{summary.dueSoonIssuedCount === 1 ? "1 cheque to pay" : `${summary.dueSoonIssuedCount} cheques to pay`}</p>
         </div>
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-ink-500">Overdue</p>
           <p className={cx("font-display text-xl font-bold tabular-nums", summary.overdueCount === 0 ? "text-ink-400" : "text-danger")}>AED {formatMoney(summary.overdueAmount)}</p>
-          <p className="text-xs text-ink-500">{summary.overdueCount === 1 ? "1 cheque past its date" : `${summary.overdueCount} cheques past their date`}</p>
+          <p className="text-[13px] text-ink-500">{summary.overdueCount === 1 ? "1 cheque past its date" : `${summary.overdueCount} cheques past their date`}</p>
         </div>
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-ink-500">Post-dated, later</p>
           <p className={cx("font-display text-xl font-bold tabular-nums", summary.laterIssued === 0 ? "text-ink-400" : "text-ink-900")}>AED {formatMoney(summary.laterIssued)}</p>
-          <p className="text-xs text-ink-500">{summary.laterIssuedCount === 1 ? "1 cheque" : `${summary.laterIssuedCount} cheques`} after {summary.days} days</p>
+          <p className="text-[13px] text-ink-500">{summary.laterIssuedCount === 1 ? "1 cheque" : `${summary.laterIssuedCount} cheques`} after {summary.days} days</p>
         </div>
       </div>
       {summary.next.length > 0 && (
@@ -279,7 +284,7 @@ function ChequesCard() {
             <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-5 py-2.5 text-sm">
               <span className="w-24 shrink-0 tabular-nums text-ink-700">{formatDay(c.dueDate)}</span>
               <span className="min-w-0 flex-1 truncate font-medium text-ink-900">{c.partyName}</span>
-              <span className="text-xs text-ink-500">{c.direction === "Issued" ? "to pay" : "to receive"} · #{c.serial}</span>
+              <span className="text-[13px] text-ink-500">{c.direction === "Issued" ? "to pay" : "to receive"} · #{c.serial}</span>
               <span className="w-28 text-right font-semibold tabular-nums text-ink-900">{formatMoney(c.amount)}</span>
             </li>
           ))}
@@ -346,11 +351,11 @@ function LatestCard({ data }: { data: FinDashboard }) {
             <li key={`${e.kind}-${e.id}`} className="flex items-center gap-3 px-5 py-3">
               <div className="w-24 shrink-0">
                 <p className="text-[13px] font-medium tabular-nums text-ink-700">{formatDay(e.entryDate)}</p>
-                <p className="font-mono text-xs text-ink-500">{e.entryNo}</p>
+                <p className="font-mono text-[13px] text-ink-500">{e.entryNo}</p>
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] font-semibold text-ink-900">{e.party}</p>
-                <p className="truncate text-xs text-ink-600">{e.kind === "Capital" || e.kind === "CapitalOut" ? `${KIND_WORDS[e.kind]} · ` : `${e.categoryName} · `}{e.accountName}</p>
+                <p className="truncate text-[13px] text-ink-600">{e.kind === "Capital" || e.kind === "CapitalOut" ? `${KIND_WORDS[e.kind]} · ` : `${e.categoryName} · `}{e.accountName}</p>
               </div>
               <p className={cx("text-right font-display text-base font-bold tabular-nums", moneyIn(e.kind) ? "text-brand-700" : "text-ink-900")}>
                 <span className="sr-only">{KIND_WORDS[e.kind]} </span>
@@ -422,6 +427,7 @@ export function FinanceDashboardPage() {
       {load.status === "error" && <LoadError message={load.message} onRetry={() => { setLoad({ status: "loading" }); void refresh(days); }} />}
       {load.status === "ready" && (
         <>
+          {canEdit && <GetStartedCard />}
           <AttentionCard canLock={canEdit} />
           <ResultPanel data={load.data} />
           <div style={{ "--i": 1 } as React.CSSProperties} className="fade-up grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">

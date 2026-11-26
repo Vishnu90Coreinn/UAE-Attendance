@@ -99,7 +99,7 @@ export function RecurringTab({ accounts, canEdit, variant, onChanged }: { accoun
           <ul className="divide-y divide-line border-t border-line text-sm">
             {r.lines.map((l, i) => (
               <li key={i} className="flex items-baseline gap-3 px-5 py-2">
-                <span className="w-14 font-mono text-xs text-ink-500">{l.accountCode}</span>
+                <span className="w-14 font-mono text-[13px] text-ink-500">{l.accountCode}</span>
                 <span className="min-w-0 flex-1 break-words text-ink-900">{l.accountName}</span>
                 <span className="w-24 text-right tabular-nums">{l.debit > 0 ? formatMoney(l.debit) : ""}</span>
                 <span className="w-24 text-right tabular-nums">{l.credit > 0 ? formatMoney(l.credit) : ""}</span>

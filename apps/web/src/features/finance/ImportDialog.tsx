@@ -94,8 +94,8 @@ export function ImportDialog({ kind, variant, onClose, onImported }: ImportDialo
                   <span className="w-8 text-xs tabular-nums text-ink-500">{r.row}</span>
                   <span className="min-w-0">
                     <span className="block truncate font-medium text-ink-900">{r.party ?? "(no name)"}</span>
-                    <span className="block text-xs text-ink-500">{[r.date ? formatDay(r.date) : null, r.category, r.account].filter(Boolean).join(" · ")}</span>
-                    {r.problems.map((p) => <span key={p} className={r.status === "Error" ? "block text-xs text-danger" : "block text-xs text-ink-600"}>{p}</span>)}
+                    <span className="block text-[13px] text-ink-500">{[r.date ? formatDay(r.date) : null, r.category, r.account].filter(Boolean).join(" · ")}</span>
+                    {r.problems.map((p) => <span key={p} className={r.status === "Error" ? "block text-xs text-danger" : "block text-[13px] text-ink-600"}>{p}</span>)}
                   </span>
                   <span className="text-right">
                     <span className="block tabular-nums text-ink-900">{r.amount !== null ? formatMoney(r.amount) : ""}</span>
@@ -104,7 +104,7 @@ export function ImportDialog({ kind, variant, onClose, onImported }: ImportDialo
                 </li>
               ))}
             </ul>
-            {result.rows.length > SHOWN && <p className="text-xs text-ink-600">Showing the first {SHOWN} of {result.rows.length} rows. All are checked.</p>}
+            {result.rows.length > SHOWN && <p className="text-[13px] text-ink-600">Showing the first {SHOWN} of {result.rows.length} rows. All are checked.</p>}
           </>
         )}
 

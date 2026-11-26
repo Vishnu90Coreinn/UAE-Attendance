@@ -83,7 +83,7 @@ export function PettyCashPage() {
                     <header className="flex items-start gap-2">
                       <div className="min-w-0 flex-1">
                         <h3 className="break-words font-display text-lg font-bold leading-snug text-ink-900">{a.holderName ?? a.name}</h3>
-                        <p className="text-xs text-ink-500">{a.name}</p>
+                        <p className="text-[13px] text-ink-500">{a.name}</p>
                       </div>
                       {a.balance < 0 && <StatusBadge tone="danger">Overspent</StatusBadge>}
                     </header>

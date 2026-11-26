@@ -66,7 +66,7 @@ function BillRow({ bill, canEdit, onPay, onVoid, onTakeBack, onOpenFile, onAddFi
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1 basis-56">
           <p className="break-words text-[15px] font-semibold text-ink-900">{bill.supplierName}</p>
-          <p className="text-xs text-ink-500">
+          <p className="text-[13px] text-ink-500">
             <span className="font-mono">{bill.billNo}</span>{bill.supplierRef && <> · their no. {bill.supplierRef}</>} · {formatDay(bill.billDate)}
           </p>
           <p className="text-[13px] text-ink-600">{bill.lines.map((l) => l.category).join(", ")}{bill.taxAmount > 0 && <> · VAT {formatMoney(bill.taxAmount)}</>}</p>
@@ -74,7 +74,7 @@ function BillRow({ bill, canEdit, onPay, onVoid, onTakeBack, onOpenFile, onAddFi
         <p className="text-right">
           <span className="mr-1 text-xs font-medium text-ink-500">AED</span>
           <span className={cx("font-display text-xl font-bold tabular-nums", voided ? "text-ink-500 line-through" : "text-ink-900")}>{formatMoney(bill.total)}</span>
-          {!voided && bill.paid > 0 && <span className="block text-xs text-ink-600">{formatMoney(bill.balance)} still owed</span>}
+          {!voided && bill.paid > 0 && <span className="block text-[13px] text-ink-600">{formatMoney(bill.balance)} still owed</span>}
         </p>
         <div className="flex flex-wrap items-center gap-2 sm:w-52">
           <StatusBadge tone={TONES[bill.display]} variant="soft">{WORDS[bill.display]}</StatusBadge>
@@ -86,7 +86,7 @@ function BillRow({ bill, canEdit, onPay, onVoid, onTakeBack, onOpenFile, onAddFi
         <ul className="space-y-1 text-[13px] text-ink-700">
           {bill.payments.map((p) => (
             <li key={p.entryId} className="flex flex-wrap items-center gap-x-3">
-              <span className="tabular-nums">{formatDay(p.date)}</span><span>AED {formatMoney(p.amount)} from {p.account}</span><span className="font-mono text-xs text-ink-500">{p.entryNo}</span>
+              <span className="tabular-nums">{formatDay(p.date)}</span><span>AED {formatMoney(p.amount)} from {p.account}</span><span className="font-mono text-[13px] text-ink-500">{p.entryNo}</span>
               {canEdit && !voided && <Button size="sm" variant="ghost" className="text-red-700" onClick={() => onTakeBack(p.entryId, p.entryNo)} aria-label={`Take back payment ${p.entryNo}`}>Take back</Button>}
             </li>
           ))}

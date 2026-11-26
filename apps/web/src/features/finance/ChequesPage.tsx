@@ -34,7 +34,7 @@ function Figure({ label, value, note, tone }: { label: string; value: number; no
         <span className="mr-1 text-sm font-medium text-ink-500">AED</span>
         {formatMoney(value)}
       </p>
-      <p className="mt-0.5 text-xs text-ink-500">{note}</p>
+      <p className="mt-0.5 text-[13px] text-ink-500">{note}</p>
     </div>
   );
 }
@@ -48,7 +48,7 @@ function ChequeRow({ cheque, canEdit, onEdit, onStatus }: { cheque: FinCheque; c
           <span className="break-words">{cheque.partyName}</span>
           <span className="text-[13px] font-normal text-ink-600">{issued ? "written to" : "received from"}</span>
         </p>
-        <p className="text-xs text-ink-500">
+        <p className="text-[13px] text-ink-500">
           <span className="font-mono">#{cheque.serial}</span> · {cheque.accountName}
           {cheque.entryNo && <> · <span className="font-mono">{cheque.entryNo}</span></>}
         </p>

@@ -140,7 +140,7 @@ function MovementRow({ entry, canEdit, onCorrect, onVoid, onReceipts }: { entry:
     <li className={cx("grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-2 px-5 py-3.5 sm:flex sm:items-center", voided && "bg-ink-50")}>
       <div className="sm:w-28 sm:shrink-0">
         <p className="text-[13px] font-medium tabular-nums text-ink-700">{formatDay(entry.entryDate)}</p>
-        <p className="font-mono text-xs text-ink-500">{entry.entryNo}</p>
+        <p className="font-mono text-[13px] text-ink-500">{entry.entryNo}</p>
       </div>
       <p className={cx("text-right tabular-nums sm:order-last sm:w-40", voided && "line-through")}>
         <span className="sr-only">{putIn ? "Capital added " : "Capital returned "}</span>
@@ -155,7 +155,7 @@ function MovementRow({ entry, canEdit, onCorrect, onVoid, onReceipts }: { entry:
           <span className="text-[13px] font-normal text-ink-600">{putIn ? "added capital" : "took capital back"}</span>
           {voided && <StatusBadge tone="neutral" variant="soft">Voided</StatusBadge>}
         </p>
-        <p className="text-xs text-ink-500">
+        <p className="text-[13px] text-ink-500">
           {[entry.accountName, entry.reference, entry.replacesEntryNo && `Corrects ${entry.replacesEntryNo}`, entry.replacedByEntryNo && `Replaced by ${entry.replacedByEntryNo}`].filter(Boolean).join(" · ")}
         </p>
         {voided && entry.voidReason && <p className="text-sm text-ink-600">Voided by {entry.voidedBy}: {entry.voidReason}</p>}

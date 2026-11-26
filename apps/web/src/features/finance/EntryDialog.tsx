@@ -340,7 +340,7 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
               )}
             </div>
             {vatPreview && <p aria-live="polite" className="mt-3 text-sm text-ink-700">{vatPreview}</p>}
-            {entry && <p className="mt-2 text-xs text-ink-600">The amount above is the total, VAT included.</p>}
+            {entry && <p className="mt-2 text-[13px] text-ink-600">The amount above is the total, VAT included.</p>}
           </fieldset>
         )}
         <fieldset className="rounded-lg border border-dashed border-ink-300 p-4" aria-describedby="receipt-help">

@@ -62,7 +62,7 @@ function KindList({ kind, title, hint, items, taxTypes, onChanged }: {
           <li key={c.id} className="flex flex-wrap items-center gap-2 bg-ink-50 px-3 py-2">
             <span className="min-w-0 basis-full break-words text-[15px] font-medium text-ink-900 sm:flex-1 sm:basis-0">{c.name}</span>
             <StatusBadge tone="neutral" variant="soft">System</StatusBadge>
-            <span className="text-xs text-ink-600">{isVatSettlementCategory(c.id) ? "Settles VAT with the tax authority. No VAT of its own." : "Posted by the app. Not offered on entry forms."}</span>
+            <span className="text-[13px] text-ink-600">{isVatSettlementCategory(c.id) ? "Settles VAT with the tax authority. No VAT of its own." : "Posted by the app. Not offered on entry forms."}</span>
           </li>
         ) : (
           <li key={c.id} className="flex flex-wrap items-center gap-2 px-3 py-2">

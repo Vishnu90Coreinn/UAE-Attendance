@@ -21,7 +21,7 @@ function Row({ entry, onReceipt }: { entry: FinEntry; onReceipt: () => void }) {
     <li className="grid grid-cols-2 gap-x-4 gap-y-1.5 px-5 py-4 sm:flex sm:flex-wrap sm:items-center">
       <div className="min-w-0 sm:flex-1 sm:basis-56">
         <p className={cx("break-words text-[15px] font-semibold", rejected ? "text-ink-500 line-through" : "text-ink-900")}>{entry.party}</p>
-        <p className="text-xs text-ink-500"><span className="tabular-nums">{formatDay(entry.entryDate)}</span> · <span className="font-mono">{entry.entryNo}</span> · {entry.categoryName} · {entry.accountName}</p>
+        <p className="text-[13px] text-ink-500"><span className="tabular-nums">{formatDay(entry.entryDate)}</span> · <span className="font-mono">{entry.entryNo}</span> · {entry.categoryName} · {entry.accountName}</p>
         {rejected && entry.voidReason && <p className="mt-1 text-[13px] text-red-700">{entry.voidReason}</p>}
       </div>
       <p className="text-right sm:order-last sm:w-40">
@@ -82,7 +82,7 @@ export function MyExpensesPage() {
               <span className="mr-1 text-sm font-medium text-ink-500">AED</span>
               {formatMoney(ready.options.accounts.filter((a) => a.kind === "Custody").reduce((sum, a) => sum + a.balance, 0))}
             </p>
-            <p className="text-xs text-ink-500">Petty cash given to you. Each expense you submit from it is taken off once a Manager approves it.</p>
+            <p className="text-[13px] text-ink-500">Petty cash given to you. Each expense you submit from it is taken off once a Manager approves it.</p>
           </div>
         </Card>
       )}

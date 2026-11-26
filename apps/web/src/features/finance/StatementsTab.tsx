@@ -23,7 +23,7 @@ function Group({ title, lines, total, totalLabel, strong, empty = "Nothing in th
         {lines.length === 0 && <li className="px-5 py-2.5 text-sm text-ink-500">{empty}</li>}
         {lines.map((l) => (
           <li key={l.code + l.name} className="flex items-baseline gap-3 px-5 py-2.5 text-sm">
-            <span className="w-14 font-mono text-xs text-ink-500">{l.code}</span>
+            <span className="w-14 font-mono text-[13px] text-ink-500">{l.code}</span>
             <span className="min-w-0 flex-1 break-words text-ink-900">{l.name}</span>
             <span className="tabular-nums text-ink-900">{formatMoney(l.amount)}</span>
           </li>
@@ -95,7 +95,7 @@ function ProfitLoss() {
               <span>{data.netProfit < 0 ? "Net loss" : "Net profit"}</span>
               <span className="tabular-nums">AED {formatMoney(data.netProfit)}</span>
             </p>
-            {data.manualJournals > 0 && <p className="px-5 pb-3 text-xs text-ink-600">Includes {data.manualJournals === 1 ? "1 journal" : `${data.manualJournals} journals`} posted by hand in this period.</p>}
+            {data.manualJournals > 0 && <p className="px-5 pb-3 text-[13px] text-ink-600">Includes {data.manualJournals === 1 ? "1 journal" : `${data.manualJournals} journals`} posted by hand in this period.</p>}
           </div>
         </>
       )}
@@ -140,7 +140,7 @@ function Sheet() {
               {data.balanced ? <CheckCircle2 aria-hidden="true" size={16} /> : <XCircle aria-hidden="true" size={16} />}
               {data.balanced ? `Assets equal liabilities plus equity on ${formatDay(data.asOf)}.` : "Assets and liabilities plus equity differ. The books need attention."}
             </p>
-            <p className="px-5 pb-4 text-xs text-ink-600">Profit retained is every revenue less every expense up to this date. There is no year-end closing yet.</p>
+            <p className="px-5 pb-4 text-[13px] text-ink-600">Profit retained is every revenue less every expense up to this date. There is no year-end closing yet.</p>
           </div>
         </>
       )}

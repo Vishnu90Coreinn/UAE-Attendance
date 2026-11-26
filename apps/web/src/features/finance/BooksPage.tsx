@@ -111,7 +111,7 @@ function TrialBalance({ trial, onOpen }: { trial: LedgerTrialBalance; onOpen: (a
                   <tr key={type} className="bg-brand-50/50"><th colSpan={4} scope="colgroup" className="px-4 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-brand-800">{GROUP_LABEL[type]}</th></tr>,
                   ...rows.map((a) => (
                     <tr key={a.id}>
-                      <td className="px-4 py-2.5 font-mono text-xs text-ink-500">{a.code}</td>
+                      <td className="px-4 py-2.5 font-mono text-[13px] text-ink-500">{a.code}</td>
                       <td className="px-4 py-2.5"><button type="button" onClick={() => onOpen(a)} className="text-left font-medium text-brand-700 hover:underline">{a.name}</button></td>
                       <td className={cx("px-4 py-2.5 text-right tabular-nums", quietZero(a.debit))}>{formatMoney(a.debit)}</td>
                       <td className={cx("px-4 py-2.5 text-right tabular-nums", quietZero(a.credit))}>{formatMoney(a.credit)}</td>
@@ -155,7 +155,7 @@ function LedgerView({ accounts, accountId, onAccount }: { accounts: LedgerAccoun
     <Card>
       <CardHeader title="Ledger" description="Every line that touched one account, with a running balance." />
       <div className="grid gap-3 px-5 pb-4 sm:grid-cols-3">
-        <Select label="Account" value={accountId === null ? "" : String(accountId)} onChange={(e) => onAccount(e.target.value ? Number(e.target.value) : null)}>
+        <Select label="Ledger account" value={accountId === null ? "" : String(accountId)} onChange={(e) => onAccount(e.target.value ? Number(e.target.value) : null)}>
           <option value="">Choose an account</option>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}
         </Select>
@@ -183,7 +183,7 @@ function LedgerView({ accounts, accountId, onAccount }: { accounts: LedgerAccoun
               {statement.lines.map((l, i) => (
                 <tr key={i}>
                   <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-ink-700">{formatDay(l.date)}</td>
-                  <td className="px-4 py-2.5"><span className="block text-ink-900">{l.description}{l.part === "Reversal" && <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">Reversal</span>}</span><span className="font-mono text-xs text-ink-500">{l.journalNumber}</span></td>
+                  <td className="px-4 py-2.5"><span className="block text-ink-900">{l.description}{l.part === "Reversal" && <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">Reversal</span>}</span><span className="font-mono text-[13px] text-ink-500">{l.journalNumber}</span></td>
                   <td className={cx("px-4 py-2.5 text-right tabular-nums", quietZero(l.debit))}>{formatMoney(l.debit)}</td>
                   <td className={cx("px-4 py-2.5 text-right tabular-nums", quietZero(l.credit))}>{formatMoney(l.credit)}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums text-ink-900">{formatMoney(l.balance)}</td>
@@ -235,7 +235,7 @@ function Journals({ accounts, canEdit, onChanged }: { accounts: LedgerAccount[];
           {list.items.map((j) => (
             <li key={j.id} className="px-5 py-3">
               <p className="flex flex-wrap items-baseline gap-x-3 text-sm">
-                <span className="font-mono text-xs text-ink-500">{j.number}</span>
+                <span className="font-mono text-[13px] text-ink-500">{j.number}</span>
                 <span className="tabular-nums text-ink-700">{formatDay(j.date)}</span>
                 <span className="min-w-0 flex-1 break-words font-medium text-ink-900">{j.description}</span>
                 {j.part === "Reversal" && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900">Reversal</span>}
@@ -249,7 +249,7 @@ function Journals({ accounts, canEdit, onChanged }: { accounts: LedgerAccount[];
                 <tbody>
                   {j.lines.map((l, i) => (
                     <tr key={i} className="text-ink-700">
-                      <td className="w-14 font-mono text-xs text-ink-500">{l.accountCode}</td>
+                      <td className="w-14 font-mono text-[13px] text-ink-500">{l.accountCode}</td>
                       <td className={cx(l.credit > 0 && "pl-6")}>{l.accountName}{l.memo ? <span className="text-ink-500"> ({l.memo})</span> : null}</td>
                       <td className="w-28 text-right tabular-nums">{l.debit > 0 ? formatMoney(l.debit) : ""}</td>
                       <td className="w-28 text-right tabular-nums">{l.credit > 0 ? formatMoney(l.credit) : ""}</td>

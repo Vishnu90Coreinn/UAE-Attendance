@@ -45,7 +45,7 @@ export function StaffEntryCard() {
             <li key={u.userId} className="flex items-center gap-3 py-2.5">
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[15px] font-medium text-ink-900">{u.username}</span>
-                <span className="text-xs text-ink-500">{roleLabel(u.role)}</span>
+                <span className="text-[13px] text-ink-500">{roleLabel(u.role)}</span>
               </span>
               <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-ink-800">
                 <input type="checkbox" className="size-5" checked={u.canSubmit} disabled={busy === u.userId} onChange={() => void toggle(u)} aria-label={`${u.username} can enter expenses`} />

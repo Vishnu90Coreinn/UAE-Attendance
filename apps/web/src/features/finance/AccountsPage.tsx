@@ -132,7 +132,7 @@ function AccountCard({ account, share, canEdit, onEdit, onTransfer, onSwitch }: 
           </div>
         </div>
       )}
-      {account.isActive && share > 0 && <p className="mt-1 text-xs text-ink-600">{formatShare(share)} of the total</p>}
+      {account.isActive && share > 0 && <p className="mt-1 text-[13px] text-ink-600">{formatShare(share)} of the total</p>}
 
       <dl className="mb-4 mt-4 grid gap-1.5 border-t border-line pt-4 text-sm">
         {account.accountNumber && (
@@ -196,7 +196,7 @@ function RecentTransfers({ transfers, canEdit, onVoid }: { transfers: FinTransfe
             <li key={t.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-2 px-5 py-3.5 sm:flex sm:items-center">
               <div className="sm:w-28 sm:shrink-0">
                 <p className="text-[13px] font-medium tabular-nums text-ink-700">{formatDay(t.transferDate)}</p>
-                <p className="font-mono text-xs text-ink-500">{t.transferNo}</p>
+                <p className="font-mono text-[13px] text-ink-500">{t.transferNo}</p>
               </div>
               <p className="text-right sm:order-last">
                 <span className="mr-1 text-xs font-medium text-ink-500">AED</span>

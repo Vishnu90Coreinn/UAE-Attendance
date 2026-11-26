@@ -47,7 +47,7 @@ function Block({ title, rows, vatLabel }: { title: string; rows: FinVatRow[]; va
             <tbody className="divide-y divide-line">
               {rows.map((r) => (
                 <tr key={r.taxTypeId}>
-                  <td className="px-4 py-2.5 text-ink-900">{r.taxType}{r.rate > 0 && <span className="ml-2 text-xs text-ink-500">{r.rate}%</span>}</td>
+                  <td className="px-4 py-2.5 text-ink-900">{r.taxType}{r.rate > 0 && <span className="ml-2 text-[13px] text-ink-500">{r.rate}%</span>}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{r.count}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(r.net)}</td>
                   <td className={cx("px-4 py-2.5 text-right font-semibold tabular-nums", quietZero(r.vat))}>{formatMoney(r.vat)}</td>

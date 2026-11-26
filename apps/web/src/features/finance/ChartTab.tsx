@@ -42,7 +42,7 @@ function AccountDialog({ account, variant, onClose, onSaved }: { account: Ledger
         <Select label="Type" value={type} onChange={(e) => setType(e.target.value as LedgerAccount["type"])} error={errors.type} disabled={posted}>
           {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
         </Select>
-        {posted && <p className="text-xs text-ink-600">The type is fixed because this account already has postings.</p>}
+        {posted && <p className="text-[13px] text-ink-600">The type is fixed because this account already has postings.</p>}
         {account && !account.isSystem && (
           <label className="flex min-h-11 items-center gap-3 text-sm text-ink-900">
             <input type="checkbox" className="size-5" checked={active} onChange={(e) => setActive(e.target.checked)} />
@@ -70,10 +70,10 @@ export function ChartTab({ accounts, variant, canEdit, onChanged }: { accounts: 
       <ul className="divide-y divide-line border-t border-line">
         {accounts.map((a) => (
           <li key={a.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3">
-            <span className="w-14 font-mono text-xs text-ink-500">{a.code}</span>
+            <span className="w-14 font-mono text-[13px] text-ink-500">{a.code}</span>
             <span className="min-w-0 flex-1 basis-48">
               <span className={cx("break-words text-[15px] font-medium", a.isActive ? "text-ink-900" : "text-ink-500 line-through")}>{a.name}</span>
-              <span className="block text-xs text-ink-500">{a.type}{a.isSystem ? " · system" : ""}</span>
+              <span className="block text-[13px] text-ink-500">{a.type}{a.isSystem ? " · system" : ""}</span>
             </span>
             {!a.isActive && <StatusBadge tone="neutral" variant="soft">Switched off</StatusBadge>}
             <span className={cx("w-32 text-right font-display text-base font-bold tabular-nums text-ink-900", quietZero(a.balance))}>{formatMoney(a.balance)}</span>

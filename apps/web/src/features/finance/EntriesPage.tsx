@@ -76,14 +76,14 @@ function EntryMeta({ entry, locked }: { entry: FinEntry; locked: boolean }) {
     <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
       {entry.status === "Voided" && <StatusBadge tone="danger" variant="soft">{entry.voidReason?.startsWith("Rejected") ? "Rejected" : "Voided"}</StatusBadge>}
       {entry.status === "Pending" && <StatusBadge tone="warning" variant="soft">Waiting for approval</StatusBadge>}
-      {entry.replacesEntryNo && <span className="text-xs text-ink-600">Corrects {entry.replacesEntryNo}</span>}
-      {entry.replacedByEntryNo && <span className="text-xs text-ink-600">Replaced by {entry.replacedByEntryNo}</span>}
+      {entry.replacesEntryNo && <span className="text-[13px] text-ink-600">Corrects {entry.replacesEntryNo}</span>}
+      {entry.replacedByEntryNo && <span className="text-[13px] text-ink-600">Replaced by {entry.replacedByEntryNo}</span>}
       {entry.invoiceId != null && <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800" title="Change or remove it on the tax invoice">Payment on a tax invoice</span>}
       {entry.billId != null && <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800" title="Take it back on the supplier bill">Payment on a supplier bill</span>}
-      {locked && entry.status === "Active" && <span className="inline-flex items-center gap-1 text-xs text-ink-600"><Lock aria-hidden="true" size={12} /> Locked month</span>}
+      {locked && entry.status === "Active" && <span className="inline-flex items-center gap-1 text-[13px] text-ink-600"><Lock aria-hidden="true" size={12} /> Locked month</span>}
       {(entry.taxAmount ?? 0) > 0 && <span className="text-xs tabular-nums text-ink-500">VAT AED {formatMoney(entry.taxAmount ?? 0)}</span>}
-      {entry.kind === "Expense" && <span className="text-xs text-ink-500">Entered by {entry.createdBy}</span>}
-      {entry.status === "Voided" && entry.voidReason && <span className="w-full text-xs text-ink-600">{entry.voidedBy ? `${entry.voidedBy}: ` : ""}{entry.voidReason}</span>}
+      {entry.kind === "Expense" && <span className="text-[13px] text-ink-500">Entered by {entry.createdBy}</span>}
+      {entry.status === "Voided" && entry.voidReason && <span className="w-full text-[13px] text-ink-600">{entry.voidedBy ? `${entry.voidedBy}: ` : ""}{entry.voidReason}</span>}
     </span>
   );
 }
@@ -120,7 +120,7 @@ function RowTools({ entry, canAct, onOpen, onCorrect, onVoid }: { entry: FinEntr
           {count > 1 && <span className="text-xs">{count}</span>}
         </button>
       ) : entry.kind === "Expense" ? (
-        <span className="px-2 text-xs text-ink-500">No receipt</span>
+        <span className="px-2 text-[13px] text-ink-500">No receipt</span>
       ) : null}
       {canAct && (
         <>
@@ -144,7 +144,7 @@ function Categories({ entry }: { entry: FinEntry }) {
     <span className="flex flex-col items-start gap-1">
       <span className="inline-block rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-800">Split in {lines.length}</span>
       {lines.map((l, i) => (
-        <span key={i} className="text-xs text-ink-600">
+        <span key={i} className="text-[13px] text-ink-600">
           {l.categoryName} <span className="tabular-nums text-ink-800">{formatMoney(l.amount)}</span>
           {l.note ? <span className="text-ink-500"> ({l.note})</span> : null}
         </span>
@@ -315,7 +315,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
     <section className="space-y-5">
       <PageHeader
         title={income ? "Income" : "Expenses"}
-        description={income ? "Money the company has received: entered here, or recorded as a payment on a tax invoice (those rows say so and are changed on the invoice)." : "Money the company has paid out, each with its receipt."}
+        description={income ? "Money the company has received: entered here, or recorded as a payment on a tax invoice (those rows say so and are changed on the invoice). Correct replaces an entry with a new one, Void cancels it; nothing is ever deleted." : "Money the company has paid out, each with its receipt. Correct replaces an entry with a new one, Void cancels it; nothing is ever deleted."}
         actions={
           <>
             {/* On a phone the file tools wait behind "More tools", so the list starts higher. */}
@@ -408,12 +408,12 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
               <tbody>
                 {sorted.map((e) => (
                   <TRow key={e.id} className={e.status === "Voided" ? "bg-ink-50 text-ink-500" : undefined}>
-                    <Td className="whitespace-nowrap align-top"><span className="font-medium tabular-nums text-ink-900">{formatDay(e.entryDate)}</span><br /><span className="font-mono text-xs text-ink-500">{e.entryNo}</span></Td>
+                    <Td className="whitespace-nowrap align-top"><span className="font-medium tabular-nums text-ink-900">{formatDay(e.entryDate)}</span><br /><span className="font-mono text-[13px] text-ink-500">{e.entryNo}</span></Td>
                     <Td className="max-w-md align-top">
                       <span className={cx("font-medium", e.status === "Voided" ? "text-ink-600 line-through" : "text-ink-900")}>{e.party}</span>
                       {(e.reference || e.notes) && (
                         <span className="mt-0.5 line-clamp-2 block text-[13px] text-ink-500">
-                          {e.reference && <span className="mr-2 font-mono text-xs text-ink-500">Ref {e.reference}</span>}
+                          {e.reference && <span className="mr-2 font-mono text-[13px] text-ink-500">Ref {e.reference}</span>}
                           {e.notes}
                         </span>
                       )}
@@ -441,7 +441,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className={cx("break-words text-[15px] font-semibold leading-snug", e.status === "Voided" ? "text-ink-500 line-through" : "text-ink-900")}>{e.party}</p>
-                    <p className="mt-0.5 text-xs text-ink-500"><span className="tabular-nums">{formatDay(e.entryDate)}</span> · <span className="font-mono">{e.entryNo}</span></p>
+                    <p className="mt-0.5 text-[13px] text-ink-500"><span className="tabular-nums">{formatDay(e.entryDate)}</span> · <span className="font-mono">{e.entryNo}</span></p>
                   </div>
                   <p className={cx("shrink-0 text-right", e.status === "Voided" && "line-through")}>
                     <span className="mr-1 text-xs font-medium text-ink-500">AED</span>
@@ -449,7 +449,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
                   </p>
                 </div>
                 {e.notes && <p className="mt-2 line-clamp-2 text-[13px] leading-snug text-ink-600">{e.notes}</p>}
-                <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs text-ink-600">
+                <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px] text-ink-600">
                   <Categories entry={e} />
                   <span>{e.accountName}</span>
                   {e.reference && <span className="font-mono text-ink-500">Ref {e.reference}</span>}

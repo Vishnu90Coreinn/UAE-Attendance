@@ -87,11 +87,11 @@ export function PayeesPage() {
                       <span className={cx("break-words", !p.isActive && "text-ink-500 line-through")}>{p.name}</span>
                       {!p.isActive && <StatusBadge tone="neutral" variant="soft">Switched off</StatusBadge>}
                     </p>
-                    <p className="text-xs text-ink-500">{[p.defaultCategoryName, p.phone, p.taxNumber && `Tax no. ${p.taxNumber}`].filter(Boolean).join(" · ") || "No usual category"}</p>
+                    <p className="text-[13px] text-ink-500">{[p.defaultCategoryName, p.phone, p.taxNumber && `Tax no. ${p.taxNumber}`].filter(Boolean).join(" · ") || "No usual category"}</p>
                   </div>
                   <p className="text-right text-sm">
                     <span className={cx("font-display text-base font-bold tabular-nums text-ink-900", quietZero(p.total))}>AED {formatMoney(p.total)}</span>
-                    <span className="block text-xs text-ink-500">{p.entryCount === 1 ? "1 entry" : `${p.entryCount} entries`}</span>
+                    <span className="block text-[13px] text-ink-500">{p.entryCount === 1 ? "1 entry" : `${p.entryCount} entries`}</span>
                   </p>
                   {canEdit && (
                     <Button size="sm" variant="ghost" icon={Pencil} className="text-ink-600" onClick={() => setEditing(p)} aria-label={`Edit ${p.name}`}>Edit</Button>
