@@ -150,6 +150,8 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
             {
                 var subject = context.Principal?.FindFirstValue("sub");
                 var tokenName = context.Principal?.Identity?.Name;
+                // A token made before stamps existed carries none and counts as stamp 0, so an upgrade signs nobody out until their password changes.
+                var stamp = int.TryParse(context.Principal?.FindFirstValue(JwtTokenService.SecurityStampClaim), out var parsed) ? parsed : 0;
                 if (!int.TryParse(subject, out var userId) || string.IsNullOrWhiteSpace(tokenName))
                 {
                     context.Fail("Invalid account.");
@@ -159,9 +161,9 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
                 var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
                 var current = await db.Users.AsNoTracking()
                     .Where(user => user.Id == userId)
-                    .Select(user => new { user.Username, user.Role, user.IsActive })
+                    .Select(user => new { user.Username, user.Role, user.IsActive, user.SecurityStamp })
                     .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
-                if (current is null || !current.IsActive || !string.Equals(current.Username, tokenName, StringComparison.OrdinalIgnoreCase))
+                if (current is null || !current.IsActive || current.SecurityStamp != stamp || !string.Equals(current.Username, tokenName, StringComparison.OrdinalIgnoreCase))
                 {
                     context.Fail("Invalid account.");
                     return;

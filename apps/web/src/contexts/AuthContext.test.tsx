@@ -173,3 +173,26 @@ describe("AuthProvider", () => {
     vi.restoreAllMocks();
   });
 });
+
+describe("a replaced token", () => {
+  it("is kept for the next page load, and a rejected older tab does not remove it", async () => {
+    const actual = await vi.importActual<typeof import("../api/client")>("../api/client");
+    const user = userEvent.setup();
+    renderProvider();
+    await user.click(screen.getByRole("button", { name: "login" }));
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("signedIn"));
+
+    await act(() => actual.renewingToken(async () => ({ token: "tok-2" })));
+
+    expect(screen.getByTestId("token")).toHaveTextContent("tok-2");
+    expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBe("tok-2");
+
+    // Another tab has since stored a newer token; this tab's one is refused.
+    localStorage.setItem(TOKEN_STORAGE_KEY, "tok-3");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
+    await act(() => apiGet("/api/anything").catch(() => undefined));
+
+    expect(screen.getByTestId("status")).toHaveTextContent("signedOut");
+    expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBe("tok-3");
+  });
+});

@@ -3,6 +3,8 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using HrPayroll.Api.Auth;
+using HrPayroll.Api.Data.Entities;
+using Microsoft.EntityFrameworkCore;
 using HrPayroll.Api.Tests.Helpers;
 
 namespace HrPayroll.Api.Tests.Integration;
@@ -166,6 +168,38 @@ public class FinanceStaffEntryTests(ReceiptsFixture api) : IClassFixture<Receipt
         var options = await (await api.Client.SendAsync(Req(HttpMethod.Get, "/api/finance/my/options", first))).Content.ReadFromJsonAsync<JsonElement>();
         Assert.All(options.GetProperty("accounts").EnumerateArray(), a => Assert.Equal(0m, a.GetProperty("balance").GetDecimal()));   // no balances for staff
         Assert.Contains(options.GetProperty("accounts").EnumerateArray(), a => a.GetProperty("id").GetInt32() == account);
+    }
+
+    [Fact]
+    public async Task StaffOptions_CarryNoMoneyBankDetailsOrPayeeContacts()
+    {
+        var manager = await ManagerAsync();
+        var (staff, _, account) = await StaffAsync(manager);
+        var payee = TestUsers.UniqueName("Vendor");
+        await using (var db = TestUsers.NewContext(api.ConnectionString))
+        {
+            var shared = await db.FinAccounts.SingleAsync(a => a.Id == account);
+            shared.OpeningBalance = 9000m;
+            shared.BankName = "Test Bank";
+            shared.Iban = "AE070331234567890123456";
+            db.FinPayees.Add(new FinPayee { Kind = FinEntryKinds.Expense, Name = payee, Phone = "050 000 0000", TaxNumber = "100000000000003", Notes = "Agreed discount" });
+            await db.SaveChangesAsync();
+        }
+        await SubmitAsync(staff, Form(account, 15m, party: payee));
+
+        var options = await (await api.Client.SendAsync(Req(HttpMethod.Get, "/api/finance/my/options", staff))).Content.ReadFromJsonAsync<JsonElement>();
+
+        var seen = options.GetProperty("accounts").EnumerateArray().Single(a => a.GetProperty("id").GetInt32() == account);
+        foreach (var money in new[] { "openingBalance", "balance", "bankBalance", "unclearedCheques", "entryCount" })
+            Assert.Equal(0m, seen.GetProperty(money).GetDecimal());
+        foreach (var detail in new[] { "bankName", "accountNumber", "iban", "holderName" })
+            Assert.Equal(JsonValueKind.Null, seen.GetProperty(detail).ValueKind);
+        var vendor = options.GetProperty("payees").EnumerateArray().Single(p => p.GetProperty("name").GetString() == payee);
+        foreach (var detail in new[] { "phone", "taxNumber", "notes" })
+            Assert.Equal(JsonValueKind.Null, vendor.GetProperty(detail).ValueKind);
+        Assert.Equal(0m, vendor.GetProperty("total").GetDecimal());
+        Assert.Equal(0, vendor.GetProperty("entryCount").GetInt32());
+        Assert.All(options.GetProperty("categories").EnumerateArray(), c => Assert.Equal(0, c.GetProperty("useCount").GetInt32()));
     }
 
     [Fact]

@@ -72,7 +72,10 @@ public sealed class AuthController(AppDbContext db, AuthService authService, Jwt
         switch (result.Outcome)
         {
             case ChangePasswordOutcome.Success:
-                return NoContent();
+                // The change ended every earlier sign-in, this one included, so the person who made it is handed a new token to carry on with.
+                var user = await db.Users.AsNoTracking().SingleAsync(u => u.Id == userId.Value, cancellationToken);
+                var (token, expiresUtc) = tokenService.CreateToken(user);
+                return Ok(new LoginResponse(token, expiresUtc, new CurrentUserResponse(user.Id, user.Username, user.Role, await EmployeeIdAsync(user.Id, cancellationToken), user.CanSubmitExpenses)));
 
             case ChangePasswordOutcome.Invalid:
                 var errors = result.Errors!.ToDictionary(e => e.Key, e => new[] { e.Value });

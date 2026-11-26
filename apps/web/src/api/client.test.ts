@@ -7,7 +7,9 @@ import {
   apiGetBlob,
   apiPost,
   apiPut,
+  renewingToken,
   setAuthToken,
+  setTokenRenewedHandler,
   setUnauthorizedHandler,
 } from "./client";
 
@@ -19,6 +21,39 @@ afterEach(() => {
   vi.unstubAllGlobals();
   setAuthToken(null);
   setUnauthorizedHandler(null);
+});
+
+describe("replacing the token", () => {
+  const unauthorized = () => new Response(null, { status: 401 });
+
+  it("uses the new token, tells the listener, and ignores a rejection of the old one that arrives meanwhile", async () => {
+    const expired = vi.fn();
+    const renewed = vi.fn();
+    setUnauthorizedHandler(expired);
+    setTokenRenewedHandler(renewed);
+    setAuthToken("old");
+    let rejectOld: (response: Response) => void = () => undefined;
+    const fetchMock = vi.fn().mockReturnValueOnce(new Promise<Response>((resolve) => (rejectOld = resolve)));
+    vi.stubGlobal("fetch", fetchMock);
+    const slow = apiGet("/api/slow").catch(() => undefined);   // sent with the old token
+
+    let finish: (value: { token: string }) => void = () => undefined;
+    const change = renewingToken(() => new Promise<{ token: string }>((resolve) => (finish = resolve)));
+    rejectOld(unauthorized());
+    await slow;
+    expect(expired).not.toHaveBeenCalled();
+    finish({ token: "new" });
+    await change;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(renewed).toHaveBeenCalledWith("new");
+    expect(expired).not.toHaveBeenCalled();
+    fetchMock.mockResolvedValueOnce(unauthorized());
+    await apiGet("/api/next").catch(() => undefined);   // the new token being refused does end the session
+    expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe("Bearer new");
+    expect(expired).toHaveBeenCalledTimes(1);
+    setTokenRenewedHandler(null);
+  });
 });
 
 function sentHeaders(): Record<string, string> {

@@ -1,6 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getMe, login as loginRequest, type CurrentUser } from "../api/auth";
-import { setAuthToken, setUnauthorizedHandler } from "../api/client";
+import { setAuthToken, setTokenRenewedHandler, setUnauthorizedHandler } from "../api/client";
 
 export const TOKEN_STORAGE_KEY = "hrpayroll.authToken";
 
@@ -49,16 +49,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return stored ? { status: "loading", user: null, token: stored } : SIGNED_OUT;
   });
 
+  // The token this tab signed in with, so a rejected one does not remove a newer one that another tab has stored.
+  const tokenRef = useRef(state.token);
+
   const clearSession = useCallback(() => {
     setAuthToken(null);
     storeToken(null);
+    tokenRef.current = null;
     setState(SIGNED_OUT);
   }, []);
 
-  useEffect(() => {
-    setUnauthorizedHandler(clearSession);
-    return () => setUnauthorizedHandler(null);
+  const expireSession = useCallback(() => {
+    const stored = readStoredToken();
+    if (stored === null || stored === tokenRef.current) {
+      clearSession();
+      return;
+    }
+    setAuthToken(null);
+    tokenRef.current = null;
+    setState(SIGNED_OUT);
   }, [clearSession]);
+
+  useEffect(() => {
+    setUnauthorizedHandler(expireSession);
+    setTokenRenewedHandler((token) => {
+      storeToken(token);
+      tokenRef.current = token;
+      setState((current) => (current.status === "signedIn" ? { ...current, token } : current));
+    });
+    return () => {
+      setUnauthorizedHandler(null);
+      setTokenRenewedHandler(null);
+    };
+  }, [expireSession]);
 
   // Restore: a token from a previous page load is only trusted once the server accepts it.
   useEffect(() => {
@@ -88,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await loginRequest(username, password);
     setAuthToken(response.token);
     storeToken(response.token);
+    tokenRef.current = response.token;
     setState({ status: "signedIn", user: response.user, token: response.token });
   }, []);
 

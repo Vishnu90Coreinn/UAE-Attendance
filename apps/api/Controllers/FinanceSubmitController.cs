@@ -31,12 +31,23 @@ public sealed class FinanceSubmitController(FinanceEntryService entries, Finance
     [HttpGet("options")]
     [Authorize(Policy = Policies.FinanceSubmit)]
     public async Task<IActionResult> Options(CancellationToken ct) => Ok(new FinMyOptions(
-        // The shared staff accounts show no balance; the petty cash a person holds shows theirs, so they know what is left.
-        (await accounts.ListAsync(false, ct)).Where(a => a.StaffCanUse || (a.HolderUserId is { } h && h == FinanceRules.UserId(http)))
-            .Select(a => a.HolderUserId is not null ? a with { OpeningBalance = 0m } : a with { OpeningBalance = 0m, Balance = 0m, AccountNumber = null, Iban = null, BankName = null }).ToList(),
-        (await categories.ListAsync(FinEntryKinds.Expense, false, ct)).Where(c => !FinanceRules.IsVatSettlement(c.Id)).ToList(),
-        await payees.ListAsync(FinEntryKinds.Expense, false, ct),
+        // Staff get only what the form needs. A shared account shows no money and no bank details at all; the petty cash a person holds shows what is left of it.
+        (await accounts.ListAsync(false, ct)).Where(a => a.StaffCanUse || (a.HolderUserId is { } h && h == FinanceRules.UserId(http))).Select(ForStaff).ToList(),
+        (await categories.ListAsync(FinEntryKinds.Expense, false, ct)).Where(c => !FinanceRules.IsVatSettlement(c.Id)).Select(c => c with { UseCount = 0 }).ToList(),
+        // A saved payee fills in a name and its usual category. Contact details, tax number, notes and how much has been paid stay with the Manager.
+        (await payees.ListAsync(FinEntryKinds.Expense, false, ct)).Select(p => p with { Phone = null, TaxNumber = null, Notes = null, EntryCount = 0, Total = 0m }).ToList(),
         await categories.TaxTypesAsync(ct)));
+
+    /// <summary>
+    /// What an account looks like to someone entering expenses. Built field by field from what is safe to show, so a money or bank field added to the account later
+    /// is not passed on by accident.
+    /// </summary>
+    private FinAccountResponse ForStaff(FinAccountResponse a)
+    {
+        var held = a.HolderUserId is { } h && h == FinanceRules.UserId(http);
+        var left = held ? a.Balance : 0m;
+        return new(a.Id, a.Name, a.Kind, null, null, null, 0m, a.OpeningDate, a.IsActive, a.SortOrder, left, 0, a.StaffCanUse, held ? a.HolderUserId : null, null, 0m, left);
+    }
 
     [HttpGet("expenses")]
     [Authorize(Policy = Policies.FinanceSubmit)]

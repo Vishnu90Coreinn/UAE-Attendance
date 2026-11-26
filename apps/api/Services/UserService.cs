@@ -124,6 +124,7 @@ public sealed class UserService(
         if (error is not null) return Invalid(new() { ["password"] = error });
 
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
+        user.SecurityStamp++;   // a reset also ends every sign-in made with the old password
         user.FailedLoginCount = 0;
         user.LockoutEndUtc = null;
         audit.Write("PasswordReset", actor, nameof(User), Id(user), new { username = user.Username });
