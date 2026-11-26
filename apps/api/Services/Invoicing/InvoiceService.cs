@@ -226,6 +226,7 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
             var invoice = await LoadAsync(id, tracked: true, ct);
             if (invoice is null) return new(404);
             if (invoice.Status != InvoiceStatuses.Issued) return new(409, Message: "Payments can only be recorded against an issued invoice.");
+            if (request.AccountId is null) return new(400, Errors: new() { ["accountId"] = ["Choose the account the money went into."] });
             var balance = invoice.Total - invoice.Payments.Sum(p => p.Amount);
             if (request.Amount > balance) return new(400, Errors: new() { ["amount"] = [$"The payment is more than the balance due ({balance.ToString("N2", CultureInfo.InvariantCulture)})."] });
             int? entryId = null;

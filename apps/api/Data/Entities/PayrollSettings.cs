@@ -6,6 +6,9 @@ public class PayrollSettings
     public const int SingletonId = 1;
 
     public int Id { get; set; }
+    public int VatPeriodMonths { get; set; } = 3;
+    public int VatPeriodStartMonth { get; set; } = 1;
+    public bool VatPeriodConfirmed { get; set; }
     public string CompanyName { get; set; } = "";
     public string Tagline { get; set; } = "";
     public string ContactEmail { get; set; } = "";

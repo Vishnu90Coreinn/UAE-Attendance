@@ -46,6 +46,14 @@ it("shows the total balance, each account with its balance, and the recent trans
   expect(screen.getByText("CHQ 12")).toBeInTheDocument();
 });
 
+it("includes staff custody money in the cash subtotal", async () => {
+  vi.mocked(financeApi.listFinAccounts).mockResolvedValue([account(), cash, { ...cash, id: 4, name: "Staff custody", kind: "Custody", balance: 1500 }]);
+  render(<MemoryRouter><AccountsPage /></MemoryRouter>);
+  const panel = await screen.findByRole("region", { name: "Total balance" });
+  expect(within(panel).getByText(/1,849.75/)).toBeInTheDocument();
+  expect(within(panel).getByText("3,000.00")).toBeInTheDocument();
+});
+
 it("lets a Manager add an account, transfer and switch accounts off", async () => {
   render(<MemoryRouter><AccountsPage /></MemoryRouter>);
   await screen.findByText("1,500.00");

@@ -1,10 +1,11 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import * as financeApi from "../../api/finance";
 import type { LedgerAccount, LedgerCheckResult } from "../../api/finance";
 import { useAuth } from "../../contexts/AuthContext";
 import { BooksPage } from "./BooksPage";
+import { todayInUae } from "./financeFormat";
 
 vi.mock("../../api/finance");
 vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
@@ -26,6 +27,18 @@ beforeEach(() => {
   vi.mocked(financeApi.getLedgerChart).mockResolvedValue(trial.accounts);
   vi.mocked(financeApi.getLedgerTrialBalance).mockResolvedValue(trial);
   vi.mocked(financeApi.getLedgerCheck).mockResolvedValue(agree);
+});
+
+it("withholds trial balance downloads while a newly selected date is loading", async () => {
+  let finish!: (value: typeof trial) => void;
+  vi.mocked(financeApi.getLedgerTrialBalance).mockReset().mockResolvedValueOnce({ ...trial, asOf: todayInUae() }).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  render(<BooksPage />);
+  await screen.findByRole("button", { name: "CSV" });
+  fireEvent.change(screen.getByLabelText("Trial balance as at"), { target: { value: "2026-10-31" } });
+  await waitFor(() => expect(financeApi.getLedgerTrialBalance).toHaveBeenLastCalledWith("2026-10-31"));
+  expect(screen.queryByRole("button", { name: "CSV" })).not.toBeInTheDocument();
+  await act(async () => finish({ ...trial, asOf: "2026-10-31" }));
+  expect(await screen.findByRole("button", { name: "CSV" })).toBeInTheDocument();
 });
 
 it("shows the trial balance grouped by type, with equal totals", async () => {

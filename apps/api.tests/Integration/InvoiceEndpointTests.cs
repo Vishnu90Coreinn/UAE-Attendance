@@ -308,7 +308,7 @@ public class InvoiceEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
 
         var id = (await CreateAsync(token)).GetProperty("id").GetInt32();
         await api.PostAsync($"/api/invoices/{id}/issue", new { }, token);
-        await api.PostAsync($"/api/invoices/{id}/payments", new { paidDate = "2026-11-02", amount = 10m, method = "Cash" }, token);
+        await api.PostAsync($"/api/invoices/{id}/payments", new { paidDate = "2026-11-02", amount = 10m, method = "Cash", accountId = (await TestFinance.AddAccountAsync(api.ConnectionString, openingDate: new DateOnly(2026, 1, 1))).Id }, token);
         Assert.Equal(HttpStatusCode.Conflict, (await api.PostAsync($"/api/invoices/{id}/cancel", new { reason = "x" }, token)).StatusCode);
     }
 
@@ -321,11 +321,11 @@ public class InvoiceEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
         var id = (await CreateAsync(token, Body(lines: [new { description = "x", quantity = 1m, rate = 100m }]))).GetProperty("id").GetInt32();
         await api.PostAsync($"/api/invoices/{id}/issue", new { }, token); // total 105.00
 
-        var part = await TestWorkers.ReadJsonAsync(await api.PostAsync($"/api/invoices/{id}/payments", new { paidDate = "2026-11-02", amount = 50m, method = "Bank transfer", reference = "TT1" }, token));
+        var part = await TestWorkers.ReadJsonAsync(await api.PostAsync($"/api/invoices/{id}/payments", new { paidDate = "2026-11-02", amount = 50m, method = "Bank transfer", reference = "TT1", accountId = (await TestFinance.AddAccountAsync(api.ConnectionString, openingDate: new DateOnly(2026, 1, 1))).Id }, token));
         Assert.Equal("PartPaid", part.GetProperty("displayStatus").GetString());
         Assert.Equal(55m, part.GetProperty("balanceDue").GetDecimal());
 
-        var paid = await TestWorkers.ReadJsonAsync(await api.PostAsync($"/api/invoices/{id}/payments", new { paidDate = "2026-11-03", amount = 55m, method = "Cash" }, token));
+        var paid = await TestWorkers.ReadJsonAsync(await api.PostAsync($"/api/invoices/{id}/payments", new { paidDate = "2026-11-03", amount = 55m, method = "Cash", accountId = (await TestFinance.AddAccountAsync(api.ConnectionString, openingDate: new DateOnly(2026, 1, 1))).Id }, token));
         Assert.Equal("Paid", paid.GetProperty("displayStatus").GetString());
         Assert.Equal(0m, paid.GetProperty("balanceDue").GetDecimal());
         Assert.False(paid.GetProperty("isOverdue").GetBoolean());
@@ -355,7 +355,7 @@ public class InvoiceEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
         var token = await ManagerToken();
         var id = (await CreateAsync(token)).GetProperty("id").GetInt32();
         await api.PostAsync($"/api/invoices/{id}/issue", new { }, token);
-        var after = await TestWorkers.ReadJsonAsync(await api.PostAsync($"/api/invoices/{id}/payments", new { paidDate = "2026-11-02", amount = 10m, method = "Cash" }, token));
+        var after = await TestWorkers.ReadJsonAsync(await api.PostAsync($"/api/invoices/{id}/payments", new { paidDate = "2026-11-02", amount = 10m, method = "Cash", accountId = (await TestFinance.AddAccountAsync(api.ConnectionString, openingDate: new DateOnly(2026, 1, 1))).Id }, token));
         var paymentId = after.GetProperty("payments")[0].GetProperty("id").GetInt32();
 
         var removed = await TestWorkers.ReadJsonAsync(await api.SendAsync(HttpMethod.Delete, $"/api/invoices/{id}/payments/{paymentId}", token: token));

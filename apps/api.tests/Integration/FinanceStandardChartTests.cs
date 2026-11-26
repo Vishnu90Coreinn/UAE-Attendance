@@ -27,7 +27,8 @@ public class FinanceStandardChartTests(ApiFixture api) : IClassFixture<ApiFixtur
         string PostsTo(string category) => CodeOf(mappings.EnumerateArray().Single(m => m.GetProperty("kind").GetString() == "Category" && m.GetProperty("name").GetString() == category).GetProperty("ledgerAccountId").GetInt32());
 
         Assert.Equal("5100", PostsTo("Monthly Salary"));
-        Assert.Equal("5110", PostsTo("Salary Advance"));
+        Assert.Equal("1510", PostsTo("Salary Advance"));
+        Assert.Equal("Asset", chart.Single(a => a.GetProperty("code").GetString() == "1510").GetProperty("type").GetString());
         Assert.Equal("5200", PostsTo("Worker Accommodation Rent"));
         Assert.Equal("5210", PostsTo("Worker Transportation"));
         Assert.Equal("5220", PostsTo("Office Rent"));

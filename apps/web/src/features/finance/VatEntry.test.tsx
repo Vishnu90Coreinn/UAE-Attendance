@@ -38,6 +38,24 @@ async function open(amount = "105") {
   return user;
 }
 
+it("sends the accountant's partial VAT recovery percentage", async () => {
+  const user = await open();
+  await user.selectOptions(screen.getByLabelText("VAT type"), "1");
+  await user.clear(screen.getByLabelText("Recoverable VAT (%)"));
+  await user.type(screen.getByLabelText("Recoverable VAT (%)"), "40");
+  await user.click(screen.getByRole("button", { name: "Save expense" }));
+  expect(financeApi.createFinEntry).toHaveBeenCalledWith("Expense", expect.objectContaining({ recoverableTaxPercent: 40 }));
+});
+
+it("does not interpret an empty recovery percentage as fully blocked VAT", async () => {
+  const user = await open();
+  await user.selectOptions(screen.getByLabelText("VAT type"), "1");
+  await user.clear(screen.getByLabelText("Recoverable VAT (%)"));
+  await user.click(screen.getByRole("button", { name: "Save expense" }));
+  expect(await screen.findByText("Enter a VAT recovery percentage from 0 to 100.")).toBeInTheDocument();
+  expect(financeApi.createFinEntry).not.toHaveBeenCalled();
+});
+
 it("does not assume a VAT type: a category with no VAT setting asks, and saving without a choice is refused", async () => {
   const user = await open("105");
 

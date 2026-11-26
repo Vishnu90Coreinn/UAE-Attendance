@@ -30,6 +30,7 @@ public static class FinanceRules
     /// </summary>
     public const int VatPaymentCategoryId = 13;
     public const int VatRefundCategoryId = 14;
+    public static decimal RecoverableVat(decimal tax, decimal percent) => decimal.Round(tax * percent / 100m, 2, MidpointRounding.AwayFromZero);
     public static bool IsVatSettlement(int categoryId) => categoryId is VatPaymentCategoryId or VatRefundCategoryId;
 
     /// <summary>Today on UAE time, which is what "not in the future" means for the company.</summary>

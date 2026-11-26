@@ -57,6 +57,77 @@ public class FinanceVatTests(ReceiptsFixture api) : IClassFixture<ReceiptsFixtur
     }
 
     [Fact]
+    public async Task PartialInputTaxRecovery_PostsBlockedVatAsCost_AndOnlyClaimsRecoverableVat()
+    {
+        var token = await ManagerAsync();
+        var account = await AccountAsync();
+        var date = new DateOnly(2007, 7, 10);
+        var form = Form(account, 105m, date, Standard, party: "Partial recovery Co");
+        form.Add(new StringContent("40"), "recoverableTaxPercent");
+        var made = await SendAsync(HttpMethod.Post, "/api/finance/expenses", token, content: form);
+        Assert.Equal(HttpStatusCode.Created, made.Status);
+        Assert.Equal(40m, made.Body.GetProperty("recoverableTaxPercent").GetDecimal());
+        var journal = await JournalOfAsync(token, "Partial recovery Co");
+        Assert.Equal(103m, journal["General company expenses"].Debit);
+        Assert.Equal(2m, journal["VAT recoverable (input VAT)"].Debit);
+        var report = (await SendAsync(HttpMethod.Get, $"/api/finance/reports/vat?from={D(date)}&to={D(date)}", token)).Body;
+        Assert.Equal(2m, report.GetProperty("inputVat").GetDecimal());
+    }
+
+    [Theory]
+    [InlineData(0, 0, 105)]
+    [InlineData(40, 2, 103)]
+    public async Task SupplierBill_WithPartialRecovery_PostsOnlyEligibleVat(decimal percent, decimal recoverable, decimal cost)
+    {
+        var token = await ManagerAsync();
+        var date = new DateOnly(2007, 9, 10 + (int)percent / 40);
+        var made = await SendAsync(HttpMethod.Post, "/api/finance/bills", token, new { supplierName = "Partial recovery bill", supplierRef = "PR-" + percent, billDate = D(date), dueDate = D(date.AddDays(30)), taxTypeId = Standard, recoverableTaxPercent = percent, lines = new[] { new { categoryId = 1, amount = 100m } } });
+        Assert.Equal(HttpStatusCode.Created, made.Status);
+        var report = (await SendAsync(HttpMethod.Get, $"/api/finance/reports/vat?from={D(date)}&to={D(date)}", token)).Body;
+        Assert.Equal(recoverable, report.GetProperty("inputVat").GetDecimal());
+        var journal = (await SendAsync(HttpMethod.Get, "/api/finance/ledger/journals?source=Bill&sourceId=" + made.Body.GetProperty("id").GetInt32(), token)).Body.GetProperty("items")[0];
+        Assert.Equal(cost, journal.GetProperty("lines").EnumerateArray().Single(l => l.GetProperty("accountName").GetString() == "General company expenses").GetProperty("debit").GetDecimal());
+    }
+
+    [Theory]
+    [InlineData(1, 105, 0)]
+    [InlineData(4, 100, 5)]
+    public async Task BlockedVat_BecomesCost_AndReverseChargeStillAccountsForOutput(int type, decimal amount, decimal output)
+    {
+        var token = await ManagerAsync();
+        var account = await AccountAsync();
+        var date = new DateOnly(2007, 8, 10 + type);
+        var form = Form(account, amount, date, type, party: "Blocked VAT " + type);
+        form.Add(new StringContent("0"), "recoverableTaxPercent");
+        Assert.Equal(HttpStatusCode.Created, (await SendAsync(HttpMethod.Post, "/api/finance/expenses", token, content: form)).Status);
+        var report = (await SendAsync(HttpMethod.Get, $"/api/finance/reports/vat?from={D(date)}&to={D(date)}", token)).Body;
+        Assert.Equal(0m, report.GetProperty("inputVat").GetDecimal());
+        Assert.Equal(output, report.GetProperty("outputVat").GetDecimal());
+        var journal = await JournalOfAsync(token, "Blocked VAT " + type);
+        Assert.Equal(105m, journal["General company expenses"].Debit);
+        Assert.False(journal.ContainsKey("VAT recoverable (input VAT)"));
+    }
+
+    [Fact]
+    public async Task ReverseChargeBill_PartialRecovery_SplitsBlockedVatAndExportsTheRoundedClaim()
+    {
+        var token = await ManagerAsync();
+        var date = new DateOnly(2007, 10, 10);
+        var made = await SendAsync(HttpMethod.Post, "/api/finance/bills", token, new { supplierName = "Split reverse charge bill", supplierRef = "RCM-SPLIT", billDate = D(date), dueDate = D(date.AddDays(30)), taxTypeId = 4, recoverableTaxPercent = 33.33m, lines = new[] { new { categoryId = 1, amount = 17m }, new { categoryId = 5, amount = 33.02m } } });
+        Assert.Equal(HttpStatusCode.Created, made.Status);
+        var journal = (await SendAsync(HttpMethod.Get, "/api/finance/ledger/journals?source=Bill&sourceId=" + made.Body.GetProperty("id").GetInt32(), token)).Body.GetProperty("items")[0];
+        var lines = journal.GetProperty("lines").EnumerateArray().ToList();
+        Assert.Equal(lines.Sum(l => l.GetProperty("debit").GetDecimal()), lines.Sum(l => l.GetProperty("credit").GetDecimal()));
+        Assert.Equal(0.83m, lines.Single(l => l.GetProperty("accountCode").GetString() == "1500").GetProperty("debit").GetDecimal());
+        Assert.Equal(2.50m, lines.Single(l => l.GetProperty("accountCode").GetString() == "2200").GetProperty("credit").GetDecimal());
+        Assert.Equal(17.57m, lines.Single(l => l.GetProperty("accountCode").GetString() == "5400").GetProperty("debit").GetDecimal());
+        var file = await api.GetAsync($"/api/finance/reports/vat?from={D(date)}&to={D(date)}&format=csv", token);
+        file.EnsureSuccessStatusCode();
+        var csv = await file.Content.ReadAsStringAsync();
+        Assert.EndsWith(",0.83", csv.Split("\r\n").Single(l => l.Contains("VAT reclaimable (input)")));
+    }
+
+    [Fact]
     public async Task TaxTypes_AreTheAccountantsList()
     {
         var types = (await SendAsync(HttpMethod.Get, "/api/finance/tax-types", await ManagerAsync())).Body.EnumerateArray().ToList();

@@ -41,7 +41,7 @@ public sealed class FinanceBillService(AppDbContext db, FinanceLedgerService led
                 b.TaxTypeId, b.TaxTypeId is { } t ? types.GetValueOrDefault(t) : null, b.TaxAmount, b.Net, b.Total, paid, b.Status == FinBillStatuses.Voided ? 0m : b.Total - paid,
                 b.Lines.OrderBy(l => l.Id).Select(l => new FinBillLineResponse(l.CategoryId, l.Category.Name, l.Amount, l.Note)).ToList(),
                 mine.Select(p => new FinBillPaymentResponse(p.Id, p.EntryNo, FinanceRules.Format(p.EntryDate), p.Amount, p.Account.Name, p.Reference)).ToList(), b.VoidReason, b.CreatedBy,
-                files[b.Id].Select(f => new FinAttachmentResponse(f.Id, f.FileName, f.ContentType, f.SizeBytes)).ToList());
+                files[b.Id].Select(f => new FinAttachmentResponse(f.Id, f.FileName, f.ContentType, f.SizeBytes)).ToList(), b.RecoverableTaxPercent);
         }).ToList();
     }
 
@@ -125,6 +125,7 @@ public sealed class FinanceBillService(AppDbContext db, FinanceLedgerService led
             }
         }
 
+        if (request.RecoverableTaxPercent < 0m || request.RecoverableTaxPercent > 100m || !FinanceCalculator.IsMoney(request.RecoverableTaxPercent)) errors["recoverableTaxPercent"] = ["Use a VAT recovery percentage from 0 to 100, with at most 2 decimals."];
         FinTaxType? tax = null;
         if (request.TaxTypeId is { } taxId and not 0)
         {
@@ -146,10 +147,14 @@ public sealed class FinanceBillService(AppDbContext db, FinanceLedgerService led
         var bill = new FinBill
         {
             BillNo = "PENDING-" + Guid.NewGuid().ToString("N")[..10], SupplierName = supplier!, PayeeId = payee?.Id, SupplierRef = reference, BillDate = billDate, DueDate = dueDate, Notes = notes,
-            TaxTypeId = tax?.Id, TaxRate = tax?.Rate ?? 0m, TaxAmount = taxAmount, Net = net, Total = total, CreatedBy = FinanceRules.Actor(http), CreatedUtc = DateTime.UtcNow,
+            TaxTypeId = tax?.Id, TaxRate = tax?.Rate ?? 0m, TaxAmount = taxAmount, RecoverableTaxPercent = request.RecoverableTaxPercent, Net = net, Total = total, CreatedBy = FinanceRules.Actor(http), CreatedUtc = DateTime.UtcNow,
         };
         foreach (var l in lines) bill.Lines.Add(new FinBillLine { CategoryId = l.CategoryId!.Value, Amount = l.Amount!.Value, Note = FinanceRules.Clean(l.Note) });
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+        // Update/range locks keep two concurrent submissions from entering the same supplier invoice.
+        if (reference is not null && await db.FinBills.FromSqlRaw("SELECT * FROM [FinBills] WITH (UPDLOCK, HOLDLOCK)")
+            .AnyAsync(b => b.Status == FinBillStatuses.Open && ((payee != null && b.PayeeId == payee.Id) || b.SupplierName.Trim().ToUpper() == supplier!.ToUpper()) && b.SupplierRef != null && b.SupplierRef.Trim().ToUpper() == reference.ToUpper(), ct))
+            return FinResult<FinBillResponse>.Invalid("supplierRef", "This supplier invoice number is already recorded. Open the existing bill instead.");
         db.FinBills.Add(bill);
         await db.SaveChangesAsync(ct);
         bill.BillNo = "BILL-" + bill.Id.ToString("000000", CultureInfo.InvariantCulture);

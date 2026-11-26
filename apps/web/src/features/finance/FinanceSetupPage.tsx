@@ -3,6 +3,7 @@ import { PageHeader } from "../../ui";
 import { FinanceCategoriesCard } from "./FinanceCategoriesCard";
 import { FinanceMonthLocksCard } from "./FinanceMonthLocksCard";
 import { StaffEntryCard } from "./StaffEntryCard";
+import { FinanceTaxPeriodCard } from "./FinanceTaxPeriodCard";
 
 /**
  * Where the accountant sets the finance side up: the categories (and the VAT each one carries), the month lock, and who may enter expenses.
@@ -19,6 +20,7 @@ export function FinanceSetupPage() {
         <Link to="/finance/books" className="inline-flex min-h-9 items-center rounded-full border border-line bg-white px-3 font-medium text-brand-700 hover:bg-brand-50">Chart of accounts and mapping</Link>
       </nav>
       <div id="categories" className="max-w-4xl scroll-mt-20"><FinanceCategoriesCard /></div>
+      <div id="tax-period" className="max-w-4xl scroll-mt-20"><FinanceTaxPeriodCard /></div>
       <div id="month-lock" className="max-w-4xl scroll-mt-20"><FinanceMonthLocksCard /></div>
       <div id="staff-entry" className="max-w-4xl scroll-mt-20"><StaffEntryCard /></div>
     </section>

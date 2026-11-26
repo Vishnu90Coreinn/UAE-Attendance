@@ -45,7 +45,7 @@ const view = () => render(<MemoryRouter><FinanceDashboardPage /></MemoryRouter>)
 
 it("leads with the period's net result and compares it with the days before", async () => {
   view();
-  const panel = await screen.findByRole("region", { name: /net result/i });
+  const panel = await screen.findByRole("region", { name: /net receipts less payments/i });
   expect(within(panel).getByText("3,199.50")).toBeInTheDocument();
   expect(within(panel).getByText(/AED 2,699\.50 better than the 30 days before/)).toBeInTheDocument();
   expect(financeApi.getFinDashboard).toHaveBeenCalledWith(30);
@@ -85,7 +85,7 @@ it("says so when nothing is there to compare, and when nothing was recorded", as
 it("shows a negative net with a minus sign and offers a retry when loading fails", async () => {
   vi.mocked(financeApi.getFinDashboard).mockResolvedValueOnce(data({ current: { income: 0, expense: 100, net: -100 } }));
   const { unmount } = view();
-  const panel = await screen.findByRole("region", { name: /net result/i });
+  const panel = await screen.findByRole("region", { name: /net receipts less payments/i });
   expect(within(panel).getByLabelText("minus")).toBeInTheDocument();
   unmount();
 
@@ -96,7 +96,7 @@ it("shows a negative net with a minus sign and offers a retry when loading fails
 
 it("says how income and expenses compare with the days before, in words", async () => {
   view();
-  const panel = await screen.findByRole("region", { name: /net result/i });
+  const panel = await screen.findByRole("region", { name: /net receipts less payments/i });
   expect(within(panel).getByText(/Before: AED 2,000.00/)).toBeInTheDocument();
   expect(within(panel).getByText("up 150.0%")).toBeInTheDocument(); // income 5,000 against 2,000
   expect(within(panel).getByText("up 20.0%")).toBeInTheDocument(); // expenses 1,800.50 against 1,500
@@ -126,7 +126,7 @@ it("lets a Manager add an expense or income from the overview, and refreshes aft
 it("gives a Partner (Viewer) no buttons that add anything", async () => {
   signIn("Viewer");
   view();
-  await screen.findByRole("region", { name: /net result/i });
+  await screen.findByRole("region", { name: /net receipts less payments/i });
   expect(screen.queryByRole("button", { name: /add (income|expense)/i })).not.toBeInTheDocument();
   expect(financeApi.listFinCategories).not.toHaveBeenCalled();
 });
@@ -142,7 +142,7 @@ it("explains the balances: the money in the accounts today, the partners' capita
     }),
   );
   view();
-  const panel = await screen.findByRole("region", { name: /net result/i });
+  const panel = await screen.findByRole("region", { name: /net receipts less payments/i });
   expect(within(panel).getByText(/In the accounts today/)).toHaveTextContent("AED 1,500.00");
   expect(screen.getByText("Partners' capital")).toBeInTheDocument();
   expect(screen.getByText("53.7%")).toBeInTheDocument();
@@ -158,7 +158,7 @@ it("explains the balances: the money in the accounts today, the partners' capita
 
 it("shows no capital card when no partner holds capital", async () => {
   view();
-  await screen.findByRole("region", { name: /net result/i });
+  await screen.findByRole("region", { name: /net receipts less payments/i });
   expect(screen.queryByText("Partners' capital")).not.toBeInTheDocument();
 });
 

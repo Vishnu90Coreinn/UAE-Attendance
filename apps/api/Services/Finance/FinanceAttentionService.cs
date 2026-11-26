@@ -36,17 +36,17 @@ public sealed class FinanceAttentionService(AppDbContext db, TimeProvider time)
         var locked = await db.FinMonthLocks.AnyAsync(l => l.Year == previous.Year && l.Month == previous.Month && l.IsLocked, ct);
         string? openMonth = hasActivity && !locked && today.Day >= 6 ? previous.ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture) : null;
 
-        // VAT returns are filed quarterly (calendar quarters), due 28 days after the quarter ends.
-        var quarter = (today.Month - 1) / 3;
-        var lastQuarterEnd = new DateOnly(today.Year, quarter * 3 + 1, 1).AddDays(-1);   // end of the previous quarter
+        var taxSettings = await db.PayrollSettings.AsNoTracking().SingleAsync(ct);
+        var currentPeriod = FinanceVatPeriods.For(today, taxSettings.VatPeriodMonths, taxSettings.VatPeriodStartMonth);
+        var lastQuarterEnd = currentPeriod.From.AddDays(-1);
         var due = lastQuarterEnd.AddDays(28);
-        if (due < today) { var thisQuarterEnd = new DateOnly(today.Year, quarter * 3 + 1, 1).AddMonths(3).AddDays(-1); lastQuarterEnd = thisQuarterEnd; due = thisQuarterEnd.AddDays(28); }
-        var qStart = new DateOnly(lastQuarterEnd.Year, lastQuarterEnd.Month - 2, 1);
+        if (due < today) { lastQuarterEnd = currentPeriod.To; due = currentPeriod.To.AddDays(28); }
+        var qStart = new DateOnly(lastQuarterEnd.Year, lastQuarterEnd.Month, 1).AddMonths(1 - taxSettings.VatPeriodMonths);
 
         return new(
             Item(bills.Where(b => b.DueDate < today), b => b.Owed), Item(bills.Where(b => b.DueDate >= today && b.DueDate <= soon), b => b.Owed),
             Item(cheques.Where(c => c.DueDate < today), c => c.Amount), Item(cheques.Where(c => c.DueDate >= today && c.DueDate <= soon), c => c.Amount),
             Item(invoices.Where(i => i.DueDate < today), i => i.Owed), pending, openMonth,
-            $"{qStart:d MMM yyyy} to {lastQuarterEnd:d MMM yyyy}", FinanceRules.Format(due), due.DayNumber - today.DayNumber);
+            $"{qStart:d MMM yyyy} to {lastQuarterEnd:d MMM yyyy}", FinanceRules.Format(due), due.DayNumber - today.DayNumber, taxSettings.VatPeriodConfirmed);
     }
 }

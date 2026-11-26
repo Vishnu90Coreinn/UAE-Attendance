@@ -155,7 +155,7 @@ public class FinanceLedgerBooksTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(5_000m - 12.5m, await ClosingAsync(token, bankLedger));
         Assert.Equal(12.5m, await ClosingAsync(token, expense));
         var check = (await SendAsync(HttpMethod.Get, "/api/finance/ledger/check", token)).Body;
-        Assert.True(check.GetProperty("allAgree").GetBoolean());   // the checks compare the records alone; the adjustment is counted apart
+        Assert.False(check.GetProperty("allAgree").GetBoolean());   // manual cash postings must be reconciled to the operational account
         Assert.True(check.GetProperty("manualJournals").GetInt32() >= 1);
         Assert.True((await SendAsync(HttpMethod.Get, "/api/finance/ledger/trial-balance", token)).Body.GetProperty("balanced").GetBoolean());
         Assert.NotEmpty(await TestFinance.AuditAsync(api.ConnectionString, "LedgerManualJournalPosted"));

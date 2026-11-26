@@ -78,7 +78,7 @@ function ResultPanel({ data }: { data: FinDashboard }) {
       <div className="grid gap-6 p-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] md:p-7">
         <div>
           <p id="net-result" className="text-sm font-medium text-white/75">
-            Net result · {label}
+            Net receipts less payments · {label}
           </p>
           <p className={cx("mt-2 font-display text-4xl font-bold tracking-tight tabular-nums md:text-5xl", current.net < 0 && "text-red-200")}>
             {current.net < 0 && <span aria-label="minus">−</span>}
@@ -87,7 +87,7 @@ function ResultPanel({ data }: { data: FinDashboard }) {
           </p>
           <p className="mt-3 text-sm text-white/70">{comparison(data)}</p>
           <p className="mt-1 text-xs text-white/60">
-            {formatDay(data.from)} to {formatDay(data.to)} · transfers between accounts and partners' capital are not counted
+            {formatDay(data.from)} to {formatDay(data.to)} · includes VAT where recorded. This is cash movement, not accounting profit; see the profit and loss statement under Books.
           </p>
           <p className="mt-4 border-t border-white/15 pt-3 text-sm text-white/70">
             In the accounts today{" "}
@@ -427,7 +427,6 @@ export function FinanceDashboardPage() {
       {load.status === "error" && <LoadError message={load.message} onRetry={() => { setLoad({ status: "loading" }); void refresh(days); }} />}
       {load.status === "ready" && (
         <>
-          {canEdit && <GetStartedCard />}
           <AttentionCard canLock={canEdit} />
           <ResultPanel data={load.data} />
           <div style={{ "--i": 1 } as React.CSSProperties} className="fade-up grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
@@ -446,6 +445,7 @@ export function FinanceDashboardPage() {
               <CapitalCard capital={load.data.capital} />
             </div>
           )}
+          {canEdit && <GetStartedCard />}
           {adding && (
             <EntryDialog
               kind={adding}

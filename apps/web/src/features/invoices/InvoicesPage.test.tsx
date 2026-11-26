@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as financeApi from "../../api/finance";
 import * as invoicesApi from "../../api/invoices";
 import * as settingsApi from "../../api/documentSettings";
 import type { Invoice, InvoiceSummary } from "../../api/invoices";
@@ -9,6 +10,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { InvoicesPage } from "./InvoicesPage";
 
 vi.mock("../../api/invoices");
+vi.mock("../../api/finance");
 vi.mock("../../api/documentSettings");
 vi.mock("../../api/client", async (importOriginal) => ({ ...(await importOriginal<typeof import("../../api/client")>()), apiGetFile: vi.fn().mockRejectedValue(new Error("no logo")) }));
 vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
@@ -39,6 +41,7 @@ function signIn(role: "Manager" | "HR" | "Viewer") {
 beforeEach(() => {
   vi.resetAllMocks();
   signIn("Manager");
+  vi.mocked(financeApi.listFinAccounts).mockResolvedValue([{ id: 1, name: "Bank", kind: "Bank", isActive: true } as financeApi.FinAccount]);
   vi.mocked(invoicesApi.listInvoices).mockResolvedValue([summary]);
   vi.mocked(invoicesApi.listInvoiceClients).mockResolvedValue([]);
   vi.mocked(invoicesApi.getInvoice).mockResolvedValue(invoice());

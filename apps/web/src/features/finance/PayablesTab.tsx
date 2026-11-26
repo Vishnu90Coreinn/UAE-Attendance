@@ -42,7 +42,7 @@ export function PayablesTab() {
               <tbody className="divide-y divide-line">
                 {report.rows.map((r) => (
                   <tr key={r.billId}>
-                    <td className="px-4 py-2.5 font-medium text-ink-900">{r.billNo}</td>
+                    <td className="px-4 py-2.5 font-medium text-ink-900"><a className="text-brand-700 underline" href={`/finance/bills?q=${encodeURIComponent(r.billNo)}`}>{r.billNo}</a></td>
                     <td className="px-4 py-2.5 text-ink-900">{r.supplier}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-ink-700">{formatDay(r.dueDate)}{r.daysOverdue > 0 && <span className="ml-2 text-xs text-danger">{r.daysOverdue} days late</span>}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(r.total)}</td>

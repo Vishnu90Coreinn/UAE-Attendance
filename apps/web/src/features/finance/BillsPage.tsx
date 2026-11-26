@@ -69,7 +69,7 @@ function BillRow({ bill, canEdit, onPay, onVoid, onTakeBack, onOpenFile, onAddFi
           <p className="text-[13px] text-ink-500">
             <span className="font-mono">{bill.billNo}</span>{bill.supplierRef && <> · their no. {bill.supplierRef}</>} · {formatDay(bill.billDate)}
           </p>
-          <p className="text-[13px] text-ink-600">{bill.lines.map((l) => l.category).join(", ")}{bill.taxAmount > 0 && <> · VAT {formatMoney(bill.taxAmount)}</>}</p>
+          <p className="text-[13px] text-ink-600">{bill.lines.map((l) => l.category).join(", ")}{bill.taxAmount > 0 && <> · VAT {formatMoney(bill.taxAmount)} · {bill.recoverableTaxPercent ?? 100}% recoverable</>}</p>
         </div>
         <p className="text-right">
           <span className="mr-1 text-xs font-medium text-ink-500">AED</span>

@@ -48,3 +48,22 @@ it("marks a payment entered before invoices were tied to the books", () => {
   render(<InvoiceView invoice={invoice} canWrite onChanged={() => {}} onEdit={() => {}} onDeleted={() => {}} onOpen={() => {}} />);
   expect(screen.getByText("Not in the books")).toBeInTheDocument();
 });
+
+it("requires an explicit receiving account instead of silently selecting the first account", async () => {
+  render(<InvoiceView invoice={invoice} canWrite onChanged={() => {}} onEdit={() => {}} onDeleted={() => {}} onOpen={() => {}} />);
+  await userEvent.click(screen.getByRole("button", { name: "Record payment" }));
+  await screen.findByRole("option", { name: "RAKBANK Current Account" });
+  expect(screen.getByLabelText("Paid into")).toHaveValue("");
+  await userEvent.click(screen.getByRole("button", { name: "Save payment" }));
+  expect(await screen.findByText("Choose the account the money went into.")).toBeInTheDocument();
+  expect(invoicesApi.addPayment).not.toHaveBeenCalled();
+});
+
+it("blocks saving when receiving accounts cannot be loaded", async () => {
+  vi.mocked(financeApi.listFinAccounts).mockRejectedValue(new Error("offline"));
+  render(<InvoiceView invoice={invoice} canWrite onChanged={() => {}} onEdit={() => {}} onDeleted={() => {}} onOpen={() => {}} />);
+  await userEvent.click(screen.getByRole("button", { name: "Record payment" }));
+  expect(await screen.findByText(/Accounts could not be loaded/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Save payment" })).toBeDisabled();
+  expect(invoicesApi.addPayment).not.toHaveBeenCalled();
+});

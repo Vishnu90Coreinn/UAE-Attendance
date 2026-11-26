@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Receipt } from "lucide-react";
 import { Link } from "react-router-dom";
-import { getFinVatFile, getFinVatReport, type FinReportFormat, type FinVatReport, type FinVatRow } from "../../api/finance";
+import { getFinVatFile, getFinanceTaxPeriod, type FinanceTaxPeriodSettings, getFinVatReport, type FinReportFormat, type FinVatReport, type FinVatRow } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { TextField } from "../../components/TextField";
 import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, cx } from "../../ui";
 import { LoadError } from "../workers/WorkersFeedback";
 import { saveBlob } from "../payroll/downloadPdf";
 import { formatDay, formatMoney, quietZero, todayInUae } from "./financeFormat";
-import { vatDueDate, vatQuarter } from "./vatPeriods";
+import { assignedVatPeriod, vatDueDate, vatQuarter } from "./vatPeriods";
 
 /** VAT is filed by calendar quarter, so the shortcuts are quarters, not months. */
 type VatPreset = "quarter" | "lastQuarter" | "year";
@@ -50,7 +50,7 @@ function Block({ title, rows, vatLabel }: { title: string; rows: FinVatRow[]; va
                   <td className="px-4 py-2.5 text-ink-900">{r.taxType}{r.rate > 0 && <span className="ml-2 text-[13px] text-ink-500">{r.rate}%</span>}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{r.count}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(r.net)}</td>
-                  <td className={cx("px-4 py-2.5 text-right font-semibold tabular-nums", quietZero(r.vat))}>{formatMoney(r.vat)}</td>
+                  <td className={cx("px-4 py-2.5 text-right font-semibold tabular-nums", quietZero(r.vat))}>{formatMoney(r.vat)}{vatLabel === "VAT / recoverable" && <span className="block text-xs font-normal text-ink-600">Recoverable: {formatMoney(r.recoverableVat ?? r.vat)}</span>}</td>
                 </tr>
               ))}
             </tbody>
@@ -65,6 +65,9 @@ function Block({ title, rows, vatLabel }: { title: string; rows: FinVatRow[]; va
 export function VatPage() {
   const today = useMemo(() => todayInUae(), []);
   const [range, setRange] = useState(() => rangeFor("quarter", today));
+  const periodTouched = useRef(false);
+  const [taxPeriod, setTaxPeriod] = useState<FinanceTaxPeriodSettings | null>(null);
+  useEffect(() => { Promise.resolve(getFinanceTaxPeriod()).then((v) => { if (!v) return; setTaxPeriod(v); if (v.confirmed && !periodTouched.current) { const p = assignedVatPeriod(today, v.months, v.startMonth); setRange({ from: p.from, to: p.to > today ? today : p.to }); } }).catch(() => {}); }, [today]);
   const [preset, setPreset] = useState<VatPreset | "custom">("quarter");
   const [report, setReport] = useState<FinVatReport | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +97,7 @@ export function VatPage() {
   }
 
   // A due date means something only for exactly one quarter (the whole of it, or the part of it that has passed).
-  const picked = range.from ? vatQuarter(range.from, 0) : null;
+  const picked = range.from && taxPeriod?.confirmed ? assignedVatPeriod(range.from, taxPeriod.months, taxPeriod.startMonth) : null;
   const filing = picked && picked.from === range.from && (range.to === picked.to || (range.to === today && picked.to > today)) ? picked : null;
   const unrecorded = report ? report.unrecordedSales.count + report.unrecordedPurchases.count : 0;
   return (
@@ -107,15 +110,15 @@ export function VatPage() {
         <div className="space-y-3 px-5 py-4">
           <div role="group" aria-label="Period" className="flex flex-wrap gap-2">
             {PRESETS.map((p) => (
-              <button key={p.key} type="button" aria-pressed={preset === p.key} onClick={() => { setPreset(p.key); setRange(rangeFor(p.key, today)); }}
+              <button key={p.key} type="button" aria-pressed={preset === p.key} onClick={() => { periodTouched.current = true; setPreset(p.key); const v = taxPeriod?.confirmed && p.key !== "year" ? assignedVatPeriod(today, taxPeriod.months, taxPeriod.startMonth, p.key === "lastQuarter" ? -1 : 0) : null; setRange(v ? { from: v.from, to: v.to > today ? today : v.to } : rangeFor(p.key, today)); }}
                 className={cx("min-h-11 rounded-full border px-3.5 text-sm font-medium md:min-h-9", preset === p.key ? "border-brand-600 bg-brand-600 text-white" : "border-line bg-white text-ink-700 hover:border-brand-300")}>
-                {p.label}
+                {taxPeriod?.confirmed && p.key !== "year" ? (p.key === "quarter" ? "This VAT period" : "Last VAT period") : p.label}
               </button>
             ))}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <TextField label="From" type="date" value={range.from} max={today} onChange={(e) => { setPreset("custom"); setRange((r) => ({ ...r, from: e.target.value })); }} />
-            <TextField label="To" type="date" value={range.to} max={today} onChange={(e) => { setPreset("custom"); setRange((r) => ({ ...r, to: e.target.value })); }} />
+            <TextField label="From" type="date" value={range.from} max={today} onChange={(e) => { periodTouched.current = true; setPreset("custom"); setRange((r) => ({ ...r, from: e.target.value })); }} />
+            <TextField label="To" type="date" value={range.to} max={today} onChange={(e) => { periodTouched.current = true; setPreset("custom"); setRange((r) => ({ ...r, to: e.target.value })); }} />
           </div>
         </div>
       </Card>
@@ -134,21 +137,22 @@ export function VatPage() {
               <p className="text-sm text-white/80 md:col-span-1">VAT paid on purchases, which can be reclaimed<span className="mt-1 block font-display text-xl font-semibold tabular-nums text-white">AED {formatMoney(report.inputVat)}</span></p>
             </div>
           </section>
+          {!taxPeriod?.confirmed && <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">VAT period has not been confirmed. These are calendar shortcuts; select the actual assigned dates before filing. <Link className="underline" to="/finance/setup#tax-period">Configure the assigned VAT period</Link>.</p>}
           {filing && (
             <p className="rounded-lg bg-ink-50 px-4 py-3 text-sm text-ink-800">
-              Return for <strong>{filing.label}</strong> ({formatDay(filing.from)} to {formatDay(filing.to)}) is due <strong>{formatDay(vatDueDate(filing.to))}</strong>.
-              {filing.to > today && " The quarter is not over, so these figures are so far."}
+              Estimated filing deadline for <strong>{filing.label}</strong> ({formatDay(filing.from)} to {formatDay(filing.to)}) is <strong>{formatDay(vatDueDate(filing.to))}</strong>.
+              {filing.to > today && " The period is not over, so these figures are so far."} Confirm the deadline in EmaraTax, including holiday extensions.
             </p>
           )}
           {unrecorded > 0 && (
             <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
               {report.unrecordedSales.count} sales (AED {formatMoney(report.unrecordedSales.amount)}) and {report.unrecordedPurchases.count} purchases (AED {formatMoney(report.unrecordedPurchases.amount)}) have no VAT type, so they are not in these figures.{" "}
-              <Link to="/finance/expenses" className="font-medium underline">Open the expenses</Link> to choose one by correcting the entry.
+              <Link to="/finance/income" className="font-medium underline">Review income</Link> and <Link to="/finance/expenses" className="font-medium underline">review expenses</Link> to classify these entries before filing.
             </p>
           )}
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <Block title="Sales" rows={report.sales} vatLabel="VAT charged" />
-            <Block title="Purchases" rows={report.purchases} vatLabel="VAT" />
+            <Block title="Purchases" rows={report.purchases} vatLabel="VAT / recoverable" />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-ink-600">Download these figures:</span>

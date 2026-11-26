@@ -51,9 +51,9 @@ export function AttentionCard({ canLock }: { canLock: boolean }) {
           <li className="flex items-center gap-3 px-5 py-3 text-sm text-ink-700"><CheckCircle2 aria-hidden="true" size={16} className="shrink-0 text-brand-600" /> Nothing is overdue and nothing waits for you.</li>
         )}
         {rows}
-        <Row to="/finance/vat">
-          <span className={cx(data.vatDaysLeft <= 14 && "font-medium")}>VAT return for {data.vatPeriod}: due {formatDay(data.vatDue)}</span> ({data.vatDaysLeft === 0 ? "today" : many(data.vatDaysLeft, "day", "days")} left)
-        </Row>
+        {data.vatPeriodConfirmed === false ? <Row to="/finance/setup#tax-period">Confirm the company's assigned VAT period before relying on filing deadlines.</Row> : <Row to="/finance/vat">
+          <span className={cx(data.vatDaysLeft <= 14 && "font-medium")}>VAT return for {data.vatPeriod}: estimated deadline {formatDay(data.vatDue)}</span> ({data.vatDaysLeft === 0 ? "today" : many(data.vatDaysLeft, "day", "days")} left)
+        </Row>}
       </ul>
     </Card>
   );

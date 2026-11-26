@@ -23,7 +23,7 @@ export function ReceivablesTab() {
     <div className="space-y-4">
       <p className="rounded-lg bg-ink-50 px-3 py-2 text-sm text-ink-700">
         Issuing a tax invoice books the sale and the VAT. The customer owes that amount until a payment is recorded on the invoice against a bank or cash account.
-        The total here equals the receivables account in the trial balance.
+        Compare this total with the receivables account in the books; any difference needs reconciliation.
       </p>
       {report.unrecordedPayments > 0 && (
         <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -47,7 +47,7 @@ export function ReceivablesTab() {
               <tbody className="divide-y divide-line">
                 {report.rows.map((r) => (
                   <tr key={r.invoiceId}>
-                    <td className="px-4 py-2.5"><span className="font-medium text-ink-900">{r.number}</span></td>
+                    <td className="px-4 py-2.5"><a className="font-medium text-brand-700 underline" href={`/invoices?q=${encodeURIComponent(r.number)}`}>{r.number}</a></td>
                     <td className="px-4 py-2.5 text-ink-900">{r.client}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-ink-700">{formatDay(r.dueDate)}{r.daysOverdue > 0 && <span className="ml-2 text-xs text-danger">{r.daysOverdue} days late</span>}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{formatMoney(r.total)}</td>

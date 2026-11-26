@@ -79,7 +79,7 @@ public sealed record FinEntryResponse(
     IReadOnlyList<FinAttachmentResponse> Attachments,
     string? VoidedBy = null, DateTime? VoidedUtc = null, int? ReplacesEntryId = null, string? ReplacesEntryNo = null, string? ReplacedByEntryNo = null, int? PartnerId = null,
     int? PayeeId = null, IReadOnlyList<FinEntryLineResponse>? Lines = null,
-    int? TaxTypeId = null, decimal TaxRate = 0m, decimal TaxAmount = 0m, bool TaxInclusive = true, int? InvoiceId = null, int? BillId = null);
+    int? TaxTypeId = null, decimal TaxRate = 0m, decimal TaxAmount = 0m, bool TaxInclusive = true, int? InvoiceId = null, int? BillId = null, decimal RecoverableTaxPercent = 100m);
 
 /// <summary>The filtered expenses, newest first, with their total. Voided rows are listed only when asked for and never counted in the total.</summary>
 public sealed record FinEntryList(IReadOnlyList<FinEntryResponse> Items, decimal Total, int Count, bool Truncated, int PendingCount = 0, decimal PendingTotal = 0m);
@@ -109,6 +109,7 @@ public sealed class FinExpenseForm
 
     /// <summary>Whether the amount typed already contains the VAT (the default) or the VAT is added on top. Reverse charge ignores it.</summary>
     public bool? TaxInclusive { get; init; }
+    public decimal RecoverableTaxPercent { get; init; } = 100m;
     public IFormFileCollection? Files { get; init; }
 
     /// <summary>When correcting: the receipts of the original entry to keep. Others are left behind with the voided original.</summary>
@@ -285,7 +286,7 @@ public sealed record JournalList(IReadOnlyList<JournalResponse> Items, int Count
 /// <summary>One of the safety checks: what the ledger says, what the finance screens say, and whether they agree.</summary>
 public sealed record LedgerCheck(string Name, string Subject, decimal Ledger, decimal Screens, bool Agrees);
 
-public sealed record LedgerCheckResult(bool AllAgree, IReadOnlyList<LedgerCheck> Checks, int Journals, decimal TotalDebit, decimal TotalCredit, int ManualJournals = 0);
+public sealed record LedgerCheckResult(bool AllAgree, IReadOnlyList<LedgerCheck> Checks, int Journals, decimal TotalDebit, decimal TotalCredit, int ManualJournals = 0, IReadOnlyList<string>? Warnings = null);
 
 public sealed record LedgerSyncResult(int Posted, int Reversed);
 
@@ -341,7 +342,7 @@ public sealed record BalanceSheet(
 
 // ---- VAT return (the company is VAT-registered) ----------------------------------------------------------------------
 
-public sealed record FinVatRow(int TaxTypeId, string TaxType, string Treatment, decimal Rate, int Count, decimal Net, decimal Vat);
+public sealed record FinVatRow(int TaxTypeId, string TaxType, string Treatment, decimal Rate, int Count, decimal Net, decimal Vat, decimal RecoverableVat = 0m);
 
 /// <summary>Entries in the period with no VAT type recorded: they are left out of the return until one is chosen.</summary>
 public sealed record FinVatUnrecorded(int Count, decimal Amount);
@@ -386,6 +387,7 @@ public sealed class FinBillRequest
 
     /// <summary>The VAT type; omitted or 0 records no VAT. Line amounts are before VAT.</summary>
     public int? TaxTypeId { get; set; }
+    public decimal RecoverableTaxPercent { get; set; } = 100m;
     public List<FinBillLineRequest>? Lines { get; set; }
 }
 
@@ -405,7 +407,7 @@ public sealed record FinBillPaymentResponse(int EntryId, string EntryNo, string 
 public sealed record FinBillResponse(
     int Id, string BillNo, string SupplierName, int? PayeeId, string? SupplierRef, string BillDate, string DueDate, string? Notes, string Status, string Display,
     int? TaxTypeId, string? TaxType, decimal TaxAmount, decimal Net, decimal Total, decimal Paid, decimal Balance, IReadOnlyList<FinBillLineResponse> Lines,
-    IReadOnlyList<FinBillPaymentResponse> Payments, string? VoidReason, string CreatedBy, IReadOnlyList<FinAttachmentResponse>? Files = null);
+    IReadOnlyList<FinBillPaymentResponse> Payments, string? VoidReason, string CreatedBy, IReadOnlyList<FinAttachmentResponse>? Files = null, decimal RecoverableTaxPercent = 100m);
 
 public sealed record PayableRow(int BillId, string BillNo, string Supplier, string? SupplierRef, string BillDate, string DueDate, decimal Total, decimal Paid, decimal Balance, int DaysOverdue, string Bucket);
 
@@ -442,7 +444,7 @@ public sealed record FinAttentionItem(int Count, decimal Amount);
 /// <summary>What to act on: overdue and soon-due bills, cheques and invoices, expenses waiting for approval, a finished month still open, and the next VAT return.</summary>
 public sealed record FinAttention(
     FinAttentionItem OverdueBills, FinAttentionItem BillsDueSoon, FinAttentionItem OverdueCheques, FinAttentionItem ChequesDueSoon, FinAttentionItem OverdueInvoices,
-    int PendingApprovals, string? OpenMonth, string VatPeriod, string VatDue, int VatDaysLeft);
+    int PendingApprovals, string? OpenMonth, string VatPeriod, string VatDue, int VatDaysLeft, bool VatPeriodConfirmed = false);
 
 // ---- search across the finance records ----
 /// <summary><c>Type</c> is Expense, Income, Bill, Cheque or Invoice. <c>Number</c> is what the screen lists it by.</summary>

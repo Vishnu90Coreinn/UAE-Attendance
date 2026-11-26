@@ -98,6 +98,7 @@ public sealed class FinEntryConfiguration : IEntityTypeConfiguration<FinEntry>
         builder.HasIndex(e => e.PayeeId);
         builder.Property(e => e.TaxRate).HasPrecision(5, 2);
         builder.Property(e => e.TaxAmount).HasPrecision(12, 2);
+        builder.Property(e => e.RecoverableTaxPercent).HasPrecision(5, 2).HasDefaultValue(100m).HasSentinel(-1m);
         builder.Property(e => e.TaxInclusive).HasDefaultValue(true);
         builder.HasOne<FinTaxType>().WithMany().HasForeignKey(e => e.TaxTypeId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(e => e.TaxTypeId);
@@ -346,6 +347,7 @@ public sealed class FinBillConfiguration : IEntityTypeConfiguration<FinBill>
         builder.Property(b => b.Status).HasMaxLength(10).IsRequired();
         builder.Property(b => b.TaxRate).HasPrecision(5, 2);
         builder.Property(b => b.TaxAmount).HasPrecision(12, 2);
+        builder.Property(b => b.RecoverableTaxPercent).HasPrecision(5, 2).HasDefaultValue(100m).HasSentinel(-1m);
         builder.Property(b => b.Net).HasPrecision(12, 2);
         builder.Property(b => b.Total).HasPrecision(12, 2);
         builder.Property(b => b.VoidReason).HasMaxLength(300);

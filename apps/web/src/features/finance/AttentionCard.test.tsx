@@ -27,7 +27,7 @@ it("lists only what needs doing, with amounts, and always shows the next VAT ret
   expect(screen.getByText(/1 tax invoice is overdue/)).toBeInTheDocument();
   expect(screen.getByText(/3 staff expenses wait for your approval/)).toBeInTheDocument();
   expect(screen.getByText(/October 2026 is over but not locked yet/)).toBeInTheDocument();
-  expect(screen.getByText(/VAT return for 1 Oct 2026 to 31 Dec 2026: due/)).toBeInTheDocument();
+  expect(screen.getByText(/VAT return for 1 Oct 2026 to 31 Dec 2026: estimated deadline/)).toBeInTheDocument();
   expect(screen.getByText(/64 days left/)).toBeInTheDocument();
   expect(screen.queryByText(/cheque/)).not.toBeInTheDocument();                  // nothing to say about cheques, so nothing is said
   expect(screen.getByRole("link", { name: /supplier bills are/ })).toHaveAttribute("href", "/finance/bills");

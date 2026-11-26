@@ -100,7 +100,8 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
         ("2500", "Loans payable", LedgerTypes.Liability, null),
         ("4100", "Other income", LedgerTypes.Revenue, "Other income"),
         ("5100", "Salaries and wages", LedgerTypes.Expense, "Monthly Salary"),
-        ("5110", "Salary advances", LedgerTypes.Expense, "Salary Advance"),
+        ("1510", "Employee salary advances", LedgerTypes.Asset, "Salary Advance"),
+        ("2550", "Customer advances", LedgerTypes.Liability, null),
         ("5200", "Worker accommodation rent", LedgerTypes.Expense, "Worker Accommodation Rent"),
         ("5210", "Worker transportation", LedgerTypes.Expense, "Worker Transportation"),
         ("5220", "Office rent", LedgerTypes.Expense, "Office Rent"),
@@ -142,10 +143,10 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
                     continue;
                 }
 
-                var type = c.Kind == FinEntryKinds.Income ? LedgerTypes.Revenue : LedgerTypes.Expense;
-                var match = StandardChart.FirstOrDefault(s => s.Category == c.Name && s.Type == type);
+                var type = c.Kind == FinEntryKinds.Income ? LedgerTypes.Revenue : c.Name == "Salary Advance" ? LedgerTypes.Asset : LedgerTypes.Expense;
+                var match = StandardChart.FirstOrDefault(s => s.Category == c.Name && (s.Type == type || (c.Kind == FinEntryKinds.Expense && s.Code == "1510")));
                 // The standard account is used only while it is still ours: same name, so a code the accountant reused for something else is never taken over.
-                c.LedgerAccountId = match.Code is not null && standard.TryGetValue(match.Code, out var own) && own.Name == match.Name && own.IsActive
+                c.LedgerAccountId = match.Code is not null && standard.TryGetValue(match.Code, out var own) && own.Name == match.Name && own.Type == match.Type && own.IsActive
                     ? own.Id
                     : (await NewAccountAsync(type, c.Name, ct)).Id;
             }
@@ -270,14 +271,16 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
                             var treatment = e.TaxTypeId is { } tid && e.TaxAmount > 0m ? taxTypes[tid].Treatment : null;
                             var parts = LinesOf(e).ToList();
                             // Standard VAT is inside the amount: the lines carry the net, the VAT goes to its own account. Reverse charge adds a matching pair on top.
-                            var net = treatment == FinTaxTreatments.Standard ? FinanceCalculator.Allocate(e.Amount - e.TaxAmount, parts.Select(p => p.Amount).ToList()) : parts.Select(p => p.Amount).ToArray();
+                            var recovered = expense ? FinanceRules.RecoverableVat(e.TaxAmount, e.RecoverableTaxPercent) : e.TaxAmount;
+                            var cost = treatment == FinTaxTreatments.Standard ? e.Amount - recovered : treatment == FinTaxTreatments.ReverseCharge && expense ? e.Amount + e.TaxAmount - recovered : e.Amount;
+                            var net = FinanceCalculator.Allocate(cost, parts.Select(p => p.Amount).ToList());
                             if (expense) lines.Add((asset, 0m, e.Amount, null)); else lines.Add((asset, e.Amount, 0m, null));
                             for (var i = 0; i < parts.Count; i++)
                                 if (net[i] > 0m) lines.Add((categories[parts[i].CategoryId].LedgerAccountId!.Value, expense ? net[i] : 0m, expense ? 0m : net[i], parts[i].Note));
-                            if (treatment == FinTaxTreatments.Standard) lines.Add((expense ? system[InputVatCode].Id : system[OutputVatCode].Id, expense ? e.TaxAmount : 0m, expense ? 0m : e.TaxAmount, "VAT"));
+                            if (treatment == FinTaxTreatments.Standard && recovered > 0m) lines.Add((expense ? system[InputVatCode].Id : system[OutputVatCode].Id, expense ? recovered : 0m, expense ? 0m : recovered, "VAT"));
                             else if (treatment == FinTaxTreatments.ReverseCharge && expense)
                             {
-                                lines.Add((system[InputVatCode].Id, e.TaxAmount, 0m, "VAT on reverse charge"));
+                                if (recovered > 0m) lines.Add((system[InputVatCode].Id, recovered, 0m, "VAT on reverse charge"));
                                 lines.Add((system[OutputVatCode].Id, 0m, e.TaxAmount, "VAT on reverse charge"));
                             }
 
@@ -335,10 +338,16 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
                 {
                     var lines = bill.Lines.OrderBy(l => l.Id).Select(l => (categories[l.CategoryId].LedgerAccountId!.Value, l.Amount, 0m, l.Note)).ToList();
                     var treatment = bill.TaxTypeId is { } tid && bill.TaxAmount > 0m ? taxTypes[tid].Treatment : null;
-                    if (treatment == FinTaxTreatments.Standard) lines.Add((system[InputVatCode].Id, bill.TaxAmount, 0m, "VAT"));
+                    var recovered = FinanceRules.RecoverableVat(bill.TaxAmount, bill.RecoverableTaxPercent);
+                    if (treatment is FinTaxTreatments.Standard or FinTaxTreatments.ReverseCharge && bill.TaxAmount > recovered)
+                    {
+                        var blocked = FinanceCalculator.Allocate(bill.TaxAmount - recovered, bill.Lines.OrderBy(l => l.Id).Select(l => l.Amount).ToList());
+                        for (var n = 0; n < lines.Count; n++) lines[n] = (lines[n].Item1, lines[n].Item2 + blocked[n], 0m, lines[n].Item4);
+                    }
+                    if (treatment == FinTaxTreatments.Standard && recovered > 0m) lines.Add((system[InputVatCode].Id, recovered, 0m, "VAT"));
                     else if (treatment == FinTaxTreatments.ReverseCharge)
                     {
-                        lines.Add((system[InputVatCode].Id, bill.TaxAmount, 0m, "VAT on reverse charge"));
+                        if (recovered > 0m) lines.Add((system[InputVatCode].Id, recovered, 0m, "VAT on reverse charge"));
                         lines.Add((system[OutputVatCode].Id, 0m, bill.TaxAmount, "VAT on reverse charge"));
                     }
 
@@ -448,7 +457,8 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
     public async Task<LedgerTrialBalance> TrialBalanceAsync(DateOnly? asOf, CancellationToken ct)
     {
         var date = asOf ?? FinanceRules.Today(time);
-        var chart = (await ChartAsync(date, ct)).Where(a => a.Debit != 0m || a.Credit != 0m).ToList();
+        var chart = (await ChartAsync(date, ct)).Where(a => a.Debit != a.Credit)
+            .Select(a => a with { Debit = Math.Max(a.Debit - a.Credit, 0m), Credit = Math.Max(a.Credit - a.Debit, 0m) }).ToList();
         var debit = chart.Sum(a => a.Debit);
         var credit = chart.Sum(a => a.Credit);
         return new(FinanceRules.Format(date), chart, debit, credit, debit == credit);
@@ -507,7 +517,7 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
     public async Task<LedgerCheckResult> CheckAsync(CancellationToken ct)
     {
         await SyncAsync(ct);
-        var totals = await TotalsAsync(null, null, ct, systemOnly: true);   // what the finance records alone say; the accountant's manual journals are counted apart
+        var totals = await TotalsAsync(null, null, ct);   // include manual adjustments: a control account must reconcile to the complete books
         var checks = new List<LedgerCheck>();
         var finAccounts = await db.FinAccounts.AsNoTracking().ToDictionaryAsync(a => a.Id, ct);
         var types = await db.LedgerAccounts.AsNoTracking().ToDictionaryAsync(a => a.Id, a => a.Type, ct);
@@ -531,7 +541,7 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
         var receivableId = (await SystemAsync(ct))[ReceivablesCode].Id;
         totals.TryGetValue(receivableId, out var rt);
         var ledgerOwed = rt is null ? 0m : rt.Debit - rt.Credit;
-        var invoices = await db.Invoices.AsNoTracking().Where(i => i.Status == InvoiceStatuses.Issued).Select(i => new { i.Total, Paid = i.Payments.Where(p => p.FinEntryId != null).Sum(p => p.Amount) }).ToListAsync(ct);
+        var invoices = await db.Invoices.AsNoTracking().Where(i => i.Status == InvoiceStatuses.Issued).Select(i => new { i.Total, Paid = i.Payments.Sum(p => p.Amount) }).ToListAsync(ct);
         var owed = invoices.Sum(i => i.Total - i.Paid);
         checks.Add(new("Receivables", "Unpaid tax invoices", ledgerOwed, owed, ledgerOwed == owed));
 
@@ -549,7 +559,16 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
         checks.Add(new("Journals balance", "Every journal", unbalanced, 0m, unbalanced == 0));
         checks.Add(new("Debits equal credits", "All journals", debit, credit, debit == credit));
         var manual = await db.Journals.CountAsync(j => j.SourceType == JournalSources.Manual && j.Part == "Post", ct);
-        return new(checks.All(c => c.Agrees), checks, journalSums.Count, debit, credit, manual);
+        var warnings = new List<string>();
+        var categoryMappings = await db.FinCategories.AsNoTracking().Where(c => c.LedgerAccountId != null).ToListAsync(ct);
+        if (categoryMappings.Any(c => c.Kind == FinEntryKinds.Expense && c.Name == "Salary Advance" && types[c.LedgerAccountId!.Value] != LedgerTypes.Asset))
+            warnings.Add("Salary advances currently post outside assets. Review recoverable employee advances and correct them with an audited adjustment; existing or locked records have not been reclassified.");
+        var expenseCategories = categoryMappings.Where(c => types[c.LedgerAccountId!.Value] == LedgerTypes.Expense).Select(c => c.Id).ToList();
+        if (await db.FinEntryLines.AnyAsync(l => l.Entry.Status == FinStatuses.Active && expenseCategories.Contains(l.CategoryId) && l.Note != null && l.Note.Contains("deposit"), ct))
+            warnings.Add("An expense line is described as a deposit. Check whether it is refundable and should be a security-deposit asset rather than a cost.");
+        if (await db.FinEntries.AnyAsync(e => e.Status == FinStatuses.Active && e.Kind == FinEntryKinds.Income && e.Notes != null && e.Notes.Contains("advance"), ct))
+            warnings.Add("A receipt is described as an advance. Review whether it belongs in customer advances until the related revenue is earned.");
+        return new(checks.All(c => c.Agrees), checks, journalSums.Count, debit, credit, manual, warnings);
     }
 
     // ---- rebuild (before the books go live) ------------------------------------------------------------------------

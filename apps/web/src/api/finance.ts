@@ -167,6 +167,7 @@ export interface FinEntry {
   taxRate?: number;
   taxAmount?: number;
   taxInclusive?: boolean;
+  recoverableTaxPercent?: number;
 }
 
 export interface FinEntryList {
@@ -208,6 +209,7 @@ export interface FinEntryInput {
   taxTypeId?: number | null;
   /** Whether the amount typed already contains the VAT. */
   taxInclusive?: boolean;
+  recoverableTaxPercent?: number;
   /** Splits the amount between categories; the lines must add up to the amount. Without it the entry has one line, categoryId. */
   lines?: { categoryId: number; amount: number; note?: string }[];
 }
@@ -232,6 +234,7 @@ export function listFinParties(kind: FinEntryKind): Promise<string[]> {
 }
 function entryForm(input: FinEntryInput): FormData {
   const form = new FormData();
+  form.set("recoverableTaxPercent", String(input.recoverableTaxPercent ?? 100));
   form.set("entryDate", input.entryDate);
   form.set("categoryId", String(input.categoryId));
   if (input.payeeId) form.set("payeeId", String(input.payeeId));
@@ -774,6 +777,7 @@ export interface LedgerCheck {
   agrees: boolean;
 }
 export interface LedgerCheckResult {
+  warnings?: string[];
   allAgree: boolean;
   checks: LedgerCheck[];
   journals: number;
@@ -848,7 +852,7 @@ function ledgerDownload(path: string, format: LedgerFile): Promise<Blob> {
   if (format === "pdf") return apiGetBlob(url);
   return apiGetFile(url, format === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 }
-export const downloadTrialBalance = (format: LedgerFile) => ledgerDownload("/api/finance/ledger/trial-balance", format);
+export const downloadTrialBalance = (format: LedgerFile, asOf?: string) => ledgerDownload(`/api/finance/ledger/trial-balance${asOf ? `?asOf=${asOf}` : ""}`, format);
 export const downloadLedger = (id: number, from: string, to: string, format: LedgerFile) => ledgerDownload(`/api/finance/ledger/accounts/${id}/statement?from=${from}&to=${to}`, format);
 export const downloadJournals = (format: LedgerFile) => ledgerDownload("/api/finance/ledger/journals", format);
 
@@ -906,6 +910,10 @@ export function setCategoryTaxDefault(categoryId: number, taxTypeId: number | nu
   return apiPut<FinCategory>(`/api/finance/categories/${categoryId}/tax-default`, { taxTypeId });
 }
 
+export interface FinanceTaxPeriodSettings { months: number; startMonth: number; confirmed: boolean }
+export const getFinanceTaxPeriod = () => apiGet<FinanceTaxPeriodSettings>("/api/finance/tax-period");
+export const saveFinanceTaxPeriod = (value: FinanceTaxPeriodSettings) => apiPut<FinanceTaxPeriodSettings>("/api/finance/tax-period", value);
+
 export interface FinVatRow {
   taxTypeId: number;
   taxType: string;
@@ -914,6 +922,7 @@ export interface FinVatRow {
   count: number;
   net: number;
   vat: number;
+  recoverableVat?: number;
 }
 export interface FinVatReport {
   from: string;
@@ -1023,6 +1032,7 @@ export interface FinBill {
   taxTypeId: number | null;
   taxType: string | null;
   taxAmount: number;
+  recoverableTaxPercent?: number;
   net: number;
   total: number;
   paid: number;
@@ -1043,6 +1053,7 @@ export interface FinBillInput {
   notes: string;
   /** 0 or null records no VAT. Line amounts are before VAT. */
   taxTypeId: number | null;
+  recoverableTaxPercent?: number;
   lines: { categoryId: number; amount: number; note: string }[];
 }
 export type FinBillFilter = "all" | "unpaid" | "overdue" | "paid" | "voided";
@@ -1157,6 +1168,7 @@ export interface FinAttention {
   vatPeriod: string;
   vatDue: string;
   vatDaysLeft: number;
+  vatPeriodConfirmed?: boolean;
 }
 export function getFinAttention(): Promise<FinAttention> {
   return apiGet<FinAttention>("/api/finance/attention");

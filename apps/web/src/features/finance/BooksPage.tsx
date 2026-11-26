@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BookOpen, CheckCircle2, Download, Plus, Undo2, XCircle } from "lucide-react";
 import {
   downloadJournals, downloadLedger, downloadTrialBalance, getLedgerChart, getLedgerCheck, getLedgerStatement, getLedgerTrialBalance, listJournals, reverseManualJournal,
@@ -54,6 +54,7 @@ function CheckBanner({ check }: { check: LedgerCheckResult }) {
             ? `${check.checks.length} checks passed across ${check.journals} journals. Debits and credits are both AED ${formatMoney(check.totalDebit)}.`
             : off.map((c) => `${c.name} (${c.subject}): books ${formatMoney(c.ledger)}, screens ${formatMoney(c.screens)}`).join(" · ")}
         </p>
+        {!check.allAgree && <p className="mt-1">Reconcile these differences before closing the month. Check older invoice payments without bank links and manual journals posted to bank, cash, capital, receivables or payables. Do not add a second receipt if the money is already recorded.</p>}
       </div>
     </div>
   );
@@ -84,11 +85,12 @@ function Downloads({ make, formats = ["xlsx", "pdf", "csv"], name }: { make: (f:
   );
 }
 
-function TrialBalance({ trial, onOpen }: { trial: LedgerTrialBalance; onOpen: (a: LedgerAccount) => void }) {
+function TrialBalance({ trial, asOf, onDate, onOpen }: { trial: LedgerTrialBalance; asOf: string; onDate: (date: string) => void; onOpen: (a: LedgerAccount) => void }) {
   return (
     <Card>
       <CardHeader title="Trial balance" description={`As at ${formatDay(trial.asOf)}. Total debits must equal total credits.`} />
-      <Downloads make={downloadTrialBalance} name={`Trial_Balance_${trial.asOf}`} />
+      <div className="px-5 pb-3 sm:max-w-xs"><TextField label="Trial balance as at" type="date" value={asOf} max={todayInUae()} onChange={(e) => { if (e.target.value) onDate(e.target.value); }} /></div>
+      {trial.asOf === asOf ? <Downloads make={(f) => downloadTrialBalance(f, trial.asOf)} name={`Trial_Balance_${trial.asOf}`} /> : <p role="status" className="px-5 pb-3 text-sm text-ink-600">Loading the trial balance for {formatDay(asOf)}. Downloads are available when the selected report is ready.</p>}
       {trial.accounts.length === 0 ? (
         <EmptyState icon={BookOpen} title="Nothing posted yet" description="Entries, transfers and opening balances post here by themselves." />
       ) : (
@@ -292,15 +294,18 @@ export function BooksPage() {
   const group = GROUPS.find((g) => g.tabs.some(([key]) => key === tab)) ?? GROUPS[0];
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [accountId, setAccountId] = useState<number | null>(null);
+  const [asOf, setAsOf] = useState(todayInUae());
+  const request = useRef(0);
 
   const refresh = useCallback(async () => {
+    const version = ++request.current;
     try {
-      const [trial, check, chart] = await Promise.all([getLedgerTrialBalance(), getLedgerCheck(), getLedgerChart()]);
-      setLoad({ status: "ready", trial, check, chart });
+      const [trial, check, chart] = await Promise.all([getLedgerTrialBalance(asOf), getLedgerCheck(), getLedgerChart()]);
+      if (version === request.current) setLoad({ status: "ready", trial, check, chart });
     } catch (error) {
-      setLoad({ status: "error", message: failure(error) });
+      if (version === request.current) setLoad({ status: "error", message: failure(error) });
     }
-  }, []);
+  }, [asOf]);
 
   useEffect(() => {
     void refresh();
@@ -316,6 +321,7 @@ export function BooksPage() {
       {ready && (
         <>
           <CheckBanner check={ready.check} />
+          {!!ready.check.warnings?.length && <div className="rounded-card border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><p className="font-semibold">Accounting classifications to review</p><ul className="mt-2 list-disc space-y-2 pl-5">{ready.check.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
           <div role="tablist" aria-label="Books section" className="grid grid-cols-4 gap-1 rounded-lg bg-ink-100 p-1">
             {GROUPS.map((g) => (
               <button key={g.key} type="button" role="tab" aria-selected={group.key === g.key} onClick={() => setTab(g.tabs[0][0])}
@@ -332,7 +338,7 @@ export function BooksPage() {
               </button>
             ))}
           </div>
-          {tab === "trial" && <TrialBalance trial={ready.trial} onOpen={(a) => { setAccountId(a.id); setTab("ledger"); }} />}
+          {tab === "trial" && <TrialBalance trial={ready.trial} asOf={asOf} onDate={setAsOf} onOpen={(a) => { setAccountId(a.id); setTab("ledger"); }} />}
           {(tab === "pl" || tab === "sheet") && <StatementsTab which={tab} />}
           {tab === "ledger" && <LedgerView accounts={ready.chart} accountId={accountId} onAccount={setAccountId} />}
           {tab === "journals" && <Journals accounts={ready.chart} canEdit={canEdit} onChanged={() => void refresh()} />}

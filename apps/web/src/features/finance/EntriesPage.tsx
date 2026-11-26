@@ -81,7 +81,7 @@ function EntryMeta({ entry, locked }: { entry: FinEntry; locked: boolean }) {
       {entry.invoiceId != null && <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800" title="Change or remove it on the tax invoice">Payment on a tax invoice</span>}
       {entry.billId != null && <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800" title="Take it back on the supplier bill">Payment on a supplier bill</span>}
       {locked && entry.status === "Active" && <span className="inline-flex items-center gap-1 text-[13px] text-ink-600"><Lock aria-hidden="true" size={12} /> Locked month</span>}
-      {(entry.taxAmount ?? 0) > 0 && <span className="text-xs tabular-nums text-ink-500">VAT AED {formatMoney(entry.taxAmount ?? 0)}</span>}
+      {(entry.taxAmount ?? 0) > 0 && <span className="text-xs tabular-nums text-ink-500">VAT AED {formatMoney(entry.taxAmount ?? 0)}{entry.kind === "Expense" && ` · ${entry.recoverableTaxPercent ?? 100}% recoverable`}</span>}
       {entry.kind === "Expense" && <span className="text-[13px] text-ink-500">Entered by {entry.createdBy}</span>}
       {entry.status === "Voided" && entry.voidReason && <span className="w-full text-[13px] text-ink-600">{entry.voidedBy ? `${entry.voidedBy}: ` : ""}{entry.voidReason}</span>}
     </span>

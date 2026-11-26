@@ -67,8 +67,8 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
             rows.Add([title.ToUpperInvariant(), "", "", "", ""]);
             foreach (var r in list)
             {
-                rows.Add([r.TaxType, r.Rate.ToString("0.##", CultureInfo.InvariantCulture) + "%", r.Count.ToString(CultureInfo.InvariantCulture), Money(r.Net), Money(r.Vat)]);
-                csv.Add([title, r.TaxType, r.Rate.ToString("0.##", CultureInfo.InvariantCulture), r.Count.ToString(CultureInfo.InvariantCulture), Plain(r.Net), Plain(r.Vat)]);
+                rows.Add([r.TaxType, r.Rate.ToString("0.##", CultureInfo.InvariantCulture) + "%", r.Count.ToString(CultureInfo.InvariantCulture), Money(r.Net), Money(title == "Purchases" ? r.RecoverableVat : r.Vat)]);
+                csv.Add([title, r.TaxType, r.Rate.ToString("0.##", CultureInfo.InvariantCulture), r.Count.ToString(CultureInfo.InvariantCulture), Plain(r.Net), Plain(title == "Purchases" ? r.RecoverableVat : r.Vat)]);
             }
 
             if (list.Count == 0) rows.Add(["None in this period", "", "", "", ""]);
@@ -83,7 +83,7 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
         csv.Add(["Summary", "VAT charged (output)", "", "", "", Plain(v.OutputVat)]);
         csv.Add(["Summary", "VAT reclaimable (input)", "", "", "", Plain(v.InputVat)]);
         csv.Add(["Summary", "Net VAT payable", "", "", "", Plain(v.NetPayable)]);
-        var notes = new List<string> { "Output VAT includes the VAT the company accounts for itself on reverse-charge purchases, which is reclaimed as input VAT in the same return." };
+        var notes = new List<string> { "Purchase rows show recoverable VAT; sales rows show output VAT. Confirm assigned tax dates and recovery eligibility before filing.", "Output VAT includes the VAT the company accounts for itself on reverse-charge purchases, Only the recoverable portion of purchase VAT is claimed. Blocked VAT is included in cost." };
         if (v.UnrecordedSales.Count + v.UnrecordedPurchases.Count > 0)
             notes.Add($"Not in this return: {v.UnrecordedSales.Count} sales (AED {Money(v.UnrecordedSales.Amount)}) and {v.UnrecordedPurchases.Count} purchases (AED {Money(v.UnrecordedPurchases.Amount)}) have no VAT type recorded.");
         var table = new StaffExportService.Table("VAT RETURN", $"{Day(v.From)} to {Day(v.To)}  |  AED", stem, [("TYPE", 3, false), ("RATE", 0.8, true), ("ENTRIES", 0.9, true), ("NET", 1.3, true), ("VAT", 1.3, true)], rows, notes.ToArray());

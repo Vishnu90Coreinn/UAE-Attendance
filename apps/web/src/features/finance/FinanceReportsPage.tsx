@@ -64,7 +64,7 @@ function BridgePanel({ report }: { report: FinReport }) {
           ))}
         </dl>
         <p className="mt-4 text-sm text-white/70">
-          Net result for the period: <span className="font-semibold tabular-nums text-white">AED {signed(period.net)}</span>
+          Net receipts less payments for the period: <span className="font-semibold tabular-nums text-white">AED {signed(period.net)}</span>
           {" · "}{report.entryCount} {report.entryCount === 1 ? "entry" : "entries"} · transfers between accounts are not income or expense
         </p>
       </div>

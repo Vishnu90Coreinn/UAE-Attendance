@@ -39,7 +39,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         files.Select(f => new FinAttachmentResponse(f.Id, f.FileName, f.ContentType, f.SizeBytes)).ToList(),
         e.VoidedBy, e.VoidedUtc, e.ReplacesEntryId, replacesNo, replacedByNo, e.PartnerId, e.PayeeId,
         e.Lines.OrderByDescending(l => l.Amount).ThenBy(l => l.Id).Select(l => new FinEntryLineResponse(l.CategoryId, l.Category.Name, l.Amount, l.Note)).ToList(),
-        e.TaxTypeId, e.TaxRate, e.TaxAmount, e.TaxInclusive, e.InvoiceId, e.BillId);
+        e.TaxTypeId, e.TaxRate, e.TaxAmount, e.TaxInclusive, e.InvoiceId, e.BillId, e.RecoverableTaxPercent);
 
     /// <summary>EntryNo of the entry each given entry replaces, and of the entry that replaced it.</summary>
     private async Task<(Dictionary<int, string> Replaces, Dictionary<int, string> ReplacedBy)> ChainAsync(IReadOnlyCollection<FinEntry> rows, CancellationToken ct)
@@ -305,6 +305,9 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         var amount = form.Amount ?? 0m;
         decimal taxAmount = 0m, taxRate = 0m;
         var inclusive = form.TaxInclusive ?? true;
+        var recovery = form.RecoverableTaxPercent;
+        if (recovery < 0m || recovery > 100m || !FinanceCalculator.IsMoney(recovery)) errors["recoverableTaxPercent"] = ["Use a VAT recovery percentage from 0 to 100, with at most 2 decimals."];
+        if (kind != FinEntryKinds.Expense && recovery != 100m) errors["recoverableTaxPercent"] = ["VAT recovery applies only to purchases."];
         FinTaxType? taxType = null;
         if (!capital && !errors.ContainsKey("amount"))
         {
@@ -386,7 +389,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
             {
                 Kind = kind, EntryNo = "PENDING", EntryDate = date, CategoryId = category!.Id, Party = party!, AccountId = account!.Id,
                 Amount = amount, Reference = FinanceRules.Clean(form.Reference), Notes = FinanceRules.Clean(form.Notes),
-                TaxTypeId = taxType?.Id, TaxRate = taxRate, TaxAmount = taxAmount, TaxInclusive = inclusive,
+                TaxTypeId = taxType?.Id, TaxRate = taxRate, TaxAmount = taxAmount, TaxInclusive = inclusive, RecoverableTaxPercent = recovery,
                 CreatedBy = actor, CreatedUtc = now, ReplacesEntryId = replaces?.Id, PartnerId = partner?.Id, PayeeId = payee?.Id, Lines = lineRows,
                 Status = pending ? FinStatuses.Pending : FinStatuses.Active,
             };

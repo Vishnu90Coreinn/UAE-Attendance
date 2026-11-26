@@ -35,7 +35,7 @@ public class FinanceBillsTests(ApiFixture api) : IClassFixture<ApiFixture>
 
     private object Bill(DateOnly date, DateOnly due, int? taxTypeId, params (int Category, decimal Amount)[] lines) => new
     {
-        supplierName = "Gulf Aluminium Supplies", supplierRef = "SUP-77", billDate = D(date), dueDate = D(due), notes = "", taxTypeId,
+        supplierName = "Gulf Aluminium Supplies", supplierRef = "SUP-" + Guid.NewGuid().ToString("N")[..8], billDate = D(date), dueDate = D(due), notes = "", taxTypeId,
         lines = lines.Select(l => new { categoryId = l.Category, amount = l.Amount }).ToArray(),
     };
 

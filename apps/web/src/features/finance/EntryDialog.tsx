@@ -8,8 +8,8 @@ import { Button, Select, Textarea, cx } from "../../ui";
 import { formatMoney, isVatSettlementCategory, todayInUae, parseMoneyInput, vatOf } from "./financeFormat";
 import { formatBytes, receiptProblem, RECEIPT_MAX_FILES, shrinkPhoto } from "./receiptFile";
 
-type FieldName = "taxTypeId" | "amount" | "entryDate" | "categoryId" | "accountId" | "party" | "reference" | "notes" | "files" | "payeeId" | "lines";
-const FIELDS: FieldName[] = ["taxTypeId", "amount", "entryDate", "categoryId", "accountId", "party", "reference", "notes", "files", "payeeId", "lines"];
+type FieldName = "recoverableTaxPercent" | "taxTypeId" | "amount" | "entryDate" | "categoryId" | "accountId" | "party" | "reference" | "notes" | "files" | "payeeId" | "lines";
+const FIELDS: FieldName[] = ["recoverableTaxPercent", "taxTypeId", "amount", "entryDate", "categoryId", "accountId", "party", "reference", "notes", "files", "payeeId", "lines"];
 
 interface LineDraft {
   categoryId: string;
@@ -73,6 +73,7 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
   const [taxTypeId, setTaxTypeId] = useState(() => (entry ? String(entry.taxTypeId ?? 0) : startingTax(categoryId)));
   const [taxTouched, setTaxTouched] = useState(Boolean(entry));
   const [taxInclusive, setTaxInclusive] = useState(true);
+  const [recovery, setRecovery] = useState(String(entry?.recoverableTaxPercent ?? 100));
   const [payeeId, setPayeeId] = useState(entry?.payeeId ? String(entry.payeeId) : "");
   const [split, setSplit] = useState((entry?.lines?.length ?? 0) > 1);
   const vatSettlement = !split && categoryId !== "" && isVatSettlementCategory(categoryId);
@@ -157,6 +158,7 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
     event.preventDefault();
     const next: Partial<Record<FieldName, string>> = {};
     const value = parseMoneyInput(amount);
+    if (!income && (parseMoneyInput(recovery) === null || (parseMoneyInput(recovery) ?? -1) < 0 || (parseMoneyInput(recovery) ?? 101) > 100)) next.recoverableTaxPercent = "Enter a VAT recovery percentage from 0 to 100.";
     if (value === null || value <= 0) next.amount = "Enter an amount above zero with at most 2 decimals.";
     if (!date) next.entryDate = "Enter the date.";
     if (!split && !categoryId) next.categoryId = "Choose a category.";
@@ -178,7 +180,7 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
     setPending(true);
     try {
       const primary = split && lineInput ? [...lineInput].sort((a, b) => b.amount - a.amount)[0].categoryId : Number(categoryId);
-      const input = { taxTypeId: Number(taxTypeId || 0), taxInclusive, entryDate: date, categoryId: primary, accountId: Number(accountId), party: party.trim(), amount: value, reference: reference.trim(), notes: notes.trim(), files, keepAttachmentIds: keep, payeeId: payeeId ? Number(payeeId) : null, lines: lineInput };
+      const input = { recoverableTaxPercent: income ? 100 : parseMoneyInput(recovery)!, taxTypeId: Number(taxTypeId || 0), taxInclusive, entryDate: date, categoryId: primary, accountId: Number(accountId), party: party.trim(), amount: value, reference: reference.trim(), notes: notes.trim(), files, keepAttachmentIds: keep, payeeId: payeeId ? Number(payeeId) : null, lines: lineInput };
       const saved = submitMode ? await submitFinExpense(input) : entry ? await correctFinEntry(kind, entry.id, input) : await createFinEntry(kind, input);
       try {
         localStorage.setItem(LAST_ACCOUNT, accountId);
@@ -339,6 +341,7 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
                 </label>
               )}
             </div>
+            {!income && chosenTax && ["Standard", "ReverseCharge"].includes(chosenTax.treatment) && <TextField label="Recoverable VAT (%)" value={recovery} onChange={(e) => setRecovery(e.target.value)} inputMode="decimal" error={errors.recoverableTaxPercent} hint="100 for fully recoverable, 0 for blocked VAT. The non-recoverable portion is included in the cost." />}
             {vatPreview && <p aria-live="polite" className="mt-3 text-sm text-ink-700">{vatPreview}</p>}
             {entry && <p className="mt-2 text-[13px] text-ink-600">The amount above is the total, VAT included.</p>}
           </fieldset>

@@ -578,6 +578,12 @@ namespace HrPayroll.Api.Data.Migrations
                     b.Property<int?>("PayeeId")
                         .HasColumnType("int");
 
+                    b.Property<decimal>("RecoverableTaxPercent")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)")
+                        .HasDefaultValue(100m);
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -1055,6 +1061,12 @@ namespace HrPayroll.Api.Data.Migrations
 
                     b.Property<int?>("PayeeId")
                         .HasColumnType("int");
+
+                    b.Property<decimal>("RecoverableTaxPercent")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)")
+                        .HasDefaultValue(100m);
 
                     b.Property<string>("Reference")
                         .HasMaxLength(60)
@@ -2288,6 +2300,15 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<bool>("VatPeriodConfirmed")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("VatPeriodMonths")
+                        .HasColumnType("int");
+
+                    b.Property<int>("VatPeriodStartMonth")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.ToTable("PayrollSettings", t =>
@@ -2306,7 +2327,10 @@ namespace HrPayroll.Api.Data.Migrations
                             OvertimeRatePerHour = 2.22m,
                             PreparedByLabel = "HR Department",
                             ShiftDescription = "06:00 AM - 05:30 PM",
-                            Tagline = "Glass & Aluminum Installation & Maintenance Services"
+                            Tagline = "Glass & Aluminum Installation & Maintenance Services",
+                            VatPeriodConfirmed = false,
+                            VatPeriodMonths = 3,
+                            VatPeriodStartMonth = 1
                         });
                 });
 

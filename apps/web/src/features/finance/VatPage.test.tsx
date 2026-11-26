@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, expect, it, vi } from "vitest";
 import * as financeApi from "../../api/finance";
@@ -17,6 +17,17 @@ const report = (over: Partial<FinVatReport> = {}): FinVatReport => ({
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(financeApi.getFinVatReport).mockResolvedValue(report());
+});
+
+it("preserves dates selected while assigned-period settings are loading", async () => {
+  let finish!: (v: financeApi.FinanceTaxPeriodSettings) => void;
+  vi.mocked(financeApi.getFinanceTaxPeriod).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+  render(<MemoryRouter><VatPage /></MemoryRouter>);
+  await screen.findByText("VAT to pay");
+  fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-02-01" } });
+  await waitFor(() => expect(financeApi.getFinVatReport).toHaveBeenLastCalledWith("2026-02-01", expect.any(String)));
+  await act(async () => finish({ months: 3, startMonth: 2, confirmed: true }));
+  expect(screen.getByLabelText("From")).toHaveValue("2026-02-01");
 });
 
 it("shows what is owed, the sales and purchases behind it, and warns about entries with no VAT type", async () => {
@@ -52,8 +63,8 @@ it("says when the return for the quarter is due, and offers the downloads under 
   render(<MemoryRouter><VatPage /></MemoryRouter>);
 
   await screen.findByText("VAT to pay");
-  expect(screen.getByText(/is due/)).toBeInTheDocument();
-  expect(screen.getByText(/The quarter is not over/)).toBeInTheDocument();
+  expect(screen.getByText(/VAT period has not been confirmed/)).toBeInTheDocument();
+  expect(screen.queryByText(/Estimated filing deadline/)).not.toBeInTheDocument();
   expect(screen.getByText("Download these figures:")).toBeInTheDocument();
   const [from, to] = vi.mocked(financeApi.getFinVatReport).mock.calls[0];
   expect(from).toMatch(/-(01|04|07|10)-01$/);          // the first day of a quarter

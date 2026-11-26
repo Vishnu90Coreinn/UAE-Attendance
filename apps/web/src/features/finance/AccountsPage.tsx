@@ -28,7 +28,7 @@ function TotalPanel({ accounts }: { accounts: FinAccount[] }) {
   const active = accounts.filter((a) => a.isActive);
   const total = sumMoney(active.map((a) => a.balance));
   const bank = sumMoney(active.filter((a) => a.kind === "Bank").map((a) => a.balance));
-  const cash = sumMoney(active.filter((a) => a.kind === "Cash").map((a) => a.balance));
+  const cash = sumMoney(active.filter((a) => a.kind === "Cash" || a.kind === "Custody").map((a) => a.balance));
   const holders = active.filter((a) => a.balance > 0);
   const percents = splitShares(holders.map((a) => a.balance), 1);
   const split = holders.map((a, index) => ({ account: a, percent: percents[index], color: SEGMENTS[index % SEGMENTS.length] }));
@@ -121,7 +121,7 @@ function AccountCard({ account, share, canEdit, onEdit, onTransfer, onSwitch }: 
       </p>
       {(account.unclearedCheques ?? 0) !== 0 && account.bankBalance !== undefined && (
         <p className="mt-1 text-[13px] text-ink-600">
-          The bank statement shows <span className="font-semibold tabular-nums text-ink-800">AED {formatMoney(account.bankBalance)}</span>: cheques of AED{" "}
+          Expected bank balance before reconciliation: <span className="font-semibold tabular-nums text-ink-800">AED {formatMoney(account.bankBalance)}</span>. Cheques of AED{" "}
           <span className="tabular-nums">{formatMoney(Math.abs(account.unclearedCheques ?? 0))}</span> {(account.unclearedCheques ?? 0) > 0 ? "have not been paid by the bank yet" : "have not reached the bank yet"}.
         </p>
       )}

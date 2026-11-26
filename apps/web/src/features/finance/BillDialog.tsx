@@ -29,6 +29,7 @@ export function BillDialog({ categories, payees, taxTypes, variant, onClose, onS
   const [taxTypeId, setTaxTypeId] = useState(taxTypes.find((t) => t.treatment === "Standard")?.id.toString() ?? "");
   const [lines, setLines] = useState<Line[]>([{ category: "", amount: "", note: "" }]);
   const [notes, setNotes] = useState("");
+  const [recovery, setRecovery] = useState("100");
   const [files, setFiles] = useState<File[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [general, setGeneral] = useState<string | null>(null);
@@ -63,6 +64,7 @@ export function BillDialog({ categories, payees, taxTypes, variant, onClose, onS
   async function submit(event: FormEvent) {
     event.preventDefault();
     const found: Record<string, string> = {};
+    if (parseMoneyInput(recovery) === null || (parseMoneyInput(recovery) ?? -1) < 0 || (parseMoneyInput(recovery) ?? 101) > 100) found.recoverableTaxPercent = "Enter a VAT recovery percentage from 0 to 100.";
     if (!supplier.trim()) found.supplierName = "Enter the supplier.";
     if (!billDate) found.billDate = "Enter the bill date.";
     if (!dueDate) found.dueDate = "Enter the due date.";
@@ -75,7 +77,7 @@ export function BillDialog({ categories, payees, taxTypes, variant, onClose, onS
     try {
       const saved = await createFinBill({
         supplierName: supplier.trim(), payeeId: payeeId ? Number(payeeId) : null, supplierRef: supplierRef.trim(), billDate, dueDate, notes: notes.trim(),
-        taxTypeId: taxTypeId ? Number(taxTypeId) : null, lines: lines.map((l) => ({ categoryId: Number(l.category), amount: parseMoneyInput(l.amount)!, note: l.note.trim() })),
+        recoverableTaxPercent: parseMoneyInput(recovery)!, taxTypeId: taxTypeId ? Number(taxTypeId) : null, lines: lines.map((l) => ({ categoryId: Number(l.category), amount: parseMoneyInput(l.amount)!, note: l.note.trim() })),
       });
       if (files.length === 0) return onSaved(saved);
       try {
@@ -132,6 +134,7 @@ export function BillDialog({ categories, payees, taxTypes, variant, onClose, onS
             {taxTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </Select>
         )}
+        {tax && ["Standard", "ReverseCharge"].includes(tax.treatment) && <TextField label="Recoverable VAT (%)" value={recovery} onChange={(e) => setRecovery(e.target.value)} inputMode="decimal" error={errors.recoverableTaxPercent} hint="100 for fully recoverable; 0 for blocked VAT. Blocked VAT is added to the purchase cost." />}
         <Textarea label="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} maxLength={2000} />
         <fieldset className="rounded-lg border border-dashed border-ink-300 p-4">
           <legend className="px-1 text-sm font-medium text-ink-800">Supplier's invoice (optional)</legend>

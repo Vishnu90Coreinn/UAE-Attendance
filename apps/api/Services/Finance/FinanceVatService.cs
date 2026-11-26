@@ -27,15 +27,15 @@ public sealed class FinanceVatService(AppDbContext db, TimeProvider time)
 
         var entries = await db.FinEntries.AsNoTracking()
             .Where(e => e.Status == FinStatuses.Active && e.InvoiceId == null && e.BillId == null && e.CategoryId != FinanceRules.VatPaymentCategoryId && e.CategoryId != FinanceRules.VatRefundCategoryId && (e.Kind == FinEntryKinds.Expense || e.Kind == FinEntryKinds.Income) && e.EntryDate >= start && e.EntryDate <= end)
-            .Select(e => new { e.Kind, e.TaxTypeId, e.Amount, e.TaxAmount }).ToListAsync(ct);
-        var list = entries.Select(e => new { e.Kind, e.TaxTypeId, e.Amount, e.TaxAmount }).ToList();
+            .Select(e => new { e.Kind, e.TaxTypeId, e.Amount, e.TaxAmount, e.RecoverableTaxPercent }).ToListAsync(ct);
+        var list = entries.Select(e => new { e.Kind, e.TaxTypeId, e.Amount, e.TaxAmount, e.RecoverableTaxPercent }).ToList();
         // Tax invoices carry their VAT from the day they are issued (the tax point), whether or not they have been paid. A payment on one adds nothing here.
         var standard = await db.FinTaxTypes.AsNoTracking().Where(t => t.Treatment == FinTaxTreatments.Standard).OrderBy(t => t.SortOrder).Select(t => (int?)t.Id).FirstOrDefaultAsync(ct);
         foreach (var i in await db.Invoices.AsNoTracking().Where(i => i.Status == InvoiceStatuses.Issued && i.InvoiceDate >= start && i.InvoiceDate <= end).Select(i => new { i.Total, i.VatTotal }).ToListAsync(ct))
-            list.Add(new { Kind = FinEntryKinds.Income, TaxTypeId = i.VatTotal > 0m ? standard : null, Amount = i.Total, TaxAmount = i.VatTotal });
+            list.Add(new { Kind = FinEntryKinds.Income, TaxTypeId = i.VatTotal > 0m ? standard : null, Amount = i.Total, TaxAmount = i.VatTotal, RecoverableTaxPercent = 100m });
         // Supplier bills carry their VAT from the bill date, whether or not they have been paid. A payment on one adds nothing here.
-        foreach (var b in await db.FinBills.AsNoTracking().Where(b => b.Status == FinBillStatuses.Open && b.BillDate >= start && b.BillDate <= end).Select(b => new { b.TaxTypeId, b.Total, b.TaxAmount }).ToListAsync(ct))
-            list.Add(new { Kind = FinEntryKinds.Expense, b.TaxTypeId, Amount = b.Total, b.TaxAmount });
+        foreach (var b in await db.FinBills.AsNoTracking().Where(b => b.Status == FinBillStatuses.Open && b.BillDate >= start && b.BillDate <= end).Select(b => new { b.TaxTypeId, b.Total, b.TaxAmount, b.RecoverableTaxPercent }).ToListAsync(ct))
+            list.Add(new { Kind = FinEntryKinds.Expense, b.TaxTypeId, Amount = b.Total, b.TaxAmount, b.RecoverableTaxPercent });
         entries = list;
         var types = await db.FinTaxTypes.AsNoTracking().OrderBy(t => t.SortOrder).ToListAsync(ct);
 
@@ -45,7 +45,7 @@ public sealed class FinanceVatService(AppDbContext db, TimeProvider time)
                 var mine = entries.Where(e => e.Kind == kind && e.TaxTypeId == t.Id).ToList();
                 // Standard VAT sits inside the amount, so the net is the amount less the VAT. Every other type carries the amount as it is.
                 var net = mine.Sum(e => t.Treatment == FinTaxTreatments.Standard ? e.Amount - e.TaxAmount : e.Amount);
-                return new FinVatRow(t.Id, t.Name, t.Treatment, t.Rate, mine.Count, net, mine.Sum(e => e.TaxAmount));
+                return new FinVatRow(t.Id, t.Name, t.Treatment, t.Rate, mine.Count, net, mine.Sum(e => e.TaxAmount), mine.Sum(e => FinanceRules.RecoverableVat(e.TaxAmount, e.RecoverableTaxPercent)));
             })
             .Where(r => r.Count > 0).ToList();
 
@@ -55,7 +55,7 @@ public sealed class FinanceVatService(AppDbContext db, TimeProvider time)
         var purchases = Rows(FinEntryKinds.Expense);
         var reverse = purchases.Where(r => r.Treatment == FinTaxTreatments.ReverseCharge).Sum(r => r.Vat);
         var output = sales.Where(r => r.Treatment == FinTaxTreatments.Standard).Sum(r => r.Vat) + reverse;
-        var input = purchases.Where(r => r.Treatment == FinTaxTreatments.Standard).Sum(r => r.Vat) + reverse;
+        var input = purchases.Where(r => r.Treatment is FinTaxTreatments.Standard or FinTaxTreatments.ReverseCharge).Sum(r => r.RecoverableVat);
         return FinResult<FinVatReport>.Ok(new(FinanceRules.Format(start), FinanceRules.Format(end), sales, purchases, output, input, output - input, Unrecorded(FinEntryKinds.Income), Unrecorded(FinEntryKinds.Expense)));
     }
 }

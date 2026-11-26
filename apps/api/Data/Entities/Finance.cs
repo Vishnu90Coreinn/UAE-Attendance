@@ -155,6 +155,7 @@ public sealed class FinEntry
 
     /// <summary>The VAT on this entry. Inside <see cref="Amount"/> for a standard-rated entry; for reverse charge it is owed by the company and not part of the cash.</summary>
     public decimal TaxAmount { get; set; }
+    public decimal RecoverableTaxPercent { get; set; } = 100m;
 
     /// <summary>Whether what was typed already contained the VAT (true) or the VAT was added on top (false).</summary>
     public bool TaxInclusive { get; set; } = true;
@@ -381,6 +382,7 @@ public sealed class FinBill
     public decimal TaxAmount { get; set; }
 
     /// <summary>Sum of the lines, before VAT.</summary>
+    public decimal RecoverableTaxPercent { get; set; } = 100m;
     public decimal Net { get; set; }
 
     /// <summary>What the supplier is owed: the net plus standard VAT (reverse charge VAT is not owed to the supplier).</summary>

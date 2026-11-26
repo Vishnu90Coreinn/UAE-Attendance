@@ -1,4 +1,4 @@
-/** UAE VAT returns are filed by calendar quarter and are due 28 days after the quarter ends. */
+/** Calendar-quarter shortcuts and the company's separately confirmed assigned VAT period. */
 
 export interface VatQuarter {
   from: string;
@@ -23,4 +23,15 @@ export function vatDueDate(quarterEnd: string): string {
   const due = new Date(`${quarterEnd}T00:00:00Z`);
   due.setUTCDate(due.getUTCDate() + 28);
   return due.toISOString().slice(0, 10);
+}
+
+export function assignedVatPeriod(date: string, months: number, startMonth: number, offset = 0): VatQuarter {
+  const day = new Date(`${date}T00:00:00Z`);
+  const start = new Date(Date.UTC(day.getUTCFullYear(), startMonth - 1, 1));
+  while (start > day) start.setUTCMonth(start.getUTCMonth() - months);
+  while (new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + months, 1)) <= day) start.setUTCMonth(start.getUTCMonth() + months);
+  start.setUTCMonth(start.getUTCMonth() + offset * months);
+  const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + months, 0));
+  const from = start.toISOString().slice(0, 10), to = end.toISOString().slice(0, 10);
+  return { from, to, label: `${from} to ${to}` };
 }
