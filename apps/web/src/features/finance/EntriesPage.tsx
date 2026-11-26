@@ -458,6 +458,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
           categories={activeCategories}
           variant={variant}
           onClose={() => setAdding(false)}
+          onSavedAndContinue={() => load()}
           onSaved={(entry) => {
             setAdding(false);
             setMessage(`${entry.entryNo}: AED ${formatMoney(entry.amount)} ${income ? "received from" : "paid to"} ${entry.party} was recorded.`);

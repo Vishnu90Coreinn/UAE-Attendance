@@ -43,7 +43,19 @@ it("asks the server again when another period is chosen", async () => {
   render(<MemoryRouter><VatPage /></MemoryRouter>);
   await screen.findByText("VAT to pay");
 
-  await user.click(screen.getByRole("button", { name: "Last month" }));
+  await user.click(screen.getByRole("button", { name: "Last quarter" }));
 
   expect(financeApi.getFinVatReport).toHaveBeenCalledTimes(2);
+});
+
+it("says when the return for the quarter is due, and offers the downloads under the figures", async () => {
+  render(<MemoryRouter><VatPage /></MemoryRouter>);
+
+  await screen.findByText("VAT to pay");
+  expect(screen.getByText(/is due/)).toBeInTheDocument();
+  expect(screen.getByText(/The quarter is not over/)).toBeInTheDocument();
+  expect(screen.getByText("Download these figures:")).toBeInTheDocument();
+  const [from, to] = vi.mocked(financeApi.getFinVatReport).mock.calls[0];
+  expect(from).toMatch(/-(01|04|07|10)-01$/);          // the first day of a quarter
+  expect(to >= from).toBe(true);
 });

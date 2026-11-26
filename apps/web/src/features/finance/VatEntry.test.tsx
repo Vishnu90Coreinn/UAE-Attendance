@@ -134,3 +134,36 @@ it("shows no VAT choice when the money goes to the tax authority, and says why",
   await user.selectOptions(screen.getByLabelText("Category"), "1");
   expect(screen.getByLabelText("VAT type")).toBeInTheDocument();      // an ordinary category brings it back
 });
+
+it("saves and stays open for the next one, keeping the date, account and category", async () => {
+  const onSaved = vi.fn();
+  const onContinue = vi.fn();
+  const user = userEvent.setup();
+  render(<EntryDialog kind="Expense" accounts={[account]} categories={categories} variant="center" onClose={vi.fn()} onSaved={onSaved} onSavedAndContinue={onContinue} />);
+  await screen.findByLabelText("VAT type");
+  await user.type(screen.getByLabelText("Amount (AED)"), "105");
+  await user.type(screen.getByLabelText("Paid to"), "Supplier");
+  await user.selectOptions(screen.getByLabelText("Paid from"), "1");
+  await user.selectOptions(screen.getByLabelText("Category"), "1");
+  await user.selectOptions(screen.getByLabelText("VAT type"), "1");
+  await user.upload(document.querySelector('input[type="file"][accept^="application/pdf"]') as HTMLInputElement, new File(["%PDF-1.4"], "r.pdf", { type: "application/pdf" }));
+
+  await user.click(screen.getByRole("button", { name: "Save and add another" }));
+
+  await waitFor(() => expect(onContinue).toHaveBeenCalled());
+  expect(onSaved).not.toHaveBeenCalled();                                  // the dialog stays open
+  expect(screen.getByRole("status")).toHaveTextContent("EXP-000001");
+  expect(screen.getByLabelText("Amount (AED)")).toHaveValue("");           // cleared for the next receipt
+  expect(screen.getByLabelText("Paid to")).toHaveValue("");
+  expect(screen.getByLabelText("Paid from")).toHaveValue("1");             // kept
+  expect(screen.getByLabelText("Category")).toHaveValue("1");
+  expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
+});
+
+it("offers the camera only on a phone", async () => {
+  const { unmount } = render(<EntryDialog kind="Expense" accounts={[account]} categories={categories} variant="center" onClose={vi.fn()} onSaved={vi.fn()} />);
+  expect(screen.queryByText("Take photo")).not.toBeInTheDocument();
+  unmount();
+  render(<EntryDialog kind="Expense" accounts={[account]} categories={categories} variant="sheet" onClose={vi.fn()} onSaved={vi.fn()} />);
+  expect(screen.getByText("Take photo")).toBeInTheDocument();
+});
