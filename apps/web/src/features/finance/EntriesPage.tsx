@@ -168,6 +168,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
   const { user } = useAuth();
   const canEdit = isManagement(user?.role);
   const desktop = useIsDesktop();
+  const [tools, setTools] = useState(false);
   // Arriving from an account card ("?account=3&period=all") opens that account's whole history.
   const [params] = useSearchParams();
   const [preset, setPreset] = useState<Preset>(() => (params.get("period") === "all" ? "all" : "month"));
@@ -304,8 +305,10 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
         description={income ? "Money the company has received: entered here, or recorded as a payment on a tax invoice (those rows say so and are changed on the invoice)." : "Money the company has paid out, each with its receipt."}
         actions={
           <>
-            {result && result.items.length > 0 && <Button variant="secondary" icon={Download} onClick={downloadCsv}>Download CSV</Button>}
-            {canEdit && lists && <Button variant="secondary" icon={FileUp} onClick={() => setImporting(true)}>Import from Excel</Button>}
+            {/* On a phone the file tools wait behind "More tools", so the list starts higher. */}
+            {!desktop && <Button variant="secondary" aria-expanded={tools} onClick={() => setTools((t) => !t)}>More tools</Button>}
+            {(desktop || tools) && result && result.items.length > 0 && <Button variant="secondary" icon={Download} onClick={downloadCsv}>Download CSV</Button>}
+            {(desktop || tools) && canEdit && lists && <Button variant="secondary" icon={FileUp} onClick={() => setImporting(true)}>Import from Excel</Button>}
             {canEdit && lists && <Button icon={Plus} onClick={() => setAdding(true)}>{income ? "Add income" : "Add expense"}</Button>}
           </>
         }

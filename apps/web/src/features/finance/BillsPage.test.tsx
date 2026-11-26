@@ -38,7 +38,7 @@ it("lists bills with a status word, what is still owed, and the total on the lis
   expect(screen.getByText(/Overdue since/)).toBeInTheDocument();
   expect(screen.getByText("Part paid")).toBeInTheDocument();
   expect(screen.getByText("1,075.00 still owed")).toBeInTheDocument();
-  expect(screen.getByText("AED 2,650.00")).toBeInTheDocument();          // 1,575 + 1,075 owed
+  expect(screen.getByText("Owed on these bills").nextSibling).toHaveTextContent("AED 2,650.00");          // 1,575 + 1,075 owed
   expect(financeApi.listFinBills).toHaveBeenCalledWith("unpaid", "");
 });
 
@@ -152,4 +152,18 @@ it("does not offer the VAT payment category on a supplier bill", async () => {
 
   expect(within(dialog).getByRole("option", { name: "Company expenses" })).toBeInTheDocument();
   expect(within(dialog).queryByRole("option", { name: "VAT paid to tax authority" })).not.toBeInTheDocument();
+});
+
+it("shows what is overdue and due soon, and lists unpaid bills in the order they fall due", async () => {
+  vi.mocked(financeApi.listFinBills).mockResolvedValue([
+    bill({ id: 1, billNo: "BILL-000001", supplierName: "Later Co", dueDate: "2999-01-01", display: "Open", balance: 100, total: 100 }),
+    bill({ id: 2, billNo: "BILL-000002", supplierName: "Old Co", dueDate: "2000-01-01", display: "Overdue", balance: 250, total: 250 }),
+  ]);
+  render(<MemoryRouter><BillsPage /></MemoryRouter>);
+
+  await screen.findByText("Old Co");
+  expect(screen.getByText("Overdue", { selector: "dt" }).nextSibling).toHaveTextContent("AED 250.00");
+  expect(screen.getByText("Owed on these bills").nextSibling).toHaveTextContent("AED 350.00");
+  const names = screen.getAllByText(/(Old|Later) Co/).map((e) => e.textContent);
+  expect(names).toEqual(["Old Co", "Later Co"]);
 });

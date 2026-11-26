@@ -15,7 +15,7 @@ import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedb
 import { BillDialog } from "./BillDialog";
 import { BillPayDialog } from "./BillPayDialog";
 import { ReceiptDialog } from "./ReceiptDialog";
-import { formatDay, formatMoney } from "./financeFormat";
+import { formatDay, formatMoney, todayInUae } from "./financeFormat";
 
 type Load = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; bills: FinBill[]; accounts: FinAccount[]; categories: FinCategory[]; payees: FinPayee[]; taxTypes: FinTaxType[] };
 type Reasoning = { title: string; label: string; confirm: string; run: (reason: string) => Promise<FinBill>; done: string };
@@ -156,7 +156,16 @@ export function BillsPage() {
   }, [refresh, search]);
 
   const ready = load.status === "ready" ? load : null;
-  const owed = (ready?.bills ?? []).filter((b) => b.status === "Open").reduce((sum, b) => sum + b.balance, 0);
+  const open = (ready?.bills ?? []).filter((b) => b.status === "Open");
+  const sum = (list: FinBill[]) => list.reduce((total, b) => total + b.balance, 0);
+  const today = todayInUae();
+  const inSevenDays = new Date(`${today}T00:00:00Z`);
+  inSevenDays.setUTCDate(inSevenDays.getUTCDate() + 7);
+  const owed = sum(open);
+  const overdue = sum(open.filter((b) => b.dueDate < today));
+  const soon = sum(open.filter((b) => b.dueDate >= today && b.dueDate <= inSevenDays.toISOString().slice(0, 10)));
+  // Bills are paid in the order they fall due, so that is how the unpaid list reads. Other lists keep the newest first.
+  const shown = filter === "unpaid" || filter === "overdue" ? [...(ready?.bills ?? [])].sort((a, b) => a.dueDate.localeCompare(b.dueDate)) : (ready?.bills ?? []);
   async function changeFiles(run: () => Promise<FinBill>, done: string) {
     setProblem(null);
     setMessage(null);
@@ -190,14 +199,20 @@ export function BillsPage() {
               </Select>
             </div>
             <div className="min-w-56 flex-1"><TextField label="Search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Supplier or number" autoComplete="off" /></div>
-            {filter === "unpaid" && <p className="pb-2 text-sm text-ink-700">Owed on these bills: <span className="font-semibold tabular-nums">AED {formatMoney(owed)}</span></p>}
           </div>
+          {filter === "unpaid" && ready.bills.length > 0 && (
+            <dl className="grid grid-cols-1 gap-3 border-t border-line bg-ink-50 px-5 py-3 text-sm sm:grid-cols-3">
+              <div><dt className="text-ink-600">Owed on these bills</dt><dd className="font-display text-lg font-bold tabular-nums text-ink-900">AED {formatMoney(owed)}</dd></div>
+              <div><dt className="text-ink-600">Overdue</dt><dd className={cx("font-display text-lg font-bold tabular-nums", overdue > 0 ? "text-danger" : "text-ink-400")}>AED {formatMoney(overdue)}</dd></div>
+              <div><dt className="text-ink-600">Due in the next 7 days</dt><dd className={cx("font-display text-lg font-bold tabular-nums", soon > 0 ? "text-ink-900" : "text-ink-400")}>AED {formatMoney(soon)}</dd></div>
+            </dl>
+          )}
           {ready.bills.length === 0 ? (
             <EmptyState icon={FileText} title={filter === "unpaid" ? "No unpaid bills" : "No bills here"} description={canEdit ? "Enter a bill when a supplier sends one, even before you pay it." : "A Manager enters the bills. They will appear here."}
               action={canEdit ? <Button icon={Plus} onClick={() => setEntering(true)}>Enter a bill</Button> : undefined} />
           ) : (
             <ul className="divide-y divide-line border-t border-line">
-              {ready.bills.map((b) => (
+              {shown.map((b) => (
                 <BillRow key={b.id} bill={b} canEdit={canEdit} onPay={() => setPaying(b)}
                   onOpenFile={(index) => setViewing({ bill: b, index })}
                   onAddFiles={(picked) => void changeFiles(() => uploadFinBillFiles(b.id, picked), `The supplier's invoice was attached to ${b.billNo}.`)}

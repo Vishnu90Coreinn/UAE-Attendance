@@ -136,10 +136,15 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
 
       <Dialog open={moreOpen} onClose={() => setMoreOpen(false)} title="More" variant="sheet">
         <ul className="mt-2 space-y-1">
-          {more.map((item) => {
+          {more.map((item, index) => {
             const Icon = ICONS[item.key] ?? Ellipsis;
+            // A heading where the finance screens begin, and where they end, so a long list is not one run of links.
+            const isFinance = item.key.startsWith("finance-");
+            const wasFinance = index > 0 && more[index - 1].key.startsWith("finance-");
+            const heading = isFinance && !wasFinance ? "Finance" : !isFinance && wasFinance ? "Other" : null;
             return (
               <li key={item.key}>
+                {heading && <p className="px-3 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-ink-500">{heading}</p>}
                 <NavLink
                   to={item.path!}
                   end={needsExactMatch([...tabs, ...more], item)}
