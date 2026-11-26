@@ -56,6 +56,13 @@ it("does not interpret an empty recovery percentage as fully blocked VAT", async
   expect(financeApi.createFinEntry).not.toHaveBeenCalled();
 });
 
+it("does not offer staff the VAT recovery percentage", async () => {
+  const user = userEvent.setup();
+  render(<EntryDialog kind="Expense" accounts={[account]} categories={categories} variant="center" onClose={vi.fn()} onSaved={vi.fn()} submit={{ payees: [], taxTypes }} />);
+  await user.selectOptions(await screen.findByLabelText("VAT type"), "1");
+  expect(screen.queryByLabelText("Recoverable VAT (%)")).not.toBeInTheDocument();
+});
+
 it("does not assume a VAT type: a category with no VAT setting asks, and saving without a choice is refused", async () => {
   const user = await open("105");
 

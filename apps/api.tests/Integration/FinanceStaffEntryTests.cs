@@ -203,6 +203,23 @@ public class FinanceStaffEntryTests(ReceiptsFixture api) : IClassFixture<Receipt
     }
 
     [Fact]
+    public async Task Staff_CannotSetTheVatRecoveryPercentage()
+    {
+        var manager = await ManagerAsync();
+        var (staff, _, account) = await StaffAsync(manager);
+        var form = Form(account);
+        form.Add(new StringContent("0"), "recoverableTaxPercent");
+
+        var (response, body) = await SubmitAsync(staff, form);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.True(body.GetProperty("errors").TryGetProperty("recoverableTaxPercent", out _));
+        var (saved, entry) = await SubmitAsync(staff, Form(account));
+        Assert.Equal(HttpStatusCode.Created, saved.StatusCode);
+        Assert.Equal(100m, entry.GetProperty("recoverableTaxPercent").GetDecimal());
+    }
+
+    [Fact]
     public async Task SwitchingTheFlagOff_TakesEffectAtOnce()
     {
         var manager = await ManagerAsync();

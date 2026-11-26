@@ -308,6 +308,8 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         var recovery = form.RecoverableTaxPercent;
         if (recovery < 0m || recovery > 100m || !FinanceCalculator.IsMoney(recovery)) errors["recoverableTaxPercent"] = ["Use a VAT recovery percentage from 0 to 100, with at most 2 decimals."];
         if (kind != FinEntryKinds.Expense && recovery != 100m) errors["recoverableTaxPercent"] = ["VAT recovery applies only to purchases."];
+        // How much VAT can be reclaimed is an accounting decision: a staff submission is saved in full, and a Manager corrects it if it is blocked.
+        if (pending && recovery != 100m) errors["recoverableTaxPercent"] = ["Only a Manager sets the VAT recovery percentage."];
         FinTaxType? taxType = null;
         if (!capital && !errors.ContainsKey("amount"))
         {

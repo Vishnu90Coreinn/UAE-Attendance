@@ -341,7 +341,7 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
                 </label>
               )}
             </div>
-            {!income && chosenTax && ["Standard", "ReverseCharge"].includes(chosenTax.treatment) && <TextField label="Recoverable VAT (%)" value={recovery} onChange={(e) => setRecovery(e.target.value)} inputMode="decimal" error={errors.recoverableTaxPercent} hint="100 for fully recoverable, 0 for blocked VAT. The non-recoverable portion is included in the cost." />}
+            {!income && !submitMode && chosenTax && ["Standard", "ReverseCharge"].includes(chosenTax.treatment) && <TextField label="Recoverable VAT (%)" value={recovery} onChange={(e) => setRecovery(e.target.value)} inputMode="decimal" error={errors.recoverableTaxPercent} hint="100 for fully recoverable, 0 for blocked VAT. The non-recoverable portion is included in the cost." />}
             {vatPreview && <p aria-live="polite" className="mt-3 text-sm text-ink-700">{vatPreview}</p>}
             {entry && <p className="mt-2 text-[13px] text-ink-600">The amount above is the total, VAT included.</p>}
           </fieldset>
