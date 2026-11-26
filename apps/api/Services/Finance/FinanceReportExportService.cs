@@ -83,7 +83,7 @@ public sealed class FinanceReportExportService(FinanceReportService reports, Sta
         csv.Add(["Summary", "VAT charged (output)", "", "", "", Plain(v.OutputVat)]);
         csv.Add(["Summary", "VAT reclaimable (input)", "", "", "", Plain(v.InputVat)]);
         csv.Add(["Summary", "Net VAT payable", "", "", "", Plain(v.NetPayable)]);
-        var notes = new List<string> { "Purchase rows show recoverable VAT; sales rows show output VAT. Confirm assigned tax dates and recovery eligibility before filing.", "Output VAT includes the VAT the company accounts for itself on reverse-charge purchases, Only the recoverable portion of purchase VAT is claimed. Blocked VAT is included in cost." };
+        var notes = new List<string> { "Purchase rows show recoverable VAT; sales rows show output VAT. Confirm assigned tax dates and recovery eligibility before filing.", "Output VAT includes the VAT the company accounts for itself on reverse-charge purchases. Only the recoverable part of purchase VAT is claimed; blocked VAT is included in the cost." };
         if (v.UnrecordedSales.Count + v.UnrecordedPurchases.Count > 0)
             notes.Add($"Not in this return: {v.UnrecordedSales.Count} sales (AED {Money(v.UnrecordedSales.Amount)}) and {v.UnrecordedPurchases.Count} purchases (AED {Money(v.UnrecordedPurchases.Amount)}) have no VAT type recorded.");
         var table = new StaffExportService.Table("VAT RETURN", $"{Day(v.From)} to {Day(v.To)}  |  AED", stem, [("TYPE", 3, false), ("RATE", 0.8, true), ("ENTRIES", 0.9, true), ("NET", 1.3, true), ("VAT", 1.3, true)], rows, notes.ToArray());

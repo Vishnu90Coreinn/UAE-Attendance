@@ -56,16 +56,19 @@ On the cut-over date (1 January 2027) the books in this app start from the closi
 
 Do this in a **test copy first** (section 5), then again in production. Order matters.
 
-0. **Check for invoices already issued in the app.** Open Tax Invoices. Every invoice that has been issued (test or real) posts its sale, VAT and receivable to the books on its **invoice date**, even when that is before the cut-over date, and would then be counted twice with the Daftra balances. Cancel any test invoices (the books reverse them) and make sure a real one is not also in the opening journal. Payments entered on an invoice before this version are marked "Not in the books"; they are not posted.
+0. **Check for invoices already issued in the app.** Open Tax Invoices. Every invoice that has been issued (test or real) posts its sale, VAT and receivable to the books on its **invoice date**, even when that is before the cut-over date, and would then be counted twice with the Daftra balances. Cancel any test invoices (the books reverse them) and make sure a real one is not also in the opening journal. Payments entered on an invoice before this version are marked "Not in the books": they were never added to an account, so the Books banner shows a difference on *Receivables* until each one is cleared:
+   - **A test invoice:** remove its payments, then cancel it.
+   - **A real payment received on or after the cut-over date:** remove it and record it again, choosing the account the money went into.
+   - **A real payment received before the cut-over date** (the money is already in the Daftra opening balance): leave it on the invoice. Books > Journals > New journal, **dated the invoice date**, for the amount paid: credit *Accounts receivable (1550)*; debit *Sales (4900)* for the part before VAT and *VAT payable (2200)* for the VAT in it. This takes out the sale that Daftra already holds. The accountant checks the split. Do this before that month is locked.
 1. **Accounts.** Finance > Accounts: one account per bank, cash and petty-cash. Opening balance = the **Daftra book balance** at the day before cut-over, opening date = the cut-over date.
 2. **Partners.** Opening capital for each partner, as at the same date.
 3. **Categories.** Settings > categories: check the expense and income categories match how the client works. Then Books > *Where records post*: point every category, account and partner at the ledger account the accountant chose. Do this **before** any month is locked: it is refused afterwards.
-4. **VAT defaults.** Settings > Expense and income categories: set the VAT type per category (decision 3).
+4. **VAT defaults and period.** Finance > Setup: set the VAT type per category (decision 3), and set the assigned VAT period as shown in EmaraTax, ticking that it has been checked.
 5. **Opening journal for everything with no screen.** Books > Journals > New journal, dated the **cut-over date**, one journal for the whole opening trial balance, using *Opening balance equity (3900)* as the balancing line:
    - VAT payable or recoverable (2200 or 1500), from item 6. It is paid or refunded later with the categories *VAT paid to tax authority* and *VAT refund from tax authority* (see `docs/finance-chart-of-accounts.md`).
    - Retained earnings brought forward (3800), from item 7.
    - Anything in item 8 (supplier balances, prepaid items, loans). The starting chart already has accounts for prepaid expenses, deposits, fixed assets, accrued expenses and wages and loans; see the crosswalk in `docs/finance-chart-of-accounts.md`. Prepaid items are spread afterwards with a monthly journal (Books > Monthly journals).
-   - **Do not** post to *Accounts receivable (1550)* or *Accounts payable (2300)* by hand: they must equal the unpaid invoices and unpaid bills in the app, and a safety check fails otherwise. Enter unpaid supplier bills under Finance > Bills instead (section 4).
+   - **Do not** post to *Accounts receivable (1550)* or *Accounts payable (2300)* by hand: they must equal the unpaid invoices and unpaid bills in the app, and a safety check fails otherwise (the one exception is clearing an old invoice payment, step 0). Enter unpaid supplier bills under Finance > Bills instead (section 4).
    - Bank, cash and partner capital are **not** in this journal; steps 1 and 2 already post them.
 6. **Check the opening position.** Books > Trial balance as at the cut-over date must agree with the Daftra trial balance, line by line. *Opening balance equity (3900)* should come to **zero**. If it does not, something is missing or entered twice: fix it before going on.
 7. **Cheques.** Finance > Cheques: enter each uncleared cheque from item 4. Leave them **not linked to an entry**: the expense was already in Daftra, and the opening bank balance is already net of it. They then track when the bank pays them and change nothing in the books. (The "bank statement" line on the account will show the book balance, not the statement, until they clear. That is expected.)
@@ -87,7 +90,7 @@ Do this in a **test copy first** (section 5), then again in production. Order ma
 
 ## 6. Releasing the code to production
 
-Run `dotnet ef migrations list --project apps/api` against production to see which migrations are pending. The finance ones run from `AddFinance` to `AddInvoiceReceivables`; the newest are `AddFinPayeesAndEntryLines`, `AddFinCheques`, `AddStaffExpenseEntry`, `AddFinCustodyAccounts`, `AddLedger`, `AddLedgerManualJournals`, `AddVatAndChequeBooks` and `AddInvoiceReceivables`. `AddVatAndChequeBooks` changes a database constraint on journals.
+Run `dotnet ef migrations list --project apps/api` against production to see which migrations are pending. The finance ones run from `AddFinance` onwards; the newest are `AddSupplierBills`, `AddRecurringJournals`, `AddBillAttachments`, `AddVatSettlementCategories`, `AddCategoryNoVatAndSystem`, `AddUserSecurityStamp` and `FinanceAccountantControls`. `AddVatAndChequeBooks` changes a database constraint on journals.
 
 1. **Back up first**: the SQL database **and** the receipts folder (`Finance__ReceiptsPath`). Check the backup file exists and is not empty.
 2. Merge PR 37 into `master`. CI runs the tests and the **Deploy to IIS** job copies the release, shows `app_offline.htm` meanwhile and checks `/api/health` (see `docs/DEPLOY.md` section 9).
@@ -130,4 +133,6 @@ Use the same month to try the routine jobs once: a VAT return download, an Excel
 - **Cut-over in the middle of a month**: avoid; the parallel month then straddles two months.
 - **Daftra bank balances**: use the **book** balance, not the statement, as the opening balance when cheques are outstanding.
 - **Locking too early** blocks fixing the opening position. Lock only after sign-off.
+- **A journal on a bank, cash, capital, receivables or payables account** turns the Books banner red. Record money as an entry, transfer or capital movement instead.
+- **Salary advances** stay as money owed by the employee until the accountant journals the deductions (see the chart of accounts, section 2).
 - **Receipts folder**: it is not in the database. A backup without it loses every receipt photo.

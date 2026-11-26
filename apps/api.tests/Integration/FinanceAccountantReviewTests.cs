@@ -67,6 +67,34 @@ public class FinanceAccountantReviewTests(ApiFixture api) : IClassFixture<ApiFix
     }
 
     [Fact]
+    public async Task APaymentMadeBeforeCutOver_IsClearedByTheJournalInTheRunbook()
+    {
+        var token = await ManagerAsync();
+        async Task<decimal> DifferenceAsync()
+        {
+            var row = (await GetAsync("/api/finance/ledger/check", token)).GetProperty("checks").EnumerateArray().Single(c => c.GetProperty("name").GetString() == "Receivables");
+            return row.GetProperty("ledger").GetDecimal() - row.GetProperty("screens").GetDecimal();
+        }
+        var before = await DifferenceAsync();
+        await using (var db = TestUsers.NewContext(api.ConnectionString))
+        {
+            var invoice = new Invoice { Number = "OLD-" + Guid.NewGuid().ToString("N")[..8], Status = "Issued", InvoiceDate = TestFinance.Today, DueDate = TestFinance.Today, ClientName = "Paid before cut-over", SubTotal = 100m, VatTotal = 5m, Total = 105m, IssuedUtc = DateTime.UtcNow, CreatedUtc = DateTime.UtcNow, UpdatedUtc = DateTime.UtcNow };
+            invoice.Payments.Add(new InvoicePayment { Amount = 105m, PaidDate = TestFinance.Today, Method = "Bank transfer", RecordedUtc = DateTime.UtcNow });
+            db.Invoices.Add(invoice);
+            await db.SaveChangesAsync();
+        }
+        Assert.Equal(before + 105m, await DifferenceAsync());
+
+        await using var read = TestUsers.NewContext(api.ConnectionString);
+        var ids = await read.LedgerAccounts.Where(a => a.Code == "1550" || a.Code == "4900" || a.Code == "2200").ToDictionaryAsync(a => a.Code, a => a.Id);
+        var posted = await api.PostAsync("/api/finance/ledger/journals", new { date = TestFinance.Today.ToString("yyyy-MM-dd"), description = "Invoice paid before cut-over", lines = new[] {
+            new { accountId = ids["4900"], debit = 100m, credit = 0m }, new { accountId = ids["2200"], debit = 5m, credit = 0m }, new { accountId = ids["1550"], debit = 0m, credit = 105m } } }, token);
+
+        Assert.Equal(HttpStatusCode.Created, posted.StatusCode);
+        Assert.Equal(before, await DifferenceAsync());
+    }
+
+    [Fact]
     public async Task DuplicateSupplierReference_IsProtectedAcrossConcurrentRequests()
     {
         var token = await ManagerAsync();

@@ -10,6 +10,7 @@ Accounts the app makes and keeps (their codes are fixed; the names can be change
 |---|---|---|---|
 | 1100 and up | One account per bank, cash or petty-cash account | Asset | Opening balance, income, expenses, transfers, capital. Made automatically, in order |
 | 1500 | VAT recoverable (input VAT) | Asset | VAT on purchases, expenses and supplier bills |
+| 1510 | Employee salary advances | Asset | "Salary Advance". Moved to salaries by journal when deducted from pay |
 | 1550 | Accounts receivable | Asset | Unpaid tax invoices. Cleared by payments recorded on the invoice |
 | 1600 | Cheques receivable | Asset | Cheques received that the bank has not yet paid in |
 | 1700 | Prepaid expenses | Asset | Paid in advance (annual insurance, rent). Spread with a monthly journal |
@@ -22,13 +23,13 @@ Accounts the app makes and keeps (their codes are fixed; the names can be change
 | 2400 | Accrued expenses | Liability | By manual or monthly journal |
 | 2450 | Accrued wages | Liability | By manual or monthly journal |
 | 2500 | Loans payable | Liability | By manual journal |
+| 2550 | Customer advances | Liability | Money received before the work is invoiced. By manual journal |
 | 3100 and up | One capital account per partner | Equity | Capital put in and paid back. Made automatically |
 | 3800 | Retained earnings | Equity | Year-end close moves each year's profit or loss here |
 | 3900 | Opening balance equity | Equity | The balancing line of the opening journal. Should be zero once the opening is entered |
 | 4100 | Other income | Revenue | The "Other income" category |
 | 4900 | Sales (tax invoices) | Revenue | Issued tax invoices, before VAT |
 | 5100 | Salaries and wages | Expense | "Monthly Salary" |
-| 5110 | Salary advances | Expense | "Salary Advance" |
 | 5200 | Worker accommodation rent | Expense | "Worker Accommodation Rent" |
 | 5210 | Worker transportation | Expense | "Worker Transportation" |
 | 5220 | Office rent | Expense | "Office Rent" |
@@ -46,13 +47,16 @@ A new category the client adds gets its own account automatically (the next free
 
 - **An expense or income entry.** Debit the category's account (or credit, for income) and credit or debit the bank or cash account. One line per split.
 - **VAT.** One input and one output account. The VAT return (Finance > VAT) splits by tax type: Standard, Zero Rated, Exempt, Reverse Charge, Intra GCC. **Reverse charge** is worked out at 5% and posted as a matching pair (recoverable and payable), so it costs no cash. Daftra's 0% only describes the cash paid. **Amendments** are made with a manual journal. **Excise** is not supported; it does not apply to this business.
+- **VAT recovery.** An expense or supplier bill with standard or reverse-charge VAT has a recovery percentage (100 unless changed). The part that cannot be reclaimed is added to the cost and left out of the VAT return's reclaimable figure.
 - **Paying VAT to the tax authority, and refunds.** Two ready-made categories: *VAT paid to tax authority* (an expense entry from the bank that debits VAT payable, 2200) and *VAT refund from tax authority* (an income entry that credits VAT recoverable, 1500). They carry no VAT of their own, are not a cost in the Books profit and loss, are not part of the VAT return, and are not offered to staff or on supplier bills. When a return is filed, the accountant nets the quarter with a manual journal (debit 2200, credit 1500 for the input VAT claimed), then the payment of the net amount is entered with *VAT paid to tax authority*. The VAT payable brought forward at 31 December 2026 is paid the same way in January. The finance screens (cash) show the payment as money out; only the Books know it is not a cost.
 - **Tax invoices.** Issuing one debits receivables and credits sales and output VAT. A payment recorded on the invoice (with the account it went into) debits the bank and credits receivables.
 - **Supplier bills.** Entering a bill debits the expense and input VAT and credits payables. Paying it debits payables and credits the bank. One payables account; the supplier is tracked on each bill with an aging report.
 - **Cheques.** A cheque linked to an expense sits in cheques payable (or receivable) until it clears, so the bank in the books matches the bank statement.
 - **Partners.** Capital put in and paid back posts to the partner's own equity account. Profit is not shared out by the app; the year-end close puts the whole result in retained earnings.
 - **Petty cash.** Each staff member's petty cash is its own asset account. Handing cash over is a transfer, so the company total does not change.
-- **Salary advances** are expensed when paid, as Daftra does. Recovering them through payroll is a later phase (payroll journals).
+- **Salary advances** are money the employee owes back, so paying one is not a cost: it goes to *Employee salary advances (1510)*. Payroll does not post to the books, so nothing clears it by itself. Each month, after payroll, the accountant posts a journal (Books > Journals > New journal) for the advances deducted from pay: debit *Salaries and wages (5100)*, credit *Employee salary advances (1510)*. The salary entry itself stays the amount actually paid. A fixed instalment can be a monthly journal instead (Books > Monthly journals). Until the journal is posted, the finance screens (cash) show the advance as money out while the Books profit and loss does not show it yet.
+- **Customer advances (2550)** is for money received before the work is invoiced. Nothing posts there by itself.
+- **Journals and the books check.** The Books banner compares each bank, cash and partner account, receivables and payables with the finance screens, journals posted by hand included. A manual or monthly journal that touches one of those accounts turns the banner red: record the money as an entry, transfer or capital movement instead. The one planned exception is clearing an old invoice payment (see the cut-over runbook, section 3).
 - **Prepaid and spread items, depreciation, accruals.** Use **Books > Monthly journals**: set up the debit and credit once, with a day of the month and a first and last month, then press **Post due months** each month. Nothing posts in the background, and a locked month is left and reported. Example: AED 12,000 of insurance paid in January: pay it as an expense to *Prepaid expenses (1700)* using a category pointed there, then a monthly journal debits *Insurance (5310)* and credits *Prepaid expenses (1700)* for AED 1,000 from January to December.
 - **Year end.** Books > Year end closes each finished year (31 December): locks the months and moves the result to retained earnings.
 
