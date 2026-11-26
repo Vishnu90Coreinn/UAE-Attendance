@@ -392,7 +392,7 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
         {general && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{general}</p>}
         {savedNote && <p role="status" className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">{savedNote}</p>}
         {/* Stays at the foot of the dialog while the form scrolls, so Save is never out of sight. */}
-        <div className={cx("sticky z-10 flex flex-col-reverse gap-2 border-t border-line bg-white py-3 sm:flex-row sm:justify-end", variant === "sheet" ? "-bottom-5 -mx-5 px-5" : "-bottom-6 -mx-6 px-6")}>
+        <div className={cx("sticky z-10 flex flex-wrap justify-end gap-2 border-t border-line bg-white py-3", variant === "sheet" ? "-bottom-5 -mx-5 px-5" : "-bottom-6 -mx-6 px-6")}>
           <Button variant="secondary" onClick={onClose} disabled={pending}>{savedNote ? "Done" : "Cancel"}</Button>
           {onSavedAndContinue && !entry && !submitMode && (
             <Button variant="secondary" type="submit" disabled={pending} onClick={() => { again.current = true; }}>Save and add another</Button>
