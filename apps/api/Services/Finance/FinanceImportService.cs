@@ -3,6 +3,7 @@ using ClosedXML.Excel;
 using HrPayroll.Api.Data;
 using HrPayroll.Api.Data.Entities;
 using HrPayroll.Api.Dtos;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -16,11 +17,13 @@ public sealed class FinanceImportService(AppDbContext db, IAuditLogger audit, IH
 {
     public const int MaxRows = 1000;
     public const long MaxBytes = 5 * 1024 * 1024;
-    private const string Source = "Excel import";
+    private const string LegacySource = "Excel import";
+
+    private static string SourceFor(string kind) => kind == FinEntryKinds.Income ? "Excel income" : "Excel expenses";
 
     private static readonly string[] DateFormats = ["yyyy-MM-dd", "dd/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy", "d-M-yyyy", "dd.MM.yyyy", "d MMM yyyy", "dd MMM yyyy"];
 
-    private static string[] Headers(string kind) => ["Date", kind == FinEntryKinds.Income ? "Received from" : "Paid to", "Category", "Account", "Amount", "Reference", "Notes"];
+    private static string[] Headers(string kind) => ["Date", kind == FinEntryKinds.Income ? "Received from" : "Paid to", "Category", "Account", "Amount", "Reference", "Notes", "Source ID", "VAT treatment"];
 
     /// <summary>An empty sheet with the right columns and one example row, so the person filling it in sees what is expected.</summary>
     public static byte[] Template(string kind)
@@ -41,6 +44,8 @@ public sealed class FinanceImportService(AppDbContext db, IAuditLogger audit, IH
         sheet.Cell(2, 5).Value = 12000;
         sheet.Cell(2, 6).Value = "Cheque 000004";
         sheet.Cell(2, 7).Value = "Example row: delete it before importing";
+        sheet.Cell(2, 8).Value = "EXAMPLE-000004";
+        sheet.Cell(2, 9).Value = "No VAT";
         sheet.Columns().AdjustToContents();
         using var stream = new MemoryStream();
         book.SaveAs(stream);
@@ -82,8 +87,9 @@ public sealed class FinanceImportService(AppDbContext db, IAuditLogger audit, IH
             var columns = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var cell in headerRow.CellsUsed()) columns.TryAdd(cell.GetString().Trim(), cell.Address.ColumnNumber);
             var partyHeader = Headers(kind)[1];
-            var missing = new[] { "Date", partyHeader, "Category", "Account", "Amount" }.Where(h => !columns.ContainsKey(h)).ToList();
-            if (missing.Count > 0) return FinResult<FinImportResult>.Invalid("file", $"The first row must have these headings: {string.Join(", ", Headers(kind)[..5])}. Missing: {string.Join(", ", missing)}.");
+            var required = new[] { "Date", partyHeader, "Category", "Account", "Amount", "Source ID", "VAT treatment" };
+            var missing = required.Where(h => !columns.ContainsKey(h)).ToList();
+            if (missing.Count > 0) return FinResult<FinImportResult>.Invalid("file", $"The first row must have these headings: {string.Join(", ", required)}. Missing: {string.Join(", ", missing)}.");
 
             var dataRows = sheet.RowsUsed().Where(r => r.RowNumber() > headerRow.RowNumber()).ToList();
             if (dataRows.Count == 0) return FinResult<FinImportResult>.Invalid("file", "The file has no rows under the headings.");
@@ -95,7 +101,7 @@ public sealed class FinanceImportService(AppDbContext db, IAuditLogger audit, IH
             var lockedCache = new Dictionary<(int, int), string?>();
 
             string? Cell(IXLRow r, string heading) => columns.TryGetValue(heading, out var c) ? Text(r.Cell(c)) : null;
-            var parsed = new List<(IXLRow Row, DateOnly? Date, string? Party, FinCategory? Category, FinAccount? Account, decimal? Amount, string? Reference, string? Notes, List<string> Problems)>();
+            var parsed = new List<(IXLRow Row, DateOnly? Date, string? Party, FinCategory? Category, FinAccount? Account, decimal? Amount, string? Reference, string? Notes, string? SourceId, List<string> Problems)>();
             foreach (var row in dataRows)
             {
                 var problems = new List<string>();
@@ -138,24 +144,31 @@ public sealed class FinanceImportService(AppDbContext db, IAuditLogger audit, IH
                     if (locked is not null) problems.Add(locked);
                 }
 
-                parsed.Add((row, date, party, category, account, amount, reference, notes, problems));
+                var sourceId = Cell(row, "Source ID")?.ToUpperInvariant();
+                if (sourceId is null || sourceId.Length > 40)
+                    problems.Add("Enter the original transaction ID (up to 40 characters).");
+                if (!string.Equals(Cell(row, "VAT treatment"), "No VAT", StringComparison.OrdinalIgnoreCase))
+                    problems.Add("Enter No VAT only for a transaction with no reportable VAT. Record all other transactions with their VAT through the normal entry form.");
+
+                parsed.Add((row, date, party, category, account, amount, reference, notes, sourceId, problems));
             }
 
-            // A row already recorded (same day, account, amount and name) is skipped, so running the same file twice adds nothing twice.
-            var dates = parsed.Where(p => p.Date is not null).Select(p => p.Date!.Value).ToList();
-            var existing = new HashSet<(DateOnly, int, decimal, string)>();
-            if (dates.Count > 0)
-            {
-                var from = dates.Min();
-                var to = dates.Max();
-                var rows = await db.FinEntries.AsNoTracking().Where(e => e.Kind == kind && e.Status != FinStatuses.Voided && e.EntryDate >= from && e.EntryDate <= to)
-                    .Select(e => new { e.EntryDate, e.AccountId, e.Amount, e.Party }).ToListAsync(ct);
-                foreach (var r in rows) existing.Add((r.EntryDate, r.AccountId, r.Amount, r.Party.ToLowerInvariant()));
-            }
+            var source = SourceFor(kind);
+            var sourceIds = parsed.Where(p => p.SourceId is not null).Select(p => p.SourceId!).Distinct().ToArray();
+            var imported = (await db.FinEntries.AsNoTracking().Where(e => e.ExternalSource == source && e.ExternalId != null && sourceIds.Contains(e.ExternalId))
+                .ToListAsync(ct)).ToDictionary(e => e.ExternalId!, StringComparer.OrdinalIgnoreCase);
+            // Old imports have generated IDs. Surface possible matches for reconciliation rather than guessing they are duplicates.
+            var minDate = parsed.Min(p => p.Date);
+            var maxDate = parsed.Max(p => p.Date);
+            var legacy = minDate.HasValue && maxDate.HasValue
+                ? await db.FinEntries.AsNoTracking().Where(e => e.ExternalSource == LegacySource && e.Kind == kind &&
+                    e.Status != FinStatuses.Voided && e.EntryDate >= minDate.Value && e.EntryDate <= maxDate.Value).ToListAsync(ct)
+                : [];
+            var legacyKeys = legacy.Select(e => (e.EntryDate, e.AccountId, e.Amount, e.Party.ToUpperInvariant())).ToHashSet();
 
-            var seen = new HashSet<(DateOnly, int, decimal, string)>();
+            var seen = new Dictionary<string, (DateOnly Date, string Party, int Category, int Account, decimal Amount, string Reference, string Notes)>(StringComparer.OrdinalIgnoreCase);
             var result = new List<FinImportRow>();
-            var ready = new List<(DateOnly Date, string Party, FinCategory Category, FinAccount Account, decimal Amount, string? Reference, string? Notes, int Row)>();
+            var ready = new List<(DateOnly Date, string Party, FinCategory Category, FinAccount Account, decimal Amount, string? Reference, string? Notes, string SourceId)>();
             foreach (var p in parsed)
             {
                 var status = "Ready";
@@ -163,10 +176,29 @@ public sealed class FinanceImportService(AppDbContext db, IAuditLogger audit, IH
                 if (problems.Count > 0) status = "Error";
                 else
                 {
-                    var key = (p.Date!.Value, p.Account!.Id, p.Amount!.Value, p.Party!.ToLowerInvariant());
-                    if (existing.Contains(key)) { status = "Duplicate"; problems = ["Already recorded: same day, account, amount and name. It is skipped."]; }
-                    else if (!seen.Add(key)) { status = "Duplicate"; problems = ["The same row appears twice in this file. Only the first is imported."]; }
-                    else ready.Add((p.Date.Value, p.Party, p.Category!, p.Account, p.Amount.Value, p.Reference, p.Notes, p.Row.RowNumber()));
+                    var sourceId = p.SourceId!;
+                    var row = (p.Date!.Value, p.Party!.ToUpperInvariant(), p.Category!.Id, p.Account!.Id, p.Amount!.Value, p.Reference ?? "", p.Notes ?? "");
+                    if (imported.TryGetValue(sourceId, out var prior))
+                    {
+                        var priorRow = (prior.EntryDate, prior.Party.ToUpperInvariant(), prior.CategoryId, prior.AccountId, prior.Amount, prior.Reference ?? "", prior.Notes ?? "");
+                        if (row == priorRow) { status = "Duplicate"; problems = ["This source ID has already been imported."]; }
+                        else { status = "Error"; problems = ["This source ID was imported with different details. Reconcile the entry before importing."]; }
+                    }
+                    else if (legacyKeys.Contains((row.Item1, row.Item4, row.Item5, row.Item2)))
+                    {
+                        status = "Error";
+                        problems = ["This may match an older import without a source ID. Reconcile it against the existing books before importing."];
+                    }
+                    else if (seen.TryGetValue(sourceId, out var earlier))
+                    {
+                        status = earlier == row ? "Duplicate" : "Error";
+                        problems = [earlier == row ? "This source ID repeats the same transaction in this file." : "This source ID appears on different transactions in this file."];
+                    }
+                    else
+                    {
+                        seen.Add(sourceId, row);
+                        ready.Add((p.Date.Value, p.Party, p.Category, p.Account, p.Amount.Value, p.Reference, p.Notes, sourceId));
+                    }
                 }
 
                 result.Add(new FinImportRow(
@@ -193,7 +225,7 @@ public sealed class FinanceImportService(AppDbContext db, IAuditLogger audit, IH
                 var entry = new FinEntry
                 {
                     Kind = kind, EntryNo = prefix + number.ToString("000000"), EntryDate = r.Date, CategoryId = r.Category.Id, Party = r.Party, AccountId = r.Account.Id,
-                    Amount = r.Amount, Reference = r.Reference, Notes = r.Notes, CreatedBy = actor, CreatedUtc = now, ExternalSource = Source, ExternalId = $"{batch}-{r.Row}",
+                    Amount = r.Amount, Reference = r.Reference, Notes = r.Notes, CreatedBy = actor, CreatedUtc = now, ExternalSource = source, ExternalId = r.SourceId,
                 };
                 entry.Lines.Add(new FinEntryLine { CategoryId = r.Category.Id, Amount = r.Amount });
                 db.FinEntries.Add(entry);
@@ -201,8 +233,15 @@ public sealed class FinanceImportService(AppDbContext db, IAuditLogger audit, IH
 
             audit.Write("FinImportCompleted", entityType: nameof(FinEntry), entityId: batch,
                 details: new { kind, imported = ready.Count, skippedDuplicates = summary.Duplicates, total = summary.ReadyTotal });
-            await db.SaveChangesAsync(ct);
-            await transaction.CommitAsync(ct);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 })
+            {
+                return FinResult<FinImportResult>.Conflict("Another import saved one of these source IDs. Preview the file again. Nothing from this attempt was imported.");
+            }
             return FinResult<FinImportResult>.Ok(summary with { Imported = ready.Count });
         }
     }

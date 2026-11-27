@@ -51,6 +51,18 @@ it("shows the trial balance grouped by type, with equal totals", async () => {
   expect(screen.queryByText(/does not balance/)).not.toBeInTheDocument();
 });
 
+it("refreshes the books without posting and only syncs on the explicit action", async () => {
+  const user = userEvent.setup();
+  vi.mocked(financeApi.syncLedger).mockResolvedValue({ posted: 1, reversed: 0 });
+  render(<BooksPage />);
+
+  await user.click(await screen.findByRole("button", { name: "Check again" }));
+  expect(financeApi.syncLedger).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Sync books" }));
+  expect(await screen.findByText("Books synchronized. Posted 1 and reversed 0 journals.")).toBeInTheDocument();
+  expect(financeApi.syncLedger).toHaveBeenCalledTimes(1);
+});
+
 it("says exactly where the books and the screens disagree", async () => {
   vi.mocked(financeApi.getLedgerCheck).mockResolvedValue({ ...agree, allAgree: false, checks: [{ name: "Account balance", subject: "Main cash", ledger: 100, screens: 90, agrees: false }] });
   render(<BooksPage />);
@@ -112,6 +124,7 @@ it("offers the Partner no way to post, reverse, edit or remap", async () => {
   vi.mocked(financeApi.listJournals).mockResolvedValue({ items: [], count: 0, truncated: false });
   const user = userEvent.setup();
   render(<BooksPage />);
+  expect(screen.queryByRole("button", { name: "Sync books" })).not.toBeInTheDocument();
 
   await user.click(await screen.findByRole("tab", { name: "Records" }));
   await user.click(await screen.findByRole("tab", { name: "Journals" }));

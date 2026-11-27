@@ -156,14 +156,14 @@ public class FinanceEndToEndScenarioTests(ReceiptsFixture api) : IClassFixture<R
         using (var wb = new XLWorkbook())
         {
             var sheet = wb.Worksheets.Add("Expenses");
-            string[] headers = ["Date", "Paid to", "Category", "Account", "Amount", "Reference"];
+            string[] headers = ["Date", "Paid to", "Category", "Account", "Amount", "Reference", "Source ID", "VAT treatment"];
             for (var c = 0; c < headers.Length; c++) sheet.Cell(1, c + 1).Value = headers[c];
             var accountName = (await SendAsync(HttpMethod.Get, "/api/finance/accounts", manager)).Body.EnumerateArray().Single(a => a.GetProperty("id").GetInt32() == rak).GetProperty("name").GetString()!;
             object[][] rows =
             [
-                [Today.AddDays(-45).ToString("dd/MM/yyyy"), "Taxi Al-Nahda to Al-Quoz", "Worker Transportation", accountName, 270m, "1545"],
-                [Today.AddDays(-44).ToString("dd/MM/yyyy"), "Finger Print Priority", "Government-related procedures for workers", accountName, 1560m, "504622"],
-                [Today.AddDays(-43).ToString("dd/MM/yyyy"), "Employment dinner", "Company expenses", accountName, 187m, "17630"],
+                [Today.AddDays(-45).ToString("dd/MM/yyyy"), "Taxi Al-Nahda to Al-Quoz", "Worker Transportation", accountName, 270m, "1545", "EXP-1545", "No VAT"],
+                [Today.AddDays(-44).ToString("dd/MM/yyyy"), "Finger Print Priority", "Government-related procedures for workers", accountName, 1560m, "504622", "EXP-504622", "No VAT"],
+                [Today.AddDays(-43).ToString("dd/MM/yyyy"), "Employment dinner", "Company expenses", accountName, 187m, "17630", "EXP-17630", "No VAT"],
             ];
             for (var r = 0; r < rows.Length; r++)
                 for (var c = 0; c < rows[r].Length; c++) sheet.Cell(r + 2, c + 1).Value = XLCellValue.FromObject(rows[r][c]);

@@ -24,6 +24,7 @@ public class FinanceAccountantReviewTests(ApiFixture api) : IClassFixture<ApiFix
         var token = await ManagerAsync();
         var bank = await TestFinance.AddAccountAsync(api.ConnectionString, opening: 1000m);
         await TestFinance.AddEntryAsync(api.ConnectionString, bank.Id, "Expense", 200m);
+        (await api.PostAsync("/api/finance/ledger/sync", new { }, token)).EnsureSuccessStatusCode();
         var trial = await GetAsync("/api/finance/ledger/trial-balance", token);
         var row = trial.GetProperty("accounts").EnumerateArray().Single(a => a.GetProperty("name").GetString() == bank.Name);
         Assert.Equal(800m, row.GetProperty("debit").GetDecimal());
@@ -36,7 +37,7 @@ public class FinanceAccountantReviewTests(ApiFixture api) : IClassFixture<ApiFix
     {
         var token = await ManagerAsync();
         var bank = await TestFinance.AddAccountAsync(api.ConnectionString, opening: 1000m);
-        await GetAsync("/api/finance/ledger/accounts", token);
+        (await api.PostAsync("/api/finance/ledger/sync", new { }, token)).EnsureSuccessStatusCode();
         await using var db = TestUsers.NewContext(api.ConnectionString);
         var ledgerId = (await db.FinAccounts.SingleAsync(a => a.Id == bank.Id)).LedgerAccountId!.Value;
         var expenseId = await db.LedgerAccounts.Where(a => a.Code == "5600").Select(a => a.Id).SingleAsync();
@@ -60,6 +61,7 @@ public class FinanceAccountantReviewTests(ApiFixture api) : IClassFixture<ApiFix
             db.Invoices.Add(invoice);
             await db.SaveChangesAsync();
         }
+        (await api.PostAsync("/api/finance/ledger/sync", new { }, token)).EnsureSuccessStatusCode();
         var check = await GetAsync("/api/finance/ledger/check", token);
         var receivables = check.GetProperty("checks").EnumerateArray().Single(c => c.GetProperty("name").GetString() == "Receivables");
         Assert.False(receivables.GetProperty("agrees").GetBoolean());
@@ -83,6 +85,7 @@ public class FinanceAccountantReviewTests(ApiFixture api) : IClassFixture<ApiFix
             db.Invoices.Add(invoice);
             await db.SaveChangesAsync();
         }
+        (await api.PostAsync("/api/finance/ledger/sync", new { }, token)).EnsureSuccessStatusCode();
         Assert.Equal(before + 105m, await DifferenceAsync());
 
         await using var read = TestUsers.NewContext(api.ConnectionString);
@@ -135,7 +138,7 @@ public class FinanceAccountantReviewTests(ApiFixture api) : IClassFixture<ApiFix
             db.FinCategories.Add(new FinCategory { Name = "Monthly Salary", Kind = "Income" });
             await db.SaveChangesAsync();
         }
-        await GetAsync("/api/finance/ledger/accounts", token);
+        (await api.PostAsync("/api/finance/ledger/sync", new { }, token)).EnsureSuccessStatusCode();
         await using var check = TestUsers.NewContext(api.ConnectionString);
         var advance = await check.FinCategories.SingleAsync(c => c.Name == "Salary Advance" && c.Kind == "Expense");
         var income = await check.FinCategories.SingleAsync(c => c.Name == "Monthly Salary" && c.Kind == "Income");

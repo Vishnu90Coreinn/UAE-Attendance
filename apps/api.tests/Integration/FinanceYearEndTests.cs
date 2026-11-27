@@ -38,6 +38,7 @@ public class FinanceYearEndTests(ApiFixture api) : IClassFixture<ApiFixture>
         await TestFinance.AddEntryAsync(api.ConnectionString, account.Id, "Expense", 12_000m, new DateOnly(2024, 6, 1), categoryId: 5);
         await TestFinance.AddEntryAsync(api.ConnectionString, account.Id, "Income", 20_000m, new DateOnly(2025, 3, 10));
         await TestFinance.AddEntryAsync(api.ConnectionString, account.Id, "Expense", 5_000m, new DateOnly(2025, 12, 30), categoryId: 5);
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Post, "/api/finance/ledger/sync", manager)).Status);
 
         var years = (await SendAsync(HttpMethod.Get, "/api/finance/ledger/years", manager)).Body;
         Assert.Equal(18_000m, Year(years, 2024).GetProperty("netResult").GetDecimal());
@@ -109,6 +110,7 @@ public class FinanceYearEndPendingTests(ApiFixture api) : IClassFixture<ApiFixtu
         await TestFinance.AddEntryAsync(api.ConnectionString, account.Id, "Expense", 100m, new DateOnly(2023, 2, 1), status: FinStatuses.Pending, categoryId: 5);
         await TestFinance.AddEntryAsync(api.ConnectionString, account.Id, "Expense", 100m, new DateOnly(2023, 3, 1), categoryId: 5);
 
+        Assert.Equal(HttpStatusCode.OK, (await Send(HttpMethod.Post, "/api/finance/ledger/sync", manager)).Status);
         var years = (await Send(HttpMethod.Get, "/api/finance/ledger/years", manager)).Body;
         Assert.Contains("wait for approval", years.EnumerateArray().Single(y => y.GetProperty("year").GetInt32() == 2023).GetProperty("blocker").GetString());
         Assert.Equal(HttpStatusCode.Conflict, (await Send(HttpMethod.Post, "/api/finance/ledger/years/2023/close", manager)).Status);
@@ -144,6 +146,7 @@ public class FinanceYearEndEmptyYearTests(ApiFixture api) : IClassFixture<ApiFix
             return (response.StatusCode, string.IsNullOrWhiteSpace(text) ? default : JsonDocument.Parse(text).RootElement);
         }
 
+        Assert.Equal(HttpStatusCode.OK, (await Send(HttpMethod.Post, "/api/finance/ledger/sync")).Status);
         var years = (await Send(HttpMethod.Get, "/api/finance/ledger/years")).Body;
         var y2020 = years.EnumerateArray().Single(y => y.GetProperty("year").GetInt32() == 2020);
         Assert.True(y2020.GetProperty("canClose").GetBoolean());                     // 2019 has only the opening balance, so nothing stands in the way

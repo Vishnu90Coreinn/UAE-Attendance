@@ -170,6 +170,7 @@ public class FinanceLedgerTests(ApiFixture api) : IClassFixture<ApiFixture>
         await TestFinance.AddEntryAsync(api.ConnectionString, bank.Id, "Expense", 123.45m);
         await TestFinance.AddEntryAsync(api.ConnectionString, bank.Id, "Income", 999m);
         await TestFinance.AddCapitalAsync(api.ConnectionString, bank.Id, partner.Id, 2_000m);
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Post, "/api/finance/ledger/sync", token)).Status);
 
         var check = (await SendAsync(HttpMethod.Get, "/api/finance/ledger/check", token)).Body;
 

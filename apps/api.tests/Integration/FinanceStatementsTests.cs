@@ -43,6 +43,9 @@ public class FinanceStatementsTests(ApiFixture api) : IClassFixture<ApiFixture>
             await TestFinance.AddEntryAsync(c, account.Id, "Expense", 250m, new DateOnly(2009, 4, 2), categoryId: 1);   // outside March
             await TestFinance.AddCapitalAsync(c, account.Id, partner.Id, 20_000m, new DateOnly(2009, 3, 1));
             await TestFinance.AddCapitalAsync(c, account.Id, partner.Id, 2_000m, new DateOnly(2009, 3, 31), "CapitalOut");
+            using var sync = new HttpRequestMessage(HttpMethod.Post, "/api/finance/ledger/sync");
+            sync.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await TokenAsync());
+            (await api.Client.SendAsync(sync)).EnsureSuccessStatusCode();
             Seeded[api.ConnectionString] = account.Id;
             return account.Id;
         }

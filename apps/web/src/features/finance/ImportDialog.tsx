@@ -69,7 +69,10 @@ export function ImportDialog({ kind, variant, onClose, onImported }: ImportDialo
     <Dialog open title={`Import ${noun}s from Excel`} onClose={pending ? () => {} : onClose} variant={variant} size="wide">
       <div className="mt-3 space-y-4">
         <p className="text-sm text-ink-700">
-          One row per {noun}. The first row must have the headings <span className="font-medium">Date, {income ? "Received from" : "Paid to"}, Category, Account, Amount</span>, and may have Reference and Notes. Categories and accounts must already exist with the same names. Imported rows have no receipt.
+          One row per {noun}. Use the template and keep the original transaction number in <strong>Source ID</strong> so retries can recognise it. Categories and accounts must already exist with the same names. Imported rows have no receipt.
+        </p>
+        <p className="text-sm text-ink-700">
+          This workbook accepts transactions with no reportable VAT. Enter <strong>No VAT</strong> in the VAT treatment column. Use the regular entry form for transactions that require VAT reporting.
         </p>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" icon={Download} onClick={() => void template()}>Download the template</Button>

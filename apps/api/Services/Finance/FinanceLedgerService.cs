@@ -9,8 +9,7 @@ namespace HrPayroll.Api.Services.Finance;
 
 /// <summary>
 /// The double-entry ledger, derived from the finance records. <see cref="SyncAsync"/> makes the journals match the records: it posts what is
-/// new, reverses what was voided, and re-posts an opening balance that changed. It is idempotent, so it is safe to run after every write and
-/// before every read. Journals are never edited or deleted (except by <see cref="RebuildAsync"/>, which exists only before the books go live).
+/// new, reverses what was voided, and re-posts an opening balance that changed. It is idempotent and runs at startup, after source changes and on explicit request. Journals are never edited or deleted (except by <see cref="RebuildAsync"/>, which exists only before the books go live).
 /// </summary>
 public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccountService accounts, FinancePartnerService partners, TimeProvider time, IAuditLogger audit, IHttpContextAccessor http, FinancePeriodService periods)
 {
@@ -448,7 +447,6 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
 
     public async Task<List<LedgerAccountResponse>> ChartAsync(DateOnly? asOf, CancellationToken ct)
     {
-        await SyncAsync(ct);
         var totals = await TotalsAsync(asOf, null, ct);
         var accountsList = await db.LedgerAccounts.AsNoTracking().OrderBy(a => a.Code).ToListAsync(ct);
         return accountsList.Select(a => { totals.TryGetValue(a.Id, out var t); return new LedgerAccountResponse(a.Id, a.Code, a.Name, a.Type, a.IsActive, a.IsSystem, t?.Debit ?? 0m, t?.Credit ?? 0m, Balance(a.Type, t?.Debit ?? 0m, t?.Credit ?? 0m)); }).ToList();
@@ -466,7 +464,6 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
 
     public async Task<FinResult<LedgerAccountStatement>> StatementAsync(int accountId, string? from, string? to, CancellationToken ct)
     {
-        await SyncAsync(ct);
         var account = await db.LedgerAccounts.AsNoTracking().SingleOrDefaultAsync(a => a.Id == accountId, ct);
         if (account is null) return FinResult<LedgerAccountStatement>.NotFound("The account was not found.");
         var today = FinanceRules.Today(time);
@@ -496,7 +493,6 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
 
     public async Task<JournalList> JournalsAsync(string? from, string? to, string? source, int? sourceId, CancellationToken ct)
     {
-        await SyncAsync(ct);
         var query = db.Journals.AsNoTracking().Include(j => j.Lines).ThenInclude(l => l.LedgerAccount).AsQueryable();
         if (FinanceRules.TryParseDate(from, out var f)) query = query.Where(j => j.Date >= f);
         if (FinanceRules.TryParseDate(to, out var t)) query = query.Where(j => j.Date <= t);
@@ -516,7 +512,6 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
     /// <summary>The ledger must say what the finance screens say. Run after every change to posting, and available to the accountant as a report.</summary>
     public async Task<LedgerCheckResult> CheckAsync(CancellationToken ct)
     {
-        await SyncAsync(ct);
         var totals = await TotalsAsync(null, null, ct);   // include manual adjustments: a control account must reconcile to the complete books
         var checks = new List<LedgerCheck>();
         var finAccounts = await db.FinAccounts.AsNoTracking().ToDictionaryAsync(a => a.Id, ct);
@@ -524,33 +519,44 @@ public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccount
 
         foreach (var screen in await accounts.ListAsync(true, ct))
         {
-            var mapped = finAccounts[screen.Id].LedgerAccountId!.Value;
+            if (finAccounts.GetValueOrDefault(screen.Id)?.LedgerAccountId is not { } mapped || !types.ContainsKey(mapped))
+            {
+                checks.Add(new("Account mapping", screen.Name, 0m, screen.BankBalance, false));
+                continue;
+            }
             totals.TryGetValue(mapped, out var t);
             var ledger = Balance(types[mapped], t?.Debit ?? 0m, t?.Credit ?? 0m);
             checks.Add(new("Account balance", screen.Name, ledger, screen.BankBalance, ledger == screen.BankBalance));   // the bank, with cheques still to clear taken out of the books
         }
 
-        var partnerAccounts = await db.FinPartners.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.LedgerAccountId!.Value, ct);
+        var partnerAccounts = await db.FinPartners.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.LedgerAccountId, ct);
         foreach (var p in (await partners.ListAsync(ct)).Partners)
         {
-            totals.TryGetValue(partnerAccounts[p.Id], out var t);
+            if (partnerAccounts.GetValueOrDefault(p.Id) is not { } mapped)
+            {
+                checks.Add(new("Partner mapping", p.Name, 0m, p.NetCapital, false));
+                continue;
+            }
+            totals.TryGetValue(mapped, out var t);
             var ledger = Balance(LedgerTypes.Equity, t?.Debit ?? 0m, t?.Credit ?? 0m);
             checks.Add(new("Partner capital", p.Name, ledger, p.NetCapital, ledger == p.NetCapital));
         }
 
-        var receivableId = (await SystemAsync(ct))[ReceivablesCode].Id;
+        var controls = await db.LedgerAccounts.AsNoTracking().Where(a => a.IsSystem && (a.Code == ReceivablesCode || a.Code == PayablesCode))
+            .ToDictionaryAsync(a => a.Code, a => a.Id, ct);
+        var receivableId = controls.GetValueOrDefault(ReceivablesCode);
         totals.TryGetValue(receivableId, out var rt);
         var ledgerOwed = rt is null ? 0m : rt.Debit - rt.Credit;
         var invoices = await db.Invoices.AsNoTracking().Where(i => i.Status == InvoiceStatuses.Issued).Select(i => new { i.Total, Paid = i.Payments.Sum(p => p.Amount) }).ToListAsync(ct);
         var owed = invoices.Sum(i => i.Total - i.Paid);
-        checks.Add(new("Receivables", "Unpaid tax invoices", ledgerOwed, owed, ledgerOwed == owed));
+        checks.Add(new("Receivables", "Unpaid tax invoices", ledgerOwed, owed, receivableId != 0 && ledgerOwed == owed));
 
-        var payableId = (await SystemAsync(ct))[PayablesCode].Id;
+        var payableId = controls.GetValueOrDefault(PayablesCode);
         totals.TryGetValue(payableId, out var pt);
         var ledgerDue = pt is null ? 0m : pt.Credit - pt.Debit;
         var openBills = await db.FinBills.AsNoTracking().Where(b => b.Status == FinBillStatuses.Open).Select(b => new { b.Total, Paid = db.FinEntries.Where(e => e.BillId == b.Id && e.Status == FinStatuses.Active).Sum(e => (decimal?)e.Amount) ?? 0m }).ToListAsync(ct);
         var due = openBills.Sum(b => b.Total - b.Paid);
-        checks.Add(new("Payables", "Unpaid supplier bills", ledgerDue, due, ledgerDue == due));
+        checks.Add(new("Payables", "Unpaid supplier bills", ledgerDue, due, payableId != 0 && ledgerDue == due));
 
         var journalSums = await db.JournalLines.AsNoTracking().GroupBy(l => l.JournalId).Select(g => new { g.Key, Debit = g.Sum(l => l.Debit), Credit = g.Sum(l => l.Credit) }).ToListAsync(ct);
         var unbalanced = journalSums.Count(j => j.Debit != j.Credit);

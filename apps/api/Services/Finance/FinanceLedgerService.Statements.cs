@@ -25,7 +25,6 @@ public sealed partial class FinanceLedgerService
 
     public async Task<FinResult<ProfitAndLoss>> ProfitAndLossAsync(string? from, string? to, CancellationToken ct)
     {
-        await SyncAsync(ct);
         var today = FinanceRules.Today(time);
         var end = FinanceRules.TryParseDate(to, out var e) ? e : today;
         var start = FinanceRules.TryParseDate(from, out var s) ? s : new DateOnly(end.Year, end.Month, 1);
@@ -46,7 +45,6 @@ public sealed partial class FinanceLedgerService
 
     public async Task<BalanceSheet> BalanceSheetAsync(string? asOf, CancellationToken ct)
     {
-        await SyncAsync(ct);
         var date = FinanceRules.TryParseDate(asOf, out var d) ? d : FinanceRules.Today(time);
         var rows = await RowsAsync(null, date, ct);
         var assets = Section(rows, LedgerTypes.Asset);

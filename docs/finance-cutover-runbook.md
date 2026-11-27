@@ -73,7 +73,7 @@ Do this in a **test copy first** (section 5), then again in production. Order ma
 6. **Check the opening position.** Books > Trial balance as at the cut-over date must agree with the Daftra trial balance, line by line. *Opening balance equity (3900)* should come to **zero**. If it does not, something is missing or entered twice: fix it before going on.
 7. **Cheques.** Finance > Cheques: enter each uncleared cheque from item 4. Leave them **not linked to an entry**: the expense was already in Daftra, and the opening bank balance is already net of it. They then track when the bank pays them and change nothing in the books. (The "bank statement" line on the account will show the book balance, not the statement, until they clear. That is expected.)
 8. **Staff expense entry and petty cash**, if used: tick the staff allowed to enter expenses, and hand out petty cash as a transfer.
-9. **Excel import** of earlier history is optional and not needed for the cut-over.
+9. **Excel import** of earlier history is optional and not needed for the cut-over. Use the current template for transactions with no reportable VAT. Keep the original transaction reference in the required Source ID column and enter `No VAT` as the VAT treatment. Resolve conflicts with older Excel imports before committing. Record transactions requiring VAT reporting using the ordinary entry screen and reconcile them separately.
 
 ## 4. If customer invoices or supplier bills are unpaid at cut-over
 

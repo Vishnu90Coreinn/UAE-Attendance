@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using HrPayroll.Api.Auth;
 using HrPayroll.Api.Tests.Helpers;
+using Microsoft.EntityFrameworkCore;
 
 namespace HrPayroll.Api.Tests.Integration;
 
@@ -15,6 +16,23 @@ public class FinanceStandardChartTests(ApiFixture api) : IClassFixture<ApiFixtur
         var response = await api.Client.SendAsync(request);
         response.EnsureSuccessStatusCode();
         return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+    }
+
+    [Fact]
+    public async Task BooksReadsDoNotMapOrPostAnUnsynchronizedAccount()
+    {
+        var viewer = (await TestWorkers.SignInAsync(api, Roles.Viewer)).Token;
+        var bank = await TestFinance.AddAccountAsync(api.ConnectionString, opening: 4321m);
+        await using var db = TestUsers.NewContext(api.ConnectionString);
+        var journalCount = await db.Journals.CountAsync();
+
+        await GetAsync("/api/finance/ledger/accounts", viewer);
+        await GetAsync("/api/finance/ledger/trial-balance", viewer);
+        var check = await GetAsync("/api/finance/ledger/check", viewer);
+
+        Assert.Null(await db.FinAccounts.Where(a => a.Id == bank.Id).Select(a => a.LedgerAccountId).SingleAsync());
+        Assert.Equal(journalCount, await db.Journals.CountAsync());
+        Assert.False(check.GetProperty("allAgree").GetBoolean());
     }
 
     [Fact]

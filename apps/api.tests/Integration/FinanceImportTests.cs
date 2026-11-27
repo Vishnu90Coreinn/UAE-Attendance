@@ -28,6 +28,11 @@ public class FinanceImportTests(ApiFixture api) : IClassFixture<ApiFixture>
 
     private static readonly string[] Expense = ["Date", "Paid to", "Category", "Account", "Amount", "Reference", "Notes"];
 
+    private static byte[] NonVatBook(string[] headers, params object?[][] rows) => Book(
+        [.. headers, "Source ID", "VAT treatment"],
+        rows.Select(row => headers.Select((_, col) => row.ElementAtOrDefault(col))
+            .Concat([Guid.NewGuid().ToString("N"), "No VAT"]).ToArray()).ToArray());
+
     private async Task<(HttpResponseMessage Response, JsonElement Body)> UploadAsync(string token, string kind, byte[] file, bool commit)
     {
         var form = new MultipartFormDataContent();
@@ -51,7 +56,7 @@ public class FinanceImportTests(ApiFixture api) : IClassFixture<ApiFixture>
         var token = await ManagerAsync();
         var account = await AccountNameAsync();
         var day = TestFinance.Today.AddDays(-3);
-        var file = Book(Expense,
+        var file = NonVatBook(Expense,
             [D(day), "Landlord A", "Office Rent", account, 12000m, "Cheque 1", "Rent"],
             [D(day), "Insurer B", "Dubai Insurance", account, 189.5m, null, null],
             [D(day), "Someone", "No Such Category", account, 10m],
@@ -86,7 +91,7 @@ public class FinanceImportTests(ApiFixture api) : IClassFixture<ApiFixture>
         var token = await ManagerAsync();
         var account = await AccountNameAsync();
         var day = TestFinance.Today.AddDays(-4);
-        var file = Book(Expense, [D(day), "Landlord A", "Office Rent", account, 12000m, "Cheque 1", "Rent"], [D(day), "Insurer B", "Dubai Insurance", account, 500m]);
+        var file = NonVatBook(Expense, [D(day), "Landlord A", "Office Rent", account, 12000m, "Cheque 1", "Rent"], [D(day), "Insurer B", "Dubai Insurance", account, 500m]);
 
         var (response, body) = await UploadAsync(token, "expenses", file, commit: true);
 
@@ -109,7 +114,7 @@ public class FinanceImportTests(ApiFixture api) : IClassFixture<ApiFixture>
         var token = await ManagerAsync();
         var account = await AccountNameAsync();
         var day = TestFinance.Today.AddDays(-2);
-        var file = Book(Expense, [D(day), "Good Co", "Office Rent", account, 100m], [D(day), "Bad Co", "Office Rent", account, -5m]);
+        var file = NonVatBook(Expense, [D(day), "Good Co", "Office Rent", account, 100m], [D(day), "Bad Co", "Office Rent", account, -5m]);
 
         var (response, body) = await UploadAsync(token, "expenses", file, commit: true);
 
@@ -125,7 +130,10 @@ public class FinanceImportTests(ApiFixture api) : IClassFixture<ApiFixture>
         var token = await ManagerAsync();
         var account = await AccountNameAsync();
         var day = TestFinance.Today.AddDays(-6);
-        var file = Book(Expense, [D(day), "Repeat Co", "Office Rent", account, 300m], [D(day), "repeat co", "Office Rent", account, 300m]);
+        var sourceId = Guid.NewGuid().ToString("N");
+        var file = Book([.. Expense, "Source ID", "VAT treatment"],
+            [D(day), "Repeat Co", "Office Rent", account, 300m, null, null, sourceId, "No VAT"],
+            [D(day), "repeat co", "Office Rent", account, 300m, null, null, sourceId.ToUpperInvariant(), "No VAT"]);
 
         var first = await UploadAsync(token, "expenses", file, commit: true);
         Assert.Equal(1, first.Body.GetProperty("imported").GetInt32());
@@ -140,12 +148,62 @@ public class FinanceImportTests(ApiFixture api) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public async Task DistinctSourceIdsImportBothSameAmountTransactions_AndRetriesSkipThem()
+    {
+        var token = await ManagerAsync();
+        var account = await AccountNameAsync();
+        var day = D(TestFinance.Today.AddDays(-6));
+        var file = Book([.. Expense, "Source ID", "VAT treatment"],
+            [day, "Same supplier", "Office Rent", account, 105m, "INV-1", null, Guid.NewGuid().ToString("N"), "No VAT"],
+            [day, "Same supplier", "Office Rent", account, 105m, "INV-2", null, Guid.NewGuid().ToString("N"), "No VAT"]);
+
+        var first = await UploadAsync(token, "expenses", file, commit: true);
+        Assert.Equal(HttpStatusCode.OK, first.Response.StatusCode);
+        Assert.Equal(2, first.Body.GetProperty("imported").GetInt32());
+        var retry = await UploadAsync(token, "expenses", file, commit: false);
+        Assert.Equal(2, retry.Body.GetProperty("duplicates").GetInt32());
+    }
+
+    [Fact]
+    public async Task VatBearingRowsAreRejectedBeforeImport()
+    {
+        var token = await ManagerAsync();
+        var account = await AccountNameAsync();
+        var day = D(TestFinance.Today.AddDays(-7));
+        var file = Book([.. Expense, "Source ID", "VAT treatment"],
+            [day, "VAT-bearing supplier", "Office Rent", account, 105m, null, null, Guid.NewGuid().ToString("N"), "Standard"]);
+
+        var preview = await UploadAsync(token, "expenses", file, commit: false);
+        Assert.Equal("Error", preview.Body.GetProperty("rows")[0].GetProperty("status").GetString());
+        Assert.Contains("No VAT", preview.Body.GetProperty("rows")[0].GetProperty("problems")[0].GetString());
+        Assert.Equal(HttpStatusCode.BadRequest, (await UploadAsync(token, "expenses", file, commit: true)).Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReusedSourceIdWithDifferentDetailsBlocksTheBatch()
+    {
+        var token = await ManagerAsync();
+        var account = await AccountNameAsync();
+        var day = D(TestFinance.Today.AddDays(-6));
+        var id = Guid.NewGuid().ToString("N");
+        var file = Book([.. Expense, "Source ID", "VAT treatment"],
+            [day, "Conflicting source", "Office Rent", account, 105m, "FIRST", null, id, "No VAT"],
+            [day, "Conflicting source", "Office Rent", account, 110m, "SECOND", null, id, "No VAT"]);
+
+        var preview = await UploadAsync(token, "expenses", file, commit: false);
+        Assert.Equal("Error", preview.Body.GetProperty("rows")[1].GetProperty("status").GetString());
+        Assert.Equal(HttpStatusCode.BadRequest, (await UploadAsync(token, "expenses", file, commit: true)).Response.StatusCode);
+        var list = await (await Get(token, "/api/finance/expenses?q=Conflicting source")).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Empty(list.GetProperty("items").EnumerateArray());
+    }
+
+    [Fact]
     public async Task Dates_AcceptDaftraStyleText_AndRealExcelDates()
     {
         var token = await ManagerAsync();
         var account = await AccountNameAsync();
         var day = TestFinance.Today.AddDays(-8);
-        var file = Book(Expense, [day.ToString("dd/MM/yyyy"), "Text Date Co", "Office Rent", account, 10m], [day.ToDateTime(TimeOnly.MinValue).AddDays(1), "Real Date Co", "Office Rent", account, 20m]);
+        var file = NonVatBook(Expense, [day.ToString("dd/MM/yyyy"), "Text Date Co", "Office Rent", account, 10m], [day.ToDateTime(TimeOnly.MinValue).AddDays(1), "Real Date Co", "Office Rent", account, 20m]);
 
         var (_, body) = await UploadAsync(token, "expenses", file, commit: false);
 
@@ -163,7 +221,7 @@ public class FinanceImportTests(ApiFixture api) : IClassFixture<ApiFixture>
         var lockRequest = new HttpRequestMessage(HttpMethod.Post, "/api/finance/month-locks/2013-02/lock");
         lockRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         Assert.Equal(HttpStatusCode.OK, (await api.Client.SendAsync(lockRequest)).StatusCode);
-        var file = Book(Expense,
+        var file = NonVatBook(Expense,
             [D(TestFinance.Today.AddDays(5)), "Future", "Office Rent", account.Name, 5m],
             ["2013-05-01", "Early", "Office Rent", account.Name, 5m],
             ["2013-02-10", "Locked", "Office Rent", locked, 5m]);
@@ -183,7 +241,7 @@ public class FinanceImportTests(ApiFixture api) : IClassFixture<ApiFixture>
         var token = await ManagerAsync();
         var account = await AccountNameAsync(0m);
         var day = TestFinance.Today.AddDays(-2);
-        var file = Book(["Date", "Received from", "Category", "Account", "Amount"], [D(day), "One by Binghatti", "Other income", account, 111767.04m]);
+        var file = NonVatBook(["Date", "Received from", "Category", "Account", "Amount"], [D(day), "One by Binghatti", "Other income", account, 111767.04m]);
         var (response, body) = await UploadAsync(token, "income", file, commit: true);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(1, body.GetProperty("imported").GetInt32());
@@ -201,8 +259,8 @@ public class FinanceImportTests(ApiFixture api) : IClassFixture<ApiFixture>
         var notExcel = await UploadAsync(token, "expenses", "plain text"u8.ToArray(), commit: false);
         Assert.Equal(HttpStatusCode.BadRequest, notExcel.Response.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await UploadAsync(token, "expenses", Book(["Date", "Amount"], ["2026-01-01", 5m]), commit: false)).Response.StatusCode);   // headings missing
-        Assert.Equal(HttpStatusCode.BadRequest, (await UploadAsync(token, "expenses", Book(Expense), commit: false)).Response.StatusCode);   // no rows
-        Assert.Equal(HttpStatusCode.NotFound, (await UploadAsync(token, "transfers", Book(Expense), commit: false)).Response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await UploadAsync(token, "expenses", NonVatBook(Expense), commit: false)).Response.StatusCode);   // no rows
+        Assert.Equal(HttpStatusCode.NotFound, (await UploadAsync(token, "transfers", NonVatBook(Expense), commit: false)).Response.StatusCode);
 
         var template = await Get(token, "/api/finance/import/expenses/template");
         template.EnsureSuccessStatusCode();

@@ -806,6 +806,9 @@ export function listJournals(from?: string, to?: string): Promise<JournalList> {
 export function getLedgerCheck(): Promise<LedgerCheckResult> {
   return apiGet("/api/finance/ledger/check");
 }
+export function syncLedger(): Promise<{ posted: number; reversed: number }> {
+  return apiPost("/api/finance/ledger/sync", {});
+}
 
 export interface LedgerAccountInput {
   code: string;

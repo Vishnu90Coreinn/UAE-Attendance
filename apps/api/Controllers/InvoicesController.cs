@@ -67,18 +67,22 @@ public sealed class InvoicesController(InvoiceService invoices, InvoicePdf pdf) 
     public async Task<IActionResult> Duplicate(int id, CancellationToken ct) => Map(await invoices.DuplicateAsync(id, ct));
 
     [HttpPost("{id:int}/issue")]
+    [ServiceFilter(typeof(LedgerSyncFilter))]
     [Authorize(Policy = Policies.ManagerOrAdmin)]
     public async Task<IActionResult> Issue(int id, [FromBody] IssueInvoiceRequest? request, CancellationToken ct) => Map(await invoices.IssueAsync(id, request?.Number, ct));
 
     [HttpPost("{id:int}/cancel")]
+    [ServiceFilter(typeof(LedgerSyncFilter))]
     [Authorize(Policy = Policies.ManagerOrAdmin)]
     public async Task<IActionResult> Cancel(int id, CancelInvoiceRequest request, CancellationToken ct) => Map(await invoices.CancelAsync(id, request, ct));
 
     [HttpPost("{id:int}/payments")]
+    [ServiceFilter(typeof(LedgerSyncFilter))]
     [Authorize(Policy = Policies.ManagerOrAdmin)]
     public async Task<IActionResult> AddPayment(int id, InvoicePaymentRequest request, CancellationToken ct) => Map(await invoices.AddPaymentAsync(id, request, ct));
 
     [HttpDelete("{id:int}/payments/{paymentId:int}")]
+    [ServiceFilter(typeof(LedgerSyncFilter))]
     [Authorize(Policy = Policies.ManagerOrAdmin)]
     public async Task<IActionResult> DeletePayment(int id, int paymentId, CancellationToken ct) => Map(await invoices.DeletePaymentAsync(id, paymentId, ct));
 }

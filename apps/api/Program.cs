@@ -273,6 +273,9 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 using (var scope = app.Services.CreateScope())
 {
     await scope.ServiceProvider.GetRequiredService<AdminSeeder>().SeedWhenReadyAsync();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    if (await db.Database.CanConnectAsync() && !(await db.Database.GetPendingMigrationsAsync()).Any())
+        await scope.ServiceProvider.GetRequiredService<HrPayroll.Api.Services.Finance.FinanceLedgerService>().SyncAsync(app.Lifetime.ApplicationStopping);
 }
 
 // Behind a load balancer (for example an AWS ALB that terminates HTTPS) the real client IP and scheme arrive in

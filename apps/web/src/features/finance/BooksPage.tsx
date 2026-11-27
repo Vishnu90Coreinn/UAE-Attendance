@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BookOpen, CheckCircle2, Download, Plus, Undo2, XCircle } from "lucide-react";
 import {
-  downloadJournals, downloadLedger, downloadTrialBalance, getLedgerChart, getLedgerCheck, getLedgerStatement, getLedgerTrialBalance, listJournals, reverseManualJournal,
+  downloadJournals, downloadLedger, downloadTrialBalance, getLedgerChart, getLedgerCheck, getLedgerStatement, getLedgerTrialBalance, listJournals, reverseManualJournal, syncLedger,
   type Journal, type LedgerAccount, type LedgerCheckResult, type LedgerFile, type LedgerStatement, type LedgerTrialBalance,
 } from "../../api/finance";
 import { ApiError } from "../../api/client";
@@ -20,7 +20,7 @@ import { RecurringTab } from "./RecurringTab";
 import { YearEndTab } from "./YearEndTab";
 import { VoidDialog } from "./VoidDialog";
 import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, Select, cx } from "../../ui";
-import { LoadError } from "../workers/WorkersFeedback";
+import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { formatDay, formatMoney, quietZero, todayInUae } from "./financeFormat";
 
 type Tab = "trial" | "ledger" | "journals" | "pl" | "sheet" | "chart" | "mapping" | "year" | "receivables" | "payables" | "recurring";
@@ -291,6 +291,10 @@ export function BooksPage() {
   const canEdit = isManagement(user?.role);
   const desktop = useIsDesktop();
   const [notice, setNotice] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncFailure, setSyncFailure] = useState<string | null>(null);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
+  const [syncVersion, setSyncVersion] = useState(0);
   const [tab, setTab] = useState<Tab>("trial");
   const group = GROUPS.find((g) => g.tabs.some(([key]) => key === tab)) ?? GROUPS[0];
   const [load, setLoad] = useState<Load>({ status: "loading" });
@@ -310,13 +314,36 @@ export function BooksPage() {
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+  }, [refresh, syncVersion]);
+
+  async function synchronize() {
+    setSyncing(true);
+    setSyncFailure(null);
+    setSyncNotice(null);
+    try {
+      const result = await syncLedger();
+      setLoad({ status: "loading" });
+      setSyncVersion((version) => version + 1);
+      setSyncNotice(`Books synchronized. Posted ${result.posted} and reversed ${result.reversed} journals.`);
+    } catch (error) {
+      setSyncFailure(failure(error));
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   const ready = load.status === "ready" ? load : null;
   const chart = ready?.chart;
   return (
     <section className="space-y-5">
-      <PageHeader title="Books" description="The double-entry view of the same records: every entry, transfer and opening balance posts a balanced journal by itself. Nothing here is typed twice." actions={ready && <Button variant="secondary" onClick={() => void refresh()}>Check again</Button>} />
+      <PageHeader title="Books" description="The double-entry view of the same records: every entry, transfer and opening balance posts a balanced journal by itself. Nothing here is typed twice." actions={
+        <>
+          {ready && <Button variant="secondary" disabled={syncing} onClick={() => void refresh()}>Check again</Button>}
+          {canEdit && <Button variant="secondary" disabled={syncing} onClick={() => void synchronize()}>{syncing ? "Synchronizing…" : "Sync books"}</Button>}
+        </>
+      } />
+      {syncFailure && <ActionFailure message={syncFailure} />}
+      <SuccessRegion message={syncNotice} />
       {load.status === "loading" && <LoadingState label="Loading the books..." withCards />}
       {load.status === "error" && <LoadError message={load.message} onRetry={() => { setLoad({ status: "loading" }); void refresh(); }} />}
       {ready && (

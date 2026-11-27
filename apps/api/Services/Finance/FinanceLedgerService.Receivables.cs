@@ -13,7 +13,6 @@ public sealed partial class FinanceLedgerService
 
     public async Task<ReceivablesReport> ReceivablesAsync(string? asOf, CancellationToken ct)
     {
-        await SyncAsync(ct);
         var date = FinanceRules.TryParseDate(asOf, out var d) ? d : FinanceRules.Today(time);
         var invoices = await db.Invoices.AsNoTracking().Include(i => i.Payments)
             .Where(i => i.Status == InvoiceStatuses.Issued && i.InvoiceDate <= date).ToListAsync(ct);
@@ -38,7 +37,6 @@ public sealed partial class FinanceLedgerService
 {
     public async Task<PayablesReport> PayablesAsync(string? asOf, CancellationToken ct)
     {
-        await SyncAsync(ct);
         var date = FinanceRules.TryParseDate(asOf, out var d) ? d : FinanceRules.Today(time);
         var bills = await db.FinBills.AsNoTracking().Where(b => b.Status == FinBillStatuses.Open && b.BillDate <= date).ToListAsync(ct);
         var ids = bills.Select(b => b.Id).ToList();

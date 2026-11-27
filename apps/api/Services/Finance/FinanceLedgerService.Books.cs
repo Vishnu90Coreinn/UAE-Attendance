@@ -83,10 +83,9 @@ public sealed partial class FinanceLedgerService
 
     public async Task<List<LedgerMapping>> MappingsAsync(CancellationToken ct)
     {
-        await SyncAsync(ct);
         var result = new List<LedgerMapping>();
-        result.AddRange((await db.FinAccounts.AsNoTracking().OrderBy(a => a.SortOrder).ThenBy(a => a.Name).ToListAsync(ct)).Select(a => new LedgerMapping("Account", a.Id, a.Name, a.Kind, a.LedgerAccountId!.Value)));
-        result.AddRange((await db.FinPartners.AsNoTracking().OrderBy(p => p.SortOrder).ThenBy(p => p.Name).ToListAsync(ct)).Select(p => new LedgerMapping("Partner", p.Id, p.Name, null, p.LedgerAccountId!.Value)));
+        result.AddRange((await db.FinAccounts.AsNoTracking().Where(a => a.LedgerAccountId != null).OrderBy(a => a.SortOrder).ThenBy(a => a.Name).ToListAsync(ct)).Select(a => new LedgerMapping("Account", a.Id, a.Name, a.Kind, a.LedgerAccountId!.Value)));
+        result.AddRange((await db.FinPartners.AsNoTracking().Where(p => p.LedgerAccountId != null).OrderBy(p => p.SortOrder).ThenBy(p => p.Name).ToListAsync(ct)).Select(p => new LedgerMapping("Partner", p.Id, p.Name, null, p.LedgerAccountId!.Value)));
         result.AddRange((await db.FinCategories.AsNoTracking().Where(c => c.Kind == FinEntryKinds.Expense || c.Kind == FinEntryKinds.Income).OrderBy(c => c.Kind).ThenBy(c => c.Name).ToListAsync(ct))
             .Select(c => new LedgerMapping("Category", c.Id, c.Name, c.Kind, c.LedgerAccountId!.Value)));
         return result;

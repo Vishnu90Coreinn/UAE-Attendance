@@ -29,7 +29,6 @@ public sealed partial class FinanceLedgerService
 
     public async Task<List<FinYearResponse>> YearsAsync(CancellationToken ct)
     {
-        await SyncAsync(ct);
         var today = FinanceRules.Today(time);
         var first = await db.Journals.AsNoTracking().Where(j => j.SourceType != JournalSources.YearEnd).Select(j => (DateOnly?)j.Date).MinAsync(ct);
         if (first is null) return [];
@@ -68,6 +67,7 @@ public sealed partial class FinanceLedgerService
 
     public async Task<FinResult<FinYearResponse>> CloseYearAsync(int year, CancellationToken ct)
     {
+        await SyncAsync(ct);
         var years = await YearsAsync(ct);
         var info = years.SingleOrDefault(y => y.Year == year);
         if (info is null) return FinResult<FinYearResponse>.NotFound("That year has no books yet.");
