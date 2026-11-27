@@ -37,7 +37,7 @@ import {
   announceAttendanceSummaryChanged,
   useAttendanceSummary,
 } from "./useAttendanceSummary";
-import { AttendanceNavigationGuard } from "./AttendanceNavigationGuard";
+import { UnsavedChangesGuard } from "../../components/UnsavedChangesGuard";
 import {
   changed,
   formFromRow,
@@ -405,7 +405,7 @@ export function AttendancePage({
 
     return (
       <section className="min-w-0 space-y-4">
-        {guardNavigation && <AttendanceNavigationGuard dirty={dirty} pending={pending} />}
+        {guardNavigation && <UnsavedChangesGuard dirty={dirty} pending={pending} />}
         <PhoneHeader
           date={date}
           today={todayValue}
@@ -550,7 +550,7 @@ export function AttendancePage({
   return (
     <section className="min-w-0 space-y-4">
       {guardNavigation && (
-        <AttendanceNavigationGuard dirty={dirty} pending={pending} />
+        <UnsavedChangesGuard dirty={dirty} pending={pending} />
       )}
       <PageHeader title="Daily Attendance" description="Record daily status and hours, then save the day." />
       <div className="flex flex-wrap items-end justify-between gap-4">

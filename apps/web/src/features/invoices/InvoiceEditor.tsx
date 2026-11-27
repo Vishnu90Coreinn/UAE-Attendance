@@ -3,6 +3,7 @@ import { Loader2, Plus, Save, Trash2, X } from "lucide-react";
 import { createInvoice, listInvoiceClients, updateInvoice, type Invoice, type InvoiceClient, type InvoiceInput } from "../../api/invoices";
 import { getDocumentSettings } from "../../api/documentSettings";
 import { TextField } from "../../components/TextField";
+import { UnsavedChangesGuard } from "../../components/UnsavedChangesGuard";
 import { Button, Card, IconButton, Input, Select, Textarea, Table, TableScroll, THead, Th, TRow, Td } from "../../ui";
 import { errorMessage, fieldErrors, todayInDubai } from "./invoiceUi";
 import { formatMoney, invoiceTotals, lineAmounts } from "./invoiceMath";
@@ -34,12 +35,17 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
   const [clientAddress, setClientAddress] = useState(invoice?.clientAddress ?? "");
   const [invoiceDate, setInvoiceDate] = useState(invoice?.invoiceDate ?? todayInDubai());
   const [dueDate, setDueDate] = useState(invoice?.dueDate ?? todayInDubai());
-  const [paymentTerms, setPaymentTerms] = useState(invoice?.paymentTerms ?? "");
+  const [enteredPaymentTerms, setPaymentTerms] = useState<string | null>(null);
   const [lpoRef, setLpoRef] = useState(invoice?.lpoRef ?? "");
   const [pcRef, setPcRef] = useState(invoice?.pcRef ?? "");
   const [project, setProject] = useState(invoice?.project ?? "");
   const [scope, setScope] = useState(invoice?.scope ?? "");
-  const [notes, setNotes] = useState(invoice?.notes ?? "");
+  const [enteredNotes, setNotes] = useState<string | null>(null);
+  const [defaults, setDefaults] = useState({ paymentTerms: "", notes: "" });
+  const originalPaymentTerms = invoice?.paymentTerms ?? defaults.paymentTerms;
+  const originalNotes = invoice?.notes ?? defaults.notes;
+  const paymentTerms = enteredPaymentTerms ?? originalPaymentTerms;
+  const notes = enteredNotes ?? originalNotes;
   const [lines, setLines] = useState<LineDraft[]>(
     invoice
       ? invoice.lines.map((l) => ({ description: l.description, quantity: String(l.quantity), rate: String(l.rate) }))
@@ -48,6 +54,18 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const draft = JSON.stringify({ clientChoice, clientName, clientTrn, clientAddress, invoiceDate, dueDate, lpoRef, pcRef, project, scope, lines });
+  const [originalDraft] = useState(draft);
+  const dirty = draft !== originalDraft || paymentTerms !== originalPaymentTerms || notes !== originalNotes;
+  useEffect(() => {
+    if (!dirty) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [dirty]);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,8 +74,7 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
       getDocumentSettings()
         .then((s) => {
           if (cancelled) return;
-          setPaymentTerms(s.defaultPaymentTerms);
-          setNotes(s.defaultInvoiceNotes);
+          setDefaults({ paymentTerms: s.defaultPaymentTerms, notes: s.defaultInvoiceNotes });
         })
         .catch(() => undefined);
     }
@@ -120,6 +137,7 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
 
   return (
     <form onSubmit={submit} noValidate aria-label={invoice ? "Edit draft invoice" : "New invoice"} className="space-y-5">
+      <UnsavedChangesGuard dirty={dirty} pending={pending} subject="invoice edits" cancelLabel="Keep editing" />
       <Card className="space-y-4 p-5">
         <h3 className="text-base font-semibold text-ink-900">Client</h3>
         <Select label="Client" value={clientChoice} onChange={(e) => setClientChoice(e.target.value)} error={errors.clientId}>

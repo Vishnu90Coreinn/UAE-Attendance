@@ -2,7 +2,7 @@ import { useState } from "react";
 import { act, render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { expect, it } from "vitest";
-import { AttendanceNavigationGuard } from "./AttendanceNavigationGuard";
+import { UnsavedChangesGuard } from "./UnsavedChangesGuard";
 
 it("blocks Back during save and continues automatically when the save succeeds", async () => {
   let finishSave!: () => void;
@@ -16,7 +16,7 @@ it("blocks Back during save and continues automatically when the save succeeds",
     return (
       <>
         <p>Attendance editor</p>
-        <AttendanceNavigationGuard dirty={dirty} pending={pending} />
+        <UnsavedChangesGuard dirty={dirty} pending={pending} />
       </>
     );
   }

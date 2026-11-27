@@ -1,4 +1,5 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { createMemoryRouter, Link, RouterProvider } from "react-router-dom";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as financeApi from "../../api/finance";
@@ -54,7 +55,7 @@ beforeEach(() => {
 
 describe("InvoicesPage list", () => {
   it("shows invoices with a status word and an overdue flag, not colour alone", async () => {
-    render(<InvoicesPage />);
+    renderPage();
     const row = (await screen.findByRole("button", { name: /INV-000185/ })).closest("tr")!;
     // One pill carries both facts: the status and that it is past due.
     expect(within(row).getByText(/Part-paid · Overdue/)).toBeInTheDocument();
@@ -63,18 +64,18 @@ describe("InvoicesPage list", () => {
   });
 
   it("offers New invoice to a Manager but not to HR", async () => {
-    const { unmount } = render(<InvoicesPage />);
+    const { unmount } = renderPage();
     expect(await screen.findByRole("button", { name: "New invoice" })).toBeInTheDocument();
     unmount();
     signIn("HR");
-    render(<InvoicesPage />);
+    renderPage();
     await screen.findByRole("button", { name: /INV-000185/ });
     expect(screen.queryByRole("button", { name: "New invoice" })).not.toBeInTheDocument();
   });
 
   it("sends the chosen status to the server", async () => {
     const user = userEvent.setup();
-    render(<InvoicesPage />);
+    renderPage();
     await screen.findByRole("button", { name: /INV-000185/ });
     await user.selectOptions(screen.getByLabelText("Status"), "Overdue");
     await waitFor(() => expect(invoicesApi.listInvoices).toHaveBeenLastCalledWith({ status: "Overdue" }));
@@ -82,11 +83,11 @@ describe("InvoicesPage list", () => {
 
   it("shows an empty state, and an error with Retry", async () => {
     vi.mocked(invoicesApi.listInvoices).mockResolvedValueOnce([]);
-    const { unmount } = render(<InvoicesPage />);
+    const { unmount } = renderPage();
     expect(await screen.findByText("No invoices found")).toBeInTheDocument();
     unmount();
     vi.mocked(invoicesApi.listInvoices).mockRejectedValueOnce(new ApiError(500, "Server down"));
-    render(<InvoicesPage />);
+    renderPage();
     expect(await screen.findByRole("alert")).toHaveTextContent("Server down");
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
@@ -95,7 +96,7 @@ describe("InvoicesPage list", () => {
 describe("invoice view", () => {
   it("shows the document and only the actions that fit an issued invoice", async () => {
     const user = userEvent.setup();
-    render(<InvoicesPage />);
+    renderPage();
     await user.click(await screen.findByRole("button", { name: /INV-000185/ }));
     expect(await screen.findByRole("article", { name: "Tax invoice INV-000185" })).toBeInTheDocument();
     expect(screen.getByText("UAE Dirham One Hundred Five")).toBeInTheDocument();
@@ -108,7 +109,7 @@ describe("invoice view", () => {
   it("gives HR the document, print and PDF but no write actions", async () => {
     signIn("HR");
     const user = userEvent.setup();
-    render(<InvoicesPage />);
+    renderPage();
     await user.click(await screen.findByRole("button", { name: /INV-000185/ }));
     expect(await screen.findByRole("button", { name: "Download PDF" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Print" })).not.toBeInTheDocument();
@@ -121,7 +122,7 @@ describe("invoice view", () => {
     signIn("Viewer");
     vi.mocked(invoicesApi.getInvoice).mockResolvedValue(invoice({ number: null, status: "Draft", displayStatus: "Draft" }));
     const user = userEvent.setup();
-    render(<InvoicesPage />);
+    renderPage();
 
     expect(screen.queryByRole("button", { name: "New invoice" })).not.toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: /INV-000185/ }));
@@ -135,7 +136,7 @@ describe("invoice view", () => {
     vi.mocked(invoicesApi.getInvoice).mockResolvedValue(invoice({ number: null, status: "Draft", displayStatus: "Draft" }));
     vi.mocked(invoicesApi.issueInvoice).mockResolvedValue(invoice({ number: "INV-000185" }));
     const user = userEvent.setup();
-    render(<InvoicesPage />);
+    renderPage();
     await user.click(await screen.findByRole("button", { name: /INV-000185/ }));
     await user.click(await screen.findByRole("button", { name: "Issue invoice" }));
     const dialog = await screen.findByRole("dialog", { name: "Issue this invoice?" });
@@ -150,7 +151,7 @@ describe("invoice view", () => {
     vi.mocked(invoicesApi.getInvoice).mockResolvedValue(invoice({ number: null, status: "Draft", displayStatus: "Draft" }));
     vi.mocked(invoicesApi.issueInvoice).mockResolvedValue(invoice({ number: "MAN/045" }));
     const user = userEvent.setup();
-    render(<InvoicesPage />);
+    renderPage();
     await user.click(await screen.findByRole("button", { name: /INV-000185/ }));
     await user.click(await screen.findByRole("button", { name: "Issue invoice" }));
     const dialog = await screen.findByRole("dialog", { name: "Issue this invoice?" });
@@ -170,7 +171,7 @@ describe("invoice view", () => {
       new ApiError(400, "x", undefined, undefined, { number: ["This invoice number is already used by another invoice."] }),
     );
     const user = userEvent.setup();
-    render(<InvoicesPage />);
+    renderPage();
     await user.click(await screen.findByRole("button", { name: /INV-000185/ }));
     await user.click(await screen.findByRole("button", { name: "Issue invoice" }));
     const dialog = await screen.findByRole("dialog", { name: "Issue this invoice?" });
@@ -183,7 +184,7 @@ describe("invoice view", () => {
 
   it("refuses a payment above the balance without calling the server", async () => {
     const user = userEvent.setup();
-    render(<InvoicesPage />);
+    renderPage();
     await user.click(await screen.findByRole("button", { name: /INV-000185/ }));
     await user.click(await screen.findByRole("button", { name: "Record payment" }));
     const dialog = await screen.findByRole("dialog", { name: "Record payment" });
@@ -197,7 +198,7 @@ describe("invoice view", () => {
 
   it("needs a reason to cancel", async () => {
     const user = userEvent.setup();
-    render(<InvoicesPage />);
+    renderPage();
     await user.click(await screen.findByRole("button", { name: /INV-000185/ }));
     await user.click(await screen.findByRole("button", { name: "Cancel invoice" }));
     const dialog = await screen.findByRole("dialog", { name: "Cancel this invoice?" });
@@ -210,7 +211,7 @@ describe("invoice view", () => {
 describe("new invoice form", () => {
   it("validates before sending and shows the totals preview", async () => {
     const user = userEvent.setup();
-    render(<InvoicesPage />);
+    renderPage();
     await user.click(await screen.findByRole("button", { name: "New invoice" }));
     await user.click(await screen.findByRole("button", { name: "Save draft" }));
     expect(await screen.findByText("Choose or enter the client.")).toBeInTheDocument();
@@ -231,7 +232,7 @@ describe("new invoice form", () => {
   it("sends the typed invoice and opens it", async () => {
     vi.mocked(invoicesApi.createInvoice).mockResolvedValue(invoice({ number: null, status: "Draft", displayStatus: "Draft" }));
     const user = userEvent.setup();
-    render(<InvoicesPage />);
+    renderPage();
     await user.click(await screen.findByRole("button", { name: "New invoice" }));
     await user.type(await screen.findByLabelText("Client name"), "Acme Glass LLC");
     await user.type(screen.getByLabelText("Description, line 1"), "Works");
@@ -249,7 +250,7 @@ describe("new invoice form", () => {
   it("shows a server field error next to the field", async () => {
     vi.mocked(invoicesApi.createInvoice).mockRejectedValue(new ApiError(400, "bad", undefined, undefined, { dueDate: ["The due date cannot be before the invoice date."] }));
     const user = userEvent.setup();
-    render(<InvoicesPage />);
+    renderPage();
     await user.click(await screen.findByRole("button", { name: "New invoice" }));
     await user.type(await screen.findByLabelText("Client name"), "Acme");
     await user.type(screen.getByLabelText("Description, line 1"), "Works");
@@ -257,4 +258,25 @@ describe("new invoice form", () => {
     expect(await screen.findByText("The due date cannot be before the invoice date.")).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("Please fix the highlighted fields.");
   });
+});
+
+function renderPage() {
+  const router = createMemoryRouter([
+    { path: "/home", element: <h1>Home</h1> },
+    { path: "/invoices", element: <><Link to="/home">Home</Link><InvoicesPage /></> },
+  ], { initialEntries: ["/home", "/invoices"], initialIndex: 1 });
+  return { ...render(<RouterProvider router={router} />), router };
+}
+
+it("keeps invoice edits on Back until the user confirms discard", async () => {
+  const user = userEvent.setup();
+  const { router } = renderPage();
+  await user.click(await screen.findByRole("button", { name: "New invoice" }));
+  await user.type(screen.getByLabelText("Client name"), "Synthetic Client");
+  await act(() => router.navigate(-1));
+  await user.click(await screen.findByRole("button", { name: "Keep editing" }));
+  expect(screen.getByLabelText("Client name")).toHaveValue("Synthetic Client");
+  await user.click(screen.getByRole("link", { name: "Home" }));
+  await user.click(await screen.findByRole("button", { name: "Discard changes" }));
+  expect(await screen.findByRole("heading", { name: "Home" })).toBeInTheDocument();
 });

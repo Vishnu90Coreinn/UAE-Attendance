@@ -47,6 +47,24 @@ it("sends the accountant's partial VAT recovery percentage", async () => {
   expect(financeApi.createFinEntry).toHaveBeenCalledWith("Expense", expect.objectContaining({ recoverableTaxPercent: 40 }));
 });
 
+it("blocks saves when VAT types fail to load and keeps the entry and receipt on retry", async () => {
+  vi.mocked(financeApi.listFinTaxTypes).mockRejectedValueOnce(new Error("HTTP 503"));
+  const user = userEvent.setup();
+  render(<EntryDialog kind="Expense" accounts={[account]} categories={categories} variant="center" onClose={vi.fn()} onSaved={vi.fn()} />);
+  await user.type(screen.getByLabelText("Amount (AED)"), "105");
+  await user.type(screen.getByLabelText("Paid to"), "Supplier");
+  await user.selectOptions(screen.getByLabelText("Category"), "1");
+  const receipt = new File(["%PDF-1.4"], "r.pdf", { type: "application/pdf" });
+  await user.upload(document.querySelector('input[type="file"][accept^="application/pdf"]') as HTMLInputElement, receipt);
+  await user.click(screen.getByRole("button", { name: "Save expense" }));
+  expect(financeApi.createFinEntry).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Retry VAT types" }));
+  await user.selectOptions(await screen.findByLabelText("VAT type"), "1");
+  expect(screen.getByText("Includes VAT of AED 5.00 on a net of AED 100.00.")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Save expense" }));
+  expect(financeApi.createFinEntry).toHaveBeenCalledWith("Expense", expect.objectContaining({ amount: 105, taxTypeId: 1, taxInclusive: true, files: [receipt] }));
+});
+
 it("does not interpret an empty recovery percentage as fully blocked VAT", async () => {
   const user = await open();
   await user.selectOptions(screen.getByLabelText("VAT type"), "1");

@@ -55,6 +55,9 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
   const [party, setParty] = useState(entry?.party ?? "");
   const [payees, setPayees] = useState<FinPayee[]>(submitMode?.payees ?? []);
   const [taxTypes, setTaxTypes] = useState<FinTaxType[]>(submitMode?.taxTypes ?? []);
+  const [taxStatus, setTaxStatus] = useState<"loading" | "ready" | "error">(submitMode ? "ready" : "loading");
+  const [taxAttempt, setTaxAttempt] = useState(0);
+  const taxUnavailable = taxStatus !== "ready";
   /**
    * "0" is "no VAT recorded", "" is "not chosen yet". A new entry starts on what its category says (never VAT, or a VAT type to offer first), then on what was chosen
    * for that category last time, and otherwise asks. Standard rated is never assumed: a salary saved with VAT on it would over-claim in the VAT return.
@@ -97,11 +100,23 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
     if (submitMode) return;   // staff may not read the manager lists; their payees arrive with the form
     listFinParties(kind).then((list) => !cancelled && setSuggestions(list)).catch(() => {});
     listFinPayees(kind).then((list) => !cancelled && setPayees(list)).catch(() => {});
-    listFinTaxTypes().then((list) => !cancelled && setTaxTypes(list)).catch(() => {});
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (submitMode) return; // Staff receive the catalog with their expense options.
+    let cancelled = false;
+    listFinTaxTypes().then((list) => {
+      if (cancelled) return;
+      setTaxTypes(list);
+      setTaxStatus("ready");
+    }).catch(() => {
+      if (!cancelled) setTaxStatus("error");
+    });
+    return () => { cancelled = true; };
+  }, [submitMode, taxAttempt]);
 
   function pickPayee(value: string) {
     setPayeeId(value);
@@ -156,6 +171,7 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (taxUnavailable || pending) return;
     const next: Partial<Record<FieldName, string>> = {};
     const value = parseMoneyInput(amount);
     if (!income && (parseMoneyInput(recovery) === null || (parseMoneyInput(recovery) ?? -1) < 0 || (parseMoneyInput(recovery) ?? 101) > 100)) next.recoverableTaxPercent = "Enter a VAT recovery percentage from 0 to 100.";
@@ -171,7 +187,9 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
     }
     if (!accountId) next.accountId = income ? "Choose the account the money went into." : "Choose the account it was paid from.";
     if (!party.trim()) next.party = income ? "Enter who it was received from." : "Enter who was paid.";
-    if (taxTypes.length > 0 && !vatSettlement && taxTypeId === "") next.taxTypeId = "Choose the VAT type, or \"No VAT recorded\" if this carries none.";
+    if (!vatSettlement && ((taxTypes.length > 0 && taxTypeId === "") || (taxTypeId !== "" && taxTypeId !== "0" && !chosenTax))) {
+      next.taxTypeId = "Choose the VAT type, or \"No VAT recorded\" if this carries none.";
+    }
     if (!income && files.length + keep.length === 0) next.files = "Attach the receipt or supplier invoice.";
     setErrors(next);
     setGeneral(null);
@@ -321,12 +339,22 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
           </fieldset>
         )}
         {vatSettlement && <p className="rounded-lg bg-ink-50 px-3 py-2.5 text-sm text-ink-700">This settles VAT with the tax authority. It carries no VAT of its own and is not a cost.</p>}
-        {taxTypes.length > 0 && !vatSettlement && (
+        {taxStatus === "loading" && <p role="status" className="text-sm text-ink-700">Loading VAT types…</p>}
+        {taxStatus === "error" && (
+          <div className="space-y-2">
+            <p role="alert" className="text-sm text-danger">Could not load VAT types. Retry before saving this entry.</p>
+            <Button variant="secondary" type="button" onClick={() => {
+              setTaxStatus("loading");
+              setTaxAttempt((attempt) => attempt + 1);
+            }}>Retry VAT types</Button>
+          </div>
+        )}
+        {!taxUnavailable && (taxTypes.length > 0 || (taxTypeId !== "" && taxTypeId !== "0")) && !vatSettlement && (
           <fieldset className="rounded-lg border border-line p-4">
             <legend className="px-1 text-sm font-medium text-ink-800">VAT</legend>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Select label="VAT type" value={taxTypeId} error={errors.taxTypeId} onChange={(e) => { setTaxTypeId(e.target.value); setTaxTouched(true); }}>
-                {taxTypeId === "" && <option value="" disabled>Choose VAT type</option>}
+              <Select label="VAT type" value={chosenTax || taxTypeId === "0" ? taxTypeId : ""} error={errors.taxTypeId} onChange={(e) => { setTaxTypeId(e.target.value); setTaxTouched(true); }}>
+                <option value="" disabled>Choose VAT type</option>
                 <option value="0">No VAT recorded</option>
                 {taxTypes.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}{t.rate > 0 ? ` (${t.rate}%)` : ""}</option>
@@ -396,9 +424,9 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
         <div className={cx("sticky z-10 flex flex-wrap justify-end gap-2 border-t border-line bg-white py-3", variant === "sheet" ? "-bottom-5 -mx-5 px-5" : "-bottom-6 -mx-6 px-6")}>
           <Button variant="secondary" onClick={onClose} disabled={pending}>{savedNote ? "Done" : "Cancel"}</Button>
           {onSavedAndContinue && !entry && !submitMode && (
-            <Button variant="secondary" type="submit" disabled={pending} onClick={() => { again.current = true; }}>Save and add another</Button>
+            <Button variant="secondary" type="submit" disabled={pending || taxUnavailable} onClick={() => { again.current = true; }}>Save and add another</Button>
           )}
-          <Button type="submit" disabled={pending} onClick={() => { again.current = false; }}>
+          <Button type="submit" disabled={pending || taxUnavailable} onClick={() => { again.current = false; }}>
             {pending ? <Loader2 aria-hidden="true" size={16} className="animate-spin" /> : <Save aria-hidden="true" size={16} />}
             {entry ? "Save correction" : income ? "Save income" : submitMode ? "Submit for approval" : "Save expense"}
           </Button>

@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { createMemoryRouter, Link, RouterProvider } from "react-router-dom";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import * as deductionsApi from "../../api/deductions";
@@ -47,7 +48,7 @@ afterEach(() => {
 
 it("asks for a reason before it saves an amount", async () => {
   const user = userEvent.setup();
-  render(<DeductionsPage />);
+  renderPage();
   const amount = await screen.findByLabelText("Advance / Loan amount for Ahmed Khan");
   await user.type(amount, "50");
   await user.click(screen.getByRole("button", { name: "Save deductions" }));
@@ -71,7 +72,7 @@ it("saves the amount with its reason for the month", async () => {
       ],
     }),
   );
-  render(<DeductionsPage />);
+  renderPage();
   await user.type(await screen.findByLabelText("Advance / Loan amount for Ahmed Khan"), "50");
   await user.type(screen.getByLabelText("Reason for Advance / Loan for Ahmed Khan"), "Agreed advance");
   await user.click(screen.getByRole("button", { name: "Save deductions" }));
@@ -86,7 +87,7 @@ it("saves the amount with its reason for the month", async () => {
 
 it("locks the entries for a finalised month", async () => {
   vi.mocked(deductionsApi.getDeductions).mockResolvedValue(monthData({ isFinalised: true }));
-  render(<DeductionsPage />);
+  renderPage();
   expect(await screen.findByText(/this month is finalised/i)).toBeInTheDocument();
   expect(screen.getByLabelText("Advance / Loan amount for Ahmed Khan")).toBeDisabled();
   expect(screen.queryByRole("button", { name: "Save deductions" })).not.toBeInTheDocument();
@@ -94,7 +95,7 @@ it("locks the entries for a finalised month", async () => {
 
 it("shows a Viewer the deductions with nothing to change", async () => {
   vi.mocked(useAuth).mockReturnValue({ status: "signedIn", user: { id: 3, username: "view", role: "Viewer" }, token: "t", login: vi.fn(), logout: vi.fn() });
-  render(<DeductionsPage />);
+  renderPage();
 
   expect(await screen.findByLabelText("Advance / Loan amount for Ahmed Khan")).toBeDisabled();
   expect(screen.queryByRole("button", { name: "Save deductions" })).not.toBeInTheDocument();
@@ -109,7 +110,7 @@ it("lets HR add deductions and types", async () => {
     login: vi.fn(),
     logout: vi.fn(),
   });
-  render(<DeductionsPage />);
+  renderPage();
   expect(await screen.findByLabelText("Advance / Loan amount for Ahmed Khan")).toBeEnabled();
   expect(screen.getByRole("button", { name: "Add type" })).toBeInTheDocument();
 });
@@ -124,7 +125,7 @@ it("shows a running total per worker and for the month, and asks for the reason 
     }),
   );
   const user = userEvent.setup();
-  render(<DeductionsPage />);
+  renderPage();
   await user.type(await screen.findByLabelText("Advance / Loan amount for Ahmed Khan"), "50");
   await user.type(screen.getByLabelText("Other Deductions amount for Ahmed Khan"), "25.5");
 
@@ -143,7 +144,7 @@ it("narrows the list to workers with deductions, or by name", async () => {
     }),
   );
   const user = userEvent.setup();
-  render(<DeductionsPage />);
+  renderPage();
   await user.type(await screen.findByLabelText("Advance / Loan amount for Ahmed Khan"), "50");
   await user.click(screen.getByLabelText("Only workers with deductions"));
   expect(screen.getByText("Ahmed Khan")).toBeInTheDocument();
@@ -153,4 +154,26 @@ it("narrows the list to workers with deductions, or by name", async () => {
   await user.type(screen.getByLabelText("Search workers"), "sara");
   expect(screen.queryByText("Ahmed Khan")).not.toBeInTheDocument();
   expect(screen.getByText("Sara Ali")).toBeInTheDocument();
+});
+
+function renderPage() {
+  const router = createMemoryRouter([
+    { path: "/home", element: <h1>Home</h1> },
+    { path: "/deductions", element: <><Link to="/home">Home</Link><DeductionsPage /></> },
+  ], { initialEntries: ["/home", "/deductions"], initialIndex: 1 });
+  return { ...render(<RouterProvider router={router} />), router };
+}
+
+it("keeps an unsaved deduction when the user declines to leave", async () => {
+  const user = userEvent.setup();
+  renderPage();
+  const amount = await screen.findByLabelText("Advance / Loan amount for Ahmed Khan");
+  await user.type(amount, "50");
+  await user.click(screen.getByRole("link", { name: "Home" }));
+  await user.click(await screen.findByRole("button", { name: "Keep editing" }));
+  expect(amount).toHaveValue(50);
+  await user.click(screen.getByRole("link", { name: "Home" }));
+  const confirmation = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
+  await user.click(within(confirmation).getByRole("button", { name: "Discard changes" }));
+  expect(await screen.findByRole("heading", { name: "Home" })).toBeInTheDocument();
 });

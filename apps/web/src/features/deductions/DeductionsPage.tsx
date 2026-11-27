@@ -11,6 +11,7 @@ import {
   type MonthDeductions,
 } from "../../api/deductions";
 import { ApiError } from "../../api/client";
+import { UnsavedChangesGuard } from "../../components/UnsavedChangesGuard";
 import { useAuth } from "../../contexts/AuthContext";
 import { canViewAll, isReadOnly } from "../../permissions";
 import {
@@ -212,6 +213,7 @@ export function DeductionsPage() {
 
   return (
     <section className="min-w-0 space-y-4">
+      <UnsavedChangesGuard dirty={dirty} pending={saving} subject="deduction edits" cancelLabel="Keep editing" />
       <PageHeader
         title="Deductions"
         description="Advances, loans and other deductions for the month. Each deduction needs a reason. Finalised months are locked."
