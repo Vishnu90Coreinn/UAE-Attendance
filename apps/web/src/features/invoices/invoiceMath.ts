@@ -2,7 +2,19 @@
  * Browser preview of the invoice arithmetic. The server is authoritative; this mirrors InvoiceCalculator and AmountInWords
  * and is tested against the same vectors (docs/invoice-test-vectors.json).
  */
+import type { InvoiceVatTreatment } from "../../api/invoices";
+
 export const VAT_RATE = 0.05;
+
+/**
+ * The choices in the editor, and the words each prints. The PDF (InvoiceVatLabels) prints the same ones. An exempt supply
+ * is not taxable, so its document is headed "Invoice" and not "Tax Invoice".
+ */
+export const VAT_TYPES: Record<InvoiceVatTreatment, { option: string; title: string; column: string; total: string; summary: string }> = {
+  Standard: { option: "Standard rated (5%)", title: "Tax Invoice", column: "VAT 5%", total: "VAT total (5%)", summary: "Standard rate (5%)" },
+  ZeroRated: { option: "Zero rated (0%)", title: "Tax Invoice", column: "VAT 0%", total: "VAT total (0%)", summary: "Zero rated (0%)" },
+  Exempt: { option: "Exempt (no VAT)", title: "Invoice", column: "VAT", total: "VAT total", summary: "Exempt" },
+};
 
 /** Rounds to 2 dp half away from zero, working in integer cents of the decimal text so 1.005-style floats do not drift. */
 export function round2(value: number): number {
@@ -20,9 +32,9 @@ export interface LineAmounts {
   amount: number;
 }
 
-export function lineAmounts(quantity: number, rate: number): LineAmounts {
+export function lineAmounts(quantity: number, rate: number, treatment: InvoiceVatTreatment = "Standard"): LineAmounts {
   const taxable = round2(quantity * rate);
-  const vat = round2(taxable * VAT_RATE);
+  const vat = treatment === "Standard" ? round2(taxable * VAT_RATE) : 0;
   return { taxable, vat, amount: round2(taxable + vat) };
 }
 

@@ -135,7 +135,10 @@ export function InvoicesPage() {
         <PageHeader title={mode.kind === "new" ? "New tax invoice" : "Edit draft invoice"} />
         <InvoiceEditor
           invoice={mode.kind === "edit" ? mode.invoice : undefined}
-          onSaved={(invoice) => setMode({ kind: "view", invoice })}
+          onSaved={(invoice) => {
+            loadClients();   // a name typed on the invoice has just joined the list
+            setMode({ kind: "view", invoice });
+          }}
           onCancel={() => setMode(mode.kind === "edit" ? { kind: "view", invoice: mode.invoice } : { kind: "list" })}
         />
       </section>
@@ -170,7 +173,7 @@ export function InvoicesPage() {
     <section>
       <PageHeader
         title="Tax Invoices"
-        description="Create, issue and track UAE tax invoices (5% VAT)."
+        description="Create, issue and track UAE tax invoices."
         actions={
           <>
             <Button variant="secondary" icon={Users} onClick={() => setClientsOpen(true)}>Clients</Button>

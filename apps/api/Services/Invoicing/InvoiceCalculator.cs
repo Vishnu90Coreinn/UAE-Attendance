@@ -1,3 +1,5 @@
+using HrPayroll.Api.Data.Entities;
+
 namespace HrPayroll.Api.Services;
 
 /// <summary>
@@ -8,12 +10,18 @@ public static class InvoiceCalculator
 {
     public const decimal VatRate = 0.05m;
 
+    /// <summary>
+    /// The VAT types a tax invoice can be raised under, one per invoice. Reverse charge and intra-GCC are left to the
+    /// finance screens: on a sale they need their own wording on the invoice, not just a 0 in the VAT column.
+    /// </summary>
+    public static readonly string[] Treatments = [FinTaxTreatments.Standard, FinTaxTreatments.ZeroRated, FinTaxTreatments.Exempt];
+
     public static decimal Round(decimal value) => decimal.Round(value, 2, MidpointRounding.AwayFromZero);
 
-    public static (decimal Taxable, decimal Vat, decimal Amount) Line(decimal quantity, decimal rate)
+    public static (decimal Taxable, decimal Vat, decimal Amount) Line(decimal quantity, decimal rate, string treatment = FinTaxTreatments.Standard)
     {
         var taxable = Round(quantity * rate);
-        var vat = Round(taxable * VatRate);
+        var vat = treatment == FinTaxTreatments.Standard ? Round(taxable * VatRate) : 0m;
         return (taxable, vat, taxable + vat);
     }
 
@@ -24,6 +32,20 @@ public static class InvoiceCalculator
         var vat = list.Sum(l => l.Vat);
         return (sub, vat, sub + vat);
     }
+}
+
+/// <summary>
+/// The words printed for an invoice's VAT type. The web invoice (invoiceMath.ts) prints the same ones. An exempt supply is
+/// not taxable, so its document is headed "Invoice" and not "Tax Invoice".
+/// </summary>
+public static class InvoiceVatLabels
+{
+    public static (string Title, string Column, string Total, string Summary) For(string treatment) => treatment switch
+    {
+        FinTaxTreatments.ZeroRated => ("Tax Invoice", "VAT 0%", "VAT total (0%)", "Zero rated (0%)"),
+        FinTaxTreatments.Exempt => ("Invoice", "VAT", "VAT total", "Exempt"),
+        _ => ("Tax Invoice", "VAT 5%", "VAT total (5%)", "Standard rate (5%)"),
+    };
 }
 
 /// <summary>Writes an amount as "UAE Dirham Sixty-Three Thousand ... and Twenty-Three Fils".</summary>

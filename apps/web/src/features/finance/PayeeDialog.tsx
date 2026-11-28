@@ -1,28 +1,25 @@
 import { useRef, useState, type FormEvent } from "react";
 import { Loader2, Save } from "lucide-react";
-import { createFinPayee, updateFinPayee, type FinCategory, type FinEntryKind, type FinPayee } from "../../api/finance";
+import { createFinPayee, updateFinPayee, type FinCategory, type FinPayee } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
 import { Button, Select, Textarea } from "../../ui";
 
-type FieldName = "name" | "kind" | "defaultCategoryId" | "phone" | "taxNumber" | "notes";
-const FIELDS: FieldName[] = ["name", "kind", "defaultCategoryId", "phone", "taxNumber", "notes"];
+type FieldName = "name" | "defaultCategoryId" | "phone" | "taxNumber" | "notes";
+const FIELDS: FieldName[] = ["name", "defaultCategoryId", "phone", "taxNumber", "notes"];
 
 interface PayeeDialogProps {
   /** Null adds a payee; a payee edits that payee. */
   payee: FinPayee | null;
-  /** The kind a new payee starts as. */
-  kind: FinEntryKind;
   categories: FinCategory[];
   variant: "center" | "sheet";
   onClose: () => void;
   onSaved: (payee: FinPayee, message: string) => void;
 }
 
-/** A person or company the business pays or is paid by, with the category usually used for it. */
-export function PayeeDialog({ payee, kind, categories, variant, onClose, onSaved }: PayeeDialogProps) {
-  const [chosenKind, setChosenKind] = useState<FinEntryKind>(payee?.kind ?? kind);
+/** A person or company the business pays, with the category usually used for it. Customers are in the client list instead. */
+export function PayeeDialog({ payee, categories, variant, onClose, onSaved }: PayeeDialogProps) {
   const [name, setName] = useState(payee?.name ?? "");
   const [categoryId, setCategoryId] = useState(payee?.defaultCategoryId ? String(payee.defaultCategoryId) : "");
   const [phone, setPhone] = useState(payee?.phone ?? "");
@@ -33,7 +30,7 @@ export function PayeeDialog({ payee, kind, categories, variant, onClose, onSaved
   const [general, setGeneral] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
-  const options = categories.filter((c) => c.kind === chosenKind && c.isActive && !c.isSystem);
+  const options = categories.filter((c) => c.kind === "Expense" && c.isActive && !c.isSystem);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -45,7 +42,7 @@ export function PayeeDialog({ payee, kind, categories, variant, onClose, onSaved
     setGeneral(null);
     setPending(true);
     try {
-      const input = { kind: chosenKind, name: name.trim(), defaultCategoryId: categoryId ? Number(categoryId) : null, phone: phone.trim(), taxNumber: taxNumber.trim(), notes: notes.trim(), isActive: active };
+      const input = { kind: "Expense" as const, name: name.trim(), defaultCategoryId: categoryId ? Number(categoryId) : null, phone: phone.trim(), taxNumber: taxNumber.trim(), notes: notes.trim(), isActive: active };
       const saved = payee ? await updateFinPayee(payee.id, input) : await createFinPayee(input);
       onSaved(saved, payee ? `${saved.name} was updated.` : `${saved.name} was added.`);
     } catch (error) {
@@ -69,12 +66,6 @@ export function PayeeDialog({ payee, kind, categories, variant, onClose, onSaved
   return (
     <Dialog open title={payee ? "Edit payee" : "Add payee"} onClose={pending ? () => {} : onClose} initialFocusRef={nameRef} variant={variant}>
       <form onSubmit={submit} noValidate className="mt-4 space-y-4">
-        {!payee && (
-          <Select label="Type" value={chosenKind} onChange={(e) => { setChosenKind(e.target.value as FinEntryKind); setCategoryId(""); }} error={errors.kind}>
-            <option value="Expense">Paid to (expenses)</option>
-            <option value="Income">Received from (income)</option>
-          </Select>
-        )}
         <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} inputRef={nameRef} maxLength={120} autoComplete="off" />
         <Select label="Usual category (optional)" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} error={errors.defaultCategoryId}>
           <option value="">No usual category</option>

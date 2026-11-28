@@ -135,6 +135,10 @@ public sealed class FinanceController(FinanceAccountService accounts, FinanceCat
     [Authorize(Policy = Policies.Finance)]
     public async Task<IActionResult> UpdatePayee(int id, [FromBody] FinPayeeRequest? request, CancellationToken ct) => Map(await payees.UpdateAsync(id, request ?? new(), ct));
 
+    [HttpGet("clients")]
+    [Authorize(Policy = Policies.Finance)]
+    public async Task<IActionResult> Clients(CancellationToken ct) => Ok(await payees.ClientsAsync(ct));
+
     // --- partners and their capital ---------------------------------------------------------------------------
 
     [HttpGet("partners")]

@@ -160,6 +160,8 @@ export interface FinEntry {
   /** Capital entries only. */
   partnerId?: number | null;
   payeeId?: number | null;
+  /** Income only: the client from the shared client list. */
+  clientId?: number | null;
   /** Largest first. More than one line means the entry is split between categories. */
   lines?: FinEntryLine[];
   /** VAT: the type chosen (null when none was recorded), the rate that applied, and the VAT on the entry. */
@@ -205,6 +207,8 @@ export interface FinEntryInput {
   /** When correcting: receipts of the original entry to keep. */
   keepAttachmentIds?: number[];
   payeeId?: number | null;
+  /** Income only. */
+  clientId?: number | null;
   /** A VAT type id, 0 for "no VAT recorded", or left out for the category default. */
   taxTypeId?: number | null;
   /** Whether the amount typed already contains the VAT. */
@@ -238,6 +242,7 @@ function entryForm(input: FinEntryInput): FormData {
   form.set("entryDate", input.entryDate);
   form.set("categoryId", String(input.categoryId));
   if (input.payeeId) form.set("payeeId", String(input.payeeId));
+  if (input.clientId) form.set("clientId", String(input.clientId));
   if (input.taxTypeId !== undefined && input.taxTypeId !== null) {
     form.set("taxTypeId", String(input.taxTypeId));
     form.set("taxInclusive", String(input.taxInclusive ?? true));
@@ -532,6 +537,24 @@ export interface FinPayeeInput {
   taxNumber: string;
   notes: string;
   isActive?: boolean;
+}
+
+/** A client from the shared list, with the money received from each (invoice payments and other income). */
+export interface FinClient {
+  id: number;
+  name: string;
+  trn: string;
+  address: string;
+  isActive: boolean;
+  entryCount: number;
+  total: number;
+  /** Still owed on issued invoices, and which invoices, oldest first. */
+  unpaid: number;
+  unpaidInvoices: string[];
+}
+
+export function listFinClients(): Promise<FinClient[]> {
+  return apiGet("/api/finance/clients");
 }
 
 export function listFinPayees(kind?: FinEntryKind, includeInactive = false): Promise<FinPayee[]> {

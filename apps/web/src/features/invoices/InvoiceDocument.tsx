@@ -1,24 +1,26 @@
 import type { Invoice, InvoiceCompany, InvoiceLine } from "../../api/invoices";
-import { formatMoney } from "./invoiceMath";
+import { formatMoney, VAT_TYPES } from "./invoiceMath";
 import { formatDate, useDocumentImage, useLogoUrl } from "./invoiceUi";
 
 interface Props {
   invoice: Pick<
     Invoice,
     | "number" | "status" | "displayStatus" | "clientName" | "clientTrn" | "clientAddress" | "invoiceDate" | "dueDate" | "paymentTerms"
-    | "lpoRef" | "pcRef" | "project" | "scope" | "notes" | "subTotal" | "vatTotal" | "total" | "balanceDue" | "amountPaid" | "totalInWords"
+    | "lpoRef" | "pcRef" | "project" | "scope" | "notes" | "subTotal" | "vatTotal" | "total" | "balanceDue" | "amountPaid" | "totalInWords" | "vatTreatment"
   > & { lines: Pick<InvoiceLine, "lineNo" | "description" | "quantity" | "rate" | "taxable" | "vat" | "amount">[]; company: InvoiceCompany };
 }
 
-/** The tax invoice as it prints. The same markup is used on screen and in the browser's print view (which handles the Arabic name). */
+/** The invoice as it prints. The same markup is used on screen and in the browser's print view (which handles the Arabic name). */
 export function InvoiceDocument({ invoice }: Props) {
   const c = invoice.company;
   const logo = useLogoUrl(c.hasLogo);
   const stamp = useDocumentImage("seal", !!c.hasSeal);
   const issued = invoice.status === "Issued";
+  const vatType = VAT_TYPES[invoice.vatTreatment ?? "Standard"];
+  const name = vatType.title === "Invoice" ? "Invoice" : "Tax invoice";
   return (
     <article
-      aria-label={invoice.number ? `Tax invoice ${invoice.number}` : "Tax invoice draft"}
+      aria-label={invoice.number ? `${name} ${invoice.number}` : `${name} draft`}
       className="invoice-doc mx-auto w-full max-w-4xl rounded-card border border-line bg-white p-4 text-sm text-ink-800 shadow-card sm:p-8"
     >
       <header className="flex flex-col gap-4 border-b border-ink-200 pb-5 sm:flex-row sm:justify-between">
@@ -41,7 +43,7 @@ export function InvoiceDocument({ invoice }: Props) {
           </div>
         </div>
         <div className="sm:text-right">
-          <h3 className="text-2xl font-black uppercase tracking-tight text-ink-900">Tax Invoice</h3>
+          <h3 className="text-2xl font-black uppercase tracking-tight text-ink-900">{vatType.title}</h3>
           <p className="font-bold text-ink-900">{invoice.number ?? "Draft (no number yet)"}</p>
           <p className="mt-1 text-xs font-semibold uppercase text-amber-800">
             {invoice.status === "Cancelled" ? "Cancelled" : invoice.displayStatus === "Paid" ? "Paid" : invoice.displayStatus === "PartPaid" ? "Part-paid" : invoice.status === "Draft" ? "Draft" : ""}
@@ -84,7 +86,7 @@ export function InvoiceDocument({ invoice }: Props) {
               <th scope="col" className="px-3 py-2 text-right">Area</th>
               <th scope="col" className="px-3 py-2 text-right">Rate (AED)</th>
               <th scope="col" className="px-3 py-2 text-right">Taxable</th>
-              <th scope="col" className="px-3 py-2 text-right">VAT 5%</th>
+              <th scope="col" className="px-3 py-2 text-right">{vatType.column}</th>
               <th scope="col" className="px-3 py-2 text-right">Amount</th>
             </tr>
           </thead>
@@ -115,7 +117,7 @@ export function InvoiceDocument({ invoice }: Props) {
             <dd className="font-bold tabular-nums">{formatMoney(invoice.subTotal)}</dd>
           </div>
           <div className="flex justify-between border-b border-line px-1 pb-1">
-            <dt className="font-semibold text-ink-600">VAT total (5%)</dt>
+            <dt className="font-semibold text-ink-600">{vatType.total}</dt>
             <dd className="font-bold tabular-nums">{formatMoney(invoice.vatTotal)}</dd>
           </div>
           <div className="flex justify-between rounded bg-ink-100 p-2">
@@ -149,7 +151,7 @@ export function InvoiceDocument({ invoice }: Props) {
           </thead>
           <tbody>
             <tr className="border-b border-line">
-              <td className="px-3 py-1.5">Standard rate (5%)</td>
+              <td className="px-3 py-1.5">{vatType.summary}</td>
               <td className="px-3 py-1.5 text-right tabular-nums">{formatMoney(invoice.subTotal)}</td>
               <td className="px-3 py-1.5 text-right tabular-nums">{formatMoney(invoice.vatTotal)}</td>
             </tr>

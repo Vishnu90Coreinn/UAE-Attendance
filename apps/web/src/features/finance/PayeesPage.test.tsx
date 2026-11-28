@@ -5,8 +5,10 @@ import * as financeApi from "../../api/finance";
 import type { FinCategory, FinPayee } from "../../api/finance";
 import { useAuth } from "../../contexts/AuthContext";
 import { PayeesPage } from "./PayeesPage";
+import * as invoicesApi from "../../api/invoices";
 
 vi.mock("../../api/finance");
+vi.mock("../../api/invoices");
 vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
 
 const categories: FinCategory[] = [
@@ -21,10 +23,12 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(useAuth).mockReturnValue({ status: "signedIn", user: { id: 1, username: "u", role: "Manager" }, token: "t", login: vi.fn(), logout: vi.fn() });
   vi.mocked(financeApi.listFinCategories).mockResolvedValue(categories);
-  vi.mocked(financeApi.listFinPayees).mockResolvedValue([payee(), payee({ id: 2, kind: "Income", name: "One by Binghatti", total: 111767.04, entryCount: 1, defaultCategoryId: 10, defaultCategoryName: "Other income" })]);
+  vi.mocked(financeApi.listFinPayees).mockResolvedValue([payee()]);
+  vi.mocked(financeApi.listFinClients).mockResolvedValue([{ id: 12, name: "One by Binghatti", trn: "100", address: "", isActive: true, total: 111767.04, entryCount: 1, unpaid: 0, unpaidInvoices: [] }]);
+  vi.mocked(invoicesApi.listInvoiceClients).mockResolvedValue([]);
 });
 
-it("lists who was paid with the total for each, and who paid us on the other tab", async () => {
+it("lists who was paid with the total for each, and the shared clients on the other tab", async () => {
   const user = userEvent.setup();
   render(<PayeesPage />);
 
@@ -35,6 +39,11 @@ it("lists who was paid with the total for each, and who paid us on the other tab
 
   await user.click(screen.getByRole("tab", { name: "Received from" }));
   expect(screen.getByText("One by Binghatti")).toBeInTheDocument();
+  expect(screen.getByText("TRN 100")).toBeInTheDocument();
+  // Clients are added and edited in the same dialog the invoices page uses, not as payees.
+  expect(screen.queryByRole("button", { name: "Add payee" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Manage clients" }));
+  expect(await screen.findByRole("dialog", { name: "Clients" })).toBeInTheDocument();
 });
 
 it("adds a payee with its usual category", async () => {

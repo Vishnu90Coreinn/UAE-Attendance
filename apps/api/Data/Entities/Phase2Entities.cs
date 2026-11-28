@@ -86,6 +86,9 @@ public sealed class Invoice
     public string Project { get; set; } = "";
     public string Scope { get; set; } = "";
     public string Notes { get; set; } = "";
+
+    /// <summary>One VAT type for the whole invoice; a <see cref="FinTaxTreatments"/> value from InvoiceCalculator.Treatments.</summary>
+    public string VatTreatment { get; set; } = FinTaxTreatments.Standard;
     public decimal SubTotal { get; set; }
     public decimal VatTotal { get; set; }
     public decimal Total { get; set; }

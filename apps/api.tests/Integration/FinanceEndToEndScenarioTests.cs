@@ -75,7 +75,7 @@ public class FinanceEndToEndScenarioTests(ReceiptsFixture api) : IClassFixture<R
         async Task<int> Payee(string name, string kind, int category) =>
             (await SendAsync(HttpMethod.Post, "/api/finance/payees", manager, new { kind, name, defaultCategoryId = category })).Body.GetProperty("id").GetInt32();
         var landlord = await Payee("M S K Luxuries Properties", "Expense", 5);
-        var binghatti = await Payee("One by Binghatti", "Income", 10);
+        var binghatti = (await SendAsync(HttpMethod.Post, "/api/invoice-clients", manager, new { name = "One by Binghatti" })).Body.GetProperty("id").GetInt32();
 
         // ---- 2. Partners put capital in -------------------------------------------------------------------------------
         async Task Capital(int partner, decimal amount, int daysAgo)
@@ -126,7 +126,7 @@ public class FinanceEndToEndScenarioTests(ReceiptsFixture api) : IClassFixture<R
         var income = new MultipartFormDataContent
         {
             { new StringContent(D(Today.AddDays(-20))), "entryDate" }, { new StringContent("10"), "categoryId" }, { new StringContent(rak.ToString()), "accountId" },
-            { new StringContent("111767.04"), "amount" }, { new StringContent(binghatti.ToString()), "payeeId" }, { new StringContent("Sliding door shutters"), "notes" },
+            { new StringContent("111767.04"), "amount" }, { new StringContent(binghatti.ToString()), "clientId" }, { new StringContent("Sliding door shutters"), "notes" },
         };
         Assert.Equal(HttpStatusCode.Created, (await SendAsync(HttpMethod.Post, "/api/finance/income", manager, content: income)).Status);
         Assert.Equal(HttpStatusCode.Created, (await SendAsync(HttpMethod.Post, "/api/finance/cheques", manager, new

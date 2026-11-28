@@ -4,6 +4,8 @@ export type InvoiceStatus = "Draft" | "Issued" | "Cancelled";
 /** What the list shows: the stored status refined by payments. Overdue is a separate flag. */
 export type InvoiceDisplayStatus = "Draft" | "Issued" | "PartPaid" | "Paid" | "Cancelled";
 export type InvoiceStatusFilter = InvoiceDisplayStatus | "Overdue";
+/** One VAT type for the whole invoice. */
+export type InvoiceVatTreatment = "Standard" | "ZeroRated" | "Exempt";
 
 export interface InvoiceLineInput {
   description: string;
@@ -25,6 +27,8 @@ export interface InvoiceInput {
   project: string;
   scope: string;
   notes: string;
+  /** Left out, a new invoice is standard rated and a draft keeps what it has. */
+  vatTreatment?: InvoiceVatTreatment;
   lines: InvoiceLineInput[];
 }
 

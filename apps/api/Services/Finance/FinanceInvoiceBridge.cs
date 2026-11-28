@@ -43,7 +43,7 @@ public sealed class FinanceInvoiceBridge(AppDbContext db, FinanceLedgerService l
         var entry = new FinEntry
         {
             Kind = FinEntryKinds.Income, EntryNo = "INC-" + number.ToString("000000", CultureInfo.InvariantCulture), EntryDate = date, CategoryId = category.Id, Party = party,
-            AccountId = account.Id, Amount = amount, Reference = reference, Notes = $"Payment for {invoice.Number}", CreatedBy = FinanceRules.Actor(http), CreatedUtc = DateTime.UtcNow, InvoiceId = invoice.Id,
+            AccountId = account.Id, Amount = amount, Reference = reference, Notes = $"Payment for {invoice.Number}", CreatedBy = FinanceRules.Actor(http), CreatedUtc = DateTime.UtcNow, InvoiceId = invoice.Id, ClientId = invoice.ClientId,
         };
         entry.Lines.Add(new FinEntryLine { CategoryId = category.Id, Amount = amount });
         db.FinEntries.Add(entry);

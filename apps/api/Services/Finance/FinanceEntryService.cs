@@ -39,7 +39,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         files.Select(f => new FinAttachmentResponse(f.Id, f.FileName, f.ContentType, f.SizeBytes)).ToList(),
         e.VoidedBy, e.VoidedUtc, e.ReplacesEntryId, replacesNo, replacedByNo, e.PartnerId, e.PayeeId,
         e.Lines.OrderByDescending(l => l.Amount).ThenBy(l => l.Id).Select(l => new FinEntryLineResponse(l.CategoryId, l.Category.Name, l.Amount, l.Note)).ToList(),
-        e.TaxTypeId, e.TaxRate, e.TaxAmount, e.TaxInclusive, e.InvoiceId, e.BillId, e.RecoverableTaxPercent);
+        e.TaxTypeId, e.TaxRate, e.TaxAmount, e.TaxInclusive, e.InvoiceId, e.BillId, e.RecoverableTaxPercent, e.ClientId);
 
     /// <summary>EntryNo of the entry each given entry replaces, and of the entry that replaced it.</summary>
     private async Task<(Dictionary<int, string> Replaces, Dictionary<int, string> ReplacedBy)> ChainAsync(IReadOnlyCollection<FinEntry> rows, CancellationToken ct)
@@ -200,6 +200,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
         var party = FinanceRules.Clean(form.Party);
         FinPartner? partner = null;
         FinPayee? payee = null;
+        InvoiceClient? client = null;
         if (capital)
         {
             if (form.PartnerId is null) errors["partnerId"] = ["Choose the partner."];
@@ -218,6 +219,19 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
                 payee = await db.FinPayees.AsNoTracking().SingleOrDefaultAsync(p => p.Id == payeeId, ct);
                 if (payee is null || !payee.IsActive || payee.Kind != kind) errors["payeeId"] = ["Choose an active payee of the right type."];
                 else party = payee.Name;
+            }
+
+            // Income links to the shared client list: by the client picked, or by a typed name that is on it. Income never adds a client.
+            if (kind == FinEntryKinds.Income && form.ClientId is { } clientId)
+            {
+                client = await db.InvoiceClients.AsNoTracking().SingleOrDefaultAsync(c => c.Id == clientId, ct);
+                if (client is null || !client.IsActive) errors["clientId"] = ["Choose an active client from the list."];
+                else party = client.Name;
+            }
+            else if (kind == FinEntryKinds.Income && party is not null)
+            {
+                client = await db.InvoiceClients.AsNoTracking().SingleOrDefaultAsync(c => c.IsActive && c.Name == party, ct);
+                if (client is not null) party = client.Name;
             }
 
             var partyLabel = kind == FinEntryKinds.Income ? "who it was received from" : "who was paid";
@@ -392,7 +406,7 @@ public sealed class FinanceEntryService(AppDbContext db, IAuditLogger audit, IHt
                 Kind = kind, EntryNo = "PENDING", EntryDate = date, CategoryId = category!.Id, Party = party!, AccountId = account!.Id,
                 Amount = amount, Reference = FinanceRules.Clean(form.Reference), Notes = FinanceRules.Clean(form.Notes),
                 TaxTypeId = taxType?.Id, TaxRate = taxRate, TaxAmount = taxAmount, TaxInclusive = inclusive, RecoverableTaxPercent = recovery,
-                CreatedBy = actor, CreatedUtc = now, ReplacesEntryId = replaces?.Id, PartnerId = partner?.Id, PayeeId = payee?.Id, Lines = lineRows,
+                CreatedBy = actor, CreatedUtc = now, ReplacesEntryId = replaces?.Id, PartnerId = partner?.Id, PayeeId = payee?.Id, ClientId = client?.Id, Lines = lineRows,
                 Status = pending ? FinStatuses.Pending : FinStatuses.Active,
             };
 

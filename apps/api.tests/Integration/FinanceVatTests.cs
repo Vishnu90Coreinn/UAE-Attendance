@@ -300,6 +300,30 @@ public class FinanceVatTests(ReceiptsFixture api) : IClassFixture<ReceiptsFixtur
     }
 
     [Fact]
+    public async Task InvoicesWithoutVat_AreReportedUnderTheirVatType()
+    {
+        var token = await ManagerAsync();
+        async Task Issue(string vatTreatment, decimal rate)
+        {
+            var made = await SendAsync(HttpMethod.Post, "/api/invoices", token, new { clientName = "Acme", invoiceDate = "2003-05-10", dueDate = "2003-05-30", vatTreatment, lines = new[] { new { description = "Works", quantity = 1m, rate } } });
+            Assert.Equal(HttpStatusCode.Created, made.Status);
+            var issued = await SendAsync(HttpMethod.Post, $"/api/invoices/{made.Body.GetProperty("id").GetInt32()}/issue", token, new { });
+            Assert.Equal(HttpStatusCode.OK, issued.Status);
+        }
+        await Issue("Standard", 100m);
+        await Issue("ZeroRated", 200m);
+        await Issue("Exempt", 300m);
+
+        var vat = (await SendAsync(HttpMethod.Get, "/api/finance/reports/vat?from=2003-05-01&to=2003-05-31", token)).Body;
+
+        var sales = vat.GetProperty("sales").EnumerateArray().ToDictionary(r => r.GetProperty("treatment").GetString()!, r => (Net: r.GetProperty("net").GetDecimal(), Vat: r.GetProperty("vat").GetDecimal()));
+        Assert.Equal((100m, 5m), sales["Standard"]);
+        Assert.Equal((200m, 0m), sales["ZeroRated"]);
+        Assert.Equal((300m, 0m), sales["Exempt"]);
+        Assert.Equal(0, vat.GetProperty("unrecordedSales").GetProperty("count").GetInt32());
+    }
+
+    [Fact]
     public async Task VatReport_DownloadsAndAccess()
     {
         var token = await ManagerAsync();

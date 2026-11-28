@@ -1,4 +1,4 @@
-using HrPayroll.Api.Data;
+﻿using HrPayroll.Api.Data;
 using HrPayroll.Api.Tests.Helpers;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +28,44 @@ public class MigrationTests(TestDatabase database) : IClassFixture<TestDatabase>
         Assert.Contains(applied, name => name.EndsWith("_AddOvertimeRates"));
         Assert.Contains(applied, name => name.EndsWith("_ManagerSupervisorRoles"));
         Assert.Empty(pending);
+    }
+
+    [Fact]
+    public async Task TheSharedClientListMigration_AddsClientsTypedOnInvoices_Once_AndLinksThem()
+    {
+        var serverConnection = new SqlConnectionStringBuilder(database.ConnectionString) { InitialCatalog = "master" }.ConnectionString;
+        var name = $"HrPayroll_Test_{Guid.NewGuid():N}";
+        var connectionString = new SqlConnectionStringBuilder(database.ConnectionString) { InitialCatalog = name }.ConnectionString;
+
+        await ExecuteAsync(serverConnection, $"CREATE DATABASE [{name}]");
+        try
+        {
+            var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).Options;
+            await using var db = new AppDbContext(options);
+            await db.GetService<IMigrator>().MigrateAsync("20261128060340_AddInvoiceVatTreatment");
+            await ExecuteAsync(connectionString, "INSERT INTO InvoiceClients (Name, Trn, Address, IsActive) VALUES ('Already Listed', '9', 'Listed address', 1)");
+            foreach (var (client, trn) in new[] { ("Al Noor", "1"), ("AL NOOR", "2"), ("already listed", "") })
+                await ExecuteAsync(connectionString,
+                    $@"INSERT INTO Invoices (Status, ClientName, ClientTrn, ClientAddress, InvoiceDate, DueDate, PaymentTerms, LpoRef, Project, Scope, Notes, SubTotal, VatTotal, Total, CreatedBy, CreatedUtc, UpdatedUtc)
+                       VALUES ('Draft', '{client}', '{trn}', '', '2026-11-01', '2026-11-30', 'Net', '', '', '', '', 100, 5, 105, 'm', SYSUTCDATETIME(), SYSUTCDATETIME())");
+
+            await db.Database.MigrateAsync();
+
+            var clients = await db.InvoiceClients.AsNoTracking().OrderBy(c => c.Name).ToListAsync();
+            Assert.Equal(2, clients.Count);
+            Assert.Equal("2", clients.Single(c => c.Name.ToUpper() == "AL NOOR").Trn);   // the newest invoice's details
+            Assert.Equal("Listed address", clients.Single(c => c.Name == "Already Listed").Address);   // an existing client is left as it is
+            var invoices = await db.Invoices.AsNoTracking().OrderBy(i => i.Id).ToListAsync();
+            Assert.All(invoices, i => Assert.NotNull(i.ClientId));
+            Assert.Equal(invoices[0].ClientId, invoices[1].ClientId);
+            Assert.Equal("Al Noor", invoices[0].ClientName);   // what was printed does not change
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await ExecuteAsync(serverConnection,
+                $"IF DB_ID(N'{name}') IS NOT NULL BEGIN ALTER DATABASE [{name}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{name}]; END");
+        }
     }
 
     [Fact]

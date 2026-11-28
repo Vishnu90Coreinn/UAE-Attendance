@@ -26,6 +26,10 @@ function signIn(role: "Manager" | "Viewer") {
   vi.mocked(useAuth).mockReturnValue({ status: "signedIn", user: { id: 1, username: "u", role }, token: "t", login: vi.fn(), logout: vi.fn() });
 }
 
+const client = (over: Partial<financeApi.FinClient> = {}): financeApi.FinClient => ({
+  id: 12, name: "Al Noor Contracting", trn: "", address: "", isActive: true, entryCount: 0, total: 0, unpaid: 0, unpaidInvoices: [], ...over,
+});
+
 beforeEach(() => {
   vi.resetAllMocks();
   signIn("Manager");
@@ -36,6 +40,7 @@ beforeEach(() => {
   vi.mocked(financeApi.listFinPayees).mockResolvedValue([]);
   vi.mocked(financeApi.listFinTaxTypes).mockResolvedValue([]);
   vi.mocked(financeApi.listFinEntries).mockResolvedValue({ items: [entry], total: 111767.04, count: 1, truncated: false });
+  vi.mocked(financeApi.listFinClients).mockResolvedValue([]);
 });
 
 it("lists income with its own wording and asks the server for income", async () => {
@@ -76,6 +81,49 @@ it("saves income without any attachment", async () => {
 
   await waitFor(() => expect(financeApi.createFinEntry).toHaveBeenCalledWith("Income", expect.objectContaining({ amount: 250, categoryId: 10, party: "Client A", files: [] })));
   expect(await screen.findByText(/INC-000004: AED 250.00 received from Client A/)).toBeInTheDocument();
+});
+
+it("picks the client from the same list invoices use, and sends it", async () => {
+  vi.mocked(financeApi.listFinClients).mockResolvedValue([client()]);
+  vi.mocked(financeApi.createFinEntry).mockResolvedValue({ ...entry, id: 4, entryNo: "INC-000004", amount: 250, party: "Al Noor Contracting" });
+  const user = userEvent.setup();
+  render(<MemoryRouter><IncomePage /></MemoryRouter>);
+  await user.click(await screen.findByRole("button", { name: "Add income" }));
+  const dialog = await screen.findByRole("dialog");
+
+  await user.selectOptions(await within(dialog).findByLabelText("Client (optional)"), "12");
+  expect(within(dialog).getByLabelText("Received from")).toHaveValue("Al Noor Contracting");
+  await user.type(within(dialog).getByLabelText("Amount (AED)"), "250");
+  await user.selectOptions(within(dialog).getByLabelText("Category"), "10");
+  await user.selectOptions(within(dialog).getByLabelText("Received into"), "1");
+  await user.click(within(dialog).getByRole("button", { name: "Save income" }));
+
+  await waitFor(() => expect(financeApi.createFinEntry).toHaveBeenCalledWith("Income", expect.objectContaining({ clientId: 12, party: "Al Noor Contracting" })));
+  expect(financeApi.listFinPayees).not.toHaveBeenCalledWith("Income");
+});
+
+it("warns when the client still owes on invoices, whether picked or typed", async () => {
+  vi.mocked(financeApi.listFinClients).mockResolvedValue([client({ unpaid: 186921, unpaidInvoices: ["INV-000189", "INV-000191"] }), client({ id: 13, name: "Paid Up LLC" })]);
+  const user = userEvent.setup();
+  render(<MemoryRouter><IncomePage /></MemoryRouter>);
+  await user.click(await screen.findByRole("button", { name: "Add income" }));
+  const dialog = await screen.findByRole("dialog");
+  const picker = await within(dialog).findByLabelText("Client (optional)");
+  expect(within(dialog).queryByText(/still owes/)).not.toBeInTheDocument();
+
+  await user.selectOptions(picker, "12");
+  const warning = within(dialog).getByRole("status", { name: "Unpaid invoices" });
+  expect(warning).toHaveTextContent("Al Noor Contracting still owes AED 186,921.00 on INV-000189, INV-000191.");
+  expect(warning).toHaveTextContent("record it on the invoice instead");
+  expect(within(warning).getByRole("link", { name: "Go to Tax Invoices" })).toHaveAttribute("href", "/invoices");
+
+  await user.selectOptions(picker, "13");
+  expect(within(dialog).queryByRole("status", { name: "Unpaid invoices" })).not.toBeInTheDocument();
+
+  const from = within(dialog).getByLabelText("Received from");
+  await user.clear(from);
+  await user.type(from, "  al noor contracting ");
+  expect(within(dialog).getByRole("status", { name: "Unpaid invoices" })).toBeInTheDocument();
 });
 
 it("gives the Partner no add button", async () => {

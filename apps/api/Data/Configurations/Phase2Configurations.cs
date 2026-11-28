@@ -84,6 +84,7 @@ public sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         {
             t.HasCheckConstraint("CK_Invoices_Status", "[Status] IN ('Draft','Issued','Cancelled')");
             t.HasCheckConstraint("CK_Invoices_Totals", "[SubTotal] >= 0 AND [VatTotal] >= 0 AND [Total] = [SubTotal] + [VatTotal]");
+            t.HasCheckConstraint("CK_Invoices_VatTreatment", "[VatTreatment] IN ('Standard','ZeroRated','Exempt') AND ([VatTreatment] = 'Standard' OR [VatTotal] = 0)");
             t.HasCheckConstraint("CK_Invoices_NumberWhenIssued", "([Status] = 'Draft' AND [Number] IS NULL) OR ([Status] <> 'Draft' AND [Number] IS NOT NULL)");
         });
         b.Property(i => i.Number).HasMaxLength(30);
@@ -101,6 +102,7 @@ public sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         b.Property(i => i.Project).HasMaxLength(120).IsRequired();
         b.Property(i => i.Scope).HasMaxLength(120).IsRequired();
         b.Property(i => i.Notes).HasMaxLength(300).IsRequired();
+        b.Property(i => i.VatTreatment).HasMaxLength(20).IsRequired().HasDefaultValue(FinTaxTreatments.Standard);
         b.Property(i => i.SubTotal).HasPrecision(14, 2);
         b.Property(i => i.VatTotal).HasPrecision(14, 2);
         b.Property(i => i.Total).HasPrecision(14, 2);

@@ -147,6 +147,9 @@ public sealed class FinEntry
     /// <summary>The saved payee picked for this entry, when one was. <see cref="Party"/> keeps the name as it was on the day.</summary>
     public int? PayeeId { get; set; }
 
+    /// <summary>Income only: the client it came from, from the same list invoices use. Null for money that is not from a client.</summary>
+    public int? ClientId { get; set; }
+
     /// <summary>The VAT treatment chosen, or null when none was recorded (entries from before VAT, or a deliberate "no VAT").</summary>
     public int? TaxTypeId { get; set; }
 

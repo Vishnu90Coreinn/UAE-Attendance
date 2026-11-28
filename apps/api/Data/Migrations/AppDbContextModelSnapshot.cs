@@ -1015,6 +1015,9 @@ namespace HrPayroll.Api.Data.Migrations
                     b.Property<int>("CategoryId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("ClientId")
+                        .HasColumnType("int");
+
                     b.Property<string>("CreatedBy")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -1113,6 +1116,8 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasFilter("[BillId] IS NOT NULL");
 
                     b.HasIndex("CategoryId");
+
+                    b.HasIndex("ClientId");
 
                     b.HasIndex("EntryDate");
 
@@ -1626,6 +1631,13 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasPrecision(14, 2)
                         .HasColumnType("decimal(14,2)");
 
+                    b.Property<string>("VatTreatment")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Standard");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ClientId");
@@ -1643,6 +1655,8 @@ namespace HrPayroll.Api.Data.Migrations
                             t.HasCheckConstraint("CK_Invoices_Status", "[Status] IN ('Draft','Issued','Cancelled')");
 
                             t.HasCheckConstraint("CK_Invoices_Totals", "[SubTotal] >= 0 AND [VatTotal] >= 0 AND [Total] = [SubTotal] + [VatTotal]");
+
+                            t.HasCheckConstraint("CK_Invoices_VatTreatment", "[VatTreatment] IN ('Standard','ZeroRated','Exempt') AND ([VatTreatment] = 'Standard' OR [VatTotal] = 0)");
                         });
                 });
 
@@ -3401,6 +3415,11 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.InvoiceClient", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("HrPayroll.Api.Data.Entities.FinPartner", null)
                         .WithMany()

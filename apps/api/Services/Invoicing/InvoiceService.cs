@@ -67,10 +67,11 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
     public async Task<DocumentResult> CreateAsync(InvoiceRequest request, CancellationToken ct)
     {
         var settings = await db.DocumentSettings.AsNoTracking().SingleAsync(s => s.Id == DocumentSettings.SingletonId, ct);
-        var (built, errors) = await BuildAsync(request, settings, ct);
+        var (built, errors) = await BuildAsync(request, settings, FinTaxTreatments.Standard, ct);
         if (errors.Count > 0) return new(400, Errors: errors);
         var invoice = new Invoice { CreatedBy = Actor, CreatedUtc = Now };
         Apply(invoice, built!);
+        if (built!.ClientId is null) await JoinClientListAsync(invoice, ct);
         db.Invoices.Add(invoice);
         audit.Write("InvoiceCreated", entityType: nameof(Invoice), entityId: "new", details: new { client = invoice.ClientName, total = invoice.Total });
         await db.SaveChangesAsync(ct);
@@ -83,11 +84,12 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
         if (invoice is null) return new(404);
         if (invoice.Status != InvoiceStatuses.Draft) return new(409, Message: "Only a draft invoice can be edited. This one is " + invoice.Status.ToLowerInvariant() + ".");
         var settings = await db.DocumentSettings.AsNoTracking().SingleAsync(s => s.Id == DocumentSettings.SingletonId, ct);
-        var (built, errors) = await BuildAsync(request, settings, ct);
+        var (built, errors) = await BuildAsync(request, settings, invoice.VatTreatment, ct);
         if (errors.Count > 0) return new(400, Errors: errors);
         db.InvoiceLines.RemoveRange(invoice.Lines);
         invoice.Lines.Clear();
         Apply(invoice, built!);
+        if (built!.ClientId is null) await JoinClientListAsync(invoice, ct);
         audit.Write("InvoiceUpdated", entityType: nameof(Invoice), entityId: Id(id), details: new { client = invoice.ClientName, total = invoice.Total });
         await db.SaveChangesAsync(ct);
         return new(200, await ToResponseAsync(invoice, ct));
@@ -114,6 +116,7 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
             Status = InvoiceStatuses.Draft, ClientId = source.ClientId, ClientName = source.ClientName, ClientTrn = source.ClientTrn,
             ClientAddress = source.ClientAddress, InvoiceDate = today, DueDate = today.AddDays(source.DueDate.DayNumber - source.InvoiceDate.DayNumber),
             PaymentTerms = source.PaymentTerms, LpoRef = source.LpoRef, PcRef = source.PcRef, Project = source.Project, Scope = source.Scope, Notes = source.Notes,
+            VatTreatment = source.VatTreatment,
             SubTotal = source.SubTotal, VatTotal = source.VatTotal, Total = source.Total, CreatedBy = Actor, CreatedUtc = Now, UpdatedUtc = Now,
             Lines = source.Lines.OrderBy(l => l.LineNo).Select(l => new InvoiceLine
             {
@@ -281,10 +284,10 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
 
     private sealed record Built(
         int? ClientId, string ClientName, string ClientTrn, string ClientAddress, DateOnly InvoiceDate, DateOnly DueDate,
-        string PaymentTerms, string LpoRef, string PcRef, string Project, string Scope, string Notes,
+        string PaymentTerms, string LpoRef, string PcRef, string Project, string Scope, string Notes, string VatTreatment,
         List<(string Description, decimal Quantity, decimal Rate, decimal Taxable, decimal Vat, decimal Amount)> Lines);
 
-    private async Task<(Built? Built, Dictionary<string, string[]> Errors)> BuildAsync(InvoiceRequest r, DocumentSettings settings, CancellationToken ct)
+    private async Task<(Built? Built, Dictionary<string, string[]> Errors)> BuildAsync(InvoiceRequest r, DocumentSettings settings, string currentVatTreatment, CancellationToken ct)
     {
         var errors = new Dictionary<string, string[]>();
         string clientName, clientTrn, clientAddress;
@@ -317,6 +320,9 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
         if (scope.Length > 120) errors["scope"] = ["Scope must be 120 characters or fewer."];
         if (notes.Length > 300) errors["notes"] = ["Notes must be 300 characters or fewer."];
 
+        var vatTreatment = r.VatTreatment ?? currentVatTreatment;
+        if (!InvoiceCalculator.Treatments.Contains(vatTreatment)) errors["vatTreatment"] = ["Choose a VAT type from the list."];
+
         var lines = new List<(string, decimal, decimal, decimal, decimal, decimal)>();
         var requested = r.Lines ?? [];
         if (requested.Count == 0) errors["lines"] = ["Add at least one line."];
@@ -335,14 +341,37 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
                 if (line?.Rate is null || line.Rate < 0 || line.Rate > MaxAmount || decimal.Round(line.Rate.Value, 2) != line.Rate.Value)
                 { errors[$"lines[{i}].rate"] = ["Enter a rate of 0 or more with at most 2 decimal places."]; ok = false; }
                 if (!ok) continue;
-                var (taxable, vat, amount) = InvoiceCalculator.Line(line!.Quantity!.Value, line.Rate!.Value);
+                var (taxable, vat, amount) = InvoiceCalculator.Line(line!.Quantity!.Value, line.Rate!.Value, vatTreatment);
                 if (amount > MaxTotal) { errors[$"lines[{i}].rate"] = ["This line is too large."]; continue; }
                 lines.Add((description, line.Quantity.Value, line.Rate.Value, taxable, vat, amount));
             }
             if (errors.Count == 0 && lines.Sum(l => l.Item6) > MaxTotal) errors["lines"] = ["The invoice total is too large."];
         }
         if (errors.Count > 0) return (null, errors);
-        return (new Built(r.ClientId, clientName, clientTrn, clientAddress, r.InvoiceDate!.Value, r.DueDate!.Value, terms, lpo, pc, project, scope, notes, lines), errors);
+        return (new Built(r.ClientId, clientName, clientTrn, clientAddress, r.InvoiceDate!.Value, r.DueDate!.Value, terms, lpo, pc, project, scope, notes, vatTreatment, lines), errors);
+    }
+
+    /// <summary>
+    /// A client typed by hand joins the shared list, so later invoices and Finance pick the same one. A name already on the
+    /// list is that client: it is spelt as listed, and a TRN or address left blank is filled from the list.
+    /// </summary>
+    private async Task JoinClientListAsync(Invoice invoice, CancellationToken ct)
+    {
+        var client = await db.InvoiceClients.SingleOrDefaultAsync(c => c.Name == invoice.ClientName, ct);
+        if (client is null)
+        {
+            client = new InvoiceClient { Name = invoice.ClientName, Trn = invoice.ClientTrn, Address = invoice.ClientAddress, IsActive = true };
+            db.InvoiceClients.Add(client);
+            audit.Write("InvoiceClientCreated", entityType: nameof(InvoiceClient), entityId: "new", details: new { name = client.Name });
+        }
+        else
+        {
+            invoice.ClientName = client.Name;
+            if (invoice.ClientTrn.Length == 0) invoice.ClientTrn = client.Trn;
+            if (invoice.ClientAddress.Length == 0) invoice.ClientAddress = client.Address;
+        }
+
+        invoice.Client = client;
     }
 
     private void Apply(Invoice invoice, Built b)
@@ -350,6 +379,7 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
         invoice.ClientId = b.ClientId; invoice.ClientName = b.ClientName; invoice.ClientTrn = b.ClientTrn; invoice.ClientAddress = b.ClientAddress;
         invoice.InvoiceDate = b.InvoiceDate; invoice.DueDate = b.DueDate; invoice.PaymentTerms = b.PaymentTerms;
         invoice.LpoRef = b.LpoRef; invoice.PcRef = b.PcRef; invoice.Project = b.Project; invoice.Scope = b.Scope; invoice.Notes = b.Notes;
+        invoice.VatTreatment = b.VatTreatment;
         var n = 0;
         foreach (var l in b.Lines)
             invoice.Lines.Add(new InvoiceLine { LineNo = ++n, Description = l.Description, Quantity = l.Quantity, Rate = l.Rate, Taxable = l.Taxable, Vat = l.Vat, Amount = l.Amount });
@@ -431,7 +461,7 @@ public sealed class InvoiceService(AppDbContext db, IAuditLogger audit, TimeProv
             i.Lines.OrderBy(l => l.LineNo).Select(l => new InvoiceLineResponse(l.LineNo, l.Description, l.Quantity, l.Rate, l.Taxable, l.Vat, l.Amount)).ToList(),
             i.Payments.OrderBy(p => p.PaidDate).ThenBy(p => p.Id).Select(p => new InvoicePaymentResponse(p.Id, p.PaidDate, p.Amount, p.Method, p.Reference, p.RecordedBy, p.FinEntryId != null)).ToList(),
             i.SubTotal, i.VatTotal, i.Total, paid, i.Status == InvoiceStatuses.Issued ? i.Total - paid : 0m, AmountInWords.Aed(i.Total),
-            live, i.CreatedBy, i.IssuedUtc, i.IssuedBy, i.CancelledUtc, i.CancelReason, i.PcRef);
+            live, i.CreatedBy, i.IssuedUtc, i.IssuedBy, i.CancelledUtc, i.CancelReason, i.PcRef, i.VatTreatment);
     }
 
     private static InvoiceCompany CompanyOf(DocumentSettings s) => new(

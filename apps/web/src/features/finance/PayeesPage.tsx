@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Contact, Pencil, Plus } from "lucide-react";
-import { listFinCategories, listFinPayees, type FinCategory, type FinEntryKind, type FinPayee } from "../../api/finance";
+import { listFinCategories, listFinClients, listFinPayees, type FinCategory, type FinClient, type FinEntryKind, type FinPayee } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
@@ -8,15 +8,27 @@ import { useIsDesktop } from "../../utils/useIsDesktop";
 import { Button, Card, EmptyState, LoadingState, PageHeader, StatusBadge, cx } from "../../ui";
 import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
 import { PayeeDialog } from "./PayeeDialog";
+import { ClientsDialog } from "../invoices/ClientsDialog";
 import { formatMoney, quietZero } from "./financeFormat";
 
-type Load = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; payees: FinPayee[]; categories: FinCategory[] };
+type Load = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; payees: FinPayee[]; clients: FinClient[]; categories: FinCategory[] };
+
+/** One line of either tab: a payee the company pays, or a client who pays it. */
+interface Row {
+  key: number;
+  name: string;
+  isActive: boolean;
+  detail: string;
+  total: number;
+  entryCount: number;
+  payee?: FinPayee;
+}
 
 function failure(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something went wrong. Please try again.";
 }
 
-/** The people and companies the business pays or is paid by: saved once, picked on the entry forms, with how much has gone through each. */
+/** Who the business pays (its payees) and who pays it (the client list the invoices use), with how much has gone through each. */
 export function PayeesPage() {
   const { user } = useAuth();
   const canEdit = isManagement(user?.role);
@@ -24,13 +36,14 @@ export function PayeesPage() {
   const [kind, setKind] = useState<FinEntryKind>("Expense");
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [editing, setEditing] = useState<FinPayee | "new" | null>(null);
+  const [clientsOpen, setClientsOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const [payees, categories] = await Promise.all([listFinPayees(undefined, true), listFinCategories(true)]);
-      setLoad({ status: "ready", payees, categories });
+      const [payees, clients, categories] = await Promise.all([listFinPayees("Expense", true), listFinClients(), listFinCategories(true)]);
+      setLoad({ status: "ready", payees, clients, categories });
     } catch (error) {
       setLoad({ status: "error", message: failure(error) });
     }
@@ -41,14 +54,20 @@ export function PayeesPage() {
   }, [refresh]);
 
   const ready = load.status === "ready" ? load : null;
-  const shown = ready?.payees.filter((p) => p.kind === kind) ?? [];
+  const paying = kind === "Income";
+  const shown: Row[] = !ready ? [] : paying
+    ? ready.clients.map((c) => ({ key: c.id, name: c.name, isActive: c.isActive, detail: c.trn ? `TRN ${c.trn}` : "No TRN", total: c.total, entryCount: c.entryCount }))
+    : ready.payees.map((p) => ({ key: p.id, name: p.name, isActive: p.isActive, detail: [p.defaultCategoryName, p.phone, p.taxNumber && `Tax no. ${p.taxNumber}`].filter(Boolean).join(" · ") || "No usual category", total: p.total, entryCount: p.entryCount, payee: p }));
+  const add = paying
+    ? <Button icon={Contact} onClick={() => setClientsOpen(true)}>Manage clients</Button>
+    : <Button icon={Plus} onClick={() => setEditing("new")}>Add payee</Button>;
 
   return (
     <section className="space-y-5">
       <PageHeader
         title="Payees"
-        description="The people and companies you pay or receive money from. Pick one on an expense or income and its usual category is filled in, so reports can show what each one has cost or brought in."
-        actions={canEdit && ready && <Button icon={Plus} onClick={() => setEditing("new")}>Add payee</Button>}
+        description="Who you pay, and who pays you. Payees are picked on expenses and bills. Your clients are the same list the tax invoices use, so each one is entered once."
+        actions={canEdit && ready && add}
       />
       <SuccessRegion message={message} />
       {problem && <ActionFailure message={problem} />}
@@ -74,27 +93,27 @@ export function PayeesPage() {
           {shown.length === 0 ? (
             <EmptyState
               icon={Contact}
-              title={kind === "Expense" ? "No payees yet" : "No income sources yet"}
-              description={canEdit ? "Add the landlord, the insurer, the agent and the others you pay regularly." : "A Manager adds them. They will appear here."}
-              action={canEdit ? <Button icon={Plus} onClick={() => setEditing("new")}>Add payee</Button> : undefined}
+              title={paying ? "No clients yet" : "No payees yet"}
+              description={!canEdit ? "A Manager adds them. They will appear here." : paying ? "Add the customers you invoice or receive money from." : "Add the landlord, the insurer, the agent and the others you pay regularly."}
+              action={canEdit ? add : undefined}
             />
           ) : (
             <ul className="divide-y divide-line">
               {shown.map((p) => (
-                <li key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3.5">
+                <li key={p.key} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3.5">
                   <div className="min-w-0 flex-1 basis-56">
                     <p className="flex flex-wrap items-center gap-2 text-[15px] font-semibold text-ink-900">
                       <span className={cx("break-words", !p.isActive && "text-ink-500 line-through")}>{p.name}</span>
                       {!p.isActive && <StatusBadge tone="neutral" variant="soft">Switched off</StatusBadge>}
                     </p>
-                    <p className="text-[13px] text-ink-500">{[p.defaultCategoryName, p.phone, p.taxNumber && `Tax no. ${p.taxNumber}`].filter(Boolean).join(" · ") || "No usual category"}</p>
+                    <p className="text-[13px] text-ink-500">{p.detail}</p>
                   </div>
                   <p className="text-right text-sm">
                     <span className={cx("font-display text-base font-bold tabular-nums text-ink-900", quietZero(p.total))}><span className="mr-1 text-xs font-medium text-ink-500">AED</span>{formatMoney(p.total)}</span>
                     <span className="block text-[13px] text-ink-500">{p.entryCount === 1 ? "1 entry" : `${p.entryCount} entries`}</span>
                   </p>
-                  {canEdit && (
-                    <Button size="sm" variant="ghost" icon={Pencil} className="text-ink-600" onClick={() => setEditing(p)} aria-label={`Edit ${p.name}`}>Edit</Button>
+                  {canEdit && p.payee && (
+                    <Button size="sm" variant="ghost" icon={Pencil} className="text-ink-600" onClick={() => setEditing(p.payee!)} aria-label={`Edit ${p.name}`}>Edit</Button>
                   )}
                 </li>
               ))}
@@ -106,7 +125,6 @@ export function PayeesPage() {
       {ready && editing && (
         <PayeeDialog
           payee={editing === "new" ? null : editing}
-          kind={kind}
           categories={ready.categories}
           variant={desktop ? "center" : "sheet"}
           onClose={() => setEditing(null)}
@@ -119,6 +137,7 @@ export function PayeesPage() {
           }}
         />
       )}
+      <ClientsDialog open={clientsOpen} onClose={() => setClientsOpen(false)} onChanged={() => void refresh()} canWrite={canEdit} />
     </section>
   );
 }

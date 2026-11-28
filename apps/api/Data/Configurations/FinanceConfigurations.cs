@@ -96,6 +96,8 @@ public sealed class FinEntryConfiguration : IEntityTypeConfiguration<FinEntry>
         builder.HasIndex(e => e.PartnerId);
         builder.HasOne<FinPayee>().WithMany().HasForeignKey(e => e.PayeeId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(e => e.PayeeId);
+        builder.HasOne<InvoiceClient>().WithMany().HasForeignKey(e => e.ClientId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(e => e.ClientId);
         builder.Property(e => e.TaxRate).HasPrecision(5, 2);
         builder.Property(e => e.TaxAmount).HasPrecision(12, 2);
         builder.Property(e => e.RecoverableTaxPercent).HasPrecision(5, 2).HasDefaultValue(100m).HasSentinel(-1m);

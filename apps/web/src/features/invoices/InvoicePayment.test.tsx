@@ -44,6 +44,22 @@ it("asks which bank or cash account the money went into, and sends it with the p
   await waitFor(() => expect(invoicesApi.addPayment).toHaveBeenCalledWith(7, expect.objectContaining({ amount: 85, accountId: 4 })));
 });
 
+it("offers the payment methods as a list, starting on Bank transfer, and sends the one chosen", async () => {
+  render(<InvoiceView invoice={invoice} canWrite onChanged={() => {}} onEdit={() => {}} onDeleted={() => {}} onOpen={() => {}} />);
+  await userEvent.click(screen.getByRole("button", { name: "Record payment" }));
+  await screen.findByRole("option", { name: "RAKBANK Current Account" });
+
+  const method = screen.getByLabelText("Method");
+  expect(method.tagName).toBe("SELECT");
+  expect(method).toHaveValue("Bank transfer");
+  expect([...(method as HTMLSelectElement).options].map((o) => o.value)).toEqual(["Bank transfer", "Cash", "Cheque", "Card", "Other"]);
+
+  await userEvent.selectOptions(method, "Cheque");
+  await userEvent.selectOptions(screen.getByLabelText("Paid into"), "3");
+  await userEvent.click(screen.getByRole("button", { name: "Save payment" }));
+  await waitFor(() => expect(invoicesApi.addPayment).toHaveBeenCalledWith(7, expect.objectContaining({ method: "Cheque" })));
+});
+
 it("marks a payment entered before invoices were tied to the books", () => {
   render(<InvoiceView invoice={invoice} canWrite onChanged={() => {}} onEdit={() => {}} onDeleted={() => {}} onOpen={() => {}} />);
   expect(screen.getByText("Not in the books")).toBeInTheDocument();

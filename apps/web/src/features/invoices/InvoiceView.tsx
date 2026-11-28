@@ -235,10 +235,13 @@ function CancelDialog({ open, onClose, onDone, invoiceId }: { open: boolean; onC
   );
 }
 
+/** How an invoice can be paid. The server keeps the words as text, so payments recorded before this list still show as typed. */
+const PAYMENT_METHODS = ["Bank transfer", "Cash", "Cheque", "Card", "Other"];
+
 function PaymentDialog({ open, balance, invoiceId, onClose, onDone }: { open: boolean; balance: number; invoiceId: number; onClose: () => void; onDone: (i: Invoice) => void }) {
   const [paidDate, setPaidDate] = useState(todayInDubai());
   const [amount, setAmount] = useState(String(balance));
-  const [method, setMethod] = useState("Bank transfer");
+  const [method, setMethod] = useState(PAYMENT_METHODS[0]);
   const [reference, setReference] = useState("");
   const [accounts, setAccounts] = useState<FinAccount[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
@@ -268,7 +271,6 @@ function PaymentDialog({ open, balance, invoiceId, onClose, onDone }: { open: bo
     if (!/^\d+(\.\d{1,2})?$/.test(amount.trim()) || Number(amount) <= 0) found.amount = "Enter an amount above 0 with at most 2 decimals.";
     else if (Number(amount) > balance) found.amount = `The payment is more than the balance due (${formatMoney(balance)}).`;
     if (!paidDate) found.paidDate = "Enter the payment date.";
-    if (method.trim() === "") found.method = "Enter how it was paid.";
     if (accountsLoading || accountsError || accountId === "") found.accountId = "Choose the account the money went into.";
     setErrors(found);
     if (Object.keys(found).length > 0) return;
@@ -295,7 +297,9 @@ function PaymentDialog({ open, balance, invoiceId, onClose, onDone }: { open: bo
         {accountsLoading && <p role="status">Loading receiving accounts...</p>}
         {accountsError && <p role="alert" className="text-sm text-red-700">{accountsError}</p>}
         {!accountsLoading && !accountsError && accounts.length === 0 && <p role="alert">Add an active bank or cash account before recording a payment.</p>}
-        <TextField label="Method" value={method} onChange={(e) => setMethod(e.target.value)} error={errors.method} maxLength={30} />
+        <Select label="Method" value={method} onChange={(e) => setMethod(e.target.value)} error={errors.method}>
+          {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+        </Select>
         <TextField label="Reference (optional)" value={reference} onChange={(e) => setReference(e.target.value)} error={errors.reference} maxLength={60} />
         <div className="flex flex-wrap justify-end gap-3">
           <Button variant="secondary" onClick={onClose} disabled={pending}>Cancel</Button>

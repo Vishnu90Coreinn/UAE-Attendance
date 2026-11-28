@@ -79,7 +79,7 @@ public sealed record FinEntryResponse(
     IReadOnlyList<FinAttachmentResponse> Attachments,
     string? VoidedBy = null, DateTime? VoidedUtc = null, int? ReplacesEntryId = null, string? ReplacesEntryNo = null, string? ReplacedByEntryNo = null, int? PartnerId = null,
     int? PayeeId = null, IReadOnlyList<FinEntryLineResponse>? Lines = null,
-    int? TaxTypeId = null, decimal TaxRate = 0m, decimal TaxAmount = 0m, bool TaxInclusive = true, int? InvoiceId = null, int? BillId = null, decimal RecoverableTaxPercent = 100m);
+    int? TaxTypeId = null, decimal TaxRate = 0m, decimal TaxAmount = 0m, bool TaxInclusive = true, int? InvoiceId = null, int? BillId = null, decimal RecoverableTaxPercent = 100m, int? ClientId = null);
 
 /// <summary>The filtered expenses, newest first, with their total. Voided rows are listed only when asked for and never counted in the total.</summary>
 public sealed record FinEntryList(IReadOnlyList<FinEntryResponse> Items, decimal Total, int Count, bool Truncated, int PendingCount = 0, decimal PendingTotal = 0m);
@@ -100,6 +100,9 @@ public sealed class FinExpenseForm
 
     /// <summary>The saved payee picked for this entry, if any.</summary>
     public int? PayeeId { get; init; }
+
+    /// <summary>Income only: the client picked from the shared list. Without it, a name that matches a client links to them.</summary>
+    public int? ClientId { get; init; }
 
     /// <summary>Optional JSON list <c>[{"categoryId":1,"amount":2000,"note":"Deposit"}]</c>: splits the amount between categories. Without it the entry has one line, <see cref="CategoryId"/>.</summary>
     public string? LinesJson { get; init; }
@@ -451,3 +454,9 @@ public sealed record FinAttention(
 public sealed record FinSearchHit(string Type, int Id, string Number, string Name, string Date, decimal Amount, string Status);
 
 public sealed record FinSearchResult(IReadOnlyList<FinSearchHit> Hits);
+
+/// <summary>
+/// A client as Finance sees them: the shared list, with the money received from each (invoice payments and other income)
+/// and what they still owe on issued invoices, oldest invoice first.
+/// </summary>
+public sealed record FinClientResponse(int Id, string Name, string Trn, string Address, bool IsActive, int EntryCount, decimal Total, decimal Unpaid, IReadOnlyList<string> UnpaidInvoices);

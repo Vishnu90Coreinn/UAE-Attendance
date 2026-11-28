@@ -106,6 +106,19 @@ describe("invoice view", () => {
     expect(screen.queryByRole("button", { name: "Issue invoice" })).not.toBeInTheDocument();
   });
 
+  it.each([
+    ["Standard", "Tax Invoice", "Tax invoice INV-000185"],
+    ["ZeroRated", "Tax Invoice", "Tax invoice INV-000185"],
+    ["Exempt", "Invoice", "Invoice INV-000185"],
+  ] as const)("heads a %s document \"%s\"", async (vatTreatment, heading, name) => {
+    vi.mocked(invoicesApi.getInvoice).mockResolvedValue(invoice({ vatTreatment }));
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: /INV-000185/ }));
+    const document = await screen.findByRole("article", { name });
+    expect(within(document).getByRole("heading", { level: 3, name: heading })).toBeInTheDocument();
+  });
+
   it("gives HR the document, print and PDF but no write actions", async () => {
     signIn("HR");
     const user = userEvent.setup();
@@ -227,6 +240,41 @@ describe("new invoice form", () => {
     await user.type(rate, "105");
     const totals = screen.getByLabelText("Totals preview");
     expect(totals).toHaveTextContent("63,119.23");
+  });
+
+  it("applies one VAT type to the whole invoice and sends it", async () => {
+    vi.mocked(invoicesApi.createInvoice).mockResolvedValue(invoice({ number: null, status: "Draft", displayStatus: "Draft", vatTreatment: "ZeroRated", vatTotal: 0, total: 100 }));
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "New invoice" }));
+    await user.type(await screen.findByLabelText("Client name"), "Acme");
+    await user.type(screen.getByLabelText("Description, line 1"), "Works");
+    const rate = screen.getByLabelText("Rate, line 1");
+    await user.clear(rate);
+    await user.type(rate, "100");
+    const vat = screen.getByLabelText("VAT");
+    expect(vat).toHaveValue("Standard");
+    expect(screen.getByLabelText("Totals preview")).toHaveTextContent("105.00");
+
+    await user.selectOptions(vat, "Exempt");
+    expect(screen.getByRole("columnheader", { name: "VAT" })).toBeInTheDocument();
+    await user.selectOptions(vat, "ZeroRated");
+    expect(screen.getByRole("columnheader", { name: "VAT 0%" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Totals preview")).not.toHaveTextContent("105.00");
+
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(invoicesApi.createInvoice).toHaveBeenCalled());
+    expect(vi.mocked(invoicesApi.createInvoice).mock.calls[0][0].vatTreatment).toBe("ZeroRated");
+    // The saved invoice names the same VAT type in the column, the total and the tax summary.
+    expect(await screen.findByText("VAT total (0%)")).toBeInTheDocument();
+    expect(screen.getByText("Zero rated (0%)")).toBeInTheDocument();
+  });
+
+  it("says a typed client name joins the client list", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "New invoice" }));
+    expect(await screen.findByText("A new name is added to your client list when you save.")).toBeInTheDocument();
   });
 
   it("sends the typed invoice and opens it", async () => {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { Camera, FileText, Loader2, Paperclip, Plus, Save, Split, X } from "lucide-react";
-import { correctFinEntry, createFinEntry, listFinParties, listFinPayees, listFinTaxTypes, submitFinExpense, type FinAccount, type FinCategory, type FinEntry, type FinEntryKind, type FinPayee, type FinTaxType } from "../../api/finance";
+import { Camera, FileText, Loader2, Paperclip, Plus, Save, Split, TriangleAlert, X } from "lucide-react";
+import { Link } from "react-router-dom";
+import { correctFinEntry, createFinEntry, listFinClients, listFinParties, listFinPayees, listFinTaxTypes, submitFinExpense, type FinAccount, type FinCategory, type FinClient, type FinEntry, type FinEntryKind, type FinPayee, type FinTaxType } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
@@ -8,8 +9,8 @@ import { Button, Select, Textarea, cx } from "../../ui";
 import { formatMoney, isVatSettlementCategory, todayInUae, parseMoneyInput, vatOf } from "./financeFormat";
 import { formatBytes, receiptProblem, RECEIPT_MAX_FILES, shrinkPhoto } from "./receiptFile";
 
-type FieldName = "recoverableTaxPercent" | "taxTypeId" | "amount" | "entryDate" | "categoryId" | "accountId" | "party" | "reference" | "notes" | "files" | "payeeId" | "lines";
-const FIELDS: FieldName[] = ["recoverableTaxPercent", "taxTypeId", "amount", "entryDate", "categoryId", "accountId", "party", "reference", "notes", "files", "payeeId", "lines"];
+type FieldName = "recoverableTaxPercent" | "taxTypeId" | "amount" | "entryDate" | "categoryId" | "accountId" | "party" | "reference" | "notes" | "files" | "payeeId" | "clientId" | "lines";
+const FIELDS: FieldName[] = ["recoverableTaxPercent", "taxTypeId", "amount", "entryDate", "categoryId", "accountId", "party", "reference", "notes", "files", "payeeId", "clientId", "lines"];
 
 interface LineDraft {
   categoryId: string;
@@ -78,6 +79,9 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
   const [taxInclusive, setTaxInclusive] = useState(true);
   const [recovery, setRecovery] = useState(String(entry?.recoverableTaxPercent ?? 100));
   const [payeeId, setPayeeId] = useState(entry?.payeeId ? String(entry.payeeId) : "");
+  // Income picks from the client list the invoices use; expenses pick from the saved payees.
+  const [clients, setClients] = useState<FinClient[]>([]);
+  const [clientId, setClientId] = useState(entry?.clientId ? String(entry.clientId) : "");
   const [split, setSplit] = useState((entry?.lines?.length ?? 0) > 1);
   const vatSettlement = !split && categoryId !== "" && isVatSettlementCategory(categoryId);
   const [lines, setLines] = useState<LineDraft[]>(() =>
@@ -99,7 +103,8 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
     let cancelled = false;
     if (submitMode) return;   // staff may not read the manager lists; their payees arrive with the form
     listFinParties(kind).then((list) => !cancelled && setSuggestions(list)).catch(() => {});
-    listFinPayees(kind).then((list) => !cancelled && setPayees(list)).catch(() => {});
+    if (kind === "Income") listFinClients().then((list) => !cancelled && setClients(list)).catch(() => {});
+    else listFinPayees(kind).then((list) => !cancelled && setPayees(list)).catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -124,6 +129,18 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
     if (!chosen) return;
     setParty(chosen.name);
     if (chosen.defaultCategoryId && !split && !categoryId && categories.some((c) => c.id === chosen.defaultCategoryId)) setCategoryId(String(chosen.defaultCategoryId));
+  }
+
+  const offered = clients.filter((c) => c.isActive);
+  // Money that pays an invoice belongs on the invoice: entered here as well, the sale would be counted twice. The client is
+  // the one picked or the name typed, switched off or not, so an old client's debt is still pointed out.
+  const typed = party.trim().toLowerCase();
+  const owing = income ? clients.find((c) => (clientId ? String(c.id) === clientId : c.name.toLowerCase() === typed) && c.unpaid > 0) : undefined;
+
+  function pickClient(value: string) {
+    setClientId(value);
+    const chosen = clients.find((c) => String(c.id) === value);
+    if (chosen) setParty(chosen.name);
   }
 
   function pickCategory(value: string) {
@@ -198,7 +215,7 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
     setPending(true);
     try {
       const primary = split && lineInput ? [...lineInput].sort((a, b) => b.amount - a.amount)[0].categoryId : Number(categoryId);
-      const input = { recoverableTaxPercent: income ? 100 : parseMoneyInput(recovery)!, taxTypeId: Number(taxTypeId || 0), taxInclusive, entryDate: date, categoryId: primary, accountId: Number(accountId), party: party.trim(), amount: value, reference: reference.trim(), notes: notes.trim(), files, keepAttachmentIds: keep, payeeId: payeeId ? Number(payeeId) : null, lines: lineInput };
+      const input = { recoverableTaxPercent: income ? 100 : parseMoneyInput(recovery)!, taxTypeId: Number(taxTypeId || 0), taxInclusive, entryDate: date, categoryId: primary, accountId: Number(accountId), party: party.trim(), amount: value, reference: reference.trim(), notes: notes.trim(), files, keepAttachmentIds: keep, payeeId: payeeId ? Number(payeeId) : null, clientId: offered.some((c) => String(c.id) === clientId) ? Number(clientId) : null, lines: lineInput };
       const saved = submitMode ? await submitFinExpense(input) : entry ? await correctFinEntry(kind, entry.id, input) : await createFinEntry(kind, input);
       try {
         localStorage.setItem(LAST_ACCOUNT, accountId);
@@ -214,6 +231,7 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
         setAmount("");
         setParty("");
         setPayeeId("");
+        setClientId("");
         setReference("");
         setNotes("");
         setFiles([]);
@@ -259,21 +277,42 @@ export function EntryDialog({ kind, entry, accounts, categories: allCategories, 
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField label="Date" type="date" value={date} max={todayInUae()} onChange={(e) => setDate(e.target.value)} error={errors.entryDate} />
           {payees.length > 0 && (
-            <Select label={income ? "Saved source (optional)" : "Saved payee (optional)"} value={payeeId} error={errors.payeeId} onChange={(e) => pickPayee(e.target.value)}>
+            <Select label="Saved payee (optional)" value={payeeId} error={errors.payeeId} onChange={(e) => pickPayee(e.target.value)}>
               <option value="">Type a name instead</option>
               {payees.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </Select>
           )}
-          <div className={payees.length > 0 ? "sm:col-span-2" : undefined}>
-            <TextField label={income ? "Received from" : "Paid to"} value={party} onChange={(e) => { setParty(e.target.value); setPayeeId(""); }} error={errors.party} maxLength={120} autoComplete="off" list={`fin-${kind}-parties`} />
+          {offered.length > 0 && (
+            <Select label="Client (optional)" value={clientId} error={errors.clientId} onChange={(e) => pickClient(e.target.value)}>
+              <option value="">Not a client, or type a name</option>
+              {offered.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </Select>
+          )}
+          <div className={payees.length > 0 || offered.length > 0 ? "sm:col-span-2" : undefined}>
+            <TextField label={income ? "Received from" : "Paid to"} value={party} onChange={(e) => { setParty(e.target.value); setPayeeId(""); setClientId(""); }} error={errors.party} maxLength={120} autoComplete="off" list={`fin-${kind}-parties`} />
             <datalist id={`fin-${kind}-parties`}>
               {suggestions.map((s) => (
                 <option key={s} value={s} />
               ))}
             </datalist>
           </div>
+          {owing && (
+            <div role="status" aria-label="Unpaid invoices" className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 sm:col-span-2">
+              <TriangleAlert aria-hidden="true" size={18} className="mt-0.5 shrink-0" />
+              <div className="min-w-0 break-words">
+                <p className="font-semibold">
+                  {owing.name} still owes AED {formatMoney(owing.unpaid)} on {owing.unpaidInvoices.slice(0, 5).join(", ")}
+                  {owing.unpaidInvoices.length > 5 ? ` and ${owing.unpaidInvoices.length - 5} more` : ""}.
+                </p>
+                <p>If this money pays {owing.unpaidInvoices.length === 1 ? "that invoice" : "one of them"}, record it on the invoice instead. Entered here, the sale is counted twice and the invoice stays unpaid.</p>
+                <Link to="/invoices" className="inline-flex min-h-11 items-center font-semibold underline">Go to Tax Invoices</Link>
+              </div>
+            </div>
+          )}
         </div>
         <div className="rounded-lg border border-line bg-ink-50 p-4">
           <TextField label="Amount (AED)" value={amount} onChange={(e) => setAmount(e.target.value)} error={errors.amount} inputRef={amountRef} inputMode="decimal" autoComplete="off" placeholder="0.00" />

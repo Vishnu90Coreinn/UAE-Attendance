@@ -163,7 +163,6 @@ public class FinanceSplitAndPayeeTests(ReceiptsFixture api) : IClassFixture<Rece
 
         var duplicate = await api.Client.SendAsync(Req(HttpMethod.Post, "/api/finance/payees", token, JsonContent.Create(new { kind = "Expense", name = name.ToUpperInvariant() })));
         Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
-        await CreatePayeeAsync(token, name, "Income", 10);   // the same name may also be an income source
 
         var id = payee.GetProperty("id").GetInt32();
         var update = await api.Client.SendAsync(Req(HttpMethod.Put, $"/api/finance/payees/{id}", token, JsonContent.Create(new { name, defaultCategoryId = 9, isActive = false })));
@@ -206,13 +205,15 @@ public class FinanceSplitAndPayeeTests(ReceiptsFixture api) : IClassFixture<Rece
     }
 
     [Fact]
-    public async Task Entry_RefusesAPayeeThatIsSwitchedOffOrOfTheOtherType()
+    public async Task Entry_RefusesAPayeeThatIsSwitchedOff()
     {
         var token = await ManagerAsync();
         var account = await AccountAsync();
-        var income = await CreatePayeeAsync(token, TestFinance.Unique("Client"), "Income", 10);
+        var name = TestFinance.Unique("Gone");
+        var id = (await CreatePayeeAsync(token, name)).GetProperty("id").GetInt32();
+        await api.Client.SendAsync(Req(HttpMethod.Put, $"/api/finance/payees/{id}", token, JsonContent.Create(new { name, isActive = false })));
 
-        var (response, body) = await PostExpenseAsync(Form(account, 50m, payeeId: income.GetProperty("id").GetInt32()), token);
+        var (response, body) = await PostExpenseAsync(Form(account, 50m, payeeId: id), token);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.True(body.GetProperty("errors").TryGetProperty("payeeId", out _));

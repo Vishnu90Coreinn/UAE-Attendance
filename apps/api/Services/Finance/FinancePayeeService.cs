@@ -5,7 +5,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HrPayroll.Api.Services.Finance;
 
-/// <summary>The people and companies the business pays or is paid by. Saved once, picked on the entry form, switched off and never deleted.</summary>
+/// <summary>
+/// The people and companies the business pays: saved once, picked on the entry form, switched off and never deleted. The
+/// customers who pay it are the invoicing client list, read here with what each has paid.
+/// </summary>
 public sealed class FinancePayeeService(AppDbContext db, IAuditLogger audit, TimeProvider time)
 {
     private async Task<List<FinPayeeResponse>> ProjectAsync(IQueryable<FinPayee> payees, CancellationToken ct)
@@ -29,12 +32,29 @@ public sealed class FinancePayeeService(AppDbContext db, IAuditLogger audit, Tim
         return ProjectAsync(query, ct);
     }
 
+    public async Task<List<FinClientResponse>> ClientsAsync(CancellationToken ct)
+    {
+        var clients = await db.InvoiceClients.AsNoTracking().OrderBy(c => c.Name).ToListAsync(ct);
+        var received = (await db.FinEntries.AsNoTracking().Where(e => e.ClientId != null && e.Kind == FinEntryKinds.Income && e.Status == FinStatuses.Active)
+            .GroupBy(e => e.ClientId!.Value).Select(g => new { Id = g.Key, Count = g.Count(), Sum = g.Sum(e => e.Amount) }).ToListAsync(ct)).ToDictionary(x => x.Id);
+        var owed = (await db.Invoices.AsNoTracking().Where(i => i.Status == InvoiceStatuses.Issued && i.ClientId != null)
+                .OrderBy(i => i.InvoiceDate).ThenBy(i => i.Id)
+                .Select(i => new { ClientId = i.ClientId!.Value, i.Number, Balance = i.Total - (i.Payments.Sum(p => (decimal?)p.Amount) ?? 0m) })
+                .ToListAsync(ct))
+            .Where(i => i.Balance > 0m).ToLookup(i => i.ClientId);
+        return clients.Select(c => new FinClientResponse(
+            c.Id, c.Name, c.Trn, c.Address, c.IsActive,
+            received.TryGetValue(c.Id, out var r) ? r.Count : 0, received.TryGetValue(c.Id, out var r2) ? r2.Sum : 0m,
+            owed[c.Id].Sum(i => i.Balance), owed[c.Id].Select(i => i.Number!).ToList())).ToList();
+    }
+
     private async Task<Dictionary<string, string[]>> ValidateAsync(FinPayeeRequest request, string? kind, string? name, int? existingId, CancellationToken ct)
     {
         var errors = new Dictionary<string, string[]>();
         if (name is null) errors["name"] = ["Enter the name."];
         else if (name.Length > 120) errors["name"] = ["Use 120 characters or fewer."];
-        if (kind is null || !FinEntryKinds.All.Contains(kind)) errors["kind"] = ["Choose Expense (paid to) or Income (received from)."];
+        if (kind == FinEntryKinds.Income) errors["kind"] = ["Customers are kept in the client list, not as payees."];
+        else if (kind != FinEntryKinds.Expense) errors["kind"] = ["A payee is someone the company pays: use Expense."];
         if (FinanceRules.Clean(request.Phone)?.Length > 40) errors["phone"] = ["Use 40 characters or fewer."];
         if (FinanceRules.Clean(request.TaxNumber)?.Length > 40) errors["taxNumber"] = ["Use 40 characters or fewer."];
         if (FinanceRules.Clean(request.Notes)?.Length > 500) errors["notes"] = ["Use 500 characters or fewer."];

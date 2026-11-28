@@ -6,12 +6,13 @@ public sealed record InvoiceLineRequest(string? Description, decimal? Quantity, 
 /// <summary>
 /// Create/replace body for a draft. When <c>ClientId</c> is given the client's saved name, TRN and address are used;
 /// otherwise <c>ClientName</c> (required) and the other client fields are taken as typed.
+/// A missing <c>VatTreatment</c> is standard rated on a new invoice and unchanged on an existing draft.
 /// </summary>
 public sealed record InvoiceRequest(
     int? ClientId, string? ClientName, string? ClientTrn, string? ClientAddress,
     DateOnly? InvoiceDate, DateOnly? DueDate, string? PaymentTerms,
     string? LpoRef, string? Project, string? Scope, string? Notes,
-    List<InvoiceLineRequest>? Lines, string? PcRef = null);
+    List<InvoiceLineRequest>? Lines, string? PcRef = null, string? VatTreatment = null);
 
 public sealed record CancelInvoiceRequest(string? Reason);
 
@@ -36,7 +37,7 @@ public sealed record InvoiceResponse(
     IReadOnlyList<InvoiceLineResponse> Lines, IReadOnlyList<InvoicePaymentResponse> Payments,
     decimal SubTotal, decimal VatTotal, decimal Total, decimal AmountPaid, decimal BalanceDue, string TotalInWords,
     InvoiceCompany Company, string CreatedBy, DateTime? IssuedUtc, string? IssuedBy, DateTime? CancelledUtc, string? CancelReason,
-    string PcRef = "");
+    string PcRef = "", string VatTreatment = "Standard");
 
 public sealed record InvoiceSummary(
     int Id, string? Number, string Status, string DisplayStatus, bool IsOverdue, string ClientName, string Project, string LpoRef,
