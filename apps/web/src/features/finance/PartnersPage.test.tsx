@@ -6,6 +6,7 @@ import type { FinAccount, FinCapitalEntry, FinPartners } from "../../api/finance
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
 import { PartnersPage } from "./PartnersPage";
+import { AppToaster } from "../../ui";
 
 vi.mock("../../api/finance");
 vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
@@ -29,6 +30,11 @@ const movement: FinCapitalEntry = {
 function signIn(role: "Manager" | "Viewer") {
   vi.mocked(useAuth).mockReturnValue({ status: "signedIn", user: { id: 1, username: "u", role }, token: "t", login: vi.fn(), logout: vi.fn() });
 }
+
+// Results of actions are said in toasts, which need the toaster App mounts.
+beforeEach(() => {
+  render(<AppToaster />);
+});
 
 beforeEach(() => {
   vi.resetAllMocks();

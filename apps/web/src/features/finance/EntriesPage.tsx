@@ -7,9 +7,9 @@ import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { useIsDesktop } from "../../utils/useIsDesktop";
 import { useUrlSearch } from "../../utils/useUrlSearch";
-import { Button, Card, EmptyState, IconButton, LoadingState, PageHeader, Select, SortTh, StatusBadge, Table, TableScroll, THead, Th, TRow, Td, cx, useSort, segmentClass, segmentGroupClass } from "../../ui";
+import { Arrive, Button, Card, EmptyState, IconButton, LoadingState, Mark, PageHeader, Select, SortTh, StatusBadge, Table, TableScroll, THead, Th, TRow, Td, cx, notify, useSort, segmentClass, segmentGroupClass } from "../../ui";
 import { TextField } from "../../components/TextField";
-import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
+import { ActionFailure, LoadError } from "../workers/WorkersFeedback";
 import { EntryDialog } from "./EntryDialog";
 import { ImportDialog } from "./ImportDialog";
 import { ReceiptDialog } from "./ReceiptDialog";
@@ -194,7 +194,6 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
   const [approving, setApproving] = useState<number | null>(null);
   const [correcting, setCorrecting] = useState<FinEntry | null>(null);
   const [lockedMonths, setLockedMonths] = useState<string[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
 
   // A record picked in the top bar: search for it across all dates and accounts.
   useUrlSearch((q) => {
@@ -257,7 +256,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
     setApproving(entry.id);
     try {
       await approveFinExpense(entry.id);
-      setMessage(`${entry.entryNo}: AED ${formatMoney(entry.amount)} to ${entry.party} was approved and now counts.`);
+      notify.success(`${entry.entryNo}: AED ${formatMoney(entry.amount)} to ${entry.party} was approved and now counts.`);
       load();
     } catch (e) {
       setError(failure(e));
@@ -327,14 +326,13 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
         }
       />
       {lockedMonths.length > 0 && <LockNote months={lockedMonths} />}
-      <SuccessRegion message={message} />
 
       <Card className="overflow-hidden">
         <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line bg-brand-50/60 px-5 py-4">
           <div>
             <p className="text-sm font-medium text-ink-600">{filtered ? `Total of the matching ${noun}${income ? "" : "s"}` : income ? "Total received" : "Total spent"} · {periodLabel}</p>
             <p className="mt-1 font-display text-3xl font-semibold tracking-tight text-ink-900 md:text-4xl">
-              {result ? <Amount value={result.total} /> : <span className="text-ink-400">...</span>}
+              {result ? <Mark value={result.total}><Amount value={result.total} /></Mark> : <span className="text-ink-400">...</span>}
             </p>
           </div>
           {result && (result.pendingCount ?? 0) > 0 && !income && (
@@ -392,50 +390,52 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
       )}
 
       {result && result.items.length > 0 && (desktop ? (
-        <Card>
-          <TableScroll>
-            <Table>
-              <THead>
-                <tr>
-                  <SortTh label="Date" sortKey="date" sort={sort} onToggle={toggle} className="px-4 py-3 text-left font-semibold" />
-                  <SortTh label={income ? "Received from" : "Paid to"} sortKey="party" sort={sort} onToggle={toggle} className="px-4 py-3 text-left font-semibold" />
-                  <SortTh label="Category" sortKey="category" sort={sort} onToggle={toggle} className="px-4 py-3 text-left font-semibold" />
-                  <SortTh label="Account" sortKey="account" sort={sort} onToggle={toggle} className="px-4 py-3 text-left font-semibold" />
-                  <SortTh label="Amount" sortKey="amount" sort={sort} onToggle={toggle} align="right" className="px-4 py-3 text-right font-semibold" />
-                  <Th><span className="sr-only">{income ? "Attachment and actions" : "Receipt and actions"}</span></Th>
-                </tr>
-              </THead>
-              <tbody>
-                {sorted.map((e) => (
-                  <TRow key={e.id} className={e.status === "Voided" ? "bg-ink-50 text-ink-500" : undefined}>
-                    <Td className="whitespace-nowrap align-top"><span className="font-medium tabular-nums text-ink-900">{formatDay(e.entryDate)}</span><br /><span className="font-mono text-[13px] text-ink-500">{e.entryNo}</span></Td>
-                    <Td className="max-w-md align-top">
-                      <span className={cx("font-medium", e.status === "Voided" ? "text-ink-600 line-through" : "text-ink-900")}>{e.party}</span>
-                      {(e.reference || e.notes) && (
-                        <span className="mt-0.5 line-clamp-2 block text-[13px] text-ink-500">
-                          {e.reference && <span className="mr-2 font-mono text-[13px] text-ink-500">Ref {e.reference}</span>}
-                          {e.notes}
-                        </span>
-                      )}
-                      <EntryMeta entry={e} locked={lockedMonths.includes(e.entryDate.slice(0, 7))} />
-                    </Td>
-                    <Td className="align-top"><Categories entry={e} /></Td>
-                    <Td className="align-top text-ink-700"><span className="block min-w-28">{e.accountName}</span></Td>
-                    <Td className={cx("whitespace-nowrap text-right align-top font-display text-base font-bold", e.status === "Voided" ? "text-ink-500 line-through" : "text-ink-900")}><Amount value={e.amount} /></Td>
-                    <Td className="align-top">
-                      <RowTools entry={e} canAct={canEdit && e.status === "Active" && e.invoiceId == null && e.billId == null && !lockedMonths.includes(e.entryDate.slice(0, 7))} onOpen={() => setViewing(e)} onCorrect={() => setCorrecting(e)} onVoid={() => setVoiding(e)} />
-                      {canEdit && e.status === "Pending" && <div className="mt-1 flex justify-end"><ReviewActions entry={e} busy={approving === e.id} onApprove={() => void approve(e)} onReject={() => setRejecting(e)} /></div>}
-                    </Td>
-                  </TRow>
-                ))}
-              </tbody>
-            </Table>
-          </TableScroll>
-        </Card>
+        <Arrive>
+          <Card>
+            <TableScroll>
+              <Table>
+                <THead>
+                  <tr>
+                    <SortTh label="Date" sortKey="date" sort={sort} onToggle={toggle} className="px-4 py-3 text-left font-semibold" />
+                    <SortTh label={income ? "Received from" : "Paid to"} sortKey="party" sort={sort} onToggle={toggle} className="px-4 py-3 text-left font-semibold" />
+                    <SortTh label="Category" sortKey="category" sort={sort} onToggle={toggle} className="px-4 py-3 text-left font-semibold" />
+                    <SortTh label="Account" sortKey="account" sort={sort} onToggle={toggle} className="px-4 py-3 text-left font-semibold" />
+                    <SortTh label="Amount" sortKey="amount" sort={sort} onToggle={toggle} align="right" className="px-4 py-3 text-right font-semibold" />
+                    <Th><span className="sr-only">{income ? "Attachment and actions" : "Receipt and actions"}</span></Th>
+                  </tr>
+                </THead>
+                <tbody>
+                  {sorted.map((e) => (
+                    <TRow key={e.id} className={e.status === "Voided" ? "bg-ink-50 text-ink-500" : undefined}>
+                      <Td className="whitespace-nowrap align-top"><span className="font-medium tabular-nums text-ink-900">{formatDay(e.entryDate)}</span><br /><span className="font-mono text-[13px] text-ink-500">{e.entryNo}</span></Td>
+                      <Td className="max-w-md align-top">
+                        <span className={cx("font-medium", e.status === "Voided" ? "text-ink-600 line-through" : "text-ink-900")}>{e.party}</span>
+                        {(e.reference || e.notes) && (
+                          <span className="mt-0.5 line-clamp-2 block text-[13px] text-ink-500">
+                            {e.reference && <span className="mr-2 font-mono text-[13px] text-ink-500">Ref {e.reference}</span>}
+                            {e.notes}
+                          </span>
+                        )}
+                        <EntryMeta entry={e} locked={lockedMonths.includes(e.entryDate.slice(0, 7))} />
+                      </Td>
+                      <Td className="align-top"><Categories entry={e} /></Td>
+                      <Td className="align-top text-ink-700"><span className="block min-w-28">{e.accountName}</span></Td>
+                      <Td className={cx("whitespace-nowrap text-right align-top font-display text-base font-bold", e.status === "Voided" ? "text-ink-500 line-through" : "text-ink-900")}><Amount value={e.amount} /></Td>
+                      <Td className="align-top">
+                        <RowTools entry={e} canAct={canEdit && e.status === "Active" && e.invoiceId == null && e.billId == null && !lockedMonths.includes(e.entryDate.slice(0, 7))} onOpen={() => setViewing(e)} onCorrect={() => setCorrecting(e)} onVoid={() => setVoiding(e)} />
+                        {canEdit && e.status === "Pending" && <div className="mt-1 flex justify-end"><ReviewActions entry={e} busy={approving === e.id} onApprove={() => void approve(e)} onReject={() => setRejecting(e)} /></div>}
+                      </Td>
+                    </TRow>
+                  ))}
+                </tbody>
+              </Table>
+            </TableScroll>
+          </Card>
+        </Arrive>
       ) : (
         <ul className="space-y-3">
-          {result.items.map((e) => (
-            <li key={e.id}>
+          {result.items.map((e, index) => (
+            <Arrive as="li" order={index} key={e.id}>
               <article aria-label={`${e.party} ${e.entryNo}`} className={cx("rounded-card border border-line p-4 shadow-card", e.status === "Voided" ? "bg-ink-50" : "bg-white")}>
                 {/* 1. who and how much lead; 2. when; 3. notes, account and reference are quiet; 4. actions are quietest */}
                 <div className="flex items-start justify-between gap-3">
@@ -461,7 +461,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
                   {canEdit && e.status === "Pending" && <ReviewActions entry={e} busy={approving === e.id} onApprove={() => void approve(e)} onReject={() => setRejecting(e)} />}
                 </div>
               </article>
-            </li>
+            </Arrive>
           ))}
         </ul>
       ))}
@@ -477,7 +477,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
           onSavedAndContinue={() => load()}
           onSaved={(entry) => {
             setAdding(false);
-            setMessage(`${entry.entryNo}: AED ${formatMoney(entry.amount)} ${income ? "received from" : "paid to"} ${entry.party} was recorded.`);
+            notify.success(`${entry.entryNo}: AED ${formatMoney(entry.amount)} ${income ? "received from" : "paid to"} ${entry.party} was recorded.`);
             load();
           }}
         />
@@ -492,7 +492,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
           onClose={() => setCorrecting(null)}
           onSaved={(entry) => {
             setCorrecting(null);
-            setMessage(`${correcting.entryNo} was voided and replaced by ${entry.entryNo}.`);
+            notify.success(`${correcting.entryNo} was voided and replaced by ${entry.entryNo}.`);
             load();
           }}
         />
@@ -506,7 +506,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
           onClose={() => setVoiding(null)}
           onConfirm={async (reason) => {
             await voidFinEntry(kind, voiding.id, reason);
-            setMessage(`${voiding.entryNo} was voided.`);
+            notify.success(`${voiding.entryNo} was voided.`);
             setVoiding(null);
             load();
           }}
@@ -519,7 +519,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
           onClose={() => setImporting(false)}
           onImported={(count) => {
             setImporting(false);
-            setMessage(`${count} ${income ? "income" : "expense"}${count === 1 ? "" : "s"} imported. They have no receipt yet.`);
+            notify.success(`${count} ${income ? "income" : "expense"}${count === 1 ? "" : "s"} imported. They have no receipt yet.`);
             load();
           }}
         />
@@ -533,7 +533,7 @@ export function EntriesPage({ kind }: { kind: FinEntryKind }) {
           onClose={() => setRejecting(null)}
           onConfirm={async (reason) => {
             await rejectFinExpense(rejecting.id, reason);
-            setMessage(`${rejecting.entryNo} was rejected.`);
+            notify.success(`${rejecting.entryNo} was rejected.`);
             setRejecting(null);
             load();
           }}

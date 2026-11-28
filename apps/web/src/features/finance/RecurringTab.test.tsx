@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import * as financeApi from "../../api/finance";
 import type { LedgerAccount, RecurringJournal } from "../../api/finance";
 import { RecurringTab } from "./RecurringTab";
+import { AppToaster } from "../../ui";
 
 vi.mock("../../api/finance");
 
@@ -13,6 +14,11 @@ const template = (over: Partial<RecurringJournal> = {}): RecurringJournal => ({
   id: 1, description: "Spread annual insurance", dayOfMonth: 1, startMonth: "2026-09", endMonth: "2027-08", isActive: true, amount: 1000,
   lines: [{ accountCode: "5310", accountName: "Insurance", debit: 1000, credit: 0, memo: null }, { accountCode: "1700", accountName: "Prepaid expenses", debit: 0, credit: 1000, memo: null }],
   posted: 2, nextMonth: "2026-11", due: 1, createdBy: "m", stoppedBy: null, ...over,
+});
+
+// Results of actions are said in toasts, which need the toaster App mounts.
+beforeEach(() => {
+  render(<AppToaster />);
 });
 
 beforeEach(() => {

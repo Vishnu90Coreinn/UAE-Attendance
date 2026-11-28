@@ -5,6 +5,7 @@ import * as api from "../../api/payroll";
 import { ApiError } from "../../api/client";
 import type { PayrollReport } from "../../api/payroll";
 import { PayrollPage } from "./PayrollPage";
+import { AppToaster } from "../../ui";
 
 vi.mock("../../api/payroll");
 const authRole = vi.hoisted(() => ({ current: "Administrator" }));
@@ -52,6 +53,11 @@ const report: PayrollReport = {
     netPay: 2222.2,
   },
 };
+// Results of actions are said in toasts, which need the toaster App mounts.
+beforeEach(() => {
+  render(<AppToaster />);
+});
+
 beforeEach(() => {
   vi.resetAllMocks();
   authRole.current = "Administrator";

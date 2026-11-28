@@ -5,8 +5,8 @@ import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { useIsDesktop } from "../../utils/useIsDesktop";
-import { Button, Card, EmptyState, LoadingState, PageHeader, StatusBadge, cx } from "../../ui";
-import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
+import { Arrive, Button, Card, EmptyState, LoadingState, Mark, PageHeader, StatusBadge, cx, notify } from "../../ui";
+import { ActionFailure, LoadError } from "../workers/WorkersFeedback";
 import { PayeeDialog } from "./PayeeDialog";
 import { ClientsDialog } from "../invoices/ClientsDialog";
 import { formatMoney, quietZero } from "./financeFormat";
@@ -37,7 +37,6 @@ export function PayeesPage() {
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [editing, setEditing] = useState<FinPayee | "new" | null>(null);
   const [clientsOpen, setClientsOpen] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -69,7 +68,6 @@ export function PayeesPage() {
         description="Who you pay, and who pays you. Payees are picked on expenses and bills. Your clients are the same list the tax invoices use, so each one is entered once."
         actions={canEdit && ready && add}
       />
-      <SuccessRegion message={message} />
       {problem && <ActionFailure message={problem} />}
       {load.status === "loading" && <LoadingState label="Loading payees..." withCards />}
       {load.status === "error" && <LoadError message={load.message} onRetry={() => { setLoad({ status: "loading" }); void refresh(); }} />}
@@ -99,8 +97,8 @@ export function PayeesPage() {
             />
           ) : (
             <ul className="divide-y divide-line">
-              {shown.map((p) => (
-                <li key={p.key} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3.5">
+              {shown.map((p, index) => (
+                <Arrive as="li" order={index} key={`${kind}-${p.key}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3.5">
                   <div className="min-w-0 flex-1 basis-56">
                     <p className="flex flex-wrap items-center gap-2 text-[15px] font-semibold text-ink-900">
                       <span className={cx("break-words", !p.isActive && "text-ink-500 line-through")}>{p.name}</span>
@@ -109,13 +107,13 @@ export function PayeesPage() {
                     <p className="text-[13px] text-ink-500">{p.detail}</p>
                   </div>
                   <p className="text-right text-sm">
-                    <span className={cx("font-display text-base font-bold tabular-nums text-ink-900", quietZero(p.total))}><span className="mr-1 text-xs font-medium text-ink-500">AED</span>{formatMoney(p.total)}</span>
+                    <Mark value={p.total} className={cx("font-display text-base font-bold tabular-nums text-ink-900", quietZero(p.total))}><span className="mr-1 text-xs font-medium text-ink-500">AED</span>{formatMoney(p.total)}</Mark>
                     <span className="block text-[13px] text-ink-500">{p.entryCount === 1 ? "1 entry" : `${p.entryCount} entries`}</span>
                   </p>
                   {canEdit && p.payee && (
                     <Button size="sm" variant="ghost" icon={Pencil} className="text-ink-600" onClick={() => setEditing(p.payee!)} aria-label={`Edit ${p.name}`}>Edit</Button>
                   )}
-                </li>
+                </Arrive>
               ))}
             </ul>
           )}
@@ -131,7 +129,7 @@ export function PayeesPage() {
           onSaved={(saved, text) => {
             setEditing(null);
             setProblem(null);
-            setMessage(text);
+            notify.success(text);
             setKind(saved.kind);
             void refresh();
           }}

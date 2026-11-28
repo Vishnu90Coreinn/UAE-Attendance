@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ApiError } from "../../api/client";
 import { getReceivables, type ReceivablesReport } from "../../api/finance";
-import { Card, CardHeader, cx } from "../../ui";
+import { Arrive, Card, CardHeader, cx } from "../../ui";
 import { formatDay, formatMoney } from "./financeFormat";
 
 /** Who owes the company money: issued tax invoices still unpaid, oldest first, with how late each one is. */
@@ -20,7 +20,7 @@ export function ReceivablesTab() {
   if (error) return <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>;
   if (!report) return <p className="text-sm text-ink-600">Loading...</p>;
   return (
-    <div className="space-y-4">
+    <Arrive className="space-y-4">
       <p className="rounded-lg bg-ink-50 px-3 py-2 text-sm text-ink-700">
         Issuing a tax invoice books the sale and the VAT. The customer owes that amount until a payment is recorded on the invoice against a bank or cash account.
         Compare this total with the receivables account in the books; any difference needs reconciliation.
@@ -60,6 +60,6 @@ export function ReceivablesTab() {
           </div>
         )}
       </Card>
-    </div>
+    </Arrive>
   );
 }

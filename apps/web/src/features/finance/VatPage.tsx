@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { getFinVatFile, getFinanceTaxPeriod, type FinanceTaxPeriodSettings, getFinVatReport, type FinReportFormat, type FinVatReport, type FinVatRow } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { TextField } from "../../components/TextField";
-import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, cx, segmentClass, segmentGroupClass } from "../../ui";
+import { Arrive, Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, cx, notify, segmentClass, segmentGroupClass } from "../../ui";
 import { LoadError } from "../workers/WorkersFeedback";
 import { saveBlob } from "../payroll/downloadPdf";
 import { formatDay, formatMoney, quietZero, todayInUae } from "./financeFormat";
@@ -90,7 +90,7 @@ export function VatPage() {
     try {
       saveBlob(await getFinVatFile(format, range.from, range.to), `VAT_${range.from}_${range.to}.${extension}`);
     } catch (e) {
-      setError(failure(e));
+      notify.error(failure(e));   // the figures on screen are fine; only the file failed
     } finally {
       setBusy(null);
     }
@@ -134,16 +134,18 @@ export function VatPage() {
       {!report && !error && <LoadingState label="Working out the VAT..." withCards />}
       {report && (
         <>
-          <section aria-labelledby="vat-net" className="overflow-hidden rounded-card bg-sidebar text-white shadow-card">
-            <div className="grid gap-5 p-5 md:grid-cols-3 md:p-7">
-              <div className="md:col-span-1">
-                <p id="vat-net" className="flex items-center gap-2 text-sm font-medium text-white/75"><Receipt aria-hidden="true" size={16} /> {report.netPayable >= 0 ? "VAT to pay" : "VAT to reclaim"}</p>
-                <p className="mt-2 font-display text-4xl font-bold tracking-tight tabular-nums"><span className="mr-2 text-lg font-medium text-white/70">AED</span>{formatMoney(Math.abs(report.netPayable))}</p>
+          <Arrive>
+            <section aria-labelledby="vat-net" className="overflow-hidden rounded-card bg-sidebar text-white shadow-card">
+              <div className="grid gap-5 p-5 md:grid-cols-3 md:p-7">
+                <div className="md:col-span-1">
+                  <p id="vat-net" className="flex items-center gap-2 text-sm font-medium text-white/75"><Receipt aria-hidden="true" size={16} /> {report.netPayable >= 0 ? "VAT to pay" : "VAT to reclaim"}</p>
+                  <p className="mt-2 font-display text-4xl font-bold tracking-tight tabular-nums"><span className="mr-2 text-lg font-medium text-white/70">AED</span>{formatMoney(Math.abs(report.netPayable))}</p>
+                </div>
+                <p className="text-sm text-white/80 md:col-span-1">VAT charged on sales and on reverse-charge purchases<span className="mt-1 block font-display text-xl font-semibold tabular-nums text-white">AED {formatMoney(report.outputVat)}</span></p>
+                <p className="text-sm text-white/80 md:col-span-1">VAT paid on purchases, which can be reclaimed<span className="mt-1 block font-display text-xl font-semibold tabular-nums text-white">AED {formatMoney(report.inputVat)}</span></p>
               </div>
-              <p className="text-sm text-white/80 md:col-span-1">VAT charged on sales and on reverse-charge purchases<span className="mt-1 block font-display text-xl font-semibold tabular-nums text-white">AED {formatMoney(report.outputVat)}</span></p>
-              <p className="text-sm text-white/80 md:col-span-1">VAT paid on purchases, which can be reclaimed<span className="mt-1 block font-display text-xl font-semibold tabular-nums text-white">AED {formatMoney(report.inputVat)}</span></p>
-            </div>
-          </section>
+            </section>
+          </Arrive>
           {!taxPeriod?.confirmed && <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">VAT period has not been confirmed. These are calendar shortcuts; select the actual assigned dates before filing. <Link className="underline" to="/finance/setup#tax-period">Configure the assigned VAT period</Link>.</p>}
           {filing && (
             <p className="rounded-lg bg-ink-50 px-4 py-3 text-sm text-ink-800">
@@ -157,10 +159,10 @@ export function VatPage() {
               <Link to="/finance/income" className="font-medium underline">Review income</Link> and <Link to="/finance/expenses" className="font-medium underline">review expenses</Link> to classify these entries before filing.
             </p>
           )}
-          <div className="space-y-5">
+          <Arrive order={1} className="space-y-5">
             <Block title="Sales" rows={report.sales} vatLabel="VAT charged" />
             <Block title="Purchases" rows={report.purchases} vatLabel="VAT / recoverable" />
-          </div>
+          </Arrive>
           {report.sales.length === 0 && report.purchases.length === 0 && unrecorded === 0 && (
             <Card><EmptyState icon={Receipt} title="No entries in this period" description="Record an expense or income and choose its VAT type." /></Card>
           )}

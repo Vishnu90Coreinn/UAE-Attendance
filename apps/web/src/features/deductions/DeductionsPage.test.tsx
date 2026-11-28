@@ -6,6 +6,7 @@ import * as deductionsApi from "../../api/deductions";
 import type { MonthDeductions } from "../../api/deductions";
 import { useAuth } from "../../contexts/AuthContext";
 import { DeductionsPage } from "./DeductionsPage";
+import { AppToaster } from "../../ui";
 
 vi.mock("../../api/deductions");
 vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
@@ -26,6 +27,11 @@ function monthData(overrides: Partial<MonthDeductions> = {}): MonthDeductions {
     ...overrides,
   };
 }
+
+// Results of actions are said in toasts, which need the toaster App mounts.
+beforeEach(() => {
+  render(<AppToaster />);
+});
 
 beforeEach(() => {
   // The page opens on the current month; pin the date (not the timers) so the fixtures' 2026-10 stays the current month.

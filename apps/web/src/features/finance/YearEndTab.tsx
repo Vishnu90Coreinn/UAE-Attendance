@@ -3,7 +3,7 @@ import { Lock, LockOpen } from "lucide-react";
 import { ApiError } from "../../api/client";
 import { closeFinYear, listFinYears, reopenFinYear, type FinYear } from "../../api/finance";
 import { TextField } from "../../components/TextField";
-import { Button, Card, CardHeader } from "../../ui";
+import { Button, Card, CardHeader, notify } from "../../ui";
 import { formatDay, formatMoney } from "./financeFormat";
 
 function failure(error: unknown): string {
@@ -17,7 +17,6 @@ function failure(error: unknown): string {
 export function YearEndTab({ canClose, canReopen, onChanged }: { canClose: boolean; canReopen: boolean; onChanged: () => void }) {
   const [years, setYears] = useState<FinYear[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
   const [confirming, setConfirming] = useState<number | null>(null);
   const [reopening, setReopening] = useState<number | null>(null);
@@ -38,10 +37,9 @@ export function YearEndTab({ canClose, canReopen, onChanged }: { canClose: boole
   async function run(year: number, action: () => Promise<FinYear>, done: string) {
     setBusy(year);
     setError(null);
-    setNotice(null);
     try {
       await action();
-      setNotice(done);
+      notify.success(done);
       setConfirming(null);
       setReopening(null);
       setReason("");
@@ -61,7 +59,6 @@ export function YearEndTab({ canClose, canReopen, onChanged }: { canClose: boole
         Its Profit &amp; Loss still reads the same. Years are closed in order.
       </p>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      {notice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">{notice}</p>}
       {!years && !error && <p className="text-sm text-ink-600">Loading...</p>}
       {years?.length === 0 && <p className="text-sm text-ink-600">There are no books yet, so there is no year to close.</p>}
       {years && [...years].reverse().map((y) => (

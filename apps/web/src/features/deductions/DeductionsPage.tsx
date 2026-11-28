@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { LoadingState, PageHeader, buttonClass, cx, inputClass, Toolbar } from "../../ui";
+import { Arrive, LoadingState, PageHeader, buttonClass, cx, inputClass, notify, Toolbar } from "../../ui";
 import { Plus, Save } from "lucide-react";
 import {
   createDeductionType,
@@ -18,7 +18,6 @@ import {
   ActionFailure,
   LoadError,
   primaryButtonClass,
-  SuccessRegion,
 } from "../workers/WorkersFeedback";
 
 interface Draft {
@@ -86,7 +85,6 @@ export function DeductionsPage() {
   const [attempt, setAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [newType, setNewType] = useState("");
   const [search, setSearch] = useState("");
   const [onlyWithDeductions, setOnlyWithDeductions] = useState(false);
@@ -151,7 +149,6 @@ export function DeductionsPage() {
       const existing = worker[typeId] ?? { amount: "", note: "" };
       return { ...current, [workerId]: { ...worker, [typeId]: { ...existing, ...patch } } };
     });
-    setSuccess(null);
     setError(null);
   }
 
@@ -174,12 +171,11 @@ export function DeductionsPage() {
     }));
     setSaving(true);
     setError(null);
-    setSuccess(null);
     try {
       const saved = await saveDeductions(month, workers);
       setData(saved);
       setDraft(draftFrom(saved));
-      setSuccess("Deductions saved.");
+      notify.success("Deductions saved.");
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {
@@ -194,7 +190,7 @@ export function DeductionsPage() {
       const created = await createDeductionType(name);
       setTypes((current) => [...current, created]);
       setNewType("");
-      setSuccess(`"${created.name}" added.`);
+      notify.success(`"${created.name}" added.`);
       setError(null);
     } catch (reason) {
       setError(errorMessage(reason));
@@ -205,7 +201,7 @@ export function DeductionsPage() {
     try {
       const updated = await updateDeductionType(type.id, type.name, !type.isActive);
       setTypes((current) => current.map((t) => (t.id === updated.id ? updated : t)));
-      setSuccess(`"${updated.name}" ${updated.isActive ? "is active again" : "is retired"}.`);
+      notify.success(`"${updated.name}" ${updated.isActive ? "is active again" : "is retired"}.`);
     } catch (reason) {
       setError(errorMessage(reason));
     }
@@ -271,7 +267,6 @@ export function DeductionsPage() {
           This month is finalised. Its deductions are locked and appear on the payslips.
         </p>
       )}
-      <SuccessRegion message={success} />
       {error && <ActionFailure message={error} />}
 
       <section aria-labelledby="deduction-types-heading" className="rounded-card border border-line bg-white p-4">
@@ -324,116 +319,116 @@ export function DeductionsPage() {
       ) : loadError ? (
         <LoadError message={loadError} onRetry={() => setAttempt((value) => value + 1)} />
       ) : data && data.workers.length > 0 ? (
-        <>
-        <div className="flex flex-wrap items-center gap-3 rounded-card border border-line bg-white px-4 py-3 shadow-card">
-          <div className="min-w-0 flex-1 basis-56">
-            <label htmlFor="deduction-search" className="sr-only">Search workers</label>
-            <input
-              id="deduction-search"
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search workers by name or ID"
-              autoComplete="off"
-              className={cx(inputClass, "w-full")}
-            />
+        <Arrive className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3 rounded-card border border-line bg-white px-4 py-3 shadow-card">
+            <div className="min-w-0 flex-1 basis-56">
+              <label htmlFor="deduction-search" className="sr-only">Search workers</label>
+              <input
+                id="deduction-search"
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search workers by name or ID"
+                autoComplete="off"
+                className={cx(inputClass, "w-full")}
+              />
+            </div>
+            <label className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-ink-800">
+              <input
+                type="checkbox"
+                checked={onlyWithDeductions}
+                onChange={(e) => setOnlyWithDeductions(e.target.checked)}
+                className="h-5 w-5 rounded border-ink-300 accent-brand-600"
+              />
+              Only workers with deductions
+            </label>
+            <p className="ml-auto text-sm font-semibold tabular-nums text-ink-900">Month total: {money(monthTotal)} AED</p>
           </div>
-          <label className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-ink-800">
-            <input
-              type="checkbox"
-              checked={onlyWithDeductions}
-              onChange={(e) => setOnlyWithDeductions(e.target.checked)}
-              className="h-5 w-5 rounded border-ink-300 accent-brand-600"
-            />
-            Only workers with deductions
-          </label>
-          <p className="ml-auto text-sm font-semibold tabular-nums text-ink-900">Month total: {money(monthTotal)} AED</p>
-        </div>
-        <div className="overflow-x-auto md:rounded-lg md:border md:border-line md:bg-white md:shadow-sm">
-          <table className="block w-full text-left text-sm text-ink-800 md:table md:min-w-[640px]">
-            <caption className="sr-only">Deductions for {data.month} in AED</caption>
-            <thead className="sr-only border-b border-line bg-ink-50 text-xs uppercase tracking-wide text-ink-600 md:not-sr-only md:table-header-group">
-              <tr className="md:table-row">
-                <th scope="col" className="px-4 py-3 font-semibold">Worker</th>
-                {activeTypes.map((type) => (
-                  <th key={type.id} scope="col" className="px-4 py-3 font-semibold">
-                    {type.name} (AED) and reason
-                  </th>
-                ))}
-                <th scope="col" className="px-4 py-3 text-right font-semibold">Total (AED)</th>
-              </tr>
-            </thead>
-            <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-line">
-              {visibleWorkers.map((worker) => (
-                <tr
-                  key={worker.workerId}
-                  className="block rounded-card border border-line bg-white p-3 shadow-card md:table-row md:rounded-none md:border-0 md:p-0 md:shadow-none"
-                >
-                  <th scope="row" className="block px-0 pb-2 text-left font-medium md:table-cell md:px-4 md:py-3 md:align-top">
-                    {worker.fullName}
-                    <span className="block text-xs font-normal text-ink-600">
-                      {worker.workerCode}
-                      {worker.category === "Employee" && <span className="ml-2 rounded bg-sky-50 px-1.5 py-0.5 font-medium text-sky-800">Office</span>}
-                    </span>
-                    {!worker.isActive && <span className="block text-xs text-ink-600">Inactive</span>}
-                    {worker.isSelf && <span className="block text-xs text-ink-600">Your own record: a manager must change it</span>}
-                  </th>
-                  {activeTypes.map((type) => {
-                    const entry = draft[worker.workerId]?.[type.id] ?? { amount: "", note: "" };
-                    return (
-                      <td key={type.id} className="block pb-2 md:table-cell md:px-4 md:py-3 md:pb-0 md:align-top">
-                        <p className="mb-1 text-xs font-semibold uppercase text-ink-600 md:hidden">
-                          {type.name} (AED) and reason
-                        </p>
-                        <div className="grid gap-2 sm:grid-cols-[8rem_1fr]">
-                          <label className="sr-only" htmlFor={`amount-${worker.workerId}-${type.id}`}>
-                            {type.name} amount for {worker.fullName}
-                          </label>
-                          <input
-                            id={`amount-${worker.workerId}-${type.id}`}
-                            type="number"
-                            inputMode="decimal"
-                            min="0"
-                            step="0.01"
-                            value={entry.amount}
-                            disabled={locked || saving || worker.isSelf}
-                            onChange={(e) => change(worker.workerId, type.id, { amount: e.target.value })}
-                            className={inputClass}
-                          />
-                          <label className="sr-only" htmlFor={`note-${worker.workerId}-${type.id}`}>
-                            Reason for {type.name} for {worker.fullName}
-                          </label>
-                          <input
-                            id={`note-${worker.workerId}-${type.id}`}
-                            type="text"
-                            maxLength={200}
-                            value={entry.note}
-                            placeholder="Reason"
-                            disabled={locked || saving || worker.isSelf}
-                            onChange={(e) => change(worker.workerId, type.id, { note: e.target.value })}
-                            aria-invalid={Number(entry.amount) > 0 && entry.note.trim() === "" ? true : undefined}
-                            className={cx(inputClass, Number(entry.amount) > 0 && entry.note.trim() === "" && "!border-danger")}
-                          />
-                        </div>
-                        {Number(entry.amount) > 0 && entry.note.trim() === "" && (
-                          <p className="mt-1 text-xs text-danger">A reason is required for this amount.</p>
-                        )}
-                      </td>
-                    );
-                  })}
-                  <td className="block pb-1 text-right font-semibold tabular-nums text-ink-900 md:table-cell md:px-4 md:py-3 md:align-top">
-                    <span className="mr-2 text-xs font-semibold uppercase text-ink-600 md:hidden">Total (AED)</span>
-                    {money(workerTotal(worker.workerId))}
-                  </td>
+          <div className="overflow-x-auto md:rounded-lg md:border md:border-line md:bg-white md:shadow-sm">
+            <table className="block w-full text-left text-sm text-ink-800 md:table md:min-w-[640px]">
+              <caption className="sr-only">Deductions for {data.month} in AED</caption>
+              <thead className="sr-only border-b border-line bg-ink-50 text-xs uppercase tracking-wide text-ink-600 md:not-sr-only md:table-header-group">
+                <tr className="md:table-row">
+                  <th scope="col" className="px-4 py-3 font-semibold">Worker</th>
+                  {activeTypes.map((type) => (
+                    <th key={type.id} scope="col" className="px-4 py-3 font-semibold">
+                      {type.name} (AED) and reason
+                    </th>
+                  ))}
+                  <th scope="col" className="px-4 py-3 text-right font-semibold">Total (AED)</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {visibleWorkers.length === 0 && (
-            <p className="px-4 py-8 text-center text-sm text-ink-600">No workers match this search.</p>
-          )}
-        </div>
-        </>
+              </thead>
+              <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y md:divide-line">
+                {visibleWorkers.map((worker) => (
+                  <tr
+                    key={worker.workerId}
+                    className="block rounded-card border border-line bg-white p-3 shadow-card md:table-row md:rounded-none md:border-0 md:p-0 md:shadow-none"
+                  >
+                    <th scope="row" className="block px-0 pb-2 text-left font-medium md:table-cell md:px-4 md:py-3 md:align-top">
+                      {worker.fullName}
+                      <span className="block text-xs font-normal text-ink-600">
+                        {worker.workerCode}
+                        {worker.category === "Employee" && <span className="ml-2 rounded bg-sky-50 px-1.5 py-0.5 font-medium text-sky-800">Office</span>}
+                      </span>
+                      {!worker.isActive && <span className="block text-xs text-ink-600">Inactive</span>}
+                      {worker.isSelf && <span className="block text-xs text-ink-600">Your own record: a manager must change it</span>}
+                    </th>
+                    {activeTypes.map((type) => {
+                      const entry = draft[worker.workerId]?.[type.id] ?? { amount: "", note: "" };
+                      return (
+                        <td key={type.id} className="block pb-2 md:table-cell md:px-4 md:py-3 md:pb-0 md:align-top">
+                          <p className="mb-1 text-xs font-semibold uppercase text-ink-600 md:hidden">
+                            {type.name} (AED) and reason
+                          </p>
+                          <div className="grid gap-2 sm:grid-cols-[8rem_1fr]">
+                            <label className="sr-only" htmlFor={`amount-${worker.workerId}-${type.id}`}>
+                              {type.name} amount for {worker.fullName}
+                            </label>
+                            <input
+                              id={`amount-${worker.workerId}-${type.id}`}
+                              type="number"
+                              inputMode="decimal"
+                              min="0"
+                              step="0.01"
+                              value={entry.amount}
+                              disabled={locked || saving || worker.isSelf}
+                              onChange={(e) => change(worker.workerId, type.id, { amount: e.target.value })}
+                              className={inputClass}
+                            />
+                            <label className="sr-only" htmlFor={`note-${worker.workerId}-${type.id}`}>
+                              Reason for {type.name} for {worker.fullName}
+                            </label>
+                            <input
+                              id={`note-${worker.workerId}-${type.id}`}
+                              type="text"
+                              maxLength={200}
+                              value={entry.note}
+                              placeholder="Reason"
+                              disabled={locked || saving || worker.isSelf}
+                              onChange={(e) => change(worker.workerId, type.id, { note: e.target.value })}
+                              aria-invalid={Number(entry.amount) > 0 && entry.note.trim() === "" ? true : undefined}
+                              className={cx(inputClass, Number(entry.amount) > 0 && entry.note.trim() === "" && "!border-danger")}
+                            />
+                          </div>
+                          {Number(entry.amount) > 0 && entry.note.trim() === "" && (
+                            <p className="mt-1 text-xs text-danger">A reason is required for this amount.</p>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="block pb-1 text-right font-semibold tabular-nums text-ink-900 md:table-cell md:px-4 md:py-3 md:align-top">
+                      <span className="mr-2 text-xs font-semibold uppercase text-ink-600 md:hidden">Total (AED)</span>
+                      {money(workerTotal(worker.workerId))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {visibleWorkers.length === 0 && (
+              <p className="px-4 py-8 text-center text-sm text-ink-600">No workers match this search.</p>
+            )}
+          </div>
+        </Arrive>
       ) : (
         <p className="rounded-card border border-line bg-white px-4 py-10 text-center text-ink-600">
           No active workers for this month.

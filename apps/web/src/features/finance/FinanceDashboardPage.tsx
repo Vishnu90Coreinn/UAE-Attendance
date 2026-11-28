@@ -8,8 +8,8 @@ import { isManagement } from "../../permissions";
 import { useIsDesktop } from "../../utils/useIsDesktop";
 import { AttentionCard } from "./AttentionCard";
 import { GetStartedCard } from "./GetStartedCard";
-import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, cx, segmentClass, segmentGroupClass } from "../../ui";
-import { LoadError, SuccessRegion } from "../workers/WorkersFeedback";
+import { Arrive, Button, Card, CardHeader, Draw, EmptyState, LoadingState, Mark, PageHeader, cx, notify, segmentClass, segmentGroupClass } from "../../ui";
+import { LoadError } from "../workers/WorkersFeedback";
 import { EntryDialog } from "./EntryDialog";
 import { changeWords, formatCompact, formatDay, formatMoney, formatShare, splitShares, sumMoney } from "./financeFormat";
 
@@ -71,16 +71,18 @@ function ResultPanel({ data }: { data: FinDashboard }) {
     { key: "Expenses", value: current.expense, before: data.previous.expense, color: "bg-amber-300", icon: TrendingDown },
   ];
   return (
-    <section aria-labelledby="net-result" className="fade-up overflow-hidden rounded-card bg-sidebar text-white shadow-card">
+    <section aria-labelledby="net-result" className="overflow-hidden rounded-card bg-sidebar text-white shadow-card">
       <div className="grid gap-6 p-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] md:p-7">
         <div>
           <p id="net-result" className="text-sm font-medium text-white/75">
             Net receipts less payments · {label}
           </p>
           <p className={cx("mt-2 font-display text-4xl font-bold tracking-tight tabular-nums md:text-5xl", current.net < 0 && "text-red-200")}>
-            {current.net < 0 && <span aria-label="minus">−</span>}
-            <span className="mr-2 text-lg font-medium text-white/70">AED</span>
-            {formatMoney(Math.abs(current.net))}
+            <Mark value={current.net} tone="dark">
+              {current.net < 0 && <span aria-label="minus">−</span>}
+              <span className="mr-2 text-lg font-medium text-white/70">AED</span>
+              {formatMoney(Math.abs(current.net))}
+            </Mark>
           </p>
           <p className="mt-3 text-sm text-white/70">{comparison(data)}</p>
           <p className="mt-1 text-xs text-white/60">
@@ -88,22 +90,22 @@ function ResultPanel({ data }: { data: FinDashboard }) {
           </p>
           <p className="mt-4 border-t border-white/15 pt-3 text-sm text-white/70">
             In the accounts today{" "}
-            <span className="font-display text-base font-semibold tabular-nums text-white">AED {formatMoney(data.totalBalance)}</span>
+            <Mark value={data.totalBalance} tone="dark" className="font-display text-base font-semibold tabular-nums text-white">AED {formatMoney(data.totalBalance)}</Mark>
             <span className="text-white/60"> · {data.accounts.length === 1 ? "1 account" : `${data.accounts.length} accounts`}</span>
           </p>
         </div>
         <ul className="grid content-end gap-4">
-          {bars.map((b) => (
+          {bars.map((b, index) => (
             <li key={b.key}>
               <div className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="flex items-center gap-2 font-medium text-white/85">
                   <b.icon aria-hidden="true" size={16} />
                   {b.key}
                 </span>
-                <Aed value={b.value} className="text-lg font-semibold" />
+                <Mark value={b.value} tone="dark"><Aed value={b.value} className="text-lg font-semibold" /></Mark>
               </div>
               <div className="mt-1.5 h-3 overflow-hidden rounded-full bg-white/10" aria-hidden="true">
-                <div className={cx("h-full rounded-full", b.color)} style={{ width: `${b.value > 0 ? Math.max((b.value / scale) * 100, 1.5) : 0}%` }} />
+                <Draw order={index} className={cx("h-full rounded-full", b.color)} style={{ width: `${b.value > 0 ? Math.max((b.value / scale) * 100, 1.5) : 0}%` }} />
               </div>
               <p className="mt-1 text-xs text-white/65 tabular-nums">
                 Before: AED {formatMoney(b.before)}
@@ -141,14 +143,14 @@ function TrendCard({ data }: { data: FinDashboard }) {
                   <span className={cx("h-px flex-1", fraction === 0 ? "bg-ink-300" : "bg-ink-100")} />
                 </div>
               ))}
-            <div className="ml-14 flex h-40 items-end gap-px sm:gap-0.5" role="img" aria-label={`Income and expenses for each ${unit}, ${formatDay(data.from)} to ${formatDay(data.to)}. Figures are in the table below.`}>
+            <Draw className="ml-14 flex h-40 items-end gap-px sm:gap-0.5" role="img" aria-label={`Income and expenses for each ${unit}, ${formatDay(data.from)} to ${formatDay(data.to)}. Figures are in the table below.`}>
               {buckets.map((b) => (
                 <div key={b.start} data-bucket={b.start} title={`${b.label}: income AED ${formatMoney(b.income)}, expenses AED ${formatMoney(b.expense)}`} onClick={() => setPicked(b.start)} onMouseEnter={() => setPicked(b.start)} className={cx("flex h-full min-w-0 flex-1 cursor-pointer items-end justify-center gap-px", picked === b.start && "bg-ink-100")}>
                   <span className="block w-1/2 rounded-t-sm bg-brand-500" style={{ height: `${(b.income / peak) * 100}%`, minHeight: b.income > 0 ? 2 : 0 }} />
                   <span className="block w-1/2 rounded-t-sm bg-amber-400" style={{ height: `${(b.expense / peak) * 100}%`, minHeight: b.expense > 0 ? 2 : 0 }} />
                 </div>
               ))}
-            </div>
+            </Draw>
             </div>
             <div className="ml-14 mt-2 flex justify-between text-[13px] text-ink-600">
               <span>{buckets[0]?.label}</span>
@@ -191,12 +193,12 @@ function BalancesCard({ data }: { data: FinDashboard }) {
                 <div className="flex items-center gap-3">
                   <Icon aria-hidden="true" size={18} className="shrink-0 text-brand-700" />
                   <span className="min-w-0 flex-1 break-words text-sm font-medium text-ink-900">{a.name}</span>
-                  <span className={cx("text-base font-semibold tabular-nums", a.balance < 0 ? "text-danger" : "text-ink-900")}>
+                  <Mark value={a.balance} className={cx("text-base font-semibold tabular-nums", a.balance < 0 ? "text-danger" : "text-ink-900")}>
                     {a.balance < 0 && "−"}AED {formatMoney(Math.abs(a.balance))}
-                  </span>
+                  </Mark>
                 </div>
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-100" aria-hidden="true">
-                  <div className="h-full rounded-full bg-brand-500" style={{ width: `${shares[index]}%` }} />
+                  <Draw order={index} className="h-full rounded-full bg-brand-500" style={{ width: `${shares[index]}%` }} />
                 </div>
               </li>
             );
@@ -221,7 +223,7 @@ function SpendingCard({ data }: { data: FinDashboard }) {
         <EmptyState icon={ReceiptText} title="No expenses in this period" description="Spending appears here, biggest category first." />
       ) : (
         <ol className="grid grid-cols-1 gap-4 px-5 pb-5">
-          {data.spending.map((s) => (
+          {data.spending.map((s, index) => (
             <li key={s.categoryId ?? "rest"}>
               <div className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="min-w-0 flex-1 break-words font-medium text-ink-900">{s.name}</span>
@@ -229,7 +231,7 @@ function SpendingCard({ data }: { data: FinDashboard }) {
                 <span className="w-14 text-right tabular-nums text-ink-600">{formatShare(s.share)}</span>
               </div>
               <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-ink-100" aria-hidden="true">
-                <div className="h-full rounded-full bg-amber-400" style={{ width: `${Math.max(s.share, 1)}%` }} />
+                <Draw order={index} className="h-full rounded-full bg-amber-400" style={{ width: `${Math.max(s.share, 1)}%` }} />
               </div>
             </li>
           ))}
@@ -256,43 +258,45 @@ function ChequesCard() {
   }, []);
   if (!summary || (summary.next.length === 0 && summary.overdueCount === 0 && summary.laterIssuedCount === 0)) return null;
   return (
-    <Card>
-      <CardHeader title="Cheques" description="Cheques that have not cleared yet. They change no balance until the money moves." />
-      <div className="grid gap-4 px-5 pb-4 sm:grid-cols-3">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-ink-500">Due in {summary.days} days</p>
-          <p className={cx("font-display text-xl font-bold tabular-nums", summary.dueSoonIssued === 0 ? "text-ink-400" : "text-ink-900")}>AED {formatMoney(summary.dueSoonIssued)}</p>
-          <p className="text-[13px] text-ink-500">{summary.dueSoonIssuedCount === 1 ? "1 cheque to pay" : `${summary.dueSoonIssuedCount} cheques to pay`}</p>
+    <Arrive>
+      <Card>
+        <CardHeader title="Cheques" description="Cheques that have not cleared yet. They change no balance until the money moves." />
+        <div className="grid gap-4 px-5 pb-4 sm:grid-cols-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-ink-500">Due in {summary.days} days</p>
+            <p className={cx("font-display text-xl font-bold tabular-nums", summary.dueSoonIssued === 0 ? "text-ink-400" : "text-ink-900")}>AED {formatMoney(summary.dueSoonIssued)}</p>
+            <p className="text-[13px] text-ink-500">{summary.dueSoonIssuedCount === 1 ? "1 cheque to pay" : `${summary.dueSoonIssuedCount} cheques to pay`}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-ink-500">Overdue</p>
+            <p className={cx("font-display text-xl font-bold tabular-nums", summary.overdueCount === 0 ? "text-ink-400" : "text-danger")}>AED {formatMoney(summary.overdueAmount)}</p>
+            <p className="text-[13px] text-ink-500">{summary.overdueCount === 1 ? "1 cheque past its date" : `${summary.overdueCount} cheques past their date`}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-ink-500">Post-dated, later</p>
+            <p className={cx("font-display text-xl font-bold tabular-nums", summary.laterIssued === 0 ? "text-ink-400" : "text-ink-900")}>AED {formatMoney(summary.laterIssued)}</p>
+            <p className="text-[13px] text-ink-500">{summary.laterIssuedCount === 1 ? "1 cheque" : `${summary.laterIssuedCount} cheques`} after {summary.days} days</p>
+          </div>
         </div>
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-ink-500">Overdue</p>
-          <p className={cx("font-display text-xl font-bold tabular-nums", summary.overdueCount === 0 ? "text-ink-400" : "text-danger")}>AED {formatMoney(summary.overdueAmount)}</p>
-          <p className="text-[13px] text-ink-500">{summary.overdueCount === 1 ? "1 cheque past its date" : `${summary.overdueCount} cheques past their date`}</p>
+        {summary.next.length > 0 && (
+          <ul className="divide-y divide-line border-t border-line">
+            {summary.next.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-5 py-2.5 text-sm">
+                <span className="w-24 shrink-0 tabular-nums text-ink-700">{formatDay(c.dueDate)}</span>
+                <span className="min-w-0 flex-1 truncate font-medium text-ink-900">{c.partyName}</span>
+                <span className="text-[13px] text-ink-500">{c.direction === "Issued" ? "to pay" : "to receive"} · #{c.serial}</span>
+                <span className="w-28 text-right font-semibold tabular-nums text-ink-900">{formatMoney(c.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="border-t border-line px-5 py-3">
+          <Link to="/finance/cheques" className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-brand-700 hover:underline sm:min-h-0">
+            All cheques <ArrowRight aria-hidden="true" size={14} />
+          </Link>
         </div>
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-ink-500">Post-dated, later</p>
-          <p className={cx("font-display text-xl font-bold tabular-nums", summary.laterIssued === 0 ? "text-ink-400" : "text-ink-900")}>AED {formatMoney(summary.laterIssued)}</p>
-          <p className="text-[13px] text-ink-500">{summary.laterIssuedCount === 1 ? "1 cheque" : `${summary.laterIssuedCount} cheques`} after {summary.days} days</p>
-        </div>
-      </div>
-      {summary.next.length > 0 && (
-        <ul className="divide-y divide-line border-t border-line">
-          {summary.next.map((c) => (
-            <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-5 py-2.5 text-sm">
-              <span className="w-24 shrink-0 tabular-nums text-ink-700">{formatDay(c.dueDate)}</span>
-              <span className="min-w-0 flex-1 truncate font-medium text-ink-900">{c.partyName}</span>
-              <span className="text-[13px] text-ink-500">{c.direction === "Issued" ? "to pay" : "to receive"} · #{c.serial}</span>
-              <span className="w-28 text-right font-semibold tabular-nums text-ink-900">{formatMoney(c.amount)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="border-t border-line px-5 py-3">
-        <Link to="/finance/cheques" className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-brand-700 hover:underline sm:min-h-0">
-          All cheques <ArrowRight aria-hidden="true" size={14} />
-        </Link>
-      </div>
-    </Card>
+      </Card>
+    </Arrive>
   );
 }
 
@@ -302,11 +306,13 @@ function CapitalCard({ capital }: { capital: NonNullable<FinDashboard["capital"]
       <CardHeader title="Partners' capital" description="Money the partners put in, less anything paid back. It is part of the balances but is not income." />
       <div className="grid gap-5 px-5 pb-5 md:grid-cols-[auto_minmax(0,1fr)] md:items-center md:gap-8">
         <p className="font-display text-3xl font-bold tracking-tight tabular-nums text-ink-900">
-          <span className="mr-1 text-sm font-medium text-ink-500">AED</span>
-          {formatMoney(capital.total)}
+          <Mark value={capital.total}>
+            <span className="mr-1 text-sm font-medium text-ink-500">AED</span>
+            {formatMoney(capital.total)}
+          </Mark>
         </p>
         <div>
-          <div
+          <Draw
             role="img"
             aria-label={`Share of the capital: ${capital.partners.map((p) => `${p.name} ${formatShare(p.share)}`).join(", ")}`}
             className="flex h-3 gap-0.5 overflow-hidden rounded-full"
@@ -314,7 +320,7 @@ function CapitalCard({ capital }: { capital: NonNullable<FinDashboard["capital"]
             {capital.partners.map((p, i) => (
               <span key={p.id} style={{ width: `${Math.max(p.share, 1.5)}%` }} className={cx("block h-full", CAPITAL_COLORS[i % CAPITAL_COLORS.length])} />
             ))}
-          </div>
+          </Draw>
           <ul className="mt-3 grid gap-1.5 text-sm">
             {capital.partners.map((p, i) => (
               <li key={p.id} className="flex items-center gap-2">
@@ -344,8 +350,8 @@ function LatestCard({ data }: { data: FinDashboard }) {
         <EmptyState icon={ReceiptText} title="Nothing recorded yet" description="New expenses and income are listed here." />
       ) : (
         <ul className="divide-y divide-line">
-          {data.latest.map((e) => (
-            <li key={`${e.kind}-${e.id}`} className="flex items-center gap-3 px-5 py-3">
+          {data.latest.map((e, index) => (
+            <Arrive as="li" order={index} key={`${e.kind}-${e.id}`} className="flex items-center gap-3 px-5 py-3">
               <div className="w-24 shrink-0">
                 <p className="text-[13px] font-medium tabular-nums text-ink-700">{formatDay(e.entryDate)}</p>
                 <p className="font-mono text-[13px] text-ink-500">{e.entryNo}</p>
@@ -358,7 +364,7 @@ function LatestCard({ data }: { data: FinDashboard }) {
                 <span className="sr-only">{KIND_WORDS[e.kind]} </span>
                 <span aria-hidden="true">{moneyIn(e.kind) ? "+" : "−"}</span> {formatMoney(e.amount)}
               </p>
-            </li>
+            </Arrive>
           ))}
         </ul>
       )}
@@ -377,7 +383,6 @@ export function FinanceDashboardPage() {
   const desktop = useIsDesktop();
   const [categories, setCategories] = useState<FinCategory[]>([]);
   const [adding, setAdding] = useState<FinEntryKind | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [days, setDays] = useState<FinWindow>(30);
   const [load, setLoad] = useState<Load>({ status: "loading" });
 
@@ -419,28 +424,27 @@ export function FinanceDashboardPage() {
           </>
         }
       />
-      <SuccessRegion message={message} />
       {load.status === "loading" && <LoadingState label="Loading the overview..." withCards />}
       {load.status === "error" && <LoadError message={load.message} onRetry={() => { setLoad({ status: "loading" }); void refresh(days); }} />}
       {load.status === "ready" && (
         <>
           <AttentionCard canLock={canEdit} />
-          <ResultPanel data={load.data} />
-          <div style={{ "--i": 1 } as React.CSSProperties} className="fade-up grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          <Arrive>
+            <ResultPanel data={load.data} />
+          </Arrive>
+          <Arrive order={1} className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
             <TrendCard data={load.data} />
             <SpendingCard data={load.data} />
-          </div>
-          <div style={{ "--i": 2 } as React.CSSProperties} className="fade-up grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+          </Arrive>
+          <Arrive order={2} className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
             <BalancesCard data={load.data} />
             <LatestCard data={load.data} />
-          </div>
-          <div style={{ "--i": 3 } as React.CSSProperties} className="fade-up">
-            <ChequesCard />
-          </div>
+          </Arrive>
+          <ChequesCard />
           {load.data.capital && (
-            <div style={{ "--i": 3 } as React.CSSProperties} className="fade-up">
+            <Arrive order={3}>
               <CapitalCard capital={load.data.capital} />
-            </div>
+            </Arrive>
           )}
           {canEdit && <GetStartedCard />}
           {adding && (
@@ -452,7 +456,7 @@ export function FinanceDashboardPage() {
               onClose={() => setAdding(null)}
               onSaved={(entry) => {
                 setAdding(null);
-                setMessage(`${entry.entryNo}: AED ${formatMoney(entry.amount)} ${entry.kind === "Income" ? "received from" : "paid to"} ${entry.party} was recorded.`);
+                notify.success(`${entry.entryNo}: AED ${formatMoney(entry.amount)} ${entry.kind === "Income" ? "received from" : "paid to"} ${entry.party} was recorded.`);
                 void refresh(days);
               }}
             />

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Play, Plus, Repeat } from "lucide-react";
 import { ApiError } from "../../api/client";
 import { listRecurringJournals, postDueRecurringJournals, stopRecurringJournal, type LedgerAccount, type RecurringJournal } from "../../api/finance";
-import { Button, Card, CardHeader, EmptyState } from "../../ui";
+import { Button, Card, CardHeader, EmptyState, notify } from "../../ui";
 import { formatMoney } from "./financeFormat";
 import { ManualJournalDialog } from "./ManualJournalDialog";
 
@@ -21,7 +21,6 @@ function monthWords(key: string): string {
 export function RecurringTab({ accounts, canEdit, variant, onChanged }: { accounts: LedgerAccount[]; canEdit: boolean; variant: "center" | "sheet"; onChanged: () => void }) {
   const [items, setItems] = useState<RecurringJournal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [skipped, setSkipped] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -43,10 +42,9 @@ export function RecurringTab({ accounts, canEdit, variant, onChanged }: { accoun
   async function postDue() {
     setBusy(true);
     setError(null);
-    setNotice(null);
     try {
       const result = await postDueRecurringJournals();
-      setNotice(result.posted === 0 ? "Nothing was due." : `${result.posted} journal${result.posted === 1 ? "" : "s"} posted.`);
+      notify.success(result.posted === 0 ? "Nothing was due." : `${result.posted} journal${result.posted === 1 ? "" : "s"} posted.`);
       setSkipped(result.skipped.map((s) => `${s.description}, ${monthWords(s.month)}: ${s.reason}`));
       await load();
       onChanged();
@@ -61,7 +59,7 @@ export function RecurringTab({ accounts, canEdit, variant, onChanged }: { accoun
     setError(null);
     try {
       await stopRecurringJournal(r.id);
-      setNotice(`"${r.description}" is stopped. The months already posted stay.`);
+      notify.success(`"${r.description}" is stopped. The months already posted stay.`);
       await load();
     } catch (e) {
       setError(failure(e));
@@ -82,7 +80,6 @@ export function RecurringTab({ accounts, canEdit, variant, onChanged }: { accoun
       )}
       </div>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      {notice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">{notice}</p>}
       {skipped.length > 0 && (
         <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <p className="font-medium">Left for later:</p>
@@ -115,7 +112,7 @@ export function RecurringTab({ accounts, canEdit, variant, onChanged }: { accoun
           </div>
         </Card>
       ))}
-      {creating && <ManualJournalDialog recurring accounts={accounts} variant={variant} onClose={() => setCreating(false)} onPosted={(label) => { setCreating(false); setNotice(`"${label}" is set up. Press Post due months to post any month that has already come due.`); void load(); }} />}
+      {creating && <ManualJournalDialog recurring accounts={accounts} variant={variant} onClose={() => setCreating(false)} onPosted={(label) => { setCreating(false); notify.success(`"${label}" is set up. Press Post due months to post any month that has already come due.`); void load(); }} />}
     </div>
   );
 }

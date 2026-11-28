@@ -7,6 +7,7 @@ import type { InvoiceSummary } from "../../api/invoices";
 import type { PayrollReport } from "../../api/payroll";
 import type { StaffDashboard, StaffLeave, StaffPayrollSummary } from "../../api/staff";
 import type { Load, TrendDay } from "./useDashboardData";
+import { Arrive, Draw, Mark } from "../../ui";
 
 /**
  * The dashboard is drawn like a fabrication sheet for the glass and aluminium work this company does: one ruled sheet,
@@ -90,7 +91,7 @@ function Dimension({ value, color }: { value: number; color: string }) {
       <span className="absolute left-0 top-0 h-3 w-px bg-ink-400" />
       <span className="absolute right-0 top-0 h-3 w-px bg-ink-400" />
       <span className="absolute inset-x-0 top-1/2 h-px bg-ink-300" />
-      <span className="absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-r-sm" style={{ width: `${pct}%`, background: color }} />
+      <Draw as="span" className="absolute left-0 top-1 h-1 rounded-r-sm" style={{ width: `${pct}%`, background: color }} />
     </div>
   );
 }
@@ -148,9 +149,9 @@ export function LeadFigure({
       {loading && <div className="mt-3"><Skeleton height={96} /></div>}
       {failed && <p className="mt-3 text-sm text-red-800">Could not load.</p>}
       {!loading && !failed && (
-        <>
+        <Arrive>
           <p className="mt-0.5 flex items-baseline gap-2 tabular-nums">
-            <span className="font-display text-5xl font-semibold leading-none tracking-tight text-ink-900 sm:text-6xl">{present}</span>
+            <Mark value={present} className="font-display text-5xl font-semibold leading-none tracking-tight text-ink-900 sm:text-6xl">{present}</Mark>
             <span className="text-2xl font-medium text-ink-500">/ {total}</span>
             <span className="ml-auto self-end text-sm font-semibold text-brand-700">{rate}%</span>
           </p>
@@ -167,7 +168,7 @@ export function LeadFigure({
             ) : null}
           </p>
           {siteUnmarked && <p className="mt-1 text-sm text-ink-600">Site attendance isn't marked yet.</p>}
-        </>
+        </Arrive>
       )}
     </Link>
   );
@@ -190,10 +191,10 @@ export function DecisionFigure({ count, detail, to, loading }: { count: number; 
       {loading ? (
         <div className="mt-3"><Skeleton height={64} /></div>
       ) : (
-        <div>
-          <p className="mt-1 font-display text-4xl font-semibold leading-none tabular-nums">{count}</p>
+        <Arrive>
+          <p className="mt-1 font-display text-4xl font-semibold leading-none tabular-nums"><Mark value={count} tone={active ? "dark" : "light"}>{count}</Mark></p>
           <p className={`mt-1.5 text-sm ${active ? "text-brand-100" : "text-ink-600"}`}>{detail}</p>
-        </div>
+        </Arrive>
       )}
     </Link>
   );
@@ -211,12 +212,12 @@ export function ReceivablesFigure({ state }: { state: Load<InvoiceSummary[]> }) 
       {state.status === "loading" && <div className="mt-3"><Skeleton height={64} /></div>}
       {state.status === "error" && <p className="mt-3 text-sm text-red-800">Could not load.</p>}
       {t && (
-        <div>
-          <p className="mt-1 truncate font-display text-3xl font-semibold leading-none tabular-nums text-ink-900">{money.format(t.outstanding)}</p>
+        <Arrive>
+          <p className="mt-1 break-words font-display text-3xl font-semibold leading-none tabular-nums text-ink-900"><Mark value={t.outstanding}>{money.format(t.outstanding)}</Mark></p>
           <p className={`mt-1.5 text-sm ${t.overdueCount > 0 ? "font-medium text-red-800" : "text-ink-600"}`}>
             {t.overdueCount > 0 ? `${t.overdueCount} overdue · AED ${money.format(t.overdue)}` : t.openCount > 0 ? `${t.openCount} open, none overdue` : "No unpaid invoices"}
           </p>
-        </div>
+        </Arrive>
       )}
     </Link>
   );
@@ -272,19 +273,19 @@ export function Invoices({ state }: { state: Load<InvoiceSummary[]> }) {
       {state.status === "error" && <Failed />}
       {t && state.status === "ready" && state.value.length === 0 && <p className="text-sm text-ink-600">No invoices yet.</p>}
       {t && state.status === "ready" && state.value.length > 0 && (
-        <>
+        <Arrive>
           <dl className="grid grid-cols-3 gap-x-4">
             <div>
               <dt className="text-xs text-ink-600">Billed this month</dt>
-              <dd className="text-base font-medium tabular-nums text-ink-900">{money.format(t.billedThisMonth)}</dd>
+              <dd className="text-base font-medium tabular-nums text-ink-900"><Mark value={t.billedThisMonth}>{money.format(t.billedThisMonth)}</Mark></dd>
             </div>
             <div>
               <dt className="text-xs text-ink-600">Outstanding</dt>
-              <dd className="text-base font-medium tabular-nums text-ink-900">{money.format(t.outstanding)}</dd>
+              <dd className="text-base font-medium tabular-nums text-ink-900"><Mark value={t.outstanding}>{money.format(t.outstanding)}</Mark></dd>
             </div>
             <div>
               <dt className={`text-xs ${t.overdueCount > 0 ? "font-semibold text-red-800" : "text-ink-600"}`}>Overdue</dt>
-              <dd className={`text-base font-medium tabular-nums ${t.overdueCount > 0 ? "text-red-800" : "text-ink-900"}`}>{money.format(t.overdue)}</dd>
+              <dd className={`text-base font-medium tabular-nums ${t.overdueCount > 0 ? "text-red-800" : "text-ink-900"}`}><Mark value={t.overdue}>{money.format(t.overdue)}</Mark></dd>
             </div>
           </dl>
           {t.outstanding > 0 && (
@@ -319,7 +320,7 @@ export function Invoices({ state }: { state: Load<InvoiceSummary[]> }) {
               })}
             </ol>
           )}
-        </>
+        </Arrive>
       )}
     </Region>
   );
@@ -445,7 +446,9 @@ function Panes({ days }: { days: TrendDay[] }) {
                     {unrecorded ? (
                       <span data-unrecorded className="block h-full w-full max-w-10 rounded-t-[3px] border border-dashed border-ink-300" style={{ backgroundImage: HATCH }} />
                     ) : (
-                      <span
+                      <Draw
+                        as="span"
+                        order={index}
                         className="block w-full max-w-10 rounded-t-[3px]"
                         style={{ height: `${(day.present / max) * 100}%`, background: STATUS.present, opacity: today ? 1 : 0.8 }}
                       />
@@ -614,11 +617,11 @@ function Ruler({ total, parts, aria }: { total: number; parts: { label: string; 
         <span className="absolute left-0 top-0 h-3 w-px bg-ink-400" />
         <span className="absolute right-0 top-0 h-3 w-px bg-ink-400" />
         <span className="absolute inset-x-0 top-1/2 h-px bg-ink-300" />
-        <span className="absolute inset-x-px top-1/2 flex h-1.5 -translate-y-1/2 overflow-hidden rounded-sm">
+        <Draw as="span" className="absolute inset-x-px top-[3px] flex h-1.5 overflow-hidden rounded-sm">
           {parts.filter((p) => p.value > 0).map((p) => (
             <span key={p.label} style={{ width: `${(p.value / Math.max(total, 1)) * 100}%`, background: p.color }} />
           ))}
-        </span>
+        </Draw>
       </div>
       <dl className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1">
         {parts.map((p) => (
@@ -750,7 +753,7 @@ export function Payroll({ state, staffState }: { state: Load<PayrollReport>; sta
       {failed && <Failed />}
       {report && report.lines.length === 0 && <p className="text-sm text-ink-600">No payroll lines for this month yet.</p>}
       {report && report.lines.length > 0 && (
-        <div className="space-y-3">
+        <Arrive className="space-y-3">
           <div>
             <dl className="flex flex-wrap items-end gap-x-3 gap-y-3">
               {terms.map((t) => (
@@ -766,7 +769,7 @@ export function Payroll({ state, staffState }: { state: Load<PayrollReport>; sta
                 <span aria-hidden="true" className="pb-0.5 text-lg text-ink-400">=</span>
                 <div>
                   <dt className="text-xs font-semibold text-brand-700">Net payroll (AED)</dt>
-                  <dd className="font-display text-2xl font-semibold tabular-nums text-ink-900">{money.format(totals!.netPay)}</dd>
+                  <dd className="font-display text-2xl font-semibold tabular-nums text-ink-900"><Mark value={totals!.netPay}>{money.format(totals!.netPay)}</Mark></dd>
                 </div>
               </div>
             </dl>
@@ -785,11 +788,11 @@ export function Payroll({ state, staffState }: { state: Load<PayrollReport>; sta
               <p className="text-sm text-ink-600">No positive net pay yet this month.</p>
             ) : (
               <ol className="space-y-1.5">
-                {earners.map((line) => (
+                {earners.map((line, index) => (
                   <li key={line.name} className="grid grid-cols-[minmax(0,8.5rem)_1fr_auto] items-center gap-3 text-sm">
                     <span className="truncate text-ink-800">{line.name}</span>
                     <span aria-hidden="true" className="h-1.5 rounded-sm bg-ink-100">
-                      <span className="block h-full rounded-sm bg-brand-500" style={{ width: `${(line.netPay / top) * 100}%` }} />
+                      <Draw as="span" order={index} className="block h-full rounded-sm bg-brand-500" style={{ width: `${(line.netPay / top) * 100}%` }} />
                     </span>
                     <span className="tabular-nums text-ink-900">{money.format(line.netPay)}</span>
                   </li>
@@ -797,7 +800,7 @@ export function Payroll({ state, staffState }: { state: Load<PayrollReport>; sta
               </ol>
             )}
           </div>
-        </div>
+        </Arrive>
       )}
     </Region>
   );

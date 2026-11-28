@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Outlet, Route, Routes, useOutletContext } from "react-router-dom";
-import { LoadingState } from "./ui";
+import { Navigate, Outlet, Route, Routes, useLocation, useOutletContext } from "react-router-dom";
+import { AppToaster, LoadingState, PageEnter } from "./ui";
 import { Layout } from "./components/Layout";
 import { LoginPage } from "./features/auth/LoginPage";
 import { ProtectedRoute } from "./features/auth/ProtectedRoute";
@@ -113,15 +113,20 @@ const SettingsPage = lazy(() =>
   import("./features/settings/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );
 
+/** The screens that show money or charts: moving between them fades the new one in. */
+const MONEY_SCREENS = /^\/(dashboard|finance(?!\/setup)(\/|$)|my-expenses|invoices|payroll|staff-payroll|deductions)/;
+
 /** One loading state for every lazily loaded screen, shown inside the layout so the navigation stays in place. */
 function Screens() {
   // Layout hands its screens a context (the settings screen updates the header through it); pass it on.
   const context = useOutletContext();
+  const { pathname } = useLocation();
+  const screen = <Outlet context={context} />;
   return (
     <Suspense
       fallback={<LoadingState label="Loading..." />}
     >
-      <Outlet context={context} />
+      {MONEY_SCREENS.test(pathname) ? <PageEnter key={pathname}>{screen}</PageEnter> : screen}
     </Suspense>
   );
 }
@@ -137,6 +142,15 @@ function Home() {
 }
 
 export default function App() {
+  return (
+    <>
+      <AppToaster />
+      <AppRoutes />
+    </>
+  );
+}
+
+function AppRoutes() {
   return (
     <Routes>
       {/* Public. LoginPage itself redirects away when the user is already signed in. */}

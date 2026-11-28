@@ -8,7 +8,7 @@ import { listFinAccounts, type FinAccount } from "../../api/finance";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
-import { Button, Card, CardHeader, IconButton, Select, Textarea, Table, TableScroll, THead, Th, TRow, Td } from "../../ui";
+import { Button, Card, CardHeader, IconButton, Mark, notify, Select, Textarea, Table, TableScroll, THead, Th, TRow, Td } from "../../ui";
 import { downloadFile } from "./download";
 import { InvoiceDocument } from "./InvoiceDocument";
 import { formatMoney } from "./invoiceMath";
@@ -29,12 +29,10 @@ export function InvoiceView({ invoice, canWrite, onChanged, onEdit, onDeleted, o
   const [dialog, setDialog] = useState<Dialogs>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
     setFailure(null);
-    setNotice(null);
     try {
       await action();
     } catch (error) {
@@ -63,7 +61,7 @@ export function InvoiceView({ invoice, canWrite, onChanged, onEdit, onDeleted, o
         {canWrite && draft && <Button size="sm" icon={Send} onClick={() => setDialog("issue")}>Issue invoice</Button>}
         {canWrite && draft && <Button variant="danger" size="sm" icon={Trash2} onClick={() => setDialog("delete")}>Delete draft</Button>}
         {canWrite && issued && <Button size="sm" icon={Wallet} onClick={() => setDialog("payment")}>Record payment</Button>}
-        {canWrite && <Button variant="secondary" size="sm" icon={Copy} disabled={busy} onClick={() => run(async () => onOpen(await duplicateInvoice(invoice.id)))}>Duplicate</Button>}
+        {canWrite && <Button variant="secondary" size="sm" icon={Copy} disabled={busy} onClick={() => run(async () => { onOpen(await duplicateInvoice(invoice.id)); notify.success("Copied to a new draft."); })}>Duplicate</Button>}
         {canWrite && issued && <Button variant="danger" size="sm" icon={Ban} onClick={() => setDialog("cancel")}>Cancel invoice</Button>}
       </div>
 
@@ -72,9 +70,6 @@ export function InvoiceView({ invoice, canWrite, onChanged, onEdit, onDeleted, o
           {failure}
         </p>
       )}
-      <div role="status" className="invoice-controls empty:hidden">
-        {notice && <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">{notice}</p>}
-      </div>
       {invoice.status === "Cancelled" && (
         <p className="invoice-controls rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           Cancelled{invoice.cancelledUtc ? ` on ${formatDate(invoice.cancelledUtc.slice(0, 10))}` : ""}: {invoice.cancelReason}. The number {invoice.number} is kept and will not be reused.
@@ -114,7 +109,7 @@ export function InvoiceView({ invoice, canWrite, onChanged, onEdit, onDeleted, o
                         <Td>
                           <IconButton
                             icon={Trash2} tone="danger" label={`Remove payment of ${formatMoney(p.amount)} on ${formatDate(p.paidDate)}`} disabled={busy}
-                            onClick={() => run(async () => { onChanged(await removePayment(invoice.id, p.id)); setNotice("Payment removed."); })}
+                            onClick={() => run(async () => { onChanged(await removePayment(invoice.id, p.id)); notify.success("Payment removed."); })}
                           />
                         </Td>
                       )}
@@ -129,18 +124,18 @@ export function InvoiceView({ invoice, canWrite, onChanged, onEdit, onDeleted, o
 
       <IssueDialog
         open={dialog === "issue"} invoiceId={invoice.id} onClose={() => setDialog(null)}
-        onDone={(updated) => { onChanged(updated); setDialog(null); setNotice("Invoice issued."); }}
+        onDone={(updated) => { onChanged(updated); setDialog(null); notify.success("Invoice issued."); }}
       />
       <ConfirmDialog
         open={dialog === "delete"} title="Delete this draft?" confirmLabel="Delete draft" pending={busy}
         message="The draft is removed permanently. Issued invoices cannot be deleted."
         onCancel={() => setDialog(null)}
-        onConfirm={() => run(async () => { await deleteInvoice(invoice.id); onDeleted(); })}
+        onConfirm={() => run(async () => { await deleteInvoice(invoice.id); notify.success("Draft deleted."); onDeleted(); })}
       />
-      <CancelDialog open={dialog === "cancel"} onClose={() => setDialog(null)} onDone={(updated) => { onChanged(updated); setDialog(null); setNotice("Invoice cancelled."); }} invoiceId={invoice.id} />
+      <CancelDialog open={dialog === "cancel"} onClose={() => setDialog(null)} onDone={(updated) => { onChanged(updated); setDialog(null); notify.success("Invoice cancelled."); }} invoiceId={invoice.id} />
       <PaymentDialog
         open={dialog === "payment"} balance={invoice.balanceDue} invoiceId={invoice.id} onClose={() => setDialog(null)}
-        onDone={(updated) => { onChanged(updated); setDialog(null); setNotice("Payment recorded."); }}
+        onDone={(updated) => { onChanged(updated); setDialog(null); notify.success("Payment recorded."); }}
       />
     </div>
   );

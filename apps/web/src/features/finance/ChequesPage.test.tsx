@@ -6,6 +6,7 @@ import * as financeApi from "../../api/finance";
 import type { FinAccount, FinCheque } from "../../api/finance";
 import { useAuth } from "../../contexts/AuthContext";
 import { ChequesPage } from "./ChequesPage";
+import { AppToaster } from "../../ui";
 
 vi.mock("../../api/finance");
 vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
@@ -20,6 +21,11 @@ const cheque = (over: Partial<FinCheque> = {}): FinCheque => ({
 function signIn(role: "Manager" | "Viewer") {
   vi.mocked(useAuth).mockReturnValue({ status: "signedIn", user: { id: 1, username: "u", role }, token: "t", login: vi.fn(), logout: vi.fn() });
 }
+
+// Results of actions are said in toasts, which need the toaster App mounts.
+beforeEach(() => {
+  render(<AppToaster />);
+});
 
 beforeEach(() => {
   vi.resetAllMocks();

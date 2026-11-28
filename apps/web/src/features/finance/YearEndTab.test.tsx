@@ -3,12 +3,18 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import * as financeApi from "../../api/finance";
 import { YearEndTab } from "./YearEndTab";
+import { AppToaster } from "../../ui";
 
 vi.mock("../../api/finance");
 
 const open2025: financeApi.FinYear = { year: 2025, status: "Open", revenue: 20000, expenses: 5000, netResult: 15000, journalNumber: null, closedBy: null, closedUtc: null, canClose: true, canReopen: false, blocker: null };
 const closed2024: financeApi.FinYear = { year: 2024, status: "Closed", revenue: 30000, expenses: 12000, netResult: 18000, journalNumber: "JNL-000042", closedBy: "manager1", closedUtc: "2026-01-05T08:00:00Z", canClose: false, canReopen: true, blocker: null };
 const current: financeApi.FinYear = { year: 2026, status: "Open", revenue: 0, expenses: 0, netResult: 0, journalNumber: null, closedBy: null, closedUtc: null, canClose: false, canReopen: false, blocker: "2026 is not over yet. It can be closed from 1 January 2027." };
+
+// Results of actions are said in toasts, which need the toaster App mounts.
+beforeEach(() => {
+  render(<AppToaster />);
+});
 
 beforeEach(() => {
   vi.resetAllMocks();

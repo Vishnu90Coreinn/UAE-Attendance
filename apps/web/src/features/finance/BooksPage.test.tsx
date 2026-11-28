@@ -6,6 +6,7 @@ import type { LedgerAccount, LedgerCheckResult } from "../../api/finance";
 import { useAuth } from "../../contexts/AuthContext";
 import { BooksPage } from "./BooksPage";
 import { todayInUae } from "./financeFormat";
+import { AppToaster } from "../../ui";
 
 vi.mock("../../api/finance");
 vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
@@ -20,6 +21,11 @@ const trial = {
   ],
 };
 const agree: LedgerCheckResult = { allAgree: true, journals: 4, totalDebit: 12_500, totalCredit: 12_500, checks: [{ name: "Account balance", subject: "RAKBANK Current", ledger: 10_162, screens: 10_162, agrees: true }] };
+
+// Results of actions are said in toasts, which need the toaster App mounts.
+beforeEach(() => {
+  render(<AppToaster />);
+});
 
 beforeEach(() => {
   vi.resetAllMocks();

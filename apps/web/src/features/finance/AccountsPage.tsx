@@ -6,8 +6,8 @@ import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { useIsDesktop } from "../../utils/useIsDesktop";
-import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, StatusBadge, cx } from "../../ui";
-import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
+import { Arrive, Button, Card, CardHeader, Draw, EmptyState, LoadingState, Mark, PageHeader, StatusBadge, cx, notify } from "../../ui";
+import { ActionFailure, LoadError } from "../workers/WorkersFeedback";
 import { AccountCard } from "./AccountCard";
 import { AccountDialog } from "./AccountDialog";
 import { TransferDialog } from "./TransferDialog";
@@ -37,7 +37,7 @@ function TotalPanel({ accounts }: { accounts: FinAccount[] }) {
   ];
 
   return (
-    <section aria-labelledby="total-balance" className="fade-up overflow-hidden rounded-card bg-sidebar text-white shadow-card">
+    <section aria-labelledby="total-balance" className="overflow-hidden rounded-card bg-sidebar text-white shadow-card">
       <div className="grid gap-6 p-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] md:p-7">
         <div>
           <p id="total-balance" className="flex items-center gap-2 text-sm font-medium text-white/75">
@@ -46,7 +46,7 @@ function TotalPanel({ accounts }: { accounts: FinAccount[] }) {
           </p>
           <p className={cx("mt-2 flex flex-wrap items-baseline gap-x-2 tabular-nums", total < 0 && "text-red-200")}>
             <span className="text-lg font-medium text-white/70">AED</span>
-            <span className="font-display text-4xl font-bold tracking-tight md:text-5xl">{formatMoney(total)}</span>
+            <Mark value={total} tone="dark" className="font-display text-4xl font-bold tracking-tight md:text-5xl">{formatMoney(total)}</Mark>
           </p>
           <p className="mt-3 text-sm text-white/70">
             {active.length === 1 ? "1 account" : `${active.length} accounts`} · worked out from every entry and transfer
@@ -54,11 +54,11 @@ function TotalPanel({ accounts }: { accounts: FinAccount[] }) {
           <dl className="mt-5 grid grid-cols-2 gap-4 text-sm">
             <div>
               <dt className="text-white/60">In banks</dt>
-              <dd className="mt-0.5 font-semibold tabular-nums">AED {formatMoney(bank)}</dd>
+              <dd className="mt-0.5 font-semibold tabular-nums"><Mark value={bank} tone="dark">AED {formatMoney(bank)}</Mark></dd>
             </div>
             <div>
               <dt className="text-white/60">In cash</dt>
-              <dd className="mt-0.5 font-semibold tabular-nums">AED {formatMoney(cash)}</dd>
+              <dd className="mt-0.5 font-semibold tabular-nums"><Mark value={cash} tone="dark">AED {formatMoney(cash)}</Mark></dd>
             </div>
           </dl>
         </div>
@@ -66,11 +66,11 @@ function TotalPanel({ accounts }: { accounts: FinAccount[] }) {
           {holders.length > 0 ? (
             <>
               <p className="text-sm font-medium text-white/75">Where the money sits</p>
-              <div role="img" aria-label={`Banks ${formatShare(bankShare)}, cash and petty cash ${formatShare(cashShare)}`} className="mt-3 flex h-3 gap-0.5 overflow-hidden rounded-full">
+              <Draw role="img" aria-label={`Banks ${formatShare(bankShare)}, cash and petty cash ${formatShare(cashShare)}`} className="mt-3 flex h-3 gap-0.5 overflow-hidden rounded-full">
                 {groups.filter((g) => g.share > 0).map((g) => (
                   <span key={g.name} style={{ width: `${Math.max(g.share, 1.5)}%` }} className={cx("block h-full", g.color)} />
                 ))}
-              </div>
+              </Draw>
               <ul className="mt-3 grid gap-1.5 text-sm">
                 {groups.map((g) => (
                   <li key={g.name} className="flex items-center gap-2">
@@ -114,10 +114,10 @@ function RecentTransfers({ transfers, canEdit, onVoid }: { transfers: FinTransfe
         <EmptyState icon={ArrowLeftRight} title="No transfers yet" description="When money moves between two accounts it is listed here." />
       ) : (
         <ul className="divide-y divide-line">
-          {rows.map((t) => {
+          {rows.map((t, index) => {
             const voided = t.status !== "Active";
             return (
-              <li key={t.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-5 py-3 md:grid-cols-[7rem_8rem_minmax(0,1fr)_11rem_5.5rem]">
+              <Arrive as="li" order={index} key={t.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-5 py-3 md:grid-cols-[7rem_8rem_minmax(0,1fr)_11rem_5.5rem]">
                 <p className="text-[13px] font-medium tabular-nums text-ink-700">{formatDay(t.transferDate)}</p>
                 <p className="font-mono text-[13px] tabular-nums text-ink-500 max-md:text-right">{t.transferNo}</p>
                 <p className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-ink-800 md:col-span-1">
@@ -137,7 +137,7 @@ function RecentTransfers({ transfers, canEdit, onVoid }: { transfers: FinTransfe
                     <Button variant="ghost" className="text-ink-600" onClick={() => onVoid(t)} aria-label={`Void transfer ${t.transferNo}`}>Void</Button>
                   ) : null}
                 </div>
-              </li>
+              </Arrive>
             );
           })}
         </ul>
@@ -165,7 +165,6 @@ export function AccountsPage() {
   const [switching, setSwitching] = useState<FinAccount | null>(null);
   const [voidingTransfer, setVoidingTransfer] = useState<FinTransfer | null>(null);
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -197,7 +196,7 @@ export function AccountsPage() {
     setProblem(null);
     try {
       await setFinAccountActive(switching.id, !switching.isActive);
-      setMessage(`${switching.name} was ${switching.isActive ? "deactivated" : "reactivated"}.`);
+      notify.success(`${switching.name} was ${switching.isActive ? "deactivated" : "reactivated"}.`);
       setSwitching(null);
       await refresh();
     } catch (error) {
@@ -237,7 +236,6 @@ export function AccountsPage() {
           )
         }
       />
-      <SuccessRegion message={message} />
       {problem && <ActionFailure message={problem} />}
 
       {load.status === "loading" && <LoadingState label="Loading accounts..." withCards />}
@@ -256,7 +254,9 @@ export function AccountsPage() {
 
       {ready && ready.accounts.length > 0 && (
         <>
-          <TotalPanel accounts={ready.accounts} />
+          <Arrive>
+            <TotalPanel accounts={ready.accounts} />
+          </Arrive>
           {off.length > 0 && (
             <label className="flex h-11 w-fit cursor-pointer items-center gap-2 text-sm font-medium text-ink-700">
               <input type="checkbox" className="size-5" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} />
@@ -264,7 +264,7 @@ export function AccountsPage() {
             </label>
           )}
           {sections.map((group) => (
-            <div key={group.title} style={{ "--i": 1 } as React.CSSProperties} className="fade-up">
+            <Arrive key={group.title} order={1}>
               <h3 className="mb-3 font-display text-base font-semibold text-ink-900">{group.title}</h3>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {group.accounts.map((account) => (
@@ -280,7 +280,7 @@ export function AccountsPage() {
                   />
                 ))}
               </div>
-            </div>
+            </Arrive>
           ))}
           <RecentTransfers transfers={ready.transfers} canEdit={canEdit} onVoid={setVoidingTransfer} />
         </>
@@ -293,7 +293,7 @@ export function AccountsPage() {
           onClose={() => setEditing(null)}
           onSaved={(_saved, text) => {
             setEditing(null);
-            setMessage(text);
+            notify.success(text);
             setProblem(null);
             void refresh();
           }}
@@ -307,7 +307,7 @@ export function AccountsPage() {
           onClose={() => setTransferFrom(null)}
           onSaved={(t) => {
             setTransferFrom(null);
-            setMessage(`${t.transferNo}: AED ${formatMoney(t.amount)} moved from ${t.fromAccountName} to ${t.toAccountName}.`);
+            notify.success(`${t.transferNo}: AED ${formatMoney(t.amount)} moved from ${t.fromAccountName} to ${t.toAccountName}.`);
             setProblem(null);
             void refresh();
           }}
@@ -323,7 +323,7 @@ export function AccountsPage() {
           onClose={() => setVoidingTransfer(null)}
           onConfirm={async (reason) => {
             await voidFinTransfer(voidingTransfer.id, reason);
-            setMessage(`${voidingTransfer.transferNo} was voided.`);
+            notify.success(`${voidingTransfer.transferNo} was voided.`);
             setVoidingTransfer(null);
             await refresh();
           }}

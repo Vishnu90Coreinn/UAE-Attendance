@@ -19,8 +19,8 @@ import { ReceivablesTab } from "./ReceivablesTab";
 import { RecurringTab } from "./RecurringTab";
 import { YearEndTab } from "./YearEndTab";
 import { VoidDialog } from "./VoidDialog";
-import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, Select, cx } from "../../ui";
-import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
+import { Arrive, Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, Select, cx, notify } from "../../ui";
+import { ActionFailure, LoadError } from "../workers/WorkersFeedback";
 import { formatDay, formatMoney, quietZero, todayInUae } from "./financeFormat";
 
 type Tab = "trial" | "ledger" | "journals" | "pl" | "sheet" | "chart" | "mapping" | "year" | "receivables" | "payables" | "recurring";
@@ -63,14 +63,12 @@ function CheckBanner({ check }: { check: LedgerCheckResult }) {
 /** Excel, PDF and CSV of what is on screen. */
 function Downloads({ make, formats = ["xlsx", "pdf", "csv"], name }: { make: (f: LedgerFile) => Promise<Blob>; formats?: LedgerFile[]; name: string }) {
   const [busy, setBusy] = useState<LedgerFile | null>(null);
-  const [error, setError] = useState<string | null>(null);
   async function run(format: LedgerFile) {
     setBusy(format);
-    setError(null);
     try {
       saveBlob(await make(format), `${name}.${format}`);
     } catch (e) {
-      setError(failure(e));
+      notify.error(failure(e));
     } finally {
       setBusy(null);
     }
@@ -80,7 +78,6 @@ function Downloads({ make, formats = ["xlsx", "pdf", "csv"], name }: { make: (f:
       {formats.map((f) => (
         <Button key={f} size="sm" variant="secondary" icon={Download} disabled={busy !== null} onClick={() => void run(f)}>{f === "xlsx" ? "Excel" : f.toUpperCase()}</Button>
       ))}
-      {error && <span role="alert" className="text-sm text-danger">{error}</span>}
     </div>
   );
 }
@@ -209,7 +206,6 @@ function Journals({ accounts, canEdit, onChanged }: { accounts: LedgerAccount[];
   const [version, setVersion] = useState(0);
   const [posting, setPosting] = useState(false);
   const [reversing, setReversing] = useState<Journal | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     listJournals()
@@ -230,7 +226,6 @@ function Journals({ accounts, canEdit, onChanged }: { accounts: LedgerAccount[];
           <Downloads make={downloadJournals} formats={["xlsx", "pdf", "csv"]} name="Journals" />
           {canEdit && <Button size="sm" icon={Plus} onClick={() => setPosting(true)}>Post a journal</Button>}
         </>} />
-      {message && <p role="status" className="px-5 py-3 text-sm text-green-800">{message}</p>}
       {error && <p role="alert" className="px-5 pb-4 text-sm text-danger">{error}</p>}
       {!list && !error && <p className="px-5 pb-5 text-sm text-ink-600">Loading...</p>}
       {list && (
@@ -265,7 +260,7 @@ function Journals({ accounts, canEdit, onChanged }: { accounts: LedgerAccount[];
         </ul>
       )}
       {list?.truncated && <p className="border-t border-line px-5 py-3 text-sm text-ink-600">Showing the newest 500 of {list.count}.</p>}
-      {posting && <ManualJournalDialog accounts={accounts} variant={variant} onClose={() => setPosting(false)} onPosted={(n) => { setPosting(false); setMessage(`${n} was posted.`); changed(); }} />}
+      {posting && <ManualJournalDialog accounts={accounts} variant={variant} onClose={() => setPosting(false)} onPosted={(n) => { setPosting(false); notify.success(`${n} was posted.`); changed(); }} />}
       {reversing && (
         <VoidDialog
           title={`Reverse ${reversing.number}?`}
@@ -275,7 +270,7 @@ function Journals({ accounts, canEdit, onChanged }: { accounts: LedgerAccount[];
           onClose={() => setReversing(null)}
           onConfirm={async (reason) => {
             await reverseManualJournal(reversing.id, reason);
-            setMessage(`${reversing.number} was reversed.`);
+            notify.success(`${reversing.number} was reversed.`);
             setReversing(null);
             changed();
           }}
@@ -290,10 +285,8 @@ export function BooksPage() {
   const { user } = useAuth();
   const canEdit = isManagement(user?.role);
   const desktop = useIsDesktop();
-  const [notice, setNotice] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncFailure, setSyncFailure] = useState<string | null>(null);
-  const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [syncVersion, setSyncVersion] = useState(0);
   const [tab, setTab] = useState<Tab>("trial");
   const group = GROUPS.find((g) => g.tabs.some(([key]) => key === tab)) ?? GROUPS[0];
@@ -319,12 +312,11 @@ export function BooksPage() {
   async function synchronize() {
     setSyncing(true);
     setSyncFailure(null);
-    setSyncNotice(null);
     try {
       const result = await syncLedger();
       setLoad({ status: "loading" });
       setSyncVersion((version) => version + 1);
-      setSyncNotice(`Books synchronized. Posted ${result.posted} and reversed ${result.reversed} journals.`);
+      notify.success(`Books synchronized. Posted ${result.posted} and reversed ${result.reversed} journals.`);
     } catch (error) {
       setSyncFailure(failure(error));
     } finally {
@@ -343,7 +335,6 @@ export function BooksPage() {
         </>
       } />
       {syncFailure && <ActionFailure message={syncFailure} />}
-      <SuccessRegion message={syncNotice} />
       {load.status === "loading" && <LoadingState label="Loading the books..." withCards />}
       {load.status === "error" && <LoadError message={load.message} onRetry={() => { setLoad({ status: "loading" }); void refresh(); }} />}
       {ready && (
@@ -366,17 +357,18 @@ export function BooksPage() {
               </button>
             ))}
           </div>
-          {tab === "trial" && <TrialBalance trial={ready.trial} asOf={asOf} onDate={setAsOf} onOpen={(a) => { setAccountId(a.id); setTab("ledger"); }} />}
-          {(tab === "pl" || tab === "sheet") && <StatementsTab which={tab} />}
-          {tab === "ledger" && <LedgerView accounts={ready.chart} accountId={accountId} onAccount={setAccountId} />}
-          {tab === "journals" && <Journals accounts={ready.chart} canEdit={canEdit} onChanged={() => void refresh()} />}
-          {tab === "recurring" && <RecurringTab accounts={ready.chart} canEdit={canEdit} variant={desktop ? "center" : "sheet"} onChanged={() => void refresh()} />}
-          {tab === "chart" && <ChartTab accounts={chart ?? []} variant={desktop ? "center" : "sheet"} canEdit={canEdit} onChanged={(m) => { setNotice(m); void refresh(); }} />}
-          {tab === "mapping" && <MappingTab accounts={chart ?? []} canEdit={user?.role === "Administrator"} onChanged={() => void refresh()} />}
-          {tab === "receivables" && <ReceivablesTab />}
-          {tab === "payables" && <PayablesTab />}
-          {tab === "year" && <YearEndTab canClose={canEdit} canReopen={user?.role === "Administrator"} onChanged={() => void refresh()} />}
-          {notice && tab === "chart" && <p role="status" className="text-sm text-green-800">{notice}</p>}
+          <Arrive key={tab} className="space-y-5">
+            {tab === "trial" && <TrialBalance trial={ready.trial} asOf={asOf} onDate={setAsOf} onOpen={(a) => { setAccountId(a.id); setTab("ledger"); }} />}
+            {(tab === "pl" || tab === "sheet") && <StatementsTab which={tab} />}
+            {tab === "ledger" && <LedgerView accounts={ready.chart} accountId={accountId} onAccount={setAccountId} />}
+            {tab === "journals" && <Journals accounts={ready.chart} canEdit={canEdit} onChanged={() => void refresh()} />}
+            {tab === "recurring" && <RecurringTab accounts={ready.chart} canEdit={canEdit} variant={desktop ? "center" : "sheet"} onChanged={() => void refresh()} />}
+            {tab === "chart" && <ChartTab accounts={chart ?? []} variant={desktop ? "center" : "sheet"} canEdit={canEdit} onChanged={(m) => { notify.success(m); void refresh(); }} />}
+            {tab === "mapping" && <MappingTab accounts={chart ?? []} canEdit={user?.role === "Administrator"} onChanged={() => void refresh()} />}
+            {tab === "receivables" && <ReceivablesTab />}
+            {tab === "payables" && <PayablesTab />}
+            {tab === "year" && <YearEndTab canClose={canEdit} canReopen={user?.role === "Administrator"} onChanged={() => void refresh()} />}
+          </Arrive>
         </>
       )}
     </section>

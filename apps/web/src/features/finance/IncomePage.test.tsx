@@ -6,6 +6,7 @@ import * as financeApi from "../../api/finance";
 import type { FinAccount, FinCategory, FinEntry } from "../../api/finance";
 import { useAuth } from "../../contexts/AuthContext";
 import { IncomePage } from "./IncomePage";
+import { AppToaster } from "../../ui";
 
 vi.mock("../../api/finance");
 vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
@@ -28,6 +29,11 @@ function signIn(role: "Manager" | "Viewer") {
 
 const client = (over: Partial<financeApi.FinClient> = {}): financeApi.FinClient => ({
   id: 12, name: "Al Noor Contracting", trn: "", address: "", isActive: true, entryCount: 0, total: 0, unpaid: 0, unpaidInvoices: [], ...over,
+});
+
+// Results of actions are said in toasts, which need the toaster App mounts.
+beforeEach(() => {
+  render(<AppToaster />);
 });
 
 beforeEach(() => {

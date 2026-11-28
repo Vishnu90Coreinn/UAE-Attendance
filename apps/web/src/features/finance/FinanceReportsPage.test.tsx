@@ -6,6 +6,7 @@ import type { FinReport } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { FinanceReportsPage } from "./FinanceReportsPage";
 import * as download from "../payroll/downloadPdf";
+import { AppToaster } from "../../ui";
 
 vi.mock("../../api/finance");
 vi.mock("../payroll/downloadPdf", () => ({ saveBlob: vi.fn() }));
@@ -31,6 +32,11 @@ function report(overrides: Partial<FinReport> = {}): FinReport {
     entryCount: 4, ...overrides,
   };
 }
+
+// Results of actions are said in toasts, which need the toaster App mounts.
+beforeEach(() => {
+  render(<AppToaster />);
+});
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -115,6 +121,9 @@ it("says so when a download fails, and when loading fails", async () => {
   await screen.findByRole("region", { name: /closing balance/i });
   await userEvent.click(screen.getByRole("button", { name: "PDF" }));
   expect(await screen.findByText(/supports English text/)).toBeInTheDocument();
+  // A failed file is a toast that waits to be dismissed; the report stays on screen.
+  expect(screen.getByRole("button", { name: "Dismiss" })).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: /closing balance/i })).toBeInTheDocument();
 });
 
 it("shows an error with retry when the report cannot load", async () => {

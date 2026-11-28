@@ -4,9 +4,9 @@ import { getFinReport, getFinReportFile, type FinGranularity, type FinReport, ty
 import { ApiError } from "../../api/client";
 import { TextField } from "../../components/TextField";
 import { useIsDesktop } from "../../utils/useIsDesktop";
-import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, Table, TableScroll, THead, Th, Td, TRow, cx, segmentClass, segmentGroupClass } from "../../ui";
+import { Arrive, Button, Card, CardHeader, Draw, EmptyState, LoadingState, PageHeader, Table, TableScroll, THead, Th, Td, TRow, cx, notify, segmentClass, segmentGroupClass } from "../../ui";
 import { saveBlob } from "../payroll/downloadPdf";
-import { ActionFailure, LoadError } from "../workers/WorkersFeedback";
+import { LoadError } from "../workers/WorkersFeedback";
 import { formatDay, formatMoney, formatPercent, formatShare, quietZero, todayInUae } from "./financeFormat";
 import { presetRange, rangeProblem, type ReportPreset } from "./reportPeriods";
 
@@ -41,7 +41,7 @@ function BridgePanel({ report }: { report: FinReport }) {
     ...(totals.capital !== 0 ? [{ label: "Capital", value: Math.abs(totals.capital), sign: totals.capital < 0 ? "−" : "+" }] : []),
   ];
   return (
-    <section aria-labelledby="closing" className="fade-up overflow-hidden rounded-card bg-sidebar text-white shadow-card">
+    <section aria-labelledby="closing" className="overflow-hidden rounded-card bg-sidebar text-white shadow-card">
       <div className="p-5 md:p-7">
         <p id="closing" className="text-sm font-medium text-white/75">
           Closing balance · {formatDay(report.to)}
@@ -157,7 +157,7 @@ function CategoryCard({ title, rows, total, bar }: { title: string; rows: FinRep
         <p className="px-5 pb-6 text-sm text-ink-600">Nothing was recorded in this period.</p>
       ) : (
         <ol className="grid grid-cols-1 gap-4 px-5 pb-5">
-          {rows.map((c) => (
+          {rows.map((c, index) => (
             <li key={c.categoryId}>
               <div className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="min-w-0 flex-1 truncate font-medium text-ink-900">{c.name} <span className="font-normal text-ink-500">· {c.count}</span></span>
@@ -165,7 +165,7 @@ function CategoryCard({ title, rows, total, bar }: { title: string; rows: FinRep
                 <span className="w-14 text-right tabular-nums text-ink-600">{formatShare(c.share)}</span>
               </div>
               <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-ink-100" aria-hidden="true">
-                <div className={cx("h-full rounded-full", bar)} style={{ width: `${Math.max(c.share, 1)}%` }} />
+                <Draw order={index} className={cx("h-full rounded-full", bar)} style={{ width: `${Math.max(c.share, 1)}%` }} />
               </div>
             </li>
           ))}
@@ -409,7 +409,6 @@ export function FinanceReportsPage() {
   const [load, setLoad] = useState<Load>({ status: "idle" });
   const [grain, setGrain] = useState<FinGranularity>("month");
   const [busy, setBusy] = useState<FinReportFormat | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
   const latest = useRef(0);
 
   const rangeError = rangeProblem(range, today);
@@ -440,11 +439,10 @@ export function FinanceReportsPage() {
 
   async function download(format: FinReportFormat, extension: string) {
     setBusy(format);
-    setProblem(null);
     try {
       saveBlob(await getFinReportFile(format, range.from, range.to, effectiveGrain), `Finance_Report_${range.from}_${range.to}.${extension}`);
     } catch (error) {
-      setProblem(failure(error));
+      notify.error(failure(error));
     } finally {
       setBusy(null);
     }
@@ -486,13 +484,12 @@ export function FinanceReportsPage() {
         </div>
         {rangeError && <p role="alert" className="border-t border-line px-5 py-3 text-sm text-danger">{rangeError}</p>}
       </Card>
-      {problem && <ActionFailure message={problem} />}
 
       {load.status === "loading" && <LoadingState label="Preparing the report..." withCards />}
       {load.status === "error" && <LoadError message={load.message} onRetry={() => void refresh(range.from, range.to, effectiveGrain)} />}
 
       {ready && (
-        <>
+        <Arrive className="space-y-5">
           <BridgePanel report={ready} />
           <Card>
             <CardHeader title="By account" description={`${formatDay(ready.from)} to ${formatDay(ready.to)}, in AED`} />
@@ -516,7 +513,7 @@ export function FinanceReportsPage() {
           </div>
           <EnteredByCard report={ready} />
           <PartnersCard report={ready} />
-        </>
+        </Arrive>
       )}
     </section>
   );

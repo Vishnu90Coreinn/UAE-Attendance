@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ApiError } from "../../api/client";
 import { getLedgerMappings, setLedgerMapping, type LedgerAccount, type LedgerMapping } from "../../api/finance";
-import { Card, CardHeader, Select } from "../../ui";
+import { Card, CardHeader, notify, Select } from "../../ui";
 
 const GROUPS: { kind: LedgerMapping["kind"]; title: string; help: string; types: LedgerAccount["type"][] }[] = [
   { kind: "Account", title: "Bank, cash and petty-cash accounts", help: "Each posts to its own asset account.", types: ["Asset", "Liability"] },
@@ -13,7 +13,6 @@ const GROUPS: { kind: LedgerMapping["kind"]; title: string; help: string; types:
 export function MappingTab({ accounts, canEdit, onChanged }: { accounts: LedgerAccount[]; canEdit: boolean; onChanged: () => void }) {
   const [items, setItems] = useState<LedgerMapping[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -30,11 +29,10 @@ export function MappingTab({ accounts, canEdit, onChanged }: { accounts: LedgerA
   async function change(m: LedgerMapping, target: number) {
     setBusy(`${m.kind}-${m.id}`);
     setError(null);
-    setNotice(null);
     try {
       const saved = await setLedgerMapping(m.kind, m.id, target);
       setItems((cur) => cur?.map((x) => (x.kind === saved.kind && x.id === saved.id ? saved : x)) ?? null);
-      setNotice(`${m.name} now posts to ${accounts.find((a) => a.id === target)?.name ?? "the chosen account"}. The books were derived again.`);
+      notify.success(`${m.name} now posts to ${accounts.find((a) => a.id === target)?.name ?? "the chosen account"}. The books were derived again.`);
       onChanged();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "That could not be saved.");
@@ -48,7 +46,6 @@ export function MappingTab({ accounts, canEdit, onChanged }: { accounts: LedgerA
       {!canEdit && <p className="rounded-lg bg-ink-50 px-3 py-2 text-sm text-ink-700">Only an Administrator can change where records post.</p>}
       <p className="rounded-lg bg-ink-50 px-3 py-2 text-sm text-ink-700">Each choice below says which ledger account the entries post to. Changing one derives the books again, so past entries follow. It is refused once a month is locked.</p>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      {notice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">{notice}</p>}
       {!items && !error && <p className="text-sm text-ink-600">Loading...</p>}
       {items && GROUPS.map((g) => (
         <Card key={g.kind}>

@@ -3,7 +3,7 @@ import { Download, FileText } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { getStaffPayroll, getStaffPayrollFile, getStaffPayslip, type StaffPayrollSummary } from "../../api/staff";
-import { Button, Card, CardHeader, Input, LoadingState, PageHeader, Toolbar } from "../../ui";
+import { Arrive, Button, Card, CardHeader, Input, LoadingState, PageHeader, Toolbar, notify } from "../../ui";
 import { formatRate } from "../../utils/money";
 import { saveBlob } from "../payroll/downloadPdf";
 import { ActionFailure } from "../workers/WorkersFeedback";
@@ -43,22 +43,21 @@ export function StaffPayrollPage() {
     };
   }, [month]);
 
+  // A failed file leaves the figures on screen as they are, so it is said in a toast; only a failed load stays inline.
   async function download(format: "pdf" | "excel") {
-    setFailure(null);
     try {
       saveBlob(await getStaffPayrollFile(format, month), `Staff_Payroll_${month}.${format === "pdf" ? "pdf" : "xlsx"}`);
     } catch (e) {
-      setFailure(errorText(e));
+      notify.error(errorText(e));
     }
   }
 
   async function payslip(workerId?: number, code?: string) {
-    setFailure(null);
     setBusyId(workerId ?? 0);
     try {
       saveBlob(await getStaffPayslip(month, workerId), workerId ? `Staff_Payslip_${month}_${code}.pdf` : `Staff_Payslips_${month}.pdf`);
     } catch (e) {
-      setFailure(errorText(e));
+      notify.error(errorText(e));
     } finally {
       setBusyId(null);
     }
@@ -89,7 +88,7 @@ export function StaffPayrollPage() {
       {failure && <ActionFailure message={failure} />}
       {!summary && !failure && <LoadingState label="Loading..." withCards />}
       {summary && (
-        <>
+        <Arrive key={summary.label}>
           <div className="mb-4 grid gap-3 sm:grid-cols-3">
             <Total label="Salaries" value={formatMoney(summary.totalSalary)} />
             <Total label="Deductions" value={formatMoney(summary.totalDeductions)} />
@@ -167,7 +166,7 @@ export function StaffPayrollPage() {
               </div>
             )}
           </Card>
-        </>
+        </Arrive>
       )}
     </section>
   );

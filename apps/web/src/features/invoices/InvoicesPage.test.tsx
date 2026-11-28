@@ -9,6 +9,7 @@ import type { Invoice, InvoiceSummary } from "../../api/invoices";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
 import { InvoicesPage } from "./InvoicesPage";
+import { AppToaster } from "../../ui";
 
 vi.mock("../../api/invoices");
 vi.mock("../../api/finance");
@@ -38,6 +39,11 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
 function signIn(role: "Manager" | "HR" | "Viewer") {
   vi.mocked(useAuth).mockReturnValue({ status: "signedIn", user: { id: 1, username: "u", role }, token: "t", login: vi.fn(), logout: vi.fn() });
 }
+
+// Results of actions are said in toasts, which need the toaster App mounts.
+beforeEach(() => {
+  render(<AppToaster />);
+});
 
 beforeEach(() => {
   vi.resetAllMocks();

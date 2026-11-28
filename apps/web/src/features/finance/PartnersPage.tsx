@@ -8,8 +8,8 @@ import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { useIsDesktop } from "../../utils/useIsDesktop";
-import { Button, Card, CardHeader, EmptyState, LoadingState, PageHeader, Select, StatusBadge, cx } from "../../ui";
-import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
+import { Arrive, Button, Card, CardHeader, Draw, EmptyState, LoadingState, Mark, PageHeader, Select, StatusBadge, cx, notify } from "../../ui";
+import { ActionFailure, LoadError } from "../workers/WorkersFeedback";
 import { CapitalDialog } from "./CapitalDialog";
 import { PartnerDialog } from "./PartnerDialog";
 import { ReceiptDialog } from "./ReceiptDialog";
@@ -29,7 +29,7 @@ function failure(error: unknown): string {
 function CapitalPanel({ data }: { data: FinPartners }) {
   const holders = data.partners.filter((p) => p.netCapital > 0);
   return (
-    <section aria-labelledby="total-capital" className="fade-up overflow-hidden rounded-card bg-sidebar text-white shadow-card">
+    <section aria-labelledby="total-capital" className="overflow-hidden rounded-card bg-sidebar text-white shadow-card">
       <div className="grid gap-6 p-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] md:p-7">
         <div>
           <p id="total-capital" className="flex items-center gap-2 text-sm font-medium text-white/75">
@@ -37,8 +37,10 @@ function CapitalPanel({ data }: { data: FinPartners }) {
             Total capital
           </p>
           <p className="mt-2 font-display text-4xl font-bold tracking-tight tabular-nums md:text-5xl">
-            <span className="mr-2 text-lg font-medium text-white/70">AED</span>
-            {formatMoney(data.totalCapital)}
+            <Mark value={data.totalCapital} tone="dark">
+              <span className="mr-2 text-lg font-medium text-white/70">AED</span>
+              {formatMoney(data.totalCapital)}
+            </Mark>
           </p>
           <p className="mt-3 text-sm text-white/70">
             Put in by {data.partners.length === 1 ? "1 partner" : `${data.partners.length} partners`}, less anything paid back. Capital is not income.
@@ -48,7 +50,7 @@ function CapitalPanel({ data }: { data: FinPartners }) {
           {holders.length > 0 ? (
             <>
               <p className="text-sm font-medium text-white/75">Who put it in</p>
-              <div
+              <Draw
                 role="img"
                 aria-label={`Share of the capital: ${holders.map((p) => `${p.name} ${formatPercent(p.share)}`).join(", ")}`}
                 className="mt-3 flex h-3.5 gap-0.5 overflow-hidden rounded-full"
@@ -56,7 +58,7 @@ function CapitalPanel({ data }: { data: FinPartners }) {
                 {holders.map((p, i) => (
                   <span key={p.id} style={{ width: `${Math.max(p.share, 1.5)}%` }} className={cx("block h-full", SEGMENTS[i % SEGMENTS.length])} />
                 ))}
-              </div>
+              </Draw>
               <ul className="mt-3 grid gap-1.5 text-sm">
                 {holders.map((p, i) => (
                   <li key={p.id} className="flex items-center gap-2">
@@ -85,16 +87,16 @@ function PartnerCard({ partner, canEdit, onEdit, onAdd }: { partner: FinPartner;
       </header>
 
       <p className="mt-4 font-display text-4xl font-bold tracking-tight tabular-nums text-brand-700">
-        {formatPercent(partner.share)}
+        <Mark value={partner.share}>{formatPercent(partner.share)}</Mark>
         <span className="ml-2 text-sm font-medium tracking-normal text-ink-600">of the capital</span>
       </p>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-ink-100" aria-hidden="true">
-        <div className="h-full rounded-full bg-brand-500" style={{ width: `${partner.share}%` }} />
+        <Draw className="h-full rounded-full bg-brand-500" style={{ width: `${partner.share}%` }} />
       </div>
 
       <p className="mt-4 flex items-baseline gap-2 tabular-nums text-ink-900">
         <span className="text-sm font-medium text-ink-500">AED</span>
-        <span className="text-2xl font-semibold tracking-tight">{formatMoney(partner.netCapital)}</span>
+        <Mark value={partner.netCapital} className="text-2xl font-semibold tracking-tight">{formatMoney(partner.netCapital)}</Mark>
       </p>
 
       <dl className="mb-4 mt-4 grid gap-1.5 border-t border-line pt-4 text-sm">
@@ -132,12 +134,12 @@ function PartnerCard({ partner, canEdit, onEdit, onAdd }: { partner: FinPartner;
   );
 }
 
-function MovementRow({ entry, canEdit, onCorrect, onVoid, onReceipts }: { entry: FinCapitalEntry; canEdit: boolean; onCorrect: () => void; onVoid: () => void; onReceipts: () => void }) {
+function MovementRow({ order, entry, canEdit, onCorrect, onVoid, onReceipts }: { order: number; entry: FinCapitalEntry; canEdit: boolean; onCorrect: () => void; onVoid: () => void; onReceipts: () => void }) {
   const putIn = entry.kind === "Capital";
   const voided = entry.status === "Voided";
   const Icon = putIn ? ArrowDownToLine : ArrowUpFromLine;
   return (
-    <li className={cx("grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-2 px-5 py-3.5 sm:flex sm:items-center", voided && "bg-ink-50")}>
+    <Arrive as="li" order={order} className={cx("grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-2 px-5 py-3.5 sm:flex sm:items-center", voided && "bg-ink-50")}>
       <div className="sm:w-28 sm:shrink-0">
         <p className="text-[13px] font-medium tabular-nums text-ink-700">{formatDay(entry.entryDate)}</p>
         <p className="font-mono text-[13px] text-ink-500">{entry.entryNo}</p>
@@ -173,7 +175,7 @@ function MovementRow({ entry, canEdit, onCorrect, onVoid, onReceipts }: { entry:
           </>
         )}
       </div>
-    </li>
+    </Arrive>
   );
 }
 
@@ -191,7 +193,6 @@ export function PartnersPage() {
   const [capital, setCapital] = useState<{ kind: FinCapitalKind; entry?: FinCapitalEntry; partnerId?: number } | null>(null);
   const [voiding, setVoiding] = useState<FinCapitalEntry | null>(null);
   const [viewing, setViewing] = useState<FinCapitalEntry | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -238,7 +239,6 @@ export function PartnersPage() {
           )
         }
       />
-      <SuccessRegion message={message} />
       {problem && <ActionFailure message={problem} />}
 
       {load.status === "loading" && <LoadingState label="Loading partners..." withCards />}
@@ -257,12 +257,14 @@ export function PartnersPage() {
 
       {ready && ready.partners.partners.length > 0 && (
         <>
-          <CapitalPanel data={ready.partners} />
-          <div style={{ "--i": 1 } as React.CSSProperties} className="fade-up grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <Arrive>
+            <CapitalPanel data={ready.partners} />
+          </Arrive>
+          <Arrive order={1} className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {ready.partners.partners.map((p) => (
               <PartnerCard key={p.id} partner={p} canEdit={canEdit} onEdit={() => setEditing(p)} onAdd={() => setCapital({ kind: "Capital", partnerId: p.id })} />
             ))}
-          </div>
+          </Arrive>
 
           <Card>
             <CardHeader title="Capital movements" description="Every amount put in or paid back, newest first. Voided entries stay on record." />
@@ -289,8 +291,8 @@ export function PartnersPage() {
               <EmptyState icon={Landmark} title="No capital movements" description="Capital put in or paid back is listed here." />
             ) : (
               <ul className="divide-y divide-line border-t border-line">
-                {movements?.items.map((e) => (
-                  <MovementRow key={e.id} entry={e} canEdit={canEdit} onCorrect={() => setCapital({ kind: e.kind, entry: e })} onVoid={() => setVoiding(e)} onReceipts={() => setViewing(e)} />
+                {movements?.items.map((e, index) => (
+                  <MovementRow key={e.id} order={index} entry={e} canEdit={canEdit} onCorrect={() => setCapital({ kind: e.kind, entry: e })} onVoid={() => setVoiding(e)} onReceipts={() => setViewing(e)} />
                 ))}
               </ul>
             )}
@@ -305,7 +307,7 @@ export function PartnersPage() {
           onClose={() => setEditing(null)}
           onSaved={(_saved, text) => {
             setEditing(null);
-            setMessage(text);
+            notify.success(text);
             setProblem(null);
             void refresh();
           }}
@@ -322,7 +324,7 @@ export function PartnersPage() {
           onClose={() => setCapital(null)}
           onSaved={(saved) => {
             setCapital(null);
-            setMessage(`${saved.entryNo}: AED ${formatMoney(saved.amount)} ${saved.kind === "Capital" ? "added by" : "paid back to"} ${saved.party}.`);
+            notify.success(`${saved.entryNo}: AED ${formatMoney(saved.amount)} ${saved.kind === "Capital" ? "added by" : "paid back to"} ${saved.party}.`);
             setProblem(null);
             void refresh();
           }}
@@ -337,7 +339,7 @@ export function PartnersPage() {
           onClose={() => setVoiding(null)}
           onConfirm={async (reason) => {
             await voidFinCapital(voiding.id, reason);
-            setMessage(`${voiding.entryNo} was voided.`);
+            notify.success(`${voiding.entryNo} was voided.`);
             setVoiding(null);
             await refresh();
           }}

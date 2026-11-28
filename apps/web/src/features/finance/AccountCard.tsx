@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeftRight, Check, Copy, Eye, EyeOff, Landmark, Pencil, Power, Wallet } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import type { FinAccount } from "../../api/finance";
-import { Button, RowMenu, StatusBadge, cx } from "../../ui";
+import { Button, Mark, RowMenu, StatusBadge, cx } from "../../ui";
 import { formatDay, formatMoney } from "./financeFormat";
 
 const iconButton =
@@ -104,7 +104,7 @@ export function AccountCard({ account, quiet, chequeCount, canEdit, onEdit, onTr
 
       <p className={cx("mt-4 flex items-baseline gap-2 tabular-nums", overdrawn ? "text-danger" : "text-ink-900")}>
         <span className="text-sm font-medium text-ink-500">AED</span>
-        <span className="font-display text-2xl font-semibold tracking-tight">{formatMoney(account.balance)}</span>
+        <Mark value={account.balance} className="font-display text-2xl font-semibold tracking-tight">{formatMoney(account.balance)}</Mark>
       </p>
       <ChequeNotice account={account} count={chequeCount} />
       {quiet && <p className="mt-3 text-sm text-ink-600">No transactions yet. Record your first expense or income.</p>}

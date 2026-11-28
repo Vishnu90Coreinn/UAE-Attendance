@@ -7,6 +7,7 @@ import type { FinDashboard } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
 import { FinanceDashboardPage } from "./FinanceDashboardPage";
+import { AppToaster } from "../../ui";
 
 vi.mock("../../api/finance");
 vi.mock("../../contexts/AuthContext", () => ({ useAuth: vi.fn() }));
@@ -30,6 +31,11 @@ function data(overrides: Partial<FinDashboard> = {}): FinDashboard {
     ...overrides,
   };
 }
+
+// Results of actions are said in toasts, which need the toaster App mounts.
+beforeEach(() => {
+  render(<AppToaster />);
+});
 
 beforeEach(() => {
   vi.resetAllMocks();

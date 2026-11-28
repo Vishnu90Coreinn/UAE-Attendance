@@ -9,9 +9,9 @@ import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { useIsDesktop } from "../../utils/useIsDesktop";
 import { useUrlSearch } from "../../utils/useUrlSearch";
-import { Button, Card, EmptyState, LoadingState, PageHeader, Select, StatusBadge, cx, type StatusTone } from "../../ui";
+import { Arrive, Button, Card, EmptyState, LoadingState, Mark, PageHeader, Select, StatusBadge, cx, notify, type StatusTone } from "../../ui";
 import { TextField } from "../../components/TextField";
-import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
+import { ActionFailure, LoadError } from "../workers/WorkersFeedback";
 import { ChequeDialog } from "./ChequeDialog";
 import { ChequeStatusDialog, STATUS_ACTIONS } from "./ChequeStatusDialog";
 import { formatDay, formatMoney } from "./financeFormat";
@@ -31,18 +31,20 @@ function Figure({ label, value, note, tone }: { label: string; value: number; no
     <div className="min-w-0 flex-1 basis-44 px-5 py-4">
       <p className="text-xs font-medium uppercase tracking-wide text-ink-500">{label}</p>
       <p className={cx("mt-1 font-display text-2xl font-bold tabular-nums", tone === "alert" && value > 0 ? "text-danger" : "text-ink-900", value === 0 && "text-ink-400")}>
-        <span className="mr-1 text-sm font-medium text-ink-500">AED</span>
-        {formatMoney(value)}
+        <Mark value={value}>
+          <span className="mr-1 text-sm font-medium text-ink-500">AED</span>
+          {formatMoney(value)}
+        </Mark>
       </p>
       <p className="mt-0.5 text-[13px] text-ink-500">{note}</p>
     </div>
   );
 }
 
-function ChequeRow({ cheque, canEdit, onEdit, onStatus }: { cheque: FinCheque; canEdit: boolean; onEdit: () => void; onStatus: (status: FinChequeStatus) => void }) {
+function ChequeRow({ order, cheque, canEdit, onEdit, onStatus }: { order: number; cheque: FinCheque; canEdit: boolean; onEdit: () => void; onStatus: (status: FinChequeStatus) => void }) {
   const issued = cheque.direction === "Issued";
   return (
-    <li className="grid grid-cols-2 gap-x-4 gap-y-2 px-5 py-4 sm:flex sm:flex-wrap sm:items-center">
+    <Arrive as="li" order={order} className="grid grid-cols-2 gap-x-4 gap-y-2 px-5 py-4 sm:flex sm:flex-wrap sm:items-center">
       <div className="min-w-0 sm:flex-1 sm:basis-56">
         <p className="flex flex-wrap items-center gap-x-2 text-[15px] font-semibold text-ink-900">
           <span className="break-words">{cheque.partyName}</span>
@@ -76,7 +78,7 @@ function ChequeRow({ cheque, canEdit, onEdit, onStatus }: { cheque: FinCheque; c
           <Button size="sm" variant="ghost" icon={Pencil} className="text-ink-600" onClick={onEdit} aria-label={`Edit cheque ${cheque.serial}`}>Edit</Button>
         </div>
       )}
-    </li>
+    </Arrive>
   );
 }
 
@@ -93,7 +95,6 @@ export function ChequesPage() {
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [editing, setEditing] = useState<FinCheque | "new" | null>(null);
   const [moving, setMoving] = useState<{ cheque: FinCheque; status: FinChequeStatus } | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -123,19 +124,20 @@ export function ChequesPage() {
         description="Cheques you have written or been given. A cheque changes no balance by itself; open ones show as money already committed or expected, so a post-dated cheque is never forgotten."
         actions={canEdit && ready && <Button icon={Plus} disabled={!hasBank} onClick={() => setEditing("new")}>Add cheque</Button>}
       />
-      <SuccessRegion message={message} />
       {problem && <ActionFailure message={problem} />}
       {load.status === "loading" && <LoadingState label="Loading cheques..." withCards />}
       {load.status === "error" && <LoadError message={load.message} onRetry={() => { setLoad({ status: "loading" }); void refresh(); }} />}
 
       {ready && (
         <>
-          <Card>
-            <div className="flex flex-wrap divide-y divide-line sm:divide-x sm:divide-y-0">
-              <Figure label="Committed" value={ready.list.openIssued} note="Cheques you wrote that have not cleared" />
-              <Figure label="Expected" value={ready.list.openReceived} note="Cheques you were given that have not cleared" />
-            </div>
-          </Card>
+          <Arrive>
+            <Card>
+              <div className="flex flex-wrap divide-y divide-line sm:divide-x sm:divide-y-0">
+                <Figure label="Committed" value={ready.list.openIssued} note="Cheques you wrote that have not cleared" />
+                <Figure label="Expected" value={ready.list.openReceived} note="Cheques you were given that have not cleared" />
+              </div>
+            </Card>
+          </Arrive>
 
           <Card>
             <div className="flex flex-wrap items-end gap-4 px-5 py-4">
@@ -165,8 +167,8 @@ export function ChequesPage() {
               />
             ) : (
               <ul className="divide-y divide-line border-t border-line">
-                {ready.list.items.map((c) => (
-                  <ChequeRow key={c.id} cheque={c} canEdit={canEdit} onEdit={() => setEditing(c)} onStatus={(status) => setMoving({ cheque: c, status })} />
+                {ready.list.items.map((c, index) => (
+                  <ChequeRow key={c.id} order={index} cheque={c} canEdit={canEdit} onEdit={() => setEditing(c)} onStatus={(status) => setMoving({ cheque: c, status })} />
                 ))}
               </ul>
             )}
@@ -185,7 +187,7 @@ export function ChequesPage() {
           onSaved={(_, text) => {
             setEditing(null);
             setProblem(null);
-            setMessage(text);
+            notify.success(text);
             void refresh();
           }}
         />
@@ -199,7 +201,7 @@ export function ChequesPage() {
           onDone={(_, text) => {
             setMoving(null);
             setProblem(null);
-            setMessage(text);
+            notify.success(text);
             void refresh();
           }}
         />

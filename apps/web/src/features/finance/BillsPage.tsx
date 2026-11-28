@@ -11,8 +11,8 @@ import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { useIsDesktop } from "../../utils/useIsDesktop";
 import { useUrlSearch } from "../../utils/useUrlSearch";
-import { Button, Card, EmptyState, LoadingState, PageHeader, Select, StatusBadge, cx, type StatusTone } from "../../ui";
-import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
+import { Arrive, Button, Card, EmptyState, LoadingState, Mark, PageHeader, Select, StatusBadge, cx, notify, type StatusTone } from "../../ui";
+import { ActionFailure, LoadError } from "../workers/WorkersFeedback";
 import { BillDialog } from "./BillDialog";
 import { BillPayDialog } from "./BillPayDialog";
 import { ReceiptDialog } from "./ReceiptDialog";
@@ -59,10 +59,10 @@ function ReasonDialog({ ask, variant, onClose, onDone }: { ask: Reasoning; varia
   );
 }
 
-function BillRow({ bill, canEdit, onPay, onVoid, onTakeBack, onOpenFile, onAddFiles, onRemoveFile }: { bill: FinBill; canEdit: boolean; onPay: () => void; onVoid: () => void; onTakeBack: (entryId: number, entryNo: string) => void; onOpenFile: (index: number) => void; onAddFiles: (files: File[]) => void; onRemoveFile: (fileId: number, name: string) => void }) {
+function BillRow({ order, bill, canEdit, onPay, onVoid, onTakeBack, onOpenFile, onAddFiles, onRemoveFile }: { order: number; bill: FinBill; canEdit: boolean; onPay: () => void; onVoid: () => void; onTakeBack: (entryId: number, entryNo: string) => void; onOpenFile: (index: number) => void; onAddFiles: (files: File[]) => void; onRemoveFile: (fileId: number, name: string) => void }) {
   const voided = bill.status === "Voided";
   return (
-    <li className="space-y-2 px-5 py-4">
+    <Arrive as="li" order={order} className="space-y-2 px-5 py-4">
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1 basis-56">
           <p className="break-words text-[15px] font-semibold text-ink-900">{bill.supplierName}</p>
@@ -116,7 +116,7 @@ function BillRow({ bill, canEdit, onPay, onVoid, onTakeBack, onOpenFile, onAddFi
           {bill.paid === 0 && <Button size="sm" variant="ghost" className="text-red-700 hover:bg-red-50" onClick={onVoid} aria-label={`Void ${bill.billNo}`}>Void</Button>}
         </div>
       )}
-    </li>
+    </Arrive>
   );
 }
 
@@ -134,7 +134,6 @@ export function BillsPage() {
   const [paying, setPaying] = useState<FinBill | null>(null);
   const [asking, setAsking] = useState<Reasoning | null>(null);
   const [viewing, setViewing] = useState<{ bill: FinBill; index: number } | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -170,16 +169,15 @@ export function BillsPage() {
   const shown = filter === "unpaid" || filter === "overdue" ? [...(ready?.bills ?? [])].sort((a, b) => a.dueDate.localeCompare(b.dueDate)) : (ready?.bills ?? []);
   async function changeFiles(run: () => Promise<FinBill>, done: string) {
     setProblem(null);
-    setMessage(null);
     try {
       await run();
-      setMessage(done);
+      notify.success(done);
       await refresh();
     } catch (error) {
       setProblem(failure(error));
     }
   }
-  const finish = (text: string) => { setAsking(null); setPaying(null); setProblem(null); setMessage(text); void refresh(); };
+  const finish = (text: string) => { setAsking(null); setPaying(null); setProblem(null); notify.success(text); void refresh(); };
 
   return (
     <section className="space-y-5">
@@ -188,7 +186,6 @@ export function BillsPage() {
         description="Bills from suppliers. Entering a bill books the cost and any VAT now and records that the supplier is owed. Paying it moves the money out of a bank or cash account."
         actions={canEdit && ready && <Button icon={Plus} onClick={() => setEntering(true)}>Enter bill</Button>}
       />
-      <SuccessRegion message={message} />
       {problem && <ActionFailure message={problem} />}
       {load.status === "loading" && <LoadingState label="Loading bills..." withCards />}
       {load.status === "error" && <LoadError message={load.message} onRetry={() => { setLoad({ status: "loading" }); void refresh(); }} />}
@@ -204,9 +201,9 @@ export function BillsPage() {
           </div>
           {filter === "unpaid" && ready.bills.length > 0 && (
             <dl className="grid grid-cols-1 gap-3 border-t border-line bg-ink-50 px-5 py-3 text-sm sm:grid-cols-3">
-              <div><dt className="text-ink-600">Owed on these bills</dt><dd className="font-display text-lg font-bold tabular-nums text-ink-900">AED {formatMoney(owed)}</dd></div>
-              <div><dt className="text-ink-600">Overdue</dt><dd className={cx("font-display text-lg font-bold tabular-nums", overdue > 0 ? "text-danger" : "text-ink-400")}>AED {formatMoney(overdue)}</dd></div>
-              <div><dt className="text-ink-600">Due in the next 7 days</dt><dd className={cx("font-display text-lg font-bold tabular-nums", soon > 0 ? "text-ink-900" : "text-ink-400")}>AED {formatMoney(soon)}</dd></div>
+              <div><dt className="text-ink-600">Owed on these bills</dt><dd className="font-display text-lg font-bold tabular-nums text-ink-900"><Mark value={owed}>AED {formatMoney(owed)}</Mark></dd></div>
+              <div><dt className="text-ink-600">Overdue</dt><dd className={cx("font-display text-lg font-bold tabular-nums", overdue > 0 ? "text-danger" : "text-ink-400")}><Mark value={overdue}>AED {formatMoney(overdue)}</Mark></dd></div>
+              <div><dt className="text-ink-600">Due in the next 7 days</dt><dd className={cx("font-display text-lg font-bold tabular-nums", soon > 0 ? "text-ink-900" : "text-ink-400")}><Mark value={soon}>AED {formatMoney(soon)}</Mark></dd></div>
             </dl>
           )}
           {ready.bills.length === 0 ? (
@@ -214,8 +211,8 @@ export function BillsPage() {
               action={canEdit ? <Button icon={Plus} onClick={() => setEntering(true)}>Enter a bill</Button> : undefined} />
           ) : (
             <ul className="divide-y divide-line border-t border-line">
-              {shown.map((b) => (
-                <BillRow key={b.id} bill={b} canEdit={canEdit} onPay={() => setPaying(b)}
+              {shown.map((b, index) => (
+                <BillRow key={b.id} order={index} bill={b} canEdit={canEdit} onPay={() => setPaying(b)}
                   onOpenFile={(index) => setViewing({ bill: b, index })}
                   onAddFiles={(picked) => void changeFiles(() => uploadFinBillFiles(b.id, picked), `The supplier's invoice was attached to ${b.billNo}.`)}
                   onRemoveFile={(fileId, name) => void changeFiles(() => removeFinBillFile(b.id, fileId), `${name} was removed from ${b.billNo}.`)}

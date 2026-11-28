@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ApiError } from "../../api/client";
 import { getPayables, type PayablesReport } from "../../api/finance";
-import { Card, CardHeader, cx } from "../../ui";
+import { Arrive, Card, CardHeader, cx } from "../../ui";
 import { formatDay, formatMoney } from "./financeFormat";
 
 /** What the company owes suppliers: bills still unpaid, oldest first, with how late each one is. */
@@ -20,7 +20,7 @@ export function PayablesTab() {
   if (error) return <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>;
   if (!report) return <p className="text-sm text-ink-600">Loading...</p>;
   return (
-    <div className="space-y-4">
+    <Arrive className="space-y-4">
       <p className="rounded-lg bg-ink-50 px-3 py-2 text-sm text-ink-700">
         Entering a supplier bill books the cost and the VAT. The company owes that amount until the bill is paid from a bank or cash account.
         The total here equals the payables account in the trial balance.
@@ -55,6 +55,6 @@ export function PayablesTab() {
           </div>
         )}
       </Card>
-    </div>
+    </Arrive>
   );
 }

@@ -6,7 +6,7 @@ import {
 } from "../../api/finance";
 import { ApiError } from "../../api/client";
 import { TextField } from "../../components/TextField";
-import { Button, Card, CardHeader, cx } from "../../ui";
+import { Arrive, Button, Card, CardHeader, cx, notify } from "../../ui";
 import { saveBlob } from "../payroll/downloadPdf";
 import { formatDay, formatMoney, todayInUae } from "./financeFormat";
 import { presetRange } from "./reportPeriods";
@@ -39,14 +39,12 @@ function Group({ title, lines, total, totalLabel, strong, empty = "Nothing in th
 
 function Downloads({ make, name }: { make: (f: LedgerFile) => Promise<Blob>; name: string }) {
   const [busy, setBusy] = useState<LedgerFile | null>(null);
-  const [error, setError] = useState<string | null>(null);
   async function run(format: LedgerFile) {
     setBusy(format);
-    setError(null);
     try {
       saveBlob(await make(format), `${name}.${format}`);
     } catch (e) {
-      setError(failure(e));
+      notify.error(failure(e));
     } finally {
       setBusy(null);
     }
@@ -56,7 +54,6 @@ function Downloads({ make, name }: { make: (f: LedgerFile) => Promise<Blob>; nam
       {(["xlsx", "pdf", "csv"] as const).map((f) => (
         <Button key={f} size="sm" variant="secondary" icon={Download} disabled={busy !== null} onClick={() => void run(f)}>{f === "xlsx" ? "Excel" : f.toUpperCase()}</Button>
       ))}
-      {error && <span role="alert" className="text-sm text-danger">{error}</span>}
     </div>
   );
 }
@@ -87,7 +84,7 @@ function ProfitLoss() {
       </div>
       {error && <p role="alert" className="px-5 pb-4 text-sm text-danger">{error}</p>}
       {data && (
-        <>
+        <Arrive>
           <div className="border-t border-line">
             <Group title="Revenue" lines={data.revenue} total={data.totalRevenue} totalLabel="Total revenue" />
             <Group title="Expenses" lines={data.expenses} total={data.totalExpenses} totalLabel="Total expenses" />
@@ -97,7 +94,7 @@ function ProfitLoss() {
             </p>
             {data.manualJournals > 0 && <p className="px-5 pb-3 text-[13px] text-ink-600">Includes {data.manualJournals === 1 ? "1 journal" : `${data.manualJournals} journals`} posted by hand in this period.</p>}
           </div>
-        </>
+        </Arrive>
       )}
       {!data && !error && <p className="px-5 pb-5 text-sm text-ink-600">Loading...</p>}
     </Card>
@@ -127,7 +124,7 @@ function Sheet() {
       <div className="px-5 py-4 sm:max-w-xs"><TextField label="As at" type="date" value={asOf} max={today} onChange={(e) => setAsOf(e.target.value)} /></div>
       {error && <p role="alert" className="px-5 pb-4 text-sm text-danger">{error}</p>}
       {data && (
-        <>
+        <Arrive>
           <div className="border-t border-line">
             <Group title="Assets" lines={data.assets} total={data.totalAssets} totalLabel="Total assets" strong />
             <Group title="Liabilities" lines={data.liabilities} total={data.totalLiabilities} totalLabel="Total liabilities" empty="None at this date." />
@@ -142,7 +139,7 @@ function Sheet() {
             </p>
             <p className="px-5 pb-4 text-[13px] text-ink-600">Profit retained is every revenue less every expense up to this date. There is no year-end closing yet.</p>
           </div>
-        </>
+        </Arrive>
       )}
       {!data && !error && <p className="px-5 pb-5 text-sm text-ink-600">Loading...</p>}
     </Card>

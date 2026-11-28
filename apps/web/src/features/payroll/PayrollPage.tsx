@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { LoadingState, PageHeader, Toolbar, cx, inputClass } from "../../ui";
+import { Arrive, LoadingState, PageHeader, Toolbar, cx, inputClass, notify } from "../../ui";
 import {
   Download,
   LockKeyhole,
@@ -19,7 +19,6 @@ import {
   ActionFailure,
   LoadError,
   primaryButtonClass,
-  SuccessRegion,
 } from "../workers/WorkersFeedback";
 import { PayrollReport } from "./PayrollReport";
 import { downloadPdf, saveBlob } from "./downloadPdf";
@@ -52,7 +51,6 @@ export function PayrollPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [stale, setStale] = useState(false);
@@ -72,7 +70,6 @@ export function PayrollPage() {
     setLoading(true);
     setLoadError(null);
     setError(null);
-    setSuccess(null);
     setReport(null);
     setStale(false);
     getPayroll(month)
@@ -98,7 +95,6 @@ export function PayrollPage() {
   const future = !!report && report.period > currentMonth();
   function openDialog(mode: "finalise" | "reopen") {
     setMutationError(null);
-    setSuccess(null);
     setDialog(mode);
   }
   async function changeFinalisation(reason: string) {
@@ -115,7 +111,7 @@ export function PayrollPage() {
       setReport(updated);
       setDialog(null);
       setError(null);
-      setSuccess(
+      notify.success(
         action === "finalise"
           ? "Payroll month finalised."
           : "Payroll month reopened.",
@@ -133,12 +129,11 @@ export function PayrollPage() {
     if (!report || !ready || stale || busy || dialog) return;
     setExporting(true);
     setError(null);
-    setSuccess(null);
     try {
       const blob = await getPayrollPdf(report.period, report.revision);
       if (!mounted.current) return;
       downloadPdf(blob, report.period);
-      setSuccess("PDF downloaded.");
+      notify.success("PDF downloaded.");
     } catch (reason) {
       if (mounted.current) {
         setError(failure(reason));
@@ -153,7 +148,6 @@ export function PayrollPage() {
     if (!report || busy || dialog) return;
     setExporting(true);
     setError(null);
-    setSuccess(null);
     try {
       const blob = await getPayslipPdf(report.period, workerId);
       if (!mounted.current) return;
@@ -161,7 +155,7 @@ export function PayrollPage() {
         ? `Payslips_${report.period}.pdf`
         : `Payslip_${report.period}_${report.lines.find((l) => l.workerId === workerId)?.workerCode ?? workerId}.pdf`;
       saveBlob(blob, name);
-      setSuccess(workerId === undefined ? "Payslips downloaded." : "Payslip downloaded.");
+      notify.success(workerId === undefined ? "Payslips downloaded." : "Payslip downloaded.");
     } catch (reason) {
       if (mounted.current) setError(failure(reason));
     } finally {
@@ -260,7 +254,6 @@ export function PayrollPage() {
             )}
           </div>
         </Toolbar>
-        <SuccessRegion message={success} />
         {error && <ActionFailure message={error} />}
         {report?.status === "Draft" && (
           <p className="text-sm text-ink-600">
@@ -290,7 +283,7 @@ export function PayrollPage() {
         </div>
       ) : (
         report && (
-          <>
+          <Arrive key={report.period} className="space-y-4">
             <div className="rounded-card border border-line bg-white p-4 shadow-card sm:hidden">
               <p className="text-xs font-semibold uppercase text-ink-600">Total net payroll (AED)</p>
               <p className="mt-1 font-display text-3xl font-bold tabular-nums text-ink-900">
@@ -305,7 +298,7 @@ export function PayrollPage() {
               onPayslip={canViewAll(user?.role) ? (id) => downloadPayslips(id) : undefined}
               payslipBusy={busy || !!dialog}
             />
-          </>
+          </Arrive>
         )
       )}
       {dialog && report && (

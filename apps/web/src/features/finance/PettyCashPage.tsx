@@ -5,8 +5,8 @@ import { ApiError } from "../../api/client";
 import { useAuth } from "../../contexts/AuthContext";
 import { isManagement } from "../../permissions";
 import { useIsDesktop } from "../../utils/useIsDesktop";
-import { Button, Card, EmptyState, LoadingState, PageHeader, StatusBadge, cx } from "../../ui";
-import { ActionFailure, LoadError, SuccessRegion } from "../workers/WorkersFeedback";
+import { Arrive, Button, Card, EmptyState, LoadingState, Mark, PageHeader, StatusBadge, cx, notify } from "../../ui";
+import { ActionFailure, LoadError } from "../workers/WorkersFeedback";
 import { AccountDialog } from "./AccountDialog";
 import { TransferDialog } from "./TransferDialog";
 import { formatMoney, quietZero } from "./financeFormat";
@@ -23,8 +23,10 @@ function Figure({ label, value, note }: { label: string; value: number; note: st
     <div className="min-w-0 flex-1 basis-56 px-5 py-4">
       <dt className="text-xs font-medium uppercase tracking-wide text-ink-500">{label}</dt>
       <dd className={cx("mt-1 font-display text-2xl font-bold tabular-nums", value === 0 ? "text-ink-400" : "text-ink-900")}>
-        <span className="mr-1 text-sm font-medium text-ink-500">AED</span>
-        {formatMoney(value)}
+        <Mark value={value}>
+          <span className="mr-1 text-sm font-medium text-ink-500">AED</span>
+          {formatMoney(value)}
+        </Mark>
       </dd>
       <dd className="mt-0.5 text-[13px] text-ink-500">{note}</dd>
     </div>
@@ -39,7 +41,6 @@ export function PettyCashPage() {
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [adding, setAdding] = useState(false);
   const [moving, setMoving] = useState<{ fromId?: number; toId?: number } | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -67,7 +68,6 @@ export function PettyCashPage() {
         description="Cash you give to staff to spend for the company. Giving cash is a transfer, so it is not an expense. Their approved expenses are what they have spent, and what is left they still hold."
         actions={canEdit && ready && <Button icon={Plus} onClick={() => setAdding(true)}>Add petty-cash account</Button>}
       />
-      <SuccessRegion message={message} />
       {problem && <ActionFailure message={problem} />}
       {load.status === "loading" && <LoadingState label="Loading petty cash..." withCards />}
       {load.status === "error" && <LoadError message={load.message} onRetry={() => { setLoad({ status: "loading" }); void refresh(); }} />}
@@ -85,18 +85,20 @@ export function PettyCashPage() {
 
       {ready && holders.length > 0 && (
         <>
-          <Card>
-            <dl className="flex flex-wrap divide-y divide-line sm:divide-x sm:divide-y-0">
-              <Figure label="Held by staff" value={total} note="Still the company's money, and part of the total on the Accounts page" />
-              <Figure label="Waiting for approval" value={ready.waiting.filter((e) => holders.some((h) => h.id === e.accountId)).reduce((sum, e) => sum + e.amount, 0)} note="Expenses not yet taken from what they hold" />
-            </dl>
-          </Card>
+          <Arrive>
+            <Card>
+              <dl className="flex flex-wrap divide-y divide-line sm:divide-x sm:divide-y-0">
+                <Figure label="Held by staff" value={total} note="Still the company's money, and part of the total on the Accounts page" />
+                <Figure label="Waiting for approval" value={ready.waiting.filter((e) => holders.some((h) => h.id === e.accountId)).reduce((sum, e) => sum + e.amount, 0)} note="Expenses not yet taken from what they hold" />
+              </dl>
+            </Card>
+          </Arrive>
           <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {holders.map((a) => {
+            {holders.map((a, index) => {
               const waiting = ready.waiting.filter((e) => e.accountId === a.id);
               const waitingTotal = waiting.reduce((sum, e) => sum + e.amount, 0);
               return (
-                <li key={a.id}>
+                <Arrive as="li" order={index} key={a.id}>
                   <article aria-label={a.name} className="flex h-full flex-col rounded-card border border-line bg-white p-5 shadow-card">
                     <header className="flex items-start gap-2">
                       <div className="min-w-0 flex-1">
@@ -107,8 +109,10 @@ export function PettyCashPage() {
                     </header>
                     <p className="mt-4 text-xs font-medium uppercase tracking-wide text-ink-500">Holds now</p>
                     <p className={cx("font-display text-3xl font-bold tracking-tight tabular-nums", a.balance < 0 ? "text-danger" : "text-ink-900", quietZero(a.balance))}>
-                      <span className="mr-1 text-sm font-medium text-ink-500">AED</span>
-                      {formatMoney(a.balance)}
+                      <Mark value={a.balance}>
+                        <span className="mr-1 text-sm font-medium text-ink-500">AED</span>
+                        {formatMoney(a.balance)}
+                      </Mark>
                     </p>
                     <p className="mt-2 text-[13px] text-ink-600">
                       {waiting.length === 0 ? "Nothing waiting for approval." : `${waiting.length === 1 ? "1 expense" : `${waiting.length} expenses`} waiting for approval (AED ${formatMoney(waitingTotal)}). Not yet taken from what they hold.`}
@@ -120,7 +124,7 @@ export function PettyCashPage() {
                       </div>
                     )}
                   </article>
-                </li>
+                </Arrive>
               );
             })}
           </ul>
@@ -136,7 +140,7 @@ export function PettyCashPage() {
           onSaved={(_saved, text) => {
             setAdding(false);
             setProblem(null);
-            setMessage(text);
+            notify.success(text);
             void refresh();
           }}
         />
@@ -151,7 +155,7 @@ export function PettyCashPage() {
           onSaved={(t) => {
             setMoving(null);
             setProblem(null);
-            setMessage(`${t.transferNo}: AED ${formatMoney(t.amount)} moved from ${t.fromAccountName} to ${t.toAccountName}.`);
+            notify.success(`${t.transferNo}: AED ${formatMoney(t.amount)} moved from ${t.fromAccountName} to ${t.toAccountName}.`);
             void refresh();
           }}
         />

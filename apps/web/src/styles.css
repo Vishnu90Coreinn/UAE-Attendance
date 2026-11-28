@@ -134,12 +134,47 @@ dialog[open] { animation: dialog-in 200ms var(--ease-out); }
 dialog[open][data-variant="sheet"] { animation: sheet-in 260ms var(--ease-out); }
 dialog[open]::backdrop { animation: backdrop-in 200ms ease-out; backdrop-filter: blur(4px); }
 
-/* Content rises into place; give siblings a rising --i for a short stagger. */
-@keyframes fade-up {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: none; }
+/*
+ * Toasts (sonner): the dark slip already used on phones, with a status rule down its left edge. Sonner injects its own
+ * unlayered styles at run time, so these are unlayered too and one step more specific.
+ */
+html [data-sonner-toaster] { font-family: var(--font-sans); --width: 24rem; }
+html [data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.875rem 0.75rem 0.875rem 1rem;
+  border: 0;
+  border-left: 3px solid var(--color-pistachio);
+  border-radius: var(--radius-lg);
+  background: var(--color-ink-900);
+  color: white;
+  box-shadow: var(--shadow-pop);
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
-.fade-up { animation: fade-up 360ms var(--ease-out) calc(var(--i, 0) * 50ms) both; }
+html [data-sonner-toaster] [data-sonner-toast][data-type="error"][data-styled="true"] { border-left-color: #fcd34d; }
+html [data-sonner-toaster] [data-sonner-toast][data-type="success"] [data-icon] { color: var(--color-pistachio); }
+html [data-sonner-toaster] [data-sonner-toast][data-type="error"] [data-icon] { color: #fcd34d; }
+html [data-sonner-toaster] [data-sonner-toast] [data-icon] { width: 18px; height: 20px; margin: 0; align-items: center; }
+html [data-sonner-toaster] [data-sonner-toast][data-styled="true"] [data-close-button] {
+  position: static;
+  order: 3;
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  margin: -0.375rem 0 -0.375rem auto;
+  transform: none;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: rgb(255 255 255 / 0.75);
+}
+html [data-sonner-toaster] [data-sonner-toast][data-styled="true"] [data-close-button]:hover { background: rgb(255 255 255 / 0.12); color: white; }
+html [data-sonner-toaster] [data-sonner-toast] [data-close-button]:focus-visible { outline: 2px solid var(--color-pistachio); outline-offset: 0; }
+@media (max-width: 767px) {
+  html [data-sonner-toaster] [data-sonner-toast][data-styled="true"] [data-close-button] { width: 2.75rem; height: 2.75rem; margin-block: -0.75rem; }
+}
 
 /* Loading placeholders shimmer instead of pulsing. */
 @keyframes shimmer {
@@ -164,6 +199,19 @@ dialog[open]::backdrop { animation: backdrop-in 200ms ease-out; backdrop-filter:
 .anim-drift { animation: drift 14s ease-in-out infinite; }
 
 @media print {
+  /* Paper never shows a half-drawn bar or a passing message. */
+  [data-motion="arrive"],
+  [data-motion="page"] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  [data-motion="draw"] {
+    clip-path: none !important;
+  }
+  [data-mark],
+  [data-sonner-toaster] {
+    display: none !important;
+  }
   @page {
     size: A4 portrait;
     margin: 15mm;
