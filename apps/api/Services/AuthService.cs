@@ -143,6 +143,7 @@ public class AuthService(
         }
 
         user.PasswordHash = passwordHasher.HashPassword(user, newPassword);
+        user.SecurityStamp++;   // every sign-in made with the old password ends, this one included; the app signs in again with the new one
         audit.Write("PasswordChanged", user.Username, nameof(User), user.Id.ToString());
         await db.SaveChangesAsync(cancellationToken);
         return new ChangePasswordResult(ChangePasswordOutcome.Success);

@@ -33,7 +33,7 @@ export function StatusBadge({ tone, children, icon, variant = "icon" }: StatusBa
   const { cls, icon: DefaultIcon } = TONES[tone];
   if (variant === "soft") {
     return (
-      <span className={cx("inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-xs font-medium", cls.replace(/ring-\S+/, ""))}>
+      <span className={cx("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium", cls.replace(/ring-\S+/, ""))}>
         <span aria-hidden="true" className={cx("size-1.5 rounded-full", DOTS[tone])} />
         {children}
       </span>

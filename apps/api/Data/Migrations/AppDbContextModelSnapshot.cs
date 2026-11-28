@@ -22,6 +22,16 @@ namespace HrPayroll.Api.Data.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.HasSequence<int>("FinCapitalNo");
+
+            modelBuilder.HasSequence<int>("FinCapitalOutNo");
+
+            modelBuilder.HasSequence<int>("FinExpenseNo");
+
+            modelBuilder.HasSequence<int>("FinIncomeNo");
+
+            modelBuilder.HasSequence<int>("LedgerJournalNo");
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.Attendance", b =>
                 {
                     b.Property<int>("Id")
@@ -399,6 +409,1115 @@ namespace HrPayroll.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinAccount", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AccountNumber")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("BankName")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("HolderUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Iban")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<int?>("LedgerAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)")
+                        .UseCollation("SQL_Latin1_General_CP1_CI_AS");
+
+                    b.Property<decimal>("OpeningBalance")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<DateOnly>("OpeningDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("StaffCanUse")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HolderUserId")
+                        .IsUnique()
+                        .HasFilter("[HolderUserId] IS NOT NULL");
+
+                    b.HasIndex("LedgerAccountId");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("FinAccounts", t =>
+                        {
+                            t.HasCheckConstraint("CK_FinAccounts_Kind", "[Kind] IN ('Bank', 'Cash', 'Custody')");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinAttachment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int>("EntryId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StoredName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("UploadedBy")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UploadedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntryId");
+
+                    b.HasIndex("StoredName");
+
+                    b.ToTable("FinAttachments");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinBill", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly>("BillDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("BillNo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("Net")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int?>("PayeeId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("RecoverableTaxPercent")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)")
+                        .HasDefaultValue(100m);
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("SupplierName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("SupplierRef")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<decimal>("TaxRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int?>("TaxTypeId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("VoidedBy")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("VoidedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BillDate");
+
+                    b.HasIndex("BillNo")
+                        .IsUnique();
+
+                    b.HasIndex("PayeeId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("FinBills", t =>
+                        {
+                            t.HasCheckConstraint("CK_FinBills_Amounts", "[Net] > 0 AND [Total] >= [Net] AND [TaxAmount] >= 0");
+
+                            t.HasCheckConstraint("CK_FinBills_Status", "[Status] IN ('Open', 'Voided')");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinBillAttachment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BillId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StoredName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("UploadedBy")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UploadedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BillId");
+
+                    b.ToTable("FinBillAttachments");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinBillLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<int>("BillId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CategoryId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BillId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.ToTable("FinBillLines", t =>
+                        {
+                            t.HasCheckConstraint("CK_FinBillLines_Amount", "[Amount] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinCategory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("DefaultTaxTypeId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<int?>("LedgerAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)")
+                        .UseCollation("SQL_Latin1_General_CP1_CI_AS");
+
+                    b.Property<bool>("NoVat")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DefaultTaxTypeId");
+
+                    b.HasIndex("LedgerAccountId");
+
+                    b.HasIndex("Kind", "Name")
+                        .IsUnique();
+
+                    b.ToTable("FinCategories", t =>
+                        {
+                            t.HasCheckConstraint("CK_FinCategories_Kind", "[Kind] IN ('Expense', 'Income', 'Capital', 'CapitalOut')");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            IsActive = true,
+                            IsSystem = false,
+                            Kind = "Expense",
+                            Name = "Company expenses",
+                            NoVat = false
+                        },
+                        new
+                        {
+                            Id = 2,
+                            IsActive = true,
+                            IsSystem = false,
+                            Kind = "Expense",
+                            Name = "Government-related procedures for workers",
+                            NoVat = true
+                        },
+                        new
+                        {
+                            Id = 3,
+                            IsActive = true,
+                            IsSystem = false,
+                            Kind = "Expense",
+                            Name = "Salary Advance",
+                            NoVat = true
+                        },
+                        new
+                        {
+                            Id = 4,
+                            IsActive = true,
+                            IsSystem = false,
+                            Kind = "Expense",
+                            Name = "Monthly Salary",
+                            NoVat = true
+                        },
+                        new
+                        {
+                            Id = 5,
+                            IsActive = true,
+                            IsSystem = false,
+                            Kind = "Expense",
+                            Name = "Worker Accommodation Rent",
+                            NoVat = false
+                        },
+                        new
+                        {
+                            Id = 6,
+                            IsActive = true,
+                            IsSystem = false,
+                            Kind = "Expense",
+                            Name = "Worker Transportation",
+                            NoVat = false
+                        },
+                        new
+                        {
+                            Id = 7,
+                            IsActive = true,
+                            IsSystem = false,
+                            Kind = "Expense",
+                            Name = "Office Rent",
+                            NoVat = false
+                        },
+                        new
+                        {
+                            Id = 8,
+                            IsActive = true,
+                            IsSystem = false,
+                            Kind = "Expense",
+                            Name = "Dubai Insurance",
+                            NoVat = false
+                        },
+                        new
+                        {
+                            Id = 9,
+                            IsActive = true,
+                            IsSystem = false,
+                            Kind = "Expense",
+                            Name = "Commission for Labor",
+                            NoVat = false
+                        },
+                        new
+                        {
+                            Id = 10,
+                            IsActive = true,
+                            IsSystem = false,
+                            Kind = "Income",
+                            Name = "Other income",
+                            NoVat = false
+                        },
+                        new
+                        {
+                            Id = 13,
+                            IsActive = true,
+                            IsSystem = false,
+                            Kind = "Expense",
+                            Name = "VAT paid to tax authority",
+                            NoVat = false
+                        },
+                        new
+                        {
+                            Id = 14,
+                            IsActive = true,
+                            IsSystem = false,
+                            Kind = "Income",
+                            Name = "VAT refund from tax authority",
+                            NoVat = false
+                        },
+                        new
+                        {
+                            Id = 11,
+                            IsActive = true,
+                            IsSystem = false,
+                            Kind = "Capital",
+                            Name = "Capital contribution",
+                            NoVat = false
+                        },
+                        new
+                        {
+                            Id = 12,
+                            IsActive = true,
+                            IsSystem = false,
+                            Kind = "CapitalOut",
+                            Name = "Capital returned",
+                            NoVat = false
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinCheque", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AccountId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<int?>("EntryId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("IssueDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("PartyName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Serial")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .UseCollation("SQL_Latin1_General_CP1_CI_AS");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateOnly?>("StatusDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("StatusNote")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DueDate");
+
+                    b.HasIndex("EntryId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("AccountId", "Serial")
+                        .IsUnique()
+                        .HasFilter("[Direction] = 'Issued'");
+
+                    b.ToTable("FinCheques", t =>
+                        {
+                            t.HasCheckConstraint("CK_FinCheques_Amount", "[Amount] > 0");
+
+                            t.HasCheckConstraint("CK_FinCheques_Direction", "[Direction] IN ('Issued', 'Received')");
+
+                            t.HasCheckConstraint("CK_FinCheques_Status", "[Status] IN ('Issued', 'Delivered', 'Received', 'Deposited', 'Cleared', 'Bounced', 'Cancelled')");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AccountId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<int?>("BillId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CategoryId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ClientId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly>("EntryDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("EntryNo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("ExternalId")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ExternalSource")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int?>("InvoiceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int?>("PartnerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Party")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int?>("PayeeId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("RecoverableTaxPercent")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)")
+                        .HasDefaultValue(100m);
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<int?>("ReplacesEntryId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<bool>("TaxInclusive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<decimal>("TaxRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int?>("TaxTypeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("VoidedBy")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("VoidedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BillId")
+                        .HasFilter("[BillId] IS NOT NULL");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("EntryDate");
+
+                    b.HasIndex("EntryNo")
+                        .IsUnique();
+
+                    b.HasIndex("InvoiceId")
+                        .HasFilter("[InvoiceId] IS NOT NULL");
+
+                    b.HasIndex("PartnerId");
+
+                    b.HasIndex("PayeeId");
+
+                    b.HasIndex("ReplacesEntryId");
+
+                    b.HasIndex("TaxTypeId");
+
+                    b.HasIndex("AccountId", "EntryDate");
+
+                    b.HasIndex("ExternalSource", "ExternalId")
+                        .IsUnique()
+                        .HasFilter("[ExternalId] IS NOT NULL");
+
+                    b.ToTable("FinEntries", t =>
+                        {
+                            t.HasCheckConstraint("CK_FinEntries_Amount", "[Amount] > 0");
+
+                            t.HasCheckConstraint("CK_FinEntries_Kind", "[Kind] IN ('Expense', 'Income', 'Capital', 'CapitalOut')");
+
+                            t.HasCheckConstraint("CK_FinEntries_Partner", "([Kind] IN ('Capital', 'CapitalOut') AND [PartnerId] IS NOT NULL) OR ([Kind] IN ('Expense', 'Income') AND [PartnerId] IS NULL)");
+
+                            t.HasCheckConstraint("CK_FinEntries_Status", "[Status] IN ('Active', 'Voided', 'Pending')");
+
+                            t.HasCheckConstraint("CK_FinEntries_Tax", "[TaxAmount] >= 0");
+
+                            t.HasCheckConstraint("CK_FinEntries_Voided", "[Status] IN ('Active', 'Pending') OR [VoidedUtc] IS NOT NULL");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinEntryLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<int>("CategoryId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EntryId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("EntryId");
+
+                    b.ToTable("FinEntryLines", t =>
+                        {
+                            t.HasCheckConstraint("CK_FinEntryLines_Amount", "[Amount] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinMonthLock", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LockedBy")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("LockedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UnlockReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("UnlockedBy")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("UnlockedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Year", "Month")
+                        .IsUnique();
+
+                    b.ToTable("FinMonthLocks", t =>
+                        {
+                            t.HasCheckConstraint("CK_FinMonthLocks_Month", "[Month] BETWEEN 1 AND 12");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinPartner", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<int?>("LedgerAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)")
+                        .UseCollation("SQL_Latin1_General_CP1_CI_AS");
+
+                    b.Property<decimal>("OpeningCapital")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LedgerAccountId");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("FinPartners", t =>
+                        {
+                            t.HasCheckConstraint("CK_FinPartners_OpeningCapital", "[OpeningCapital] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinPayee", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DefaultCategoryId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)")
+                        .UseCollation("SQL_Latin1_General_CP1_CI_AS");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("TaxNumber")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DefaultCategoryId");
+
+                    b.HasIndex("Kind", "Name")
+                        .IsUnique();
+
+                    b.ToTable("FinPayees", t =>
+                        {
+                            t.HasCheckConstraint("CK_FinPayees_Kind", "[Kind] IN ('Expense', 'Income')");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinTaxType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)")
+                        .UseCollation("SQL_Latin1_General_CP1_CI_AS");
+
+                    b.Property<decimal>("Rate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Treatment")
+                        .IsRequired()
+                        .HasMaxLength(13)
+                        .HasColumnType("nvarchar(13)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("FinTaxTypes", t =>
+                        {
+                            t.HasCheckConstraint("CK_FinTaxTypes_Rate", "[Rate] >= 0 AND [Rate] <= 100");
+
+                            t.HasCheckConstraint("CK_FinTaxTypes_Treatment", "[Treatment] IN ('Standard', 'ZeroRated', 'Exempt', 'ReverseCharge', 'IntraGcc')");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            IsActive = true,
+                            Name = "Standard Rated (VAT)",
+                            Rate = 5m,
+                            SortOrder = 1,
+                            Treatment = "Standard"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            IsActive = true,
+                            Name = "Zero Rated",
+                            Rate = 0m,
+                            SortOrder = 2,
+                            Treatment = "ZeroRated"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            IsActive = true,
+                            Name = "Exempt",
+                            Rate = 0m,
+                            SortOrder = 3,
+                            Treatment = "Exempt"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            IsActive = true,
+                            Name = "Reverse Charges (VAT)",
+                            Rate = 5m,
+                            SortOrder = 4,
+                            Treatment = "ReverseCharge"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            IsActive = true,
+                            Name = "Intra GCC",
+                            Rate = 0m,
+                            SortOrder = 5,
+                            Treatment = "IntraGcc"
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinTransfer", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FromAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<int?>("ReplacesTransferId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<int>("ToAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("TransferDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("TransferNo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("VoidedBy")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("VoidedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FromAccountId");
+
+                    b.HasIndex("ReplacesTransferId");
+
+                    b.HasIndex("ToAccountId");
+
+                    b.HasIndex("TransferDate");
+
+                    b.HasIndex("TransferNo")
+                        .IsUnique();
+
+                    b.ToTable("FinTransfers", t =>
+                        {
+                            t.HasCheckConstraint("CK_FinTransfers_Accounts", "[FromAccountId] <> [ToAccountId]");
+
+                            t.HasCheckConstraint("CK_FinTransfers_Amount", "[Amount] > 0");
+
+                            t.HasCheckConstraint("CK_FinTransfers_Status", "[Status] IN ('Active', 'Voided')");
+
+                            t.HasCheckConstraint("CK_FinTransfers_Voided", "[Status] = 'Active' OR [VoidedUtc] IS NOT NULL");
+                        });
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.Invoice", b =>
                 {
                     b.Property<int>("Id")
@@ -512,6 +1631,13 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasPrecision(14, 2)
                         .HasColumnType("decimal(14,2)");
 
+                    b.Property<string>("VatTreatment")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Standard");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ClientId");
@@ -529,6 +1655,8 @@ namespace HrPayroll.Api.Data.Migrations
                             t.HasCheckConstraint("CK_Invoices_Status", "[Status] IN ('Draft','Issued','Cancelled')");
 
                             t.HasCheckConstraint("CK_Invoices_Totals", "[SubTotal] >= 0 AND [VatTotal] >= 0 AND [Total] = [SubTotal] + [VatTotal]");
+
+                            t.HasCheckConstraint("CK_Invoices_VatTreatment", "[VatTreatment] IN ('Standard','ZeroRated','Exempt') AND ([VatTreatment] = 'Standard' OR [VatTotal] = 0)");
                         });
                 });
 
@@ -628,6 +1756,9 @@ namespace HrPayroll.Api.Data.Migrations
                     b.Property<decimal>("Amount")
                         .HasPrecision(14, 2)
                         .HasColumnType("decimal(14,2)");
+
+                    b.Property<int?>("FinEntryId")
+                        .HasColumnType("int");
 
                     b.Property<int>("InvoiceId")
                         .HasColumnType("int");
@@ -730,6 +1861,109 @@ namespace HrPayroll.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.Journal", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Part")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<int?>("ReversesJournalId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SourceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("nvarchar(12)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Date");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.HasIndex("ReversesJournalId");
+
+                    b.HasIndex("SourceType", "SourceId", "Revision", "Part")
+                        .IsUnique();
+
+                    b.ToTable("Journals", t =>
+                        {
+                            t.HasCheckConstraint("CK_Journals_Part", "[Part] IN ('Post', 'Reversal', 'Clear')");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.JournalLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Credit")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<decimal>("Debit")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<int>("JournalId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LedgerAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Memo")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("JournalId");
+
+                    b.HasIndex("LedgerAccountId");
+
+                    b.ToTable("JournalLines", t =>
+                        {
+                            t.HasCheckConstraint("CK_JournalLines_Side", "([Debit] > 0 AND [Credit] = 0) OR ([Credit] > 0 AND [Debit] = 0)");
+                        });
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.LeaveAttachment", b =>
                 {
                     b.Property<int>("LeaveRequestId")
@@ -810,6 +2044,52 @@ namespace HrPayroll.Api.Data.Migrations
                             t.HasCheckConstraint("CK_LeaveRequests_Status", "DATALENGTH([Status]) = DATALENGTH(RTRIM([Status])) AND [Status] COLLATE Latin1_General_100_BIN2 IN ('Pending','Approved','Rejected')");
 
                             t.HasCheckConstraint("CK_LeaveRequests_Type", "DATALENGTH([LeaveType]) = DATALENGTH(RTRIM([LeaveType])) AND [LeaveType] COLLATE Latin1_General_100_BIN2 IN ('Annual Leave','Sick Leave','Unpaid Leave','Emergency Leave')");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.LedgerAccount", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .UseCollation("SQL_Latin1_General_CP1_CI_AS");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("LedgerAccounts", t =>
+                        {
+                            t.HasCheckConstraint("CK_LedgerAccounts_Type", "[Type] IN ('Asset', 'Liability', 'Equity', 'Revenue', 'Expense')");
                         });
                 });
 
@@ -1034,6 +2314,15 @@ namespace HrPayroll.Api.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<bool>("VatPeriodConfirmed")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("VatPeriodMonths")
+                        .HasColumnType("int");
+
+                    b.Property<int>("VatPeriodStartMonth")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.ToTable("PayrollSettings", t =>
@@ -1052,7 +2341,10 @@ namespace HrPayroll.Api.Data.Migrations
                             OvertimeRatePerHour = 2.22m,
                             PreparedByLabel = "HR Department",
                             ShiftDescription = "06:00 AM - 05:30 PM",
-                            Tagline = "Glass & Aluminum Installation & Maintenance Services"
+                            Tagline = "Glass & Aluminum Installation & Maintenance Services",
+                            VatPeriodConfirmed = false,
+                            VatPeriodMonths = 3,
+                            VatPeriodStartMonth = 1
                         });
                 });
 
@@ -1117,6 +2409,120 @@ namespace HrPayroll.Api.Data.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("PushDevices", (string)null);
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.RecurringJournal", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DayOfMonth")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<DateOnly?>("EndMonth")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<DateOnly>("StartMonth")
+                        .HasColumnType("date");
+
+                    b.Property<string>("StoppedBy")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("StoppedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("RecurringJournals", t =>
+                        {
+                            t.HasCheckConstraint("CK_RecurringJournals_Day", "[DayOfMonth] BETWEEN 1 AND 31");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.RecurringJournalLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Credit")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<decimal>("Debit")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<int>("LedgerAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Memo")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("RecurringJournalId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LedgerAccountId");
+
+                    b.HasIndex("RecurringJournalId");
+
+                    b.ToTable("RecurringJournalLines", t =>
+                        {
+                            t.HasCheckConstraint("CK_RecurringJournalLines_Side", "[Debit] >= 0 AND [Credit] >= 0 AND (([Debit] > 0 AND [Credit] = 0) OR ([Debit] = 0 AND [Credit] > 0))");
+                        });
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.RecurringJournalRun", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("JournalId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("Month")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("PostedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("RecurringJournalId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecurringJournalId", "Month")
+                        .IsUnique();
+
+                    b.ToTable("RecurringJournalRuns");
                 });
 
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.SiteProgressFloor", b =>
@@ -1561,6 +2967,11 @@ namespace HrPayroll.Api.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<bool>("CanSubmitExpenses")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<DateTime>("CreatedUtc")
                         .HasColumnType("datetime2");
 
@@ -1586,6 +2997,9 @@ namespace HrPayroll.Api.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("SecurityStamp")
+                        .HasColumnType("int");
 
                     b.Property<string>("Username")
                         .IsRequired()
@@ -1897,6 +3311,200 @@ namespace HrPayroll.Api.Data.Migrations
                     b.Navigation("Worker");
                 });
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinAccount", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("HolderUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.LedgerAccount", null)
+                        .WithMany()
+                        .HasForeignKey("LedgerAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinAttachment", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinEntry", "Entry")
+                        .WithMany()
+                        .HasForeignKey("EntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Entry");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinBill", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinPayee", null)
+                        .WithMany()
+                        .HasForeignKey("PayeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinBillAttachment", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinBill", "Bill")
+                        .WithMany()
+                        .HasForeignKey("BillId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Bill");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinBillLine", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinBill", "Bill")
+                        .WithMany("Lines")
+                        .HasForeignKey("BillId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinCategory", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Bill");
+
+                    b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinCategory", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinTaxType", null)
+                        .WithMany()
+                        .HasForeignKey("DefaultTaxTypeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.LedgerAccount", null)
+                        .WithMany()
+                        .HasForeignKey("LedgerAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinCheque", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinAccount", "Account")
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinEntry", null)
+                        .WithMany()
+                        .HasForeignKey("EntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Account");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinEntry", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinAccount", "Account")
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinCategory", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.InvoiceClient", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinPartner", null)
+                        .WithMany()
+                        .HasForeignKey("PartnerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinPayee", null)
+                        .WithMany()
+                        .HasForeignKey("PayeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinEntry", null)
+                        .WithMany()
+                        .HasForeignKey("ReplacesEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinTaxType", null)
+                        .WithMany()
+                        .HasForeignKey("TaxTypeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Account");
+
+                    b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinEntryLine", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinCategory", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinEntry", "Entry")
+                        .WithMany("Lines")
+                        .HasForeignKey("EntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+
+                    b.Navigation("Entry");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinPartner", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.LedgerAccount", null)
+                        .WithMany()
+                        .HasForeignKey("LedgerAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinPayee", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinCategory", null)
+                        .WithMany()
+                        .HasForeignKey("DefaultCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinTransfer", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinAccount", "FromAccount")
+                        .WithMany()
+                        .HasForeignKey("FromAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinTransfer", null)
+                        .WithMany()
+                        .HasForeignKey("ReplacesTransferId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.FinAccount", "ToAccount")
+                        .WithMany()
+                        .HasForeignKey("ToAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("FromAccount");
+
+                    b.Navigation("ToAccount");
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.Invoice", b =>
                 {
                     b.HasOne("HrPayroll.Api.Data.Entities.InvoiceClient", "Client")
@@ -1938,6 +3546,33 @@ namespace HrPayroll.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Worker");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.Journal", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.Journal", null)
+                        .WithMany()
+                        .HasForeignKey("ReversesJournalId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.JournalLine", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.Journal", "Journal")
+                        .WithMany("Lines")
+                        .HasForeignKey("JournalId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.LedgerAccount", "LedgerAccount")
+                        .WithMany()
+                        .HasForeignKey("LedgerAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Journal");
+
+                    b.Navigation("LedgerAccount");
                 });
 
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.LeaveAttachment", b =>
@@ -1999,6 +3634,34 @@ namespace HrPayroll.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.RecurringJournalLine", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.LedgerAccount", "LedgerAccount")
+                        .WithMany()
+                        .HasForeignKey("LedgerAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HrPayroll.Api.Data.Entities.RecurringJournal", "RecurringJournal")
+                        .WithMany("Lines")
+                        .HasForeignKey("RecurringJournalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("LedgerAccount");
+
+                    b.Navigation("RecurringJournal");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.RecurringJournalRun", b =>
+                {
+                    b.HasOne("HrPayroll.Api.Data.Entities.RecurringJournal", null)
+                        .WithMany()
+                        .HasForeignKey("RecurringJournalId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.SiteProgressFloor", b =>
@@ -2115,11 +3778,26 @@ namespace HrPayroll.Api.Data.Migrations
                     b.Navigation("Worker");
                 });
 
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinBill", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.FinEntry", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.Invoice", b =>
                 {
                     b.Navigation("Lines");
 
                     b.Navigation("Payments");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.Journal", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.PayrollDetail", b =>
@@ -2130,6 +3808,11 @@ namespace HrPayroll.Api.Data.Migrations
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.PayrollPeriod", b =>
                 {
                     b.Navigation("Details");
+                });
+
+            modelBuilder.Entity("HrPayroll.Api.Data.Entities.RecurringJournal", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("HrPayroll.Api.Data.Entities.SiteProgressReport", b =>

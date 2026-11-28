@@ -3,7 +3,7 @@ import { cx } from "./cx";
 
 export const controlClass = (invalid?: boolean) =>
   cx(
-    "mt-1 block min-h-11 w-full rounded-lg border bg-white px-3 text-base text-ink-900 placeholder:text-ink-500 transition-colors duration-150 hover:border-ink-400 focus-visible:border-brand-500 focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-brand-500/30 disabled:cursor-not-allowed disabled:bg-ink-50 disabled:text-ink-500 md:min-h-10 md:text-sm",
+    "mt-1 block min-h-11 w-full rounded-lg border bg-white px-3 text-base text-ink-900 shadow-[inset_0_1px_2px_rgb(16_40_36/0.04)] placeholder:text-ink-500 transition-[border-color,box-shadow] duration-150 hover:border-ink-400 focus-visible:border-brand-500 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-ink-50 disabled:text-ink-500 md:min-h-10 md:text-sm",
     invalid ? "border-danger" : "border-ink-300",
   );
 
@@ -63,7 +63,7 @@ export function Select({ label, error, hint, hideLabel, children, ...rest }: Wit
   return (
     <Field label={label} error={error} hint={hint} hideLabel={hideLabel}>
       {(p) => (
-        <select {...rest} {...p}>
+        <select {...rest} {...p} className={cx(p.className, "select-control")}>
           {children}
         </select>
       )}

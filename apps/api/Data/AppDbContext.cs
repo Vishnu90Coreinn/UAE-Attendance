@@ -41,6 +41,37 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<StaffLeaveAttachment> StaffLeaveAttachments => Set<StaffLeaveAttachment>();
     public DbSet<PushDevice> PushDevices => Set<PushDevice>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder) =>
+    // Expense and income tracking (Phase 3, stage 3).
+    public DbSet<FinAccount> FinAccounts => Set<FinAccount>();
+    public DbSet<FinCategory> FinCategories => Set<FinCategory>();
+    public DbSet<FinEntry> FinEntries => Set<FinEntry>();
+    public DbSet<FinTransfer> FinTransfers => Set<FinTransfer>();
+    public DbSet<FinAttachment> FinAttachments => Set<FinAttachment>();
+    public DbSet<FinMonthLock> FinMonthLocks => Set<FinMonthLock>();
+    public DbSet<FinPartner> FinPartners => Set<FinPartner>();
+    public DbSet<FinPayee> FinPayees => Set<FinPayee>();
+    public DbSet<FinCheque> FinCheques => Set<FinCheque>();
+    public DbSet<FinBill> FinBills => Set<FinBill>();
+    public DbSet<FinBillLine> FinBillLines => Set<FinBillLine>();
+    public DbSet<FinBillAttachment> FinBillAttachments => Set<FinBillAttachment>();
+    public DbSet<FinTaxType> FinTaxTypes => Set<FinTaxType>();
+    public DbSet<LedgerAccount> LedgerAccounts => Set<LedgerAccount>();
+    public DbSet<Journal> Journals => Set<Journal>();
+    public DbSet<RecurringJournal> RecurringJournals => Set<RecurringJournal>();
+    public DbSet<RecurringJournalLine> RecurringJournalLines => Set<RecurringJournalLine>();
+    public DbSet<RecurringJournalRun> RecurringJournalRuns => Set<RecurringJournalRun>();
+    public DbSet<JournalLine> JournalLines => Set<JournalLine>();
+    public DbSet<FinEntryLine> FinEntryLines => Set<FinEntryLine>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+        // Gap-free-per-kind numbers for EXP-000001 and INC-000001.
+        modelBuilder.HasSequence<int>("LedgerJournalNo");
+        modelBuilder.HasSequence<int>("FinExpenseNo");
+        modelBuilder.HasSequence<int>("FinIncomeNo");
+        modelBuilder.HasSequence<int>("FinCapitalNo");
+        modelBuilder.HasSequence<int>("FinCapitalOutNo");
+    }
 }

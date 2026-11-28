@@ -20,6 +20,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.PasswordHash).HasMaxLength(256).IsRequired();
         builder.Property(u => u.Role).HasMaxLength(20).IsRequired();
         builder.Property(u => u.IsActive).HasDefaultValue(true);
+        builder.Property(u => u.CanSubmitExpenses).HasDefaultValue(false);
         builder.Property(u => u.FailedLoginCount).HasDefaultValue(0);
         builder.Property(u => u.CreatedUtc).HasColumnType("datetime2");
         builder.Property(u => u.LockoutEndUtc).HasColumnType("datetime2");

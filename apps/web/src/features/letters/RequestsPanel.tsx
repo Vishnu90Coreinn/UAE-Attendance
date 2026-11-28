@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowLeft, CheckCircle2, Clock, Download, FileText, Loader2, Plus, Undo2, XCircle } from "lucide-react";
 import {
@@ -334,7 +335,7 @@ function RequestDetailView({ id, roles, onBack, onNotice }: { id: number; roles:
 
 // --- the list ----------------------------------------------------------------------------------------------
 
-export function RequestsPanel({ roles, defaultStatus }: { roles: RequestRoles; defaultStatus: CertificateStatus | "" }) {
+export function RequestsPanel({ roles, defaultStatus, headerSlot }: { roles: RequestRoles; defaultStatus: CertificateStatus | ""; headerSlot?: HTMLElement | null }) {
   const desktop = useIsDesktop();
   const { user } = useAuth();
   /** Phone only: which chip is chosen; null until the person picks one, so the default can follow what needs them. */
@@ -473,10 +474,11 @@ export function RequestsPanel({ roles, defaultStatus }: { roles: RequestRoles; d
             </button>
           ))}
         </div>
-        {roles.canRaise && (
+        {roles.canRaise && headerSlot && createPortal(
           <Button icon={Plus} onClick={() => setRaising(true)}>
             New request
-          </Button>
+          </Button>,
+          headerSlot,
         )}
       </div>
 

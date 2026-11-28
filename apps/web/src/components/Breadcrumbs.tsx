@@ -1,12 +1,12 @@
 import { ChevronRight, House } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { NAV_GROUPS } from "./navIcons";
-import type { NavItem } from "./navItems";
+import { activeNavItem, type NavItem } from "./navItems";
 
 /** "Home > Group > Screen" above the page, derived from the nav configuration. Hidden on the dashboard and unknown routes. */
 export function Breadcrumbs({ items }: { items: NavItem[] }) {
   const { pathname } = useLocation();
-  const current = items.find((item) => item.path && (pathname === item.path || pathname.startsWith(`${item.path}/`)));
+  const current = activeNavItem(items, pathname);
   if (!current || current.key === "dashboard") return null;
   const group = NAV_GROUPS.find((g) => g.keys.includes(current.key));
   const dashboard = items.find((item) => item.key === "dashboard");

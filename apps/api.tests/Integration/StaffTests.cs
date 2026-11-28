@@ -566,6 +566,32 @@ public class StaffTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    [Fact]
+    public async Task LeaveReport_ListsOnlyTheRequestsTheFiltersLeave()
+    {
+        var (employee, token, _) = await NewEmployeeAsync();
+        var manager = (await TestWorkers.SignInAsync(api, Roles.Manager)).Token;
+        var mine = await TestWorkers.ReadJsonAsync(await api.GetAsync("/api/staff/me/leave", token));
+        var annual = mine.GetProperty("types").EnumerateArray().First(t => t.GetProperty("name").GetString() == "Annual Leave").GetProperty("id").GetInt32();
+        var day = NextWorkingDay(200);
+        Assert.Equal(HttpStatusCode.Created, (await api.SendAsync(HttpMethod.Post, "/api/staff/me/leave", new { leaveTypeId = annual, startDate = day, endDate = day, reason = "Trip" }, token)).StatusCode);
+
+        async Task<string> RequestsAsync(string query)
+        {
+            var response = await api.GetAsync($"/api/staff/leave/export/excel?year={day[..4]}&search={employee.WorkerCode}{query}", manager);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(await response.Content.ReadAsByteArrayAsync()));
+            var text = new System.Text.StringBuilder();
+            foreach (var part in zip.Entries.Where(e => e.FullName.EndsWith(".xml", StringComparison.Ordinal)))
+                text.Append(await new StreamReader(part.Open()).ReadToEndAsync());
+            return text.ToString();
+        }
+
+        Assert.Contains(">Pending<", await RequestsAsync(""));
+        Assert.DoesNotContain(">Pending<", await RequestsAsync("&status=Rejected"));
+        Assert.DoesNotContain(">Pending<", await RequestsAsync("&from=2999-01-01"));
+    }
+
     // --- leave documents, payslips and letters -----------------------------------------------------------------
 
     [Fact]

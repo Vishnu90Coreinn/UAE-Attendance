@@ -42,6 +42,73 @@ public class InvoiceEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
         return Convert.ToInt32(await command.ExecuteScalarAsync());
     }
 
+    // ----- VAT type ---------------------------------------------------------------------------------------
+
+    private static object VatBody(string? vatTreatment) => new
+    {
+        clientName = "Acme Glass LLC", invoiceDate = "2026-11-01", dueDate = "2026-11-30", vatTreatment,
+        lines = new object[] { new { description = "Aluminium works", quantity = 10m, rate = 100m } },
+    };
+
+    [Fact]
+    public async Task VatType_DefaultsToStandardRated()
+    {
+        var invoice = await CreateAsync(await ManagerToken(), VatBody(null));
+        Assert.Equal("Standard", invoice.GetProperty("vatTreatment").GetString());
+        Assert.Equal(50m, invoice.GetProperty("vatTotal").GetDecimal());
+    }
+
+    [Theory]
+    [InlineData("ZeroRated", "Zero rated (0%)", true)]
+    [InlineData("Exempt", "Exempt", false)]
+    public async Task VatType_WithoutVat_ChargesNone_AndIsPrintedOnThePdf(string treatment, string printed, bool taxInvoice)
+    {
+        var token = await ManagerToken();
+        var invoice = await CreateAsync(token, VatBody(treatment));
+
+        Assert.Equal(treatment, invoice.GetProperty("vatTreatment").GetString());
+        Assert.Equal(1000m, invoice.GetProperty("subTotal").GetDecimal());
+        Assert.Equal(0m, invoice.GetProperty("vatTotal").GetDecimal());
+        Assert.Equal(1000m, invoice.GetProperty("total").GetDecimal());
+        Assert.Equal(0m, invoice.GetProperty("lines")[0].GetProperty("vat").GetDecimal());
+
+        var bytes = await (await api.GetAsync($"/api/invoices/{invoice.GetProperty("id").GetInt32()}/pdf", token)).Content.ReadAsByteArrayAsync();
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(bytes);
+        var text = string.Join(" ", pdf.GetPage(1).GetWords().Select(w => w.Text));
+        Assert.Contains(printed, text);
+        Assert.DoesNotContain("5%", text);
+        // An exempt supply is not taxable, so its document is headed "INVOICE" rather than "TAX INVOICE".
+        Assert.Contains("INVOICE", text);
+        Assert.Equal(taxInvoice, text.Contains("TAX INVOICE"));
+    }
+
+    [Fact]
+    public async Task VatType_IsKeptByAnEditThatLeavesItOut_AndByADuplicate()
+    {
+        var token = await ManagerToken();
+        var id = (await CreateAsync(token, VatBody("Exempt"))).GetProperty("id").GetInt32();
+
+        var edited = await TestWorkers.ReadJsonAsync(await api.SendAsync(HttpMethod.Put, $"/api/invoices/{id}", VatBody(null), token));
+        Assert.Equal("Exempt", edited.GetProperty("vatTreatment").GetString());
+        Assert.Equal(0m, edited.GetProperty("vatTotal").GetDecimal());
+
+        var copy = await TestWorkers.ReadJsonAsync(await api.PostAsync($"/api/invoices/{id}/duplicate", new { }, token));
+        Assert.Equal("Exempt", copy.GetProperty("vatTreatment").GetString());
+
+        var back = await TestWorkers.ReadJsonAsync(await api.SendAsync(HttpMethod.Put, $"/api/invoices/{id}", VatBody("Standard"), token));
+        Assert.Equal(1050m, back.GetProperty("total").GetDecimal());
+    }
+
+    [Theory]
+    [InlineData("ReverseCharge")]
+    [InlineData("Free")]
+    public async Task VatType_OutsideTheList_IsRejected(string treatment)
+    {
+        var response = await api.PostAsync("/api/invoices", VatBody(treatment), await ManagerToken());
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.True((await TestWorkers.ReadJsonAsync(response)).GetProperty("errors").TryGetProperty("vatTreatment", out _));
+    }
+
     // ----- create and totals ------------------------------------------------------------------------------
 
     [Fact]
@@ -308,7 +375,7 @@ public class InvoiceEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
 
         var id = (await CreateAsync(token)).GetProperty("id").GetInt32();
         await api.PostAsync($"/api/invoices/{id}/issue", new { }, token);
-        await api.PostAsync($"/api/invoices/{id}/payments", new { paidDate = "2026-11-02", amount = 10m, method = "Cash" }, token);
+        await api.PostAsync($"/api/invoices/{id}/payments", new { paidDate = "2026-11-02", amount = 10m, method = "Cash", accountId = (await TestFinance.AddAccountAsync(api.ConnectionString, openingDate: new DateOnly(2026, 1, 1))).Id }, token);
         Assert.Equal(HttpStatusCode.Conflict, (await api.PostAsync($"/api/invoices/{id}/cancel", new { reason = "x" }, token)).StatusCode);
     }
 
@@ -321,11 +388,11 @@ public class InvoiceEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
         var id = (await CreateAsync(token, Body(lines: [new { description = "x", quantity = 1m, rate = 100m }]))).GetProperty("id").GetInt32();
         await api.PostAsync($"/api/invoices/{id}/issue", new { }, token); // total 105.00
 
-        var part = await TestWorkers.ReadJsonAsync(await api.PostAsync($"/api/invoices/{id}/payments", new { paidDate = "2026-11-02", amount = 50m, method = "Bank transfer", reference = "TT1" }, token));
+        var part = await TestWorkers.ReadJsonAsync(await api.PostAsync($"/api/invoices/{id}/payments", new { paidDate = "2026-11-02", amount = 50m, method = "Bank transfer", reference = "TT1", accountId = (await TestFinance.AddAccountAsync(api.ConnectionString, openingDate: new DateOnly(2026, 1, 1))).Id }, token));
         Assert.Equal("PartPaid", part.GetProperty("displayStatus").GetString());
         Assert.Equal(55m, part.GetProperty("balanceDue").GetDecimal());
 
-        var paid = await TestWorkers.ReadJsonAsync(await api.PostAsync($"/api/invoices/{id}/payments", new { paidDate = "2026-11-03", amount = 55m, method = "Cash" }, token));
+        var paid = await TestWorkers.ReadJsonAsync(await api.PostAsync($"/api/invoices/{id}/payments", new { paidDate = "2026-11-03", amount = 55m, method = "Cash", accountId = (await TestFinance.AddAccountAsync(api.ConnectionString, openingDate: new DateOnly(2026, 1, 1))).Id }, token));
         Assert.Equal("Paid", paid.GetProperty("displayStatus").GetString());
         Assert.Equal(0m, paid.GetProperty("balanceDue").GetDecimal());
         Assert.False(paid.GetProperty("isOverdue").GetBoolean());
@@ -355,7 +422,7 @@ public class InvoiceEndpointTests(ApiFixture api) : IClassFixture<ApiFixture>
         var token = await ManagerToken();
         var id = (await CreateAsync(token)).GetProperty("id").GetInt32();
         await api.PostAsync($"/api/invoices/{id}/issue", new { }, token);
-        var after = await TestWorkers.ReadJsonAsync(await api.PostAsync($"/api/invoices/{id}/payments", new { paidDate = "2026-11-02", amount = 10m, method = "Cash" }, token));
+        var after = await TestWorkers.ReadJsonAsync(await api.PostAsync($"/api/invoices/{id}/payments", new { paidDate = "2026-11-02", amount = 10m, method = "Cash", accountId = (await TestFinance.AddAccountAsync(api.ConnectionString, openingDate: new DateOnly(2026, 1, 1))).Id }, token));
         var paymentId = after.GetProperty("payments")[0].GetProperty("id").GetInt32();
 
         var removed = await TestWorkers.ReadJsonAsync(await api.SendAsync(HttpMethod.Delete, $"/api/invoices/{id}/payments/{paymentId}", token: token));

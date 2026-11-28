@@ -62,7 +62,7 @@ export function SummaryBar({ kpis, floorCount }: SummaryBarProps) {
         <div className="col-span-2 rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 p-4 text-white shadow-sm xl:col-span-1">
           <div role="group" aria-label="Site handover ready">
             <h3 className="text-[11px] font-bold uppercase tracking-wide text-brand-100">Site handover ready</h3>
-            <p className="mt-1.5 text-4xl font-extrabold leading-none tabular-nums">{kpis.handoverReadyPercent}%</p>
+            <p className="mt-1.5 font-display text-4xl font-extrabold leading-none tabular-nums">{kpis.handoverReadyPercent}%</p>
             <div
               role="progressbar"
               aria-label="Site handover ready"

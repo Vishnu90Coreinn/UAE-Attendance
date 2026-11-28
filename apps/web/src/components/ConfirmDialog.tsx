@@ -9,6 +9,7 @@ interface ConfirmDialogProps {
   message: string;
   /** Text of the destructive button, for example "Delete". */
   confirmLabel: string;
+  cancelLabel?: string;
   confirmIcon?: LucideIcon;
   /** True while the confirmed action runs: both buttons are disabled and the dialog cannot be dismissed. */
   pending?: boolean;
@@ -22,6 +23,7 @@ export function ConfirmDialog({
   title,
   message,
   confirmLabel,
+  cancelLabel = "Cancel",
   confirmIcon: ConfirmIcon = Trash2,
   pending = false,
   onConfirm,
@@ -43,7 +45,7 @@ export function ConfirmDialog({
       </p>
       <div className="mt-6 flex flex-wrap justify-end gap-3">
         <button ref={cancelRef} type="button" onClick={onCancel} disabled={pending} className={buttonClass("secondary")}>
-          Cancel
+          {cancelLabel}
         </button>
         <button type="button" onClick={onConfirm} disabled={pending} aria-busy={pending} className={buttonClass("danger")}>
           {pending ? (

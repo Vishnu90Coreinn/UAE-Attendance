@@ -1,11 +1,11 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Outlet, Route, Routes, useOutletContext } from "react-router-dom";
-import { LoadingState } from "./ui";
+import { Navigate, Outlet, Route, Routes, useLocation, useOutletContext } from "react-router-dom";
+import { AppToaster, LoadingState, PageEnter } from "./ui";
 import { Layout } from "./components/Layout";
 import { LoginPage } from "./features/auth/LoginPage";
 import { ProtectedRoute } from "./features/auth/ProtectedRoute";
 import { RequireRole } from "./features/auth/RequireRole";
-import { ADMIN_SCREEN_ROLES, canViewAll, SITE_PROGRESS_ROLES, VIEW_ALL_ROLES } from "./permissions";
+import { ADMIN_SCREEN_ROLES, canViewAll, FINANCE_ROLES, MANAGEMENT_ROLES, SITE_PROGRESS_ROLES, VIEW_ALL_ROLES } from "./permissions";
 import { useAuth } from "./contexts/AuthContext";
 import { NotFound } from "./pages/NotFound";
 
@@ -67,19 +67,66 @@ const StaffLeavePage = lazy(() =>
 const StaffPayrollPage = lazy(() =>
   import("./features/staff/StaffPayrollPage").then((m) => ({ default: m.StaffPayrollPage })),
 );
+const FinanceDashboardPage = lazy(() =>
+  import("./features/finance/FinanceDashboardPage").then((m) => ({ default: m.FinanceDashboardPage })),
+);
+const FinanceSetupPage = lazy(() =>
+  import("./features/finance/FinanceSetupPage").then((m) => ({ default: m.FinanceSetupPage })),
+);
+const BillsPage = lazy(() =>
+  import("./features/finance/BillsPage").then((m) => ({ default: m.BillsPage })),
+);
+const VatPage = lazy(() =>
+  import("./features/finance/VatPage").then((m) => ({ default: m.VatPage })),
+);
+const BooksPage = lazy(() =>
+  import("./features/finance/BooksPage").then((m) => ({ default: m.BooksPage })),
+);
+const PettyCashPage = lazy(() =>
+  import("./features/finance/PettyCashPage").then((m) => ({ default: m.PettyCashPage })),
+);
+const MyExpensesPage = lazy(() =>
+  import("./features/finance/MyExpensesPage").then((m) => ({ default: m.MyExpensesPage })),
+);
+const ChequesPage = lazy(() =>
+  import("./features/finance/ChequesPage").then((m) => ({ default: m.ChequesPage })),
+);
+const PayeesPage = lazy(() =>
+  import("./features/finance/PayeesPage").then((m) => ({ default: m.PayeesPage })),
+);
+const PartnersPage = lazy(() =>
+  import("./features/finance/PartnersPage").then((m) => ({ default: m.PartnersPage })),
+);
+const FinanceReportsPage = lazy(() =>
+  import("./features/finance/FinanceReportsPage").then((m) => ({ default: m.FinanceReportsPage })),
+);
+const AccountsPage = lazy(() =>
+  import("./features/finance/AccountsPage").then((m) => ({ default: m.AccountsPage })),
+);
+const ExpensesPage = lazy(() =>
+  import("./features/finance/ExpensesPage").then((m) => ({ default: m.ExpensesPage })),
+);
+const IncomePage = lazy(() =>
+  import("./features/finance/IncomePage").then((m) => ({ default: m.IncomePage })),
+);
 const SettingsPage = lazy(() =>
   import("./features/settings/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );
+
+/** The screens that show money or charts: moving between them fades the new one in. */
+const MONEY_SCREENS = /^\/(dashboard|finance(?!\/setup)(\/|$)|my-expenses|invoices|payroll|staff-payroll|deductions)/;
 
 /** One loading state for every lazily loaded screen, shown inside the layout so the navigation stays in place. */
 function Screens() {
   // Layout hands its screens a context (the settings screen updates the header through it); pass it on.
   const context = useOutletContext();
+  const { pathname } = useLocation();
+  const screen = <Outlet context={context} />;
   return (
     <Suspense
       fallback={<LoadingState label="Loading..." />}
     >
-      <Outlet context={context} />
+      {MONEY_SCREENS.test(pathname) ? <PageEnter key={pathname}>{screen}</PageEnter> : screen}
     </Suspense>
   );
 }
@@ -95,6 +142,15 @@ function Home() {
 }
 
 export default function App() {
+  return (
+    <>
+      <AppToaster />
+      <AppRoutes />
+    </>
+  );
+}
+
+function AppRoutes() {
   return (
     <Routes>
       {/* Public. LoginPage itself redirects away when the user is already signed in. */}
@@ -167,6 +223,118 @@ export default function App() {
               element={
                 <RequireRole roles={VIEW_ALL_ROLES}>
                   <InvoicesPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance"
+              element={
+                <RequireRole roles={FINANCE_ROLES}>
+                  <FinanceDashboardPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/setup"
+              element={
+                <RequireRole roles={MANAGEMENT_ROLES}>
+                  <FinanceSetupPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/bills"
+              element={
+                <RequireRole roles={FINANCE_ROLES}>
+                  <BillsPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/vat"
+              element={
+                <RequireRole roles={FINANCE_ROLES}>
+                  <VatPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/books"
+              element={
+                <RequireRole roles={FINANCE_ROLES}>
+                  <BooksPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/petty-cash"
+              element={
+                <RequireRole roles={FINANCE_ROLES}>
+                  <PettyCashPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="my-expenses"
+              element={
+                <RequireRole roles={["Employee", "Supervisor", "HR"]}>
+                  <MyExpensesPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/cheques"
+              element={
+                <RequireRole roles={FINANCE_ROLES}>
+                  <ChequesPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/payees"
+              element={
+                <RequireRole roles={FINANCE_ROLES}>
+                  <PayeesPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/partners"
+              element={
+                <RequireRole roles={FINANCE_ROLES}>
+                  <PartnersPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/reports"
+              element={
+                <RequireRole roles={FINANCE_ROLES}>
+                  <FinanceReportsPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/accounts"
+              element={
+                <RequireRole roles={FINANCE_ROLES}>
+                  <AccountsPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/expenses"
+              element={
+                <RequireRole roles={FINANCE_ROLES}>
+                  <ExpensesPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="finance/income"
+              element={
+                <RequireRole roles={FINANCE_ROLES}>
+                  <IncomePage />
                 </RequireRole>
               }
             />

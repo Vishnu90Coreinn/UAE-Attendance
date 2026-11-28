@@ -31,6 +31,40 @@ export function setUnauthorizedHandler(handler: (() => void) | null): void {
   unauthorizedHandler = handler;
 }
 
+let tokenRenewedHandler: ((token: string) => void) | null = null;
+let renewal: Promise<void> | null = null;
+
+/** Registers the callback run when the server replaces the signed-in token, so it can be kept for the next page load. */
+export function setTokenRenewedHandler(handler: ((token: string) => void) | null): void {
+  tokenRenewedHandler = handler;
+}
+
+/** Runs a request that ends the current token and answers with its replacement (a password change). */
+export function renewingToken(request: () => Promise<{ token: string } | undefined>): Promise<void> {
+  const run = request().then((response) => {
+    if (response?.token) {
+      authToken = response.token;
+      tokenRenewedHandler?.(response.token);
+    }
+  });
+  const settled: Promise<void> = run
+    .catch(() => undefined)
+    .then(() => {
+      if (renewal === settled) renewal = null;
+    });
+  renewal = settled;
+  return run;
+}
+
+/** A 401 ends the session only if it answers the token still in use: one sent just before the token was replaced says nothing about the new one. */
+function sessionRejected(sentToken: string | null): void {
+  const check = () => {
+    if (sentToken === authToken) unauthorizedHandler?.();
+  };
+  if (renewal) void renewal.then(check);
+  else check();
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -93,9 +127,11 @@ async function send<T>(
   /** true expects a PDF; a string expects a download of that content type. */
   pdf: boolean | string = false,
 ): Promise<T> {
+  const sentToken = authToken;
   const headers: Record<string, string> = {
     Accept: pdf ? (typeof pdf === "string" ? pdf : "application/pdf") : "application/json",
-    ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
+    // A FormData body gets its multipart content type (with the boundary) from the browser.
+    ...(init.body !== undefined && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
     ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
   };
 
@@ -134,7 +170,7 @@ async function send<T>(
   const body = await readJson(response);
   if (!response.ok) {
     if (response.status === 401 && !options?.skipUnauthorizedHandler) {
-      unauthorizedHandler?.();
+      sessionRejected(sentToken);
     }
     throw toApiError(response, body);
   }
@@ -192,4 +228,31 @@ export function apiDelete(
 /** DELETE with a required JSON payload and a JSON result, using the same auth/problem handling. */
 export function apiDeleteJson<T>(path: string, body: unknown): Promise<T> {
   return send<T>(path, { method: "DELETE", body: JSON.stringify(body) });
+}
+
+/** POST a multipart form (fields and files), with the same auth and problem handling as JSON requests. */
+export function apiPostForm<T>(path: string, form: FormData, signal?: AbortSignal): Promise<T> {
+  return send<T>(path, { method: "POST", body: form, signal });
+}
+
+/** Authenticated download of any file type (for example a receipt that may be a PDF or an image). */
+export async function apiGetAnyFile(path: string, signal?: AbortSignal): Promise<Blob> {
+  const sentToken = authToken;
+  let response: Response;
+  try {
+    response = await fetch(path, { method: "GET", signal, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw new ApiError(0, "Unable to reach the server.");
+  }
+  if (!response.ok) {
+    if (response.status === 401) sessionRejected(sentToken);
+    throw toApiError(response, await readJson(response));
+  }
+  return response.blob();
+}
+
+/** PUT a multipart form (fields and files), with the same auth and problem handling as JSON requests. */
+export function apiPutForm<T>(path: string, form: FormData, signal?: AbortSignal): Promise<T> {
+  return send<T>(path, { method: "PUT", body: form, signal });
 }

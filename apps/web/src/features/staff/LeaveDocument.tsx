@@ -97,16 +97,21 @@ export function DocumentButton({ id, own, title }: { id: number; own: boolean; t
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-brand-700 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-brand-700 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
       >
         <FileImage aria-hidden="true" size={15} /> Document
       </button>
-      {open && <DocumentDialog id={id} own={own} title={title} onClose={() => setOpen(false)} />}
+      {open && <DocumentView id={id} own={own} title={title} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-function DocumentDialog({ id, own, title, onClose }: { id: number; own: boolean; title: string; onClose: () => void }) {
+/** The same preview as a panel beside the page, so the request stays in view while its paperwork is read. */
+export function DocumentDrawer({ id, title, onClose }: { id: number; title: string; onClose: () => void }) {
+  return <DocumentView id={id} own={false} title={title} onClose={onClose} drawer />;
+}
+
+function DocumentView({ id, own, title, onClose, drawer = false }: { id: number; own: boolean; title: string; onClose: () => void; drawer?: boolean }) {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -125,7 +130,7 @@ function DocumentDialog({ id, own, title, onClose }: { id: number; own: boolean;
     };
   }, [id, own]);
   return (
-    <Dialog open title="Leave document" onClose={onClose} size="wide">
+    <Dialog open title="Leave document" onClose={onClose} size="wide" variant={drawer ? "drawer" : "center"}>
       <p className="mt-1 text-sm text-ink-600">{title}</p>
       <div className="mt-4">
         {error ? (

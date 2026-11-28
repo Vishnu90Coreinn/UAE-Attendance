@@ -4,10 +4,11 @@ import {
   addPayment, cancelInvoice, deleteInvoice, duplicateInvoice, getInvoicePdf, issueInvoice, removePayment, type Invoice,
 } from "../../api/invoices";
 import { getDocumentSettings } from "../../api/documentSettings";
+import { listFinAccounts, type FinAccount } from "../../api/finance";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { Dialog } from "../../components/Dialog";
 import { TextField } from "../../components/TextField";
-import { Button, Card, CardHeader, IconButton, Textarea, Table, TableScroll, THead, Th, TRow, Td } from "../../ui";
+import { Button, Card, CardHeader, IconButton, Mark, notify, Select, Textarea, Table, TableScroll, THead, Th, TRow, Td } from "../../ui";
 import { downloadFile } from "./download";
 import { InvoiceDocument } from "./InvoiceDocument";
 import { formatMoney } from "./invoiceMath";
@@ -28,12 +29,10 @@ export function InvoiceView({ invoice, canWrite, onChanged, onEdit, onDeleted, o
   const [dialog, setDialog] = useState<Dialogs>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
     setFailure(null);
-    setNotice(null);
     try {
       await action();
     } catch (error) {
@@ -62,7 +61,7 @@ export function InvoiceView({ invoice, canWrite, onChanged, onEdit, onDeleted, o
         {canWrite && draft && <Button size="sm" icon={Send} onClick={() => setDialog("issue")}>Issue invoice</Button>}
         {canWrite && draft && <Button variant="danger" size="sm" icon={Trash2} onClick={() => setDialog("delete")}>Delete draft</Button>}
         {canWrite && issued && <Button size="sm" icon={Wallet} onClick={() => setDialog("payment")}>Record payment</Button>}
-        {canWrite && <Button variant="secondary" size="sm" icon={Copy} disabled={busy} onClick={() => run(async () => onOpen(await duplicateInvoice(invoice.id)))}>Duplicate</Button>}
+        {canWrite && <Button variant="secondary" size="sm" icon={Copy} disabled={busy} onClick={() => run(async () => { onOpen(await duplicateInvoice(invoice.id)); notify.success("Copied to a new draft."); })}>Duplicate</Button>}
         {canWrite && issued && <Button variant="danger" size="sm" icon={Ban} onClick={() => setDialog("cancel")}>Cancel invoice</Button>}
       </div>
 
@@ -71,9 +70,6 @@ export function InvoiceView({ invoice, canWrite, onChanged, onEdit, onDeleted, o
           {failure}
         </p>
       )}
-      <div role="status" className="invoice-controls empty:hidden">
-        {notice && <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">{notice}</p>}
-      </div>
       {invoice.status === "Cancelled" && (
         <p className="invoice-controls rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           Cancelled{invoice.cancelledUtc ? ` on ${formatDate(invoice.cancelledUtc.slice(0, 10))}` : ""}: {invoice.cancelReason}. The number {invoice.number} is kept and will not be reused.
@@ -106,14 +102,14 @@ export function InvoiceView({ invoice, canWrite, onChanged, onEdit, onDeleted, o
                     <TRow key={p.id}>
                       <Td>{formatDate(p.paidDate)}</Td>
                       <Td numeric>{formatMoney(p.amount)}</Td>
-                      <Td>{p.method}</Td>
+                      <Td>{p.method}{p.inBooks === false && <span className="block text-xs text-ink-500">Not in the books</span>}</Td>
                       <Td>{p.reference || "-"}</Td>
                       <Td>{p.recordedBy}</Td>
                       {canWrite && issued && (
                         <Td>
                           <IconButton
                             icon={Trash2} tone="danger" label={`Remove payment of ${formatMoney(p.amount)} on ${formatDate(p.paidDate)}`} disabled={busy}
-                            onClick={() => run(async () => { onChanged(await removePayment(invoice.id, p.id)); setNotice("Payment removed."); })}
+                            onClick={() => run(async () => { onChanged(await removePayment(invoice.id, p.id)); notify.success("Payment removed."); })}
                           />
                         </Td>
                       )}
@@ -128,18 +124,18 @@ export function InvoiceView({ invoice, canWrite, onChanged, onEdit, onDeleted, o
 
       <IssueDialog
         open={dialog === "issue"} invoiceId={invoice.id} onClose={() => setDialog(null)}
-        onDone={(updated) => { onChanged(updated); setDialog(null); setNotice("Invoice issued."); }}
+        onDone={(updated) => { onChanged(updated); setDialog(null); notify.success("Invoice issued."); }}
       />
       <ConfirmDialog
         open={dialog === "delete"} title="Delete this draft?" confirmLabel="Delete draft" pending={busy}
         message="The draft is removed permanently. Issued invoices cannot be deleted."
         onCancel={() => setDialog(null)}
-        onConfirm={() => run(async () => { await deleteInvoice(invoice.id); onDeleted(); })}
+        onConfirm={() => run(async () => { await deleteInvoice(invoice.id); notify.success("Draft deleted."); onDeleted(); })}
       />
-      <CancelDialog open={dialog === "cancel"} onClose={() => setDialog(null)} onDone={(updated) => { onChanged(updated); setDialog(null); setNotice("Invoice cancelled."); }} invoiceId={invoice.id} />
+      <CancelDialog open={dialog === "cancel"} onClose={() => setDialog(null)} onDone={(updated) => { onChanged(updated); setDialog(null); notify.success("Invoice cancelled."); }} invoiceId={invoice.id} />
       <PaymentDialog
         open={dialog === "payment"} balance={invoice.balanceDue} invoiceId={invoice.id} onClose={() => setDialog(null)}
-        onDone={(updated) => { onChanged(updated); setDialog(null); setNotice("Payment recorded."); }}
+        onDone={(updated) => { onChanged(updated); setDialog(null); notify.success("Payment recorded."); }}
       />
     </div>
   );
@@ -234,26 +230,48 @@ function CancelDialog({ open, onClose, onDone, invoiceId }: { open: boolean; onC
   );
 }
 
+/** How an invoice can be paid. The server keeps the words as text, so payments recorded before this list still show as typed. */
+const PAYMENT_METHODS = ["Bank transfer", "Cash", "Cheque", "Card", "Other"];
+
 function PaymentDialog({ open, balance, invoiceId, onClose, onDone }: { open: boolean; balance: number; invoiceId: number; onClose: () => void; onDone: (i: Invoice) => void }) {
   const [paidDate, setPaidDate] = useState(todayInDubai());
   const [amount, setAmount] = useState(String(balance));
-  const [method, setMethod] = useState("Bank transfer");
+  const [method, setMethod] = useState(PAYMENT_METHODS[0]);
   const [reference, setReference] = useState("");
+  const [accounts, setAccounts] = useState<FinAccount[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(true);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
+  const [accountId, setAccountId] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, setPending] = useState(false);
   const first = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setAccountsLoading(true);
+    setAccountsError(null);
+    listFinAccounts().then((all) => {
+      if (cancelled) return;
+      const active = all.filter((a) => a.isActive);
+      setAccounts(active);
+    }).catch(() => { if (!cancelled) setAccountsError("Accounts could not be loaded. Close this form and try again."); })
+      .finally(() => { if (!cancelled) setAccountsLoading(false); });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
   async function submit(event: FormEvent) {
     event.preventDefault();
     const found: Record<string, string> = {};
     if (!/^\d+(\.\d{1,2})?$/.test(amount.trim()) || Number(amount) <= 0) found.amount = "Enter an amount above 0 with at most 2 decimals.";
     else if (Number(amount) > balance) found.amount = `The payment is more than the balance due (${formatMoney(balance)}).`;
     if (!paidDate) found.paidDate = "Enter the payment date.";
-    if (method.trim() === "") found.method = "Enter how it was paid.";
+    if (accountsLoading || accountsError || accountId === "") found.accountId = "Choose the account the money went into.";
     setErrors(found);
     if (Object.keys(found).length > 0) return;
     setPending(true);
     try {
-      onDone(await addPayment(invoiceId, { paidDate, amount: Number(amount), method, reference }));
+      onDone(await addPayment(invoiceId, { paidDate, amount: Number(amount), method, reference, accountId: accountId ? Number(accountId) : undefined }));
     } catch (e) {
       const server = fieldErrors(e);
       setErrors(Object.keys(server).length > 0 ? server : { amount: errorMessage(e) });
@@ -265,11 +283,22 @@ function PaymentDialog({ open, balance, invoiceId, onClose, onDone }: { open: bo
       <form onSubmit={submit} noValidate className="mt-3 space-y-4">
         <TextField label="Amount (AED)" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} error={errors.amount} hint={`Balance due ${formatMoney(balance)}`} inputRef={first} />
         <TextField label="Payment date" type="date" value={paidDate} onChange={(e) => setPaidDate(e.target.value)} error={errors.paidDate} max={todayInDubai()} />
-        <TextField label="Method" value={method} onChange={(e) => setMethod(e.target.value)} error={errors.method} maxLength={30} />
+        {accounts.length > 0 && (
+          <Select label="Paid into" value={accountId} onChange={(e) => setAccountId(e.target.value)} error={errors.accountId} hint="The money is added to this account, so the books stay in step.">
+            <option value="">Choose the receiving account</option>
+            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </Select>
+        )}
+        {accountsLoading && <p role="status">Loading receiving accounts...</p>}
+        {accountsError && <p role="alert" className="text-sm text-red-700">{accountsError}</p>}
+        {!accountsLoading && !accountsError && accounts.length === 0 && <p role="alert">Add an active bank or cash account before recording a payment.</p>}
+        <Select label="Method" value={method} onChange={(e) => setMethod(e.target.value)} error={errors.method}>
+          {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+        </Select>
         <TextField label="Reference (optional)" value={reference} onChange={(e) => setReference(e.target.value)} error={errors.reference} maxLength={60} />
         <div className="flex flex-wrap justify-end gap-3">
           <Button variant="secondary" onClick={onClose} disabled={pending}>Cancel</Button>
-          <Button type="submit" icon={pending ? Loader2 : Wallet} disabled={pending}>Save payment</Button>
+          <Button type="submit" icon={pending ? Loader2 : Wallet} disabled={pending || accountsLoading || !!accountsError || accounts.length === 0}>Save payment</Button>
         </div>
       </form>
     </Dialog>

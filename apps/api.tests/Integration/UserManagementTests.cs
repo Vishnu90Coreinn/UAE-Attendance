@@ -44,6 +44,19 @@ public class UserManagementTests(ApiFixture api) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public async Task ResettingAPassword_EndsTheSignInsThatAccountAlreadyHad()
+    {
+        var (_, admin) = await AdminAsync();
+        var target = await TestUsers.CreateAsync(api.ConnectionString);
+        var signedIn = await TestUsers.LoginAsync(api.Client, target.Username);
+
+        await api.SendAsync(HttpMethod.Post, $"/api/users/{target.Id}/reset-password", new { password = "Replacement-Password-42" }, admin);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await api.GetAsync("/api/auth/me", signedIn)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await api.GetAsync("/api/auth/me", admin)).StatusCode);
+    }
+
+    [Fact]
     public async Task Administrator_CanCreateListUpdateResetAndDelete_AuditedWithoutExposingHashes()
     {
         var (_, token) = await AdminAsync();

@@ -121,7 +121,7 @@ export function MyLeavePage() {
           <Card key={b.leaveTypeId} className="p-4">
             <p className="text-sm font-medium text-ink-700">{b.leaveType}</p>
             <p className="mt-2 flex items-baseline gap-1.5">
-              <span className="text-4xl font-semibold leading-none tabular-nums text-ink-900">{b.remaining}</span>
+              <span className="font-display text-4xl font-semibold leading-none tabular-nums text-ink-900">{b.remaining}</span>
               <span className="text-sm text-ink-600">of {b.entitlement} days left</span>
             </p>
             <div className="mt-3">

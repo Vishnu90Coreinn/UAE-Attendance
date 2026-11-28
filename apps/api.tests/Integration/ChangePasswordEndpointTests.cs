@@ -171,14 +171,15 @@ public class ChangePasswordEndpointTests(ApiFixture api) : IClassFixture<ApiFixt
     // --- success -------------------------------------------------------------------------------------------
 
     [Fact]
-    public async Task ChangePassword_Success_IsNoContent_AndOnlyTheNewPasswordSignsInAfterwards()
+    public async Task ChangePassword_Success_ReturnsANewSession_AndOnlyTheNewPasswordSignsInAfterwards()
     {
         var (user, token) = await SignedInUserAsync();
 
         var response = await PostChange(token, new { currentPassword = TestUsers.DefaultPassword, newPassword = NewPassword });
 
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        Assert.Empty(await response.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var session = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+        Assert.Equal(user.Username, session.GetProperty("user").GetProperty("username").GetString());
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await PostLogin(user.Username, TestUsers.DefaultPassword)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await PostLogin(user.Username, NewPassword)).StatusCode);
@@ -189,13 +190,29 @@ public class ChangePasswordEndpointTests(ApiFixture api) : IClassFixture<ApiFixt
     }
 
     [Fact]
-    public async Task ChangePassword_Success_KeepsTheExistingTokenValid()
+    public async Task ChangePassword_Success_EndsEveryEarlierSignIn_AndTheReturnedTokenWorks()
     {
-        var (_, token) = await SignedInUserAsync();
+        var (user, token) = await SignedInUserAsync();
+        var elsewhere = await TestUsers.LoginAsync(api.Client, user.Username, TestUsers.DefaultPassword);
 
-        await PostChange(token, new { currentPassword = TestUsers.DefaultPassword, newPassword = NewPassword });
+        var response = await PostChange(token, new { currentPassword = TestUsers.DefaultPassword, newPassword = NewPassword });
+        var renewed = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.GetProperty("token").GetString();
 
-        Assert.Equal(HttpStatusCode.OK, (await api.GetAsync("/api/auth/me", token)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await api.GetAsync("/api/auth/me", token)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await api.GetAsync("/api/auth/me", elsewhere)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await api.GetAsync("/api/auth/me", renewed)).StatusCode);
+    }
+
+    [Fact]
+    public async Task ATokenWithoutAStamp_WorksUntilThePasswordFirstChanges()
+    {
+        var user = await TestUsers.CreateAsync(api.ConnectionString);
+        var old = TestTokens.Forge(user.Id, user.Username, user.Role);   // as issued before stamps existed
+        Assert.Equal(HttpStatusCode.OK, (await api.GetAsync("/api/auth/me", old)).StatusCode);
+
+        await PostChange(old, new { currentPassword = TestUsers.DefaultPassword, newPassword = NewPassword });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await api.GetAsync("/api/auth/me", old)).StatusCode);
     }
 
     [Fact]

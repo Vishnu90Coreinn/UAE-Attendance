@@ -82,6 +82,29 @@ builder.Services.AddScoped<LeaveExportService>();
 builder.Services.AddScoped<PayslipService>();
 builder.Services.AddScoped<DeductionService>();
 builder.Services.AddScoped<IPayrollPeriodLock, PayrollPeriodLock>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceRedactor>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceAccountService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceCategoryService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceTransferService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinancePeriodService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceEntryService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceDashboardService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceReportService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinancePartnerService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinancePayeeService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceChequeService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceSubmitterService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceImportService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceLedgerService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceVatService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceInvoiceBridge>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceBillService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceAttentionService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceSearchService>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceLedgerExportService>();
+builder.Services.AddScoped<HrPayroll.Api.Controllers.LedgerSyncFilter>();
+builder.Services.AddScoped<HrPayroll.Api.Services.Finance.FinanceReportExportService>();
+builder.Services.AddSingleton<HrPayroll.Api.Services.Finance.IReceiptStore, HrPayroll.Api.Services.Finance.FolderReceiptStore>();
 
 // Phase 3: office employees (QTN-HR-2026-005), stages 1 and 2.
 builder.Services.AddScoped<HrPayroll.Api.Services.Staff.StaffSettingsService>();
@@ -127,6 +150,8 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
             {
                 var subject = context.Principal?.FindFirstValue("sub");
                 var tokenName = context.Principal?.Identity?.Name;
+                // A token made before stamps existed carries none and counts as stamp 0, so an upgrade signs nobody out until their password changes.
+                var stamp = int.TryParse(context.Principal?.FindFirstValue(JwtTokenService.SecurityStampClaim), out var parsed) ? parsed : 0;
                 if (!int.TryParse(subject, out var userId) || string.IsNullOrWhiteSpace(tokenName))
                 {
                     context.Fail("Invalid account.");
@@ -136,9 +161,9 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
                 var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
                 var current = await db.Users.AsNoTracking()
                     .Where(user => user.Id == userId)
-                    .Select(user => new { user.Username, user.Role, user.IsActive })
+                    .Select(user => new { user.Username, user.Role, user.IsActive, user.SecurityStamp })
                     .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
-                if (current is null || !current.IsActive || !string.Equals(current.Username, tokenName, StringComparison.OrdinalIgnoreCase))
+                if (current is null || !current.IsActive || current.SecurityStamp != stamp || !string.Equals(current.Username, tokenName, StringComparison.OrdinalIgnoreCase))
                 {
                     context.Fail("Invalid account.");
                     return;
@@ -154,11 +179,14 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
     });
 
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, UnmatchedRouteFriendlyAuthorizationResultHandler>();
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, FinanceSubmitHandler>();
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy(Policies.AnyUser, policy => policy.RequireAuthenticatedUser())
     .AddPolicy(Policies.SiteProgressAccess, policy => policy.RequireAuthenticatedUser().RequireAssertion(context => !context.User.IsInRole(Roles.HR)))
     .AddPolicy(Policies.ManagerOrAdmin,policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager))
-    .AddPolicy(Policies.ManagerAdminOrHr, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager, Roles.HR))
+    .AddPolicy(Policies.FinanceSubmit, policy => policy.RequireAuthenticatedUser().AddRequirements(new FinanceSubmitRequirement()))
+    .AddPolicy(Policies.Finance, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager))
+    .AddPolicy(Policies.ManagerAdminOrHr,policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager, Roles.HR))
     .AddPolicy(Policies.SupervisorOrAbove, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.Manager, Roles.Supervisor))
     .AddPolicy(Policies.HrOrAdmin, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator, Roles.HR))
     .AddPolicy(Policies.AdminOnly, policy => policy.RequireAuthenticatedUser().RequireRoleOrViewerRead(Roles.Administrator))
@@ -245,6 +273,9 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 using (var scope = app.Services.CreateScope())
 {
     await scope.ServiceProvider.GetRequiredService<AdminSeeder>().SeedWhenReadyAsync();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    if (await db.Database.CanConnectAsync() && !(await db.Database.GetPendingMigrationsAsync()).Any())
+        await scope.ServiceProvider.GetRequiredService<HrPayroll.Api.Services.Finance.FinanceLedgerService>().SyncAsync(app.Lifetime.ApplicationStopping);
 }
 
 // Behind a load balancer (for example an AWS ALB that terminates HTTPS) the real client IP and scheme arrive in

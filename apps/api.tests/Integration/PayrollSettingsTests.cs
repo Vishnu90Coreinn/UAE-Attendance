@@ -97,7 +97,7 @@ public class PayrollSettingsTests(ApiFixture api) : IClassFixture<ApiFixture>
             new[]
             {
                 "ApprovedByLabel", "CompanyName", "ContactEmail", "Id", "MaxBasicHoursPerDay",
-                "OvertimeRatePerHour", "PreparedByLabel", "ShiftDescription", "Tagline",
+                "OvertimeRatePerHour", "PreparedByLabel", "ShiftDescription", "Tagline", "VatPeriodConfirmed", "VatPeriodMonths", "VatPeriodStartMonth",
             },
             columns.Keys.Order().ToArray());
         Assert.Equal(("nvarchar", 120), (columns["CompanyName"].Type, columns["CompanyName"].Length));

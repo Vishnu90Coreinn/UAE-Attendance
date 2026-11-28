@@ -128,7 +128,7 @@ export function LoginPage() {
             <ShieldCheck aria-hidden="true" size={14} />
             HR &amp; Payroll System
           </p>
-          <p className="mt-5 text-5xl font-semibold leading-[1.1] tracking-tight text-brand-900">
+          <p className="mt-5 font-display text-5xl font-semibold leading-[1.1] tracking-tight text-brand-900">
             Everything your workforce needs, in one place.
           </p>
           <p className="mt-5 max-w-xl text-lg leading-relaxed text-ink-600">
@@ -153,7 +153,7 @@ export function LoginPage() {
         </section>
 
         <div className="anim-rise mx-auto w-full max-w-md rounded-2xl [--delay:240ms] border border-line bg-white p-8 shadow-pop max-sm:rounded-b-none max-sm:rounded-t-3xl max-sm:border-0 max-sm:px-6 max-sm:pb-[calc(2rem+env(safe-area-inset-bottom))] max-sm:pt-8 max-sm:shadow-[0_-8px_30px_rgba(15,23,42,0.12)] sm:p-10">
-          <h2 className="text-2xl font-semibold tracking-tight">Sign in</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-tight">Sign in</h2>
           <p className="mt-1.5 text-sm text-ink-600">Use the username and password given to you by your administrator.</p>
 
           <form onSubmit={handleSubmit} className="mt-7 space-y-5">

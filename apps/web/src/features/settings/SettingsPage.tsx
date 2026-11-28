@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Card, CardHeader, LoadingState, PageHeader } from "../../ui";
+import { Card, CardHeader, LoadingState, PageHeader, sectionLinkClass, sectionNavClass } from "../../ui";
 import { Loader2, Save, TriangleAlert } from "lucide-react";
 import { useOutletContext } from "react-router-dom";
 import type { LayoutContext } from "../../components/LayoutContext";
@@ -39,7 +39,7 @@ function SectionNav({ showStaff }: { showStaff: boolean }) {
     ["payroll", "Payroll"],
     ["signatures", "Signatures"],
     ["documents", "Documents"],
-    ...(showStaff ? ([["office-staff", "Office staff"]] as [string, string][]) : []),
+    ...(showStaff ? ([["office-staff", "Office staff"], ["finance", "Finance"]] as [string, string][]) : []),
   ];
   const [active, setActive] = useState("company");
   useEffect(() => {
@@ -74,16 +74,14 @@ function SectionNav({ showStaff }: { showStaff: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showStaff]);
   return (
-    <nav aria-label="Settings sections" className="sticky top-0 z-20 -mx-1 mb-4 flex flex-wrap gap-2 bg-canvas/95 px-1 py-2 text-sm backdrop-blur">
+    <nav aria-label="Settings sections" className={`sticky top-0 z-20 mb-4 bg-canvas/95 backdrop-blur ${sectionNavClass}`}>
       {sections.map(([id, label]) => (
         <a
           key={id}
           href={`#${id}`}
           aria-current={active === id ? "true" : undefined}
           onClick={() => setActive(id)}
-          className={`rounded-full border px-3 py-1.5 font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
-            active === id ? "border-brand-600 bg-brand-600 text-white" : "border-line bg-white text-ink-700 hover:border-brand-300 hover:text-brand-700"
-          }`}
+          className={sectionLinkClass(active === id)}
         >
           {label}
         </a>
@@ -343,6 +341,14 @@ export function SettingsPage() {
         <CompanyDocumentsCard readOnly={readOnly} />
       </div>
       {!readOnly && <StaffSettingsCard />}
+      {!readOnly && (
+        <div id="finance" className="max-w-4xl scroll-mt-20">
+          <Card>
+            <CardHeader title="Finance" description="The expense and income categories with their VAT, the month lock, and who may enter expenses have moved to their own page, next to the finance screens." />
+            <div className="px-5 pb-5"><a href="/finance/setup" className="inline-flex min-h-11 items-center rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700">Open Finance setup</a></div>
+          </Card>
+        </div>
+      )}
     </section>
   );
 }

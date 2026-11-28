@@ -48,6 +48,7 @@ pool, so they never sit in a file in the site folder:
 | `ASPNETCORE_ENVIRONMENT` | `Production` |
 | `ConnectionStrings__Default` | `Server=<host>;Database=HrPayroll;User Id=<login>;Password=<password>;Encrypt=True;TrustServerCertificate=False` |
 | `Jwt__Key` | a random string of 32+ characters, kept secret (the API refuses to start without it) |
+| `Finance__ReceiptsPath` | A folder **outside the site folder**, for example `D:\HrPayrollData\receipts`. The app pool identity needs read and write on it. Expense receipts live here; if it is left unset they go under the site folder and a redeploy that replaces the folder would delete them. **Include this folder in the backup**, together with the database |
 | `Hosting__BehindProxy` | `true` when an ALB sits in front (see "HTTPS and the load balancer") |
 | `Seed__AdminUsername`, `Seed__AdminPassword` | first start only; remove both once you have signed in (10-128 characters) |
 

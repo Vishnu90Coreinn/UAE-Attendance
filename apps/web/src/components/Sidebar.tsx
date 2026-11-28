@@ -3,13 +3,14 @@ import { ChevronDown } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cx } from "../ui";
 import { NAV_GROUPS, NAV_ICONS } from "./navIcons";
-import type { NavItem } from "./navItems";
+import { needsExactMatch, type NavItem } from "./navItems";
 
 interface SidebarProps {
   items: NavItem[];
   collapsed: boolean;
   /** Entries waiting on this person; shown as a count on Daily Attendance. */
-  attendanceAttention: number;
+  /** How many things wait in each module, by menu key; each entry shows only its own. */
+  badges: Partial<Record<string, number>>;
 }
 
 /**
@@ -27,7 +28,7 @@ function loadClosed(): string[] {
   }
 }
 
-export function Sidebar({ items, collapsed, attendanceAttention }: SidebarProps) {
+export function Sidebar({ items, collapsed, badges }: SidebarProps) {
   const [closed, setClosed] = useState<string[]>(loadClosed);
   const { pathname } = useLocation();
   function toggleGroup(label: string) {
@@ -85,12 +86,14 @@ export function Sidebar({ items, collapsed, attendanceAttention }: SidebarProps)
           <ul className={cx("space-y-0.5", hidden && "hidden")}>
             {group.items.map((item) => {
               const Icon = NAV_ICONS[item.key];
-              const badge = item.key === "attendance" && attendanceAttention > 0;
+              const waiting = badges[item.key] ?? 0;
+              const badge = waiting > 0;
               return (
                 <li key={item.key}>
                   {item.path ? (
                     <NavLink
                       to={item.path}
+                      end={needsExactMatch(items, item)}
                       title={collapsed ? item.label : undefined}
                       className={({ isActive }) =>
                         cx(
@@ -103,7 +106,7 @@ export function Sidebar({ items, collapsed, attendanceAttention }: SidebarProps)
                       }
                     >
                       {Icon && <Icon aria-hidden="true" size={19} className="shrink-0" />}
-                      <span className={collapsed ? "sr-only" : "truncate"}>{item.label}</span>
+                      <span className={collapsed ? "sr-only" : "min-w-0 flex-1 text-left leading-tight"}>{item.label}</span>
                       {badge && (
                         <>
                           <span
@@ -113,9 +116,9 @@ export function Sidebar({ items, collapsed, attendanceAttention }: SidebarProps)
                               collapsed ? "absolute right-1 top-1" : "ml-auto",
                             )}
                           >
-                            {attendanceAttention}
+                            {waiting}
                           </span>
-                          <span className="sr-only"> ({attendanceAttention} need attention)</span>
+                          <span className="sr-only"> ({waiting} need attention)</span>
                         </>
                       )}
                     </NavLink>
@@ -126,7 +129,7 @@ export function Sidebar({ items, collapsed, attendanceAttention }: SidebarProps)
                       className="flex min-h-11 w-full cursor-not-allowed items-center gap-3 rounded-lg px-3 text-sm font-medium text-brand-100/40"
                     >
                       {Icon && <Icon aria-hidden="true" size={19} />}
-                      <span className={collapsed ? "sr-only" : "truncate"}>{item.label}</span>
+                      <span className={collapsed ? "sr-only" : "min-w-0 flex-1 text-left leading-tight"}>{item.label}</span>
                     </button>
                   )}
                 </li>

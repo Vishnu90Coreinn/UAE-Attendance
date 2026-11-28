@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { navItemsForRole, phoneNavFor } from "./navItems";
+import { activeNavItem, navItemsForRole, needsExactMatch, phoneNavFor } from "./navItems";
 
 const MODULES = [
   "Worker Directory",
@@ -10,6 +10,19 @@ const MODULES = [
   "Staff Payroll Summary",
   "Deductions",
   "Leave Management",
+  "Finance Overview",
+  "Accounts",
+  "Expenses",
+  "Bills",
+  "Income",
+  "Petty Cash",
+  "Cheques",
+  "Payees",
+  "Partners",
+  "VAT",
+  "Books",
+  "Finance Reports",
+  "Finance Setup",
   "Tax Invoices",
   "HR Letters",
   "Site Progress",
@@ -34,7 +47,7 @@ describe("navItemsForRole", () => {
   });
 
   it("gives a Viewer (Partner) every screen except User Manager and Settings", () => {
-    expect(labelsFor("Viewer")).toEqual(["Dashboard", ...MODULES]);
+    expect(labelsFor("Viewer")).toEqual(["Dashboard", ...MODULES.filter((label) => label !== "Finance Setup")]);   // the partner reads the finance screens; setting them up is for the Manager and Administrator
   });
 
   it("gives HR every screen except User Manager and Settings", () => {
@@ -66,6 +79,13 @@ describe("navItemsForRole", () => {
       "Payroll Summary": "/payroll",
       "Deductions": "/deductions",
       "Leave Management": "/leave",
+      "Finance Overview": "/finance",
+      Accounts: "/finance/accounts",
+      Expenses: "/finance/expenses",
+      Bills: "/finance/bills",
+      Income: "/finance/income",
+      "Petty Cash": "/finance/petty-cash", Cheques: "/finance/cheques", Payees: "/finance/payees", Partners: "/finance/partners",
+      VAT: "/finance/vat", Books: "/finance/books", "Finance Reports": "/finance/reports", "Finance Setup": "/finance/setup",
       "Staff Attendance": "/staff",
       "Staff Payroll Summary": "/staff-payroll",
       "Staff Leave": "/staff-leave",
@@ -99,6 +119,19 @@ describe("phoneNavFor", () => {
     expect(labels(tabs)).toEqual(["Dashboard", "Daily Attendance", "Worker Directory", "Payroll Summary"]);
     expect(labels(more)).toEqual([
       "Leave Management",
+      "Finance Overview",
+  "Accounts",
+      "Expenses",
+      "Bills",
+      "Income",
+      "Petty Cash",
+      "Cheques",
+      "Payees",
+      "Partners",
+      "VAT",
+      "Books",
+      "Finance Reports",
+      "Finance Setup",
       "Deductions",
       "Staff Attendance",
       "Staff Payroll Summary",
@@ -133,5 +166,23 @@ describe("phoneNavFor", () => {
   it("keeps every screen reachable exactly once", () => {
     const { tabs, more } = phoneNavFor("Manager");
     expect(labels([...tabs, ...more]).sort()).toEqual(labels(navItemsForRole("Manager")).sort());
+  });
+});
+
+describe("activeNavItem", () => {
+  const items = navItemsForRole("Manager");
+
+  it("picks the screen under /finance, not the overview that is a prefix of it", () => {
+    expect(activeNavItem(items, "/finance")?.label).toBe("Finance Overview");
+    expect(activeNavItem(items, "/finance/expenses")?.label).toBe("Expenses");
+    expect(activeNavItem(items, "/finance/partners")?.label).toBe("Partners");
+    expect(activeNavItem(items, "/finance/reports")?.label).toBe("Finance Reports");
+  });
+
+  it("finds nothing for an unknown path", () => expect(activeNavItem(items, "/nowhere")).toBeUndefined());
+
+  it("asks the overview link to match exactly, and leaves the others alone", () => {
+    expect(needsExactMatch(items, items.find((i) => i.key === "finance-overview")!)).toBe(true);
+    expect(needsExactMatch(items, items.find((i) => i.key === "finance-expenses")!)).toBe(false);
   });
 });

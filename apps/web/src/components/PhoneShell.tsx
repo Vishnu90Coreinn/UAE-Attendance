@@ -5,7 +5,7 @@ import type { CurrentUser } from "../api/auth";
 import { roleLabel } from "../permissions";
 import { Dialog } from "./Dialog";
 import { NAV_ICONS as ICONS } from "./navIcons";
-import { phoneNavFor, type NavItem } from "./navItems";
+import { activeNavItem, needsExactMatch, phoneNavFor, type NavItem } from "./navItems";
 import { usePushToggle } from "../usePushToggle";
 
 /**
@@ -41,8 +41,8 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
   const [accountOpen, setAccountOpen] = useState(false);
   const push = usePushToggle(user?.username);
   const { pathname } = useLocation();
-  const { tabs, more } = user ? phoneNavFor(user.role, user.employeeId) : { tabs: [], more: [] };
-  const moreActive = more.some((item) => item.path && pathname.startsWith(item.path));
+  const { tabs, more } = user ? phoneNavFor(user.role, user.employeeId, user.canSubmitExpenses) : { tabs: [], more: [] };
+  const moreActive = !!activeNavItem([...tabs, ...more], pathname) && more.some((item) => item.key === activeNavItem([...tabs, ...more], pathname)?.key);
 
   function tabContent(item: NavItem, active: boolean) {
     const Icon = ICONS[item.key] ?? Ellipsis;
@@ -111,6 +111,7 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
             <NavLink
               key={item.key}
               to={item.path!}
+              end={needsExactMatch([...tabs, ...more], item)}
               className={slotClass}
             >
               {({ isActive }) => tabContent(item, isActive)}
@@ -135,12 +136,18 @@ export function PhoneShell({ companyName, user, attendanceAttention, onChangePas
 
       <Dialog open={moreOpen} onClose={() => setMoreOpen(false)} title="More" variant="sheet">
         <ul className="mt-2 space-y-1">
-          {more.map((item) => {
+          {more.map((item, index) => {
             const Icon = ICONS[item.key] ?? Ellipsis;
+            // A heading where the finance screens begin, and where they end, so a long list is not one run of links.
+            const isFinance = item.key.startsWith("finance-");
+            const wasFinance = index > 0 && more[index - 1].key.startsWith("finance-");
+            const heading = isFinance && !wasFinance ? "Finance" : !isFinance && wasFinance ? "Other" : null;
             return (
               <li key={item.key}>
+                {heading && <p className="px-3 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-ink-500">{heading}</p>}
                 <NavLink
                   to={item.path!}
+                  end={needsExactMatch([...tabs, ...more], item)}
                   onClick={() => setMoreOpen(false)}
                   className={({ isActive }) =>
                     `${sheetRowClass} ${isActive ? "bg-brand-50 text-brand-800" : "text-ink-800 hover:bg-ink-100"}`

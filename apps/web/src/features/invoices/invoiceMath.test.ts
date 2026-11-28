@@ -16,6 +16,11 @@ describe("invoice preview math", () => {
     expect(amountInWords(v.amount)).toBe(v.words);
   });
 
+  it("charges no VAT on a zero rated or exempt invoice", () => {
+    expect(lineAmounts(10, 100, "ZeroRated")).toEqual({ taxable: 1000, vat: 0, amount: 1000 });
+    expect(lineAmounts(10, 100, "Exempt")).toEqual({ taxable: 1000, vat: 0, amount: 1000 });
+  });
+
   it("rounds half away from zero", () => {
     expect(round2(0.005)).toBe(0.01);
     expect(round2(1.005)).toBe(1.01);

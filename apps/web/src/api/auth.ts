@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from "./client";
+import { apiGet, apiPost, renewingToken } from "./client";
 
 export type Role = "Administrator" | "Manager" | "Supervisor" | "HR" | "Viewer" | "Employee";
 
@@ -8,6 +8,8 @@ export interface CurrentUser {
   role: Role;
   /** The office employee record linked to this login; decides whether My Attendance and My Leave show. */
   employeeId?: number | null;
+  /** Office staff a Manager has allowed to submit expenses for approval; decides whether My Expenses shows. */
+  canSubmitExpenses?: boolean;
 }
 
 export interface LoginResponse {
@@ -27,6 +29,7 @@ export function getMe(signal?: AbortSignal): Promise<CurrentUser> {
   return apiGet<CurrentUser>("/api/auth/me", signal);
 }
 
+/** Changing the password signs out everywhere else; this device carries on with the new token the server sends back. */
 export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
-  return apiPost<void>("/api/auth/change-password", { currentPassword, newPassword });
+  return renewingToken(() => apiPost<LoginResponse>("/api/auth/change-password", { currentPassword, newPassword }));
 }

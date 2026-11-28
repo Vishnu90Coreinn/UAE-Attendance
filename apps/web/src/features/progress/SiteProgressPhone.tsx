@@ -73,7 +73,7 @@ export function HandoverCard({ kpis, floorCount }: { kpis: SiteKpis; floorCount:
       <div className="flex items-end justify-between gap-4">
         <div role="group" aria-label="Site handover ready">
           <p className="text-sm font-semibold text-ink-700">Ready for handover</p>
-          <p className="mt-1 text-4xl font-bold leading-none tabular-nums text-ink-900">{kpis.handoverReadyPercent}%</p>
+          <p className="mt-1 font-display text-4xl font-bold leading-none tabular-nums text-ink-900">{kpis.handoverReadyPercent}%</p>
         </div>
         <p className="max-w-[10rem] pb-0.5 text-right text-xs leading-snug text-ink-600">
           Completed and WIR approved, of {floorCount} {floorCount === 1 ? "floor" : "floors"}

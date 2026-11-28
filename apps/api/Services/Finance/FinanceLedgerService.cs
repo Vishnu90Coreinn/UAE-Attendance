@@ -1,0 +1,603 @@
+using System.Globalization;
+using HrPayroll.Api.Data;
+using HrPayroll.Api.Data.Entities;
+using HrPayroll.Api.Dtos;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+
+namespace HrPayroll.Api.Services.Finance;
+
+/// <summary>
+/// The double-entry ledger, derived from the finance records. <see cref="SyncAsync"/> makes the journals match the records: it posts what is
+/// new, reverses what was voided, and re-posts an opening balance that changed. It is idempotent and runs at startup, after source changes and on explicit request. Journals are never edited or deleted (except by <see cref="RebuildAsync"/>, which exists only before the books go live).
+/// </summary>
+public sealed partial class FinanceLedgerService(AppDbContext db, FinanceAccountService accounts, FinancePartnerService partners, TimeProvider time, IAuditLogger audit, IHttpContextAccessor http, FinancePeriodService periods)
+{
+    private static readonly SemaphoreSlim Gate = new(1, 1);
+    public const string OpeningEquityCode = "3900";
+    private const int ListCap = 500;
+
+    // ---- chart of accounts -----------------------------------------------------------------------------------------
+
+    // The system's own accounts sit above these ranges (1500, 1550, 1600, 2150, 2200, 2300, 3800, 3900, 4900), so new accounts never run into them.
+    private static (int Base, int Width) Range(string type) => type switch
+    {
+        LedgerTypes.Asset => (1100, 400), LedgerTypes.Liability => (2100, 40), LedgerTypes.Equity => (3100, 700),
+        LedgerTypes.Revenue => (4000, 900), _ => (5000, 900),
+    };
+
+    private async Task<LedgerAccount> NewAccountAsync(string type, string name, CancellationToken ct)
+    {
+        var (start, width) = Range(type);
+        var codes = await db.LedgerAccounts.Where(a => a.Type == type).Select(a => a.Code).ToListAsync(ct);
+        var next = codes.Select(c => int.TryParse(c, NumberStyles.None, CultureInfo.InvariantCulture, out var n) ? n : 0).Where(n => n >= start && n < start + width).DefaultIfEmpty(start - 10).Max() + 10;
+        var account = new LedgerAccount { Code = next.ToString(CultureInfo.InvariantCulture), Name = name, Type = type, CreatedUtc = DateTime.UtcNow };
+        db.LedgerAccounts.Add(account);
+        await db.SaveChangesAsync(ct);
+        return account;
+    }
+
+    public const string InputVatCode = "1500";
+    public const string ChequesReceivableCode = "1600";
+    public const string ChequesPayableCode = "2150";
+    public const string OutputVatCode = "2200";
+    public const string RetainedEarningsCode = "3800";
+    public const string ReceivablesCode = "1550";
+    public const string SalesCode = "4900";
+    public const string PayablesCode = "2300";
+
+    private static readonly (string Code, string Name, string Type)[] SystemAccounts =
+    [
+        (OpeningEquityCode, "Opening balance equity", LedgerTypes.Equity),
+        (InputVatCode, "VAT recoverable (input VAT)", LedgerTypes.Asset),
+        (ChequesReceivableCode, "Cheques receivable (not yet in the bank)", LedgerTypes.Asset),
+        (ChequesPayableCode, "Cheques payable (not yet paid by the bank)", LedgerTypes.Liability),
+        (OutputVatCode, "VAT payable (output VAT)", LedgerTypes.Liability),
+        (RetainedEarningsCode, "Retained earnings", LedgerTypes.Equity),
+        (ReceivablesCode, "Accounts receivable (unpaid tax invoices)", LedgerTypes.Asset),
+        (SalesCode, "Sales (tax invoices)", LedgerTypes.Revenue),
+        (PayablesCode, "Accounts payable (unpaid supplier bills)", LedgerTypes.Liability),
+    ];
+
+    /// <summary>The accounts the system needs, made when first wanted. Their codes are reserved: nobody else can claim them.</summary>
+    private async Task<Dictionary<string, LedgerAccount>> SystemAsync(CancellationToken ct)
+    {
+        var existing = await db.LedgerAccounts.Where(a => a.IsSystem).ToDictionaryAsync(a => a.Code, ct);
+        var taken = await db.LedgerAccounts.Where(a => !a.IsSystem && SystemAccounts.Select(s => s.Code).Contains(a.Code)).Select(a => a.Code).ToListAsync(ct);
+        foreach (var (code, name, type) in SystemAccounts)
+        {
+            if (existing.ContainsKey(code)) continue;
+            if (taken.Contains(code)) throw new InvalidOperationException($"Ledger code {code} is reserved for \"{name}\" but is used by another account.");
+            var account = new LedgerAccount { Code = code, Name = name, Type = type, IsSystem = true, CreatedUtc = DateTime.UtcNow };
+            db.LedgerAccounts.Add(account);
+            existing[code] = account;
+        }
+
+        if (db.ChangeTracker.HasChanges()) await db.SaveChangesAsync(ct);
+        return existing;
+    }
+
+    /// <summary>The ledger account unpaid invoices sit in; made when first wanted.</summary>
+    public async Task<int> PayablesAccountIdAsync(CancellationToken ct) => (await SystemAsync(ct))[PayablesCode].Id;
+
+    public async Task<int> ReceivablesAccountIdAsync(CancellationToken ct) => (await SystemAsync(ct))[ReceivablesCode].Id;
+
+    private async Task<LedgerAccount> OpeningEquityAsync(CancellationToken ct) => (await SystemAsync(ct))[OpeningEquityCode];
+
+    /// <summary>
+    /// The chart every company starts with: short, English, and standard for a small UAE business. Made once, on first use; the codes of accounts that already exist are left alone, and the
+    /// accountant can rename or add to it. A category named in the last column posts to its account until it is pointed elsewhere.
+    /// </summary>
+    public static readonly (string Code, string Name, string Type, string? Category)[] StandardChart =
+    [
+        ("1700", "Prepaid expenses", LedgerTypes.Asset, null),
+        ("1750", "Security deposits paid", LedgerTypes.Asset, null),
+        ("1800", "Fixed assets (at cost)", LedgerTypes.Asset, null),
+        ("1850", "Accumulated depreciation", LedgerTypes.Asset, null),
+        ("2400", "Accrued expenses", LedgerTypes.Liability, null),
+        ("2450", "Accrued wages", LedgerTypes.Liability, null),
+        ("2500", "Loans payable", LedgerTypes.Liability, null),
+        ("4100", "Other income", LedgerTypes.Revenue, "Other income"),
+        ("5100", "Salaries and wages", LedgerTypes.Expense, "Monthly Salary"),
+        ("1510", "Employee salary advances", LedgerTypes.Asset, "Salary Advance"),
+        ("2550", "Customer advances", LedgerTypes.Liability, null),
+        ("5200", "Worker accommodation rent", LedgerTypes.Expense, "Worker Accommodation Rent"),
+        ("5210", "Worker transportation", LedgerTypes.Expense, "Worker Transportation"),
+        ("5220", "Office rent", LedgerTypes.Expense, "Office Rent"),
+        ("5300", "Government fees and worker procedures", LedgerTypes.Expense, "Government-related procedures for workers"),
+        ("5310", "Insurance", LedgerTypes.Expense, "Dubai Insurance"),
+        ("5320", "Recruitment commission", LedgerTypes.Expense, "Commission for Labor"),
+        ("5400", "General company expenses", LedgerTypes.Expense, "Company expenses"),
+        ("5500", "Depreciation", LedgerTypes.Expense, null),
+        ("5600", "Bank charges", LedgerTypes.Expense, null),
+        ("5700", "Other expenses", LedgerTypes.Expense, null),
+    ];
+
+    private async Task EnsureStandardChartAsync(CancellationToken ct)
+    {
+        var codes = (await db.LedgerAccounts.Select(a => a.Code).ToListAsync(ct)).ToHashSet();
+        foreach (var (code, name, type, _) in StandardChart)
+            if (!codes.Contains(code)) db.LedgerAccounts.Add(new LedgerAccount { Code = code, Name = name, Type = type, CreatedUtc = DateTime.UtcNow });
+        if (db.ChangeTracker.HasChanges()) await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Gives every account, category and partner its ledger account, making one where none is set yet.</summary>
+    private async Task EnsureMappingAsync(CancellationToken ct)
+    {
+        foreach (var a in await db.FinAccounts.Where(x => x.LedgerAccountId == null).ToListAsync(ct))
+            a.LedgerAccountId = (await NewAccountAsync(LedgerTypes.Asset, a.Name, ct)).Id;
+        // Capital entries post through the partner, so the two capital categories need no ledger account.
+        await EnsureStandardChartAsync(ct);   // every database has the standard accounts, including ones that were set up before them
+        var unmapped = await db.FinCategories.Where(x => x.LedgerAccountId == null && (x.Kind == FinEntryKinds.Expense || x.Kind == FinEntryKinds.Income)).ToListAsync(ct);
+        if (unmapped.Count > 0)
+        {
+            var standard = await db.LedgerAccounts.Where(a => !a.IsSystem).ToDictionaryAsync(a => a.Code, ct);
+            var system = await SystemAsync(ct);
+            foreach (var c in unmapped)
+            {
+                if (FinanceRules.IsVatSettlement(c.Id))
+                {
+                    // Paying the tax authority clears what we owe it; a refund clears what it owed us. Neither is income or cost.
+                    c.LedgerAccountId = (c.Id == FinanceRules.VatPaymentCategoryId ? system[OutputVatCode] : system[InputVatCode]).Id;
+                    continue;
+                }
+
+                var type = c.Kind == FinEntryKinds.Income ? LedgerTypes.Revenue : c.Name == "Salary Advance" ? LedgerTypes.Asset : LedgerTypes.Expense;
+                var match = StandardChart.FirstOrDefault(s => s.Category == c.Name && (s.Type == type || (c.Kind == FinEntryKinds.Expense && s.Code == "1510")));
+                // The standard account is used only while it is still ours: same name, so a code the accountant reused for something else is never taken over.
+                c.LedgerAccountId = match.Code is not null && standard.TryGetValue(match.Code, out var own) && own.Name == match.Name && own.Type == match.Type && own.IsActive
+                    ? own.Id
+                    : (await NewAccountAsync(type, c.Name, ct)).Id;
+            }
+        }
+        foreach (var p in await db.FinPartners.Where(x => x.LedgerAccountId == null).ToListAsync(ct))
+            p.LedgerAccountId = (await NewAccountAsync(LedgerTypes.Equity, "Capital: " + p.Name, ct)).Id;
+        await db.SaveChangesAsync(ct);
+    }
+
+    // ---- posting ---------------------------------------------------------------------------------------------------
+
+    private async Task<string> NextNumberAsync(IDbContextTransaction transaction, CancellationToken ct)
+    {
+        await using var command = db.Database.GetDbConnection().CreateCommand();
+        command.Transaction = transaction.GetDbTransaction();
+        command.CommandText = "SELECT NEXT VALUE FOR LedgerJournalNo";
+        var number = Convert.ToInt32(await command.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
+        return "JNL-" + number.ToString("000000", CultureInfo.InvariantCulture);
+    }
+
+    private sealed record Posting(string Source, int SourceId, int Revision, DateOnly Date, string Description, List<(int Account, decimal Debit, decimal Credit, string? Memo)> Lines);
+
+    private async Task<int> AddAsync(Posting p, IDbContextTransaction transaction, CancellationToken ct, string part = "Post")
+    {
+        var journal = new Journal { Number = await NextNumberAsync(transaction, ct), Date = p.Date, SourceType = p.Source, SourceId = p.SourceId, Revision = p.Revision, Part = part, Description = p.Description, CreatedUtc = DateTime.UtcNow };
+        foreach (var l in p.Lines.Where(l => l.Debit != 0m || l.Credit != 0m))
+            journal.Lines.Add(new JournalLine { LedgerAccountId = l.Account, Debit = l.Debit, Credit = l.Credit, Memo = l.Memo });
+        if (journal.Lines.Sum(l => l.Debit) != journal.Lines.Sum(l => l.Credit)) throw new InvalidOperationException($"Journal for {p.Source} {p.SourceId} does not balance.");
+        db.Journals.Add(journal);
+        await db.SaveChangesAsync(ct);
+        return journal.Id;
+    }
+
+    private async Task ReverseAsync(Journal original, IDbContextTransaction transaction, CancellationToken ct, DateOnly? on = null)
+    {
+        var journal = new Journal
+        {
+            Number = await NextNumberAsync(transaction, ct), Date = on ?? original.Date, SourceType = original.SourceType, SourceId = original.SourceId, Revision = original.Revision,
+            Part = "Reversal", Description = "Reversal of " + original.Number + ": " + original.Description, ReversesJournalId = original.Id, CreatedUtc = DateTime.UtcNow,
+        };
+        foreach (var l in original.Lines) journal.Lines.Add(new JournalLine { LedgerAccountId = l.LedgerAccountId, Debit = l.Credit, Credit = l.Debit, Memo = l.Memo });
+        db.Journals.Add(journal);
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Makes the journals match the finance records. Safe to run any time, from any request.</summary>
+    public async Task<LedgerSyncResult> SyncAsync(CancellationToken ct)
+    {
+        await Gate.WaitAsync(ct);
+        try
+        {
+            await EnsureMappingAsync(ct);
+            var system = await SystemAsync(ct);
+            var equity = system[OpeningEquityCode];
+            var posted = 0;
+            var reversed = 0;
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+
+            var journals = await db.Journals.Include(j => j.Lines).ToListAsync(ct);
+            Journal? Find(string source, int id, string part) => journals.Where(j => j.SourceType == source && j.SourceId == id && j.Part == part).OrderByDescending(j => j.Revision).FirstOrDefault();
+
+            async Task PostAsync(Posting p)
+            {
+                var id = await AddAsync(p, transaction, ct);
+                journals.Add(await db.Journals.Include(j => j.Lines).SingleAsync(j => j.Id == id, ct));
+                posted++;
+            }
+
+            async Task UndoAsync(Journal original)
+            {
+                await ReverseAsync(original, transaction, ct);
+                journals.Add(await db.Journals.Include(j => j.Lines).OrderByDescending(j => j.Id).FirstAsync(j => j.ReversesJournalId == original.Id, ct));
+                reversed++;
+            }
+
+            var finAccounts = await db.FinAccounts.AsNoTracking().ToDictionaryAsync(a => a.Id, ct);
+            var partnersById = await db.FinPartners.AsNoTracking().ToDictionaryAsync(p => p.Id, ct);
+            var categories = await db.FinCategories.AsNoTracking().ToDictionaryAsync(c => c.Id, ct);
+            var taxTypes = await db.FinTaxTypes.AsNoTracking().ToDictionaryAsync(t => t.Id, ct);
+
+            // Opening balances of accounts: re-posted when the amount or date changed.
+            foreach (var a in finAccounts.Values.OrderBy(a => a.Id))
+                await SyncOpeningAsync(JournalSources.Opening, a.Id, a.OpeningDate, a.OpeningBalance, a.LedgerAccountId!.Value, equity.Id, "Opening balance of " + a.Name, journals, PostAsync, UndoAsync);
+
+            // Partners' opening capital: it was already inside the accounts' opening balances, so it moves out of "opening balance equity" into the partner's own account.
+            var capitalDate = finAccounts.Values.Select(a => a.OpeningDate).DefaultIfEmpty(FinanceRules.Today(time)).Min();
+            foreach (var p in partnersById.Values.OrderBy(p => p.Id))
+                await SyncOpeningAsync(JournalSources.PartnerOpening, p.Id, capitalDate, -p.OpeningCapital, p.LedgerAccountId!.Value, equity.Id, "Opening capital of " + p.Name, journals, PostAsync, UndoAsync, creditsAccount: true);
+
+            var entries = await db.FinEntries.AsNoTracking().Include(e => e.Lines).Where(e => e.Status != FinStatuses.Pending).OrderBy(e => e.Id).ToListAsync(ct);
+            foreach (var e in entries)
+            {
+                var original = Find(JournalSources.Entry, e.Id, "Post");
+                if (e.Status == FinStatuses.Active && original is null)
+                {
+                    var asset = finAccounts[e.AccountId].LedgerAccountId!.Value;
+                    var lines = new List<(int, decimal, decimal, string?)>();
+                    if (e.InvoiceId is not null && e.Kind == FinEntryKinds.Income)
+                    {
+                        // Money received against a tax invoice clears what the customer owed; the sale was already booked when the invoice was issued.
+                        lines.Add((asset, e.Amount, 0m, null));
+                        lines.Add((system[ReceivablesCode].Id, 0m, e.Amount, null));
+                        await PostAsync(new Posting(JournalSources.Entry, e.Id, 0, e.EntryDate, $"{e.EntryNo} {e.Party}", lines));
+                        continue;
+                    }
+
+                    if (e.BillId is not null && e.Kind == FinEntryKinds.Expense)
+                    {
+                        // Money paid against a supplier bill clears what we owed; the cost was already booked when the bill was entered.
+                        lines.Add((system[PayablesCode].Id, e.Amount, 0m, null));
+                        lines.Add((asset, 0m, e.Amount, null));
+                        await PostAsync(new Posting(JournalSources.Entry, e.Id, 0, e.EntryDate, $"{e.EntryNo} {e.Party}", lines));
+                        continue;
+                    }
+
+                    switch (e.Kind)
+                    {
+                        case FinEntryKinds.Expense:
+                        case FinEntryKinds.Income:
+                        {
+                            var expense = e.Kind == FinEntryKinds.Expense;
+                            var treatment = e.TaxTypeId is { } tid && e.TaxAmount > 0m ? taxTypes[tid].Treatment : null;
+                            var parts = LinesOf(e).ToList();
+                            // Standard VAT is inside the amount: the lines carry the net, the VAT goes to its own account. Reverse charge adds a matching pair on top.
+                            var recovered = expense ? FinanceRules.RecoverableVat(e.TaxAmount, e.RecoverableTaxPercent) : e.TaxAmount;
+                            var cost = treatment == FinTaxTreatments.Standard ? e.Amount - recovered : treatment == FinTaxTreatments.ReverseCharge && expense ? e.Amount + e.TaxAmount - recovered : e.Amount;
+                            var net = FinanceCalculator.Allocate(cost, parts.Select(p => p.Amount).ToList());
+                            if (expense) lines.Add((asset, 0m, e.Amount, null)); else lines.Add((asset, e.Amount, 0m, null));
+                            for (var i = 0; i < parts.Count; i++)
+                                if (net[i] > 0m) lines.Add((categories[parts[i].CategoryId].LedgerAccountId!.Value, expense ? net[i] : 0m, expense ? 0m : net[i], parts[i].Note));
+                            if (treatment == FinTaxTreatments.Standard && recovered > 0m) lines.Add((expense ? system[InputVatCode].Id : system[OutputVatCode].Id, expense ? recovered : 0m, expense ? 0m : recovered, "VAT"));
+                            else if (treatment == FinTaxTreatments.ReverseCharge && expense)
+                            {
+                                if (recovered > 0m) lines.Add((system[InputVatCode].Id, recovered, 0m, "VAT on reverse charge"));
+                                lines.Add((system[OutputVatCode].Id, 0m, e.TaxAmount, "VAT on reverse charge"));
+                            }
+
+                            break;
+                        }
+                        case FinEntryKinds.Capital:
+                            lines.Add((asset, e.Amount, 0m, null));
+                            lines.Add((partnersById[e.PartnerId!.Value].LedgerAccountId!.Value, 0m, e.Amount, null));
+                            break;
+                        default:   // CapitalOut
+                            lines.Add((partnersById[e.PartnerId!.Value].LedgerAccountId!.Value, e.Amount, 0m, null));
+                            lines.Add((asset, 0m, e.Amount, null));
+                            break;
+                    }
+
+                    await PostAsync(new Posting(JournalSources.Entry, e.Id, 0, e.EntryDate, $"{e.EntryNo} {e.Party}", lines));
+                }
+                else if (e.Status == FinStatuses.Voided && original is not null && Find(JournalSources.Entry, e.Id, "Reversal") is null)
+                    await UndoAsync(original);
+            }
+
+            var transfers = await db.FinTransfers.AsNoTracking().OrderBy(t => t.Id).ToListAsync(ct);
+            foreach (var t in transfers)
+            {
+                var original = Find(JournalSources.Transfer, t.Id, "Post");
+                if (t.Status == FinStatuses.Active && original is null)
+                    await PostAsync(new Posting(JournalSources.Transfer, t.Id, 0, t.TransferDate, $"{t.TransferNo} {finAccounts[t.FromAccountId].Name} to {finAccounts[t.ToAccountId].Name}",
+                        [(finAccounts[t.ToAccountId].LedgerAccountId!.Value, t.Amount, 0m, null), (finAccounts[t.FromAccountId].LedgerAccountId!.Value, 0m, t.Amount, null)]));
+                else if (t.Status == FinStatuses.Voided && original is not null && Find(JournalSources.Transfer, t.Id, "Reversal") is null)
+                    await UndoAsync(original);
+            }
+
+            // Tax invoices: issuing one books the sale (the customer owes us, we owe the tax office the VAT). Cancelling reverses it, dated the day it was cancelled.
+            foreach (var inv in await db.Invoices.AsNoTracking().Where(i => i.IssuedUtc != null).OrderBy(i => i.Id).ToListAsync(ct))
+            {
+                var original = Find(JournalSources.Invoice, inv.Id, "Post");
+                if (original is null)
+                    await PostAsync(new Posting(JournalSources.Invoice, inv.Id, 0, inv.InvoiceDate, $"{inv.Number} {inv.ClientName}",
+                        [(system[ReceivablesCode].Id, inv.Total, 0m, null), (system[SalesCode].Id, 0m, inv.SubTotal, null), (system[OutputVatCode].Id, 0m, inv.VatTotal, "VAT")]));
+
+                original ??= Find(JournalSources.Invoice, inv.Id, "Post");   // an invoice issued and cancelled between two syncs is posted and reversed in turn
+                if (original is not null && inv.Status == InvoiceStatuses.Cancelled && Find(JournalSources.Invoice, inv.Id, "Reversal") is null)
+                {
+                    await ReverseAsync(original, transaction, ct, DateOnly.FromDateTime((inv.CancelledUtc ?? DateTime.UtcNow).AddHours(4)));
+                    journals.Add(await db.Journals.Include(j => j.Lines).OrderByDescending(j => j.Id).FirstAsync(j => j.ReversesJournalId == original.Id, ct));
+                    reversed++;
+                }
+            }
+
+            // Supplier bills: entering one books the cost, any VAT, and what we owe. Voiding reverses it, dated the day it was voided.
+            foreach (var bill in await db.FinBills.AsNoTracking().Include(b => b.Lines).OrderBy(b => b.Id).ToListAsync(ct))
+            {
+                var original = Find(JournalSources.Bill, bill.Id, "Post");
+                if (original is null)
+                {
+                    var lines = bill.Lines.OrderBy(l => l.Id).Select(l => (categories[l.CategoryId].LedgerAccountId!.Value, l.Amount, 0m, l.Note)).ToList();
+                    var treatment = bill.TaxTypeId is { } tid && bill.TaxAmount > 0m ? taxTypes[tid].Treatment : null;
+                    var recovered = FinanceRules.RecoverableVat(bill.TaxAmount, bill.RecoverableTaxPercent);
+                    if (treatment is FinTaxTreatments.Standard or FinTaxTreatments.ReverseCharge && bill.TaxAmount > recovered)
+                    {
+                        var blocked = FinanceCalculator.Allocate(bill.TaxAmount - recovered, bill.Lines.OrderBy(l => l.Id).Select(l => l.Amount).ToList());
+                        for (var n = 0; n < lines.Count; n++) lines[n] = (lines[n].Item1, lines[n].Item2 + blocked[n], 0m, lines[n].Item4);
+                    }
+                    if (treatment == FinTaxTreatments.Standard && recovered > 0m) lines.Add((system[InputVatCode].Id, recovered, 0m, "VAT"));
+                    else if (treatment == FinTaxTreatments.ReverseCharge)
+                    {
+                        if (recovered > 0m) lines.Add((system[InputVatCode].Id, recovered, 0m, "VAT on reverse charge"));
+                        lines.Add((system[OutputVatCode].Id, 0m, bill.TaxAmount, "VAT on reverse charge"));
+                    }
+
+                    lines.Add((system[PayablesCode].Id, 0m, bill.Total, null));
+                    await PostAsync(new Posting(JournalSources.Bill, bill.Id, 0, bill.BillDate, $"{bill.BillNo} {bill.SupplierName}", lines.Select(l => (l.Item1, l.Item2, l.Item3, (string?)l.Item4)).ToList()));
+                }
+
+                original ??= Find(JournalSources.Bill, bill.Id, "Post");
+                if (original is not null && bill.Status == FinBillStatuses.Voided && Find(JournalSources.Bill, bill.Id, "Reversal") is null)
+                {
+                    await ReverseAsync(original, transaction, ct, DateOnly.FromDateTime((bill.VoidedUtc ?? DateTime.UtcNow).AddHours(4)));
+                    journals.Add(await db.Journals.Include(j => j.Lines).OrderByDescending(j => j.Id).FirstAsync(j => j.ReversesJournalId == original.Id, ct));
+                    reversed++;
+                }
+            }
+
+            // Cheques: while the bank has not paid (or received) a cheque, the money sits in "cheques payable" (or "cheques receivable"), so the bank in the books
+            // matches the bank statement. Clearing moves it to the bank. A cancelled or bounced cheque, or one whose entry was voided, puts the bank back as it was.
+            var activeEntries = (await db.FinEntries.AsNoTracking().Where(e => e.Status == FinStatuses.Active).Select(e => e.Id).ToListAsync(ct)).ToHashSet();
+            var postedCheques = journals.Where(j => j.SourceType == JournalSources.Cheque).Select(j => j.SourceId).ToHashSet();
+            foreach (var c in await db.FinCheques.AsNoTracking().Where(c => c.EntryId != null || postedCheques.Contains(c.Id)).OrderBy(c => c.Id).ToListAsync(ct))
+            {
+                var issued = c.Direction == FinChequeDirections.Issued;
+                var bank = finAccounts[c.AccountId].LedgerAccountId!.Value;
+                var holding = (issued ? system[ChequesPayableCode] : system[ChequesReceivableCode]).Id;
+                var shouldHold = c.EntryId is { } linked && activeEntries.Contains(linked) && c.Status is not (FinChequeStatuses.Cancelled or FinChequeStatuses.Bounced);
+                var live = journals.Where(j => j.SourceType == JournalSources.Cheque && j.SourceId == c.Id && j.Part == "Post" && !journals.Any(r => r.ReversesJournalId == j.Id)).OrderByDescending(j => j.Revision).FirstOrDefault();
+                var kind = issued ? "issued" : "received";
+                if (live is null && shouldHold)
+                {
+                    var revision = journals.Where(j => j.SourceType == JournalSources.Cheque && j.SourceId == c.Id).Select(j => j.Revision).DefaultIfEmpty(-1).Max() + 1;
+                    // Issued: the entry took the money from the bank; it now waits in cheques payable. Received: the entry put it in the bank; it is really still a cheque in hand.
+                    await PostAsync(new Posting(JournalSources.Cheque, c.Id, revision, c.IssueDate, $"Cheque {c.Serial} {kind}: {c.PartyName}",
+                        issued ? [(bank, c.Amount, 0m, null), (holding, 0m, c.Amount, null)] : [(holding, c.Amount, 0m, null), (bank, 0m, c.Amount, null)]));
+                    live = journals.Last(j => j.SourceType == JournalSources.Cheque && j.SourceId == c.Id && j.Part == "Post");
+                }
+                else if (live is not null && !shouldHold && !journals.Any(j => j.SourceType == JournalSources.Cheque && j.SourceId == c.Id && j.Part == "Clear" && j.Revision == live.Revision))
+                    await UndoAsync(live);
+
+                if (live is not null && shouldHold && c.Status == FinChequeStatuses.Cleared && !journals.Any(j => j.SourceType == JournalSources.Cheque && j.SourceId == c.Id && j.Part == "Clear" && j.Revision == live.Revision))
+                {
+                    var journalId = await AddAsync(new Posting(JournalSources.Cheque, c.Id, live.Revision, c.StatusDate ?? c.DueDate, $"Cheque {c.Serial} cleared: {c.PartyName}",
+                        issued ? [(holding, c.Amount, 0m, null), (bank, 0m, c.Amount, null)] : [(bank, c.Amount, 0m, null), (holding, 0m, c.Amount, null)]), transaction, ct, "Clear");
+                    journals.Add(await db.Journals.Include(j => j.Lines).SingleAsync(j => j.Id == journalId, ct));
+                    posted++;
+                }
+            }
+
+            await transaction.CommitAsync(ct);
+            return new LedgerSyncResult(posted, reversed);
+        }
+        finally
+        {
+            Gate.Release();
+        }
+    }
+
+    private static IEnumerable<(int CategoryId, decimal Amount, string? Note)> LinesOf(FinEntry e) =>
+        e.Lines.Count > 0 ? e.Lines.Select(l => (l.CategoryId, l.Amount, l.Note)) : [(e.CategoryId, e.Amount, (string?)null)];
+
+    /// <summary>
+    /// Posts an opening balance, and when it later changes reverses the old posting and posts the new one. For an account the amount is a debit to the
+    /// account (credit if negative); for a partner it is a credit to the partner's capital account (<paramref name="amount"/> is negated by the caller).
+    /// </summary>
+    private async Task SyncOpeningAsync(
+        string source, int id, DateOnly date, decimal amount, int target, int equity, string description, List<Journal> journals,
+        Func<Posting, Task> post, Func<Journal, Task> undo, bool creditsAccount = false)
+    {
+        var live = journals.Where(j => j.SourceType == source && j.SourceId == id && j.Part == "Post" && !journals.Any(r => r.ReversesJournalId == j.Id)).OrderByDescending(j => j.Revision).FirstOrDefault();
+        decimal Current(Journal j) => j.Lines.Where(l => l.LedgerAccountId == target).Sum(l => creditsAccount ? -l.Credit + l.Debit : l.Debit - l.Credit);
+        if (live is not null && live.Date == date && Current(live) == amount) return;
+        var revision = journals.Where(j => j.SourceType == source && j.SourceId == id).Select(j => j.Revision).DefaultIfEmpty(-1).Max() + 1;
+        if (live is not null) await undo(live);
+        if (amount == 0m) return;
+
+        // For an account a positive amount debits it; for a partner the negated amount means a credit to the partner, so the sign flips the same way.
+        var debit = amount > 0 ? amount : 0m;
+        var credit = amount < 0 ? -amount : 0m;
+        await post(new Posting(source, id, revision, date, description,
+            [(target, debit, credit, null), (equity, credit, debit, null)]));
+    }
+
+    // ---- reading ---------------------------------------------------------------------------------------------------
+
+    private sealed record Totals(int Id, decimal Debit, decimal Credit);
+
+    private async Task<Dictionary<int, Totals>> TotalsAsync(DateOnly? upTo, DateOnly? before, CancellationToken ct, bool systemOnly = false)
+    {
+        var lines = db.JournalLines.AsNoTracking().AsQueryable();
+        if (systemOnly) lines = lines.Where(l => l.Journal.SourceType != JournalSources.Manual);
+        if (upTo is { } to) lines = lines.Where(l => l.Journal.Date <= to);
+        if (before is { } b) lines = lines.Where(l => l.Journal.Date < b);
+        var rows = await lines.GroupBy(l => l.LedgerAccountId).Select(g => new { Id = g.Key, Debit = g.Sum(l => l.Debit), Credit = g.Sum(l => l.Credit) }).ToListAsync(ct);
+        return rows.ToDictionary(r => r.Id, r => new Totals(r.Id, r.Debit, r.Credit));
+    }
+
+    private static decimal Balance(string type, decimal debit, decimal credit) => LedgerTypes.DebitNormal(type) ? debit - credit : credit - debit;
+
+    public async Task<List<LedgerAccountResponse>> ChartAsync(DateOnly? asOf, CancellationToken ct)
+    {
+        var totals = await TotalsAsync(asOf, null, ct);
+        var accountsList = await db.LedgerAccounts.AsNoTracking().OrderBy(a => a.Code).ToListAsync(ct);
+        return accountsList.Select(a => { totals.TryGetValue(a.Id, out var t); return new LedgerAccountResponse(a.Id, a.Code, a.Name, a.Type, a.IsActive, a.IsSystem, t?.Debit ?? 0m, t?.Credit ?? 0m, Balance(a.Type, t?.Debit ?? 0m, t?.Credit ?? 0m)); }).ToList();
+    }
+
+    public async Task<LedgerTrialBalance> TrialBalanceAsync(DateOnly? asOf, CancellationToken ct)
+    {
+        var date = asOf ?? FinanceRules.Today(time);
+        var chart = (await ChartAsync(date, ct)).Where(a => a.Debit != a.Credit)
+            .Select(a => a with { Debit = Math.Max(a.Debit - a.Credit, 0m), Credit = Math.Max(a.Credit - a.Debit, 0m) }).ToList();
+        var debit = chart.Sum(a => a.Debit);
+        var credit = chart.Sum(a => a.Credit);
+        return new(FinanceRules.Format(date), chart, debit, credit, debit == credit);
+    }
+
+    public async Task<FinResult<LedgerAccountStatement>> StatementAsync(int accountId, string? from, string? to, CancellationToken ct)
+    {
+        var account = await db.LedgerAccounts.AsNoTracking().SingleOrDefaultAsync(a => a.Id == accountId, ct);
+        if (account is null) return FinResult<LedgerAccountStatement>.NotFound("The account was not found.");
+        var today = FinanceRules.Today(time);
+        var end = FinanceRules.TryParseDate(to, out var e) ? e : today;
+        var start = FinanceRules.TryParseDate(from, out var s) ? s : new DateOnly(end.Year, end.Month, 1);
+        if (start > end) return FinResult<LedgerAccountStatement>.Invalid("to", "The end date cannot be before the start date.");
+
+        var before = await TotalsAsync(null, start, ct);
+        before.TryGetValue(account.Id, out var b);
+        var opening = Balance(account.Type, b?.Debit ?? 0m, b?.Credit ?? 0m);
+        var rows = await db.JournalLines.AsNoTracking().Where(l => l.LedgerAccountId == account.Id && l.Journal.Date >= start && l.Journal.Date <= end)
+            .OrderBy(l => l.Journal.Date).ThenBy(l => l.JournalId).ThenBy(l => l.Id)
+            .Select(l => new { l.Journal.Date, l.Journal.Number, l.Journal.Description, l.Journal.Part, l.Memo, l.Debit, l.Credit }).ToListAsync(ct);
+        var running = opening;
+        var lines = new List<LedgerLineResponse>();
+        foreach (var r in rows)
+        {
+            running += LedgerTypes.DebitNormal(account.Type) ? r.Debit - r.Credit : r.Credit - r.Debit;
+            lines.Add(new LedgerLineResponse(FinanceRules.Format(r.Date), r.Number, r.Description, r.Memo, r.Debit, r.Credit, running, r.Part));
+        }
+
+        var all = await TotalsAsync(end, null, ct);
+        all.TryGetValue(account.Id, out var a);
+        var head = new LedgerAccountResponse(account.Id, account.Code, account.Name, account.Type, account.IsActive, account.IsSystem, a?.Debit ?? 0m, a?.Credit ?? 0m, Balance(account.Type, a?.Debit ?? 0m, a?.Credit ?? 0m));
+        return FinResult<LedgerAccountStatement>.Ok(new(head, FinanceRules.Format(start), FinanceRules.Format(end), opening, lines, running));
+    }
+
+    public async Task<JournalList> JournalsAsync(string? from, string? to, string? source, int? sourceId, CancellationToken ct)
+    {
+        var query = db.Journals.AsNoTracking().Include(j => j.Lines).ThenInclude(l => l.LedgerAccount).AsQueryable();
+        if (FinanceRules.TryParseDate(from, out var f)) query = query.Where(j => j.Date >= f);
+        if (FinanceRules.TryParseDate(to, out var t)) query = query.Where(j => j.Date <= t);
+        if (!string.IsNullOrWhiteSpace(source)) query = query.Where(j => j.SourceType == source);
+        if (sourceId is { } id) query = query.Where(j => j.SourceId == id);
+        var count = await query.CountAsync(ct);
+        var rows = await query.OrderByDescending(j => j.Date).ThenByDescending(j => j.Id).Take(ListCap + 1).ToListAsync(ct);
+        var truncated = rows.Count > ListCap;
+        var reversedIds = (await db.Journals.AsNoTracking().Where(j => j.ReversesJournalId != null).Select(j => j.ReversesJournalId!.Value).ToListAsync(ct)).ToHashSet();
+        return new(rows.Take(ListCap).Select(j => new JournalResponse(j.Id, j.Number, FinanceRules.Format(j.Date), j.SourceType, j.SourceId, j.Part, j.Description,
+            j.Lines.OrderByDescending(l => l.Debit).ThenBy(l => l.Id).Select(l => new JournalLineResponse(l.LedgerAccount.Code, l.LedgerAccount.Name, l.Debit, l.Credit, l.Memo)).ToList(),
+            j.SourceType == JournalSources.Manual, reversedIds.Contains(j.Id), j.CreatedBy)).ToList(), count, truncated);
+    }
+
+    // ---- the safety checks -----------------------------------------------------------------------------------------
+
+    /// <summary>The ledger must say what the finance screens say. Run after every change to posting, and available to the accountant as a report.</summary>
+    public async Task<LedgerCheckResult> CheckAsync(CancellationToken ct)
+    {
+        var totals = await TotalsAsync(null, null, ct);   // include manual adjustments: a control account must reconcile to the complete books
+        var checks = new List<LedgerCheck>();
+        var finAccounts = await db.FinAccounts.AsNoTracking().ToDictionaryAsync(a => a.Id, ct);
+        var types = await db.LedgerAccounts.AsNoTracking().ToDictionaryAsync(a => a.Id, a => a.Type, ct);
+
+        foreach (var screen in await accounts.ListAsync(true, ct))
+        {
+            if (finAccounts.GetValueOrDefault(screen.Id)?.LedgerAccountId is not { } mapped || !types.ContainsKey(mapped))
+            {
+                checks.Add(new("Account mapping", screen.Name, 0m, screen.BankBalance, false));
+                continue;
+            }
+            totals.TryGetValue(mapped, out var t);
+            var ledger = Balance(types[mapped], t?.Debit ?? 0m, t?.Credit ?? 0m);
+            checks.Add(new("Account balance", screen.Name, ledger, screen.BankBalance, ledger == screen.BankBalance));   // the bank, with cheques still to clear taken out of the books
+        }
+
+        var partnerAccounts = await db.FinPartners.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.LedgerAccountId, ct);
+        foreach (var p in (await partners.ListAsync(ct)).Partners)
+        {
+            if (partnerAccounts.GetValueOrDefault(p.Id) is not { } mapped)
+            {
+                checks.Add(new("Partner mapping", p.Name, 0m, p.NetCapital, false));
+                continue;
+            }
+            totals.TryGetValue(mapped, out var t);
+            var ledger = Balance(LedgerTypes.Equity, t?.Debit ?? 0m, t?.Credit ?? 0m);
+            checks.Add(new("Partner capital", p.Name, ledger, p.NetCapital, ledger == p.NetCapital));
+        }
+
+        var controls = await db.LedgerAccounts.AsNoTracking().Where(a => a.IsSystem && (a.Code == ReceivablesCode || a.Code == PayablesCode))
+            .ToDictionaryAsync(a => a.Code, a => a.Id, ct);
+        var receivableId = controls.GetValueOrDefault(ReceivablesCode);
+        totals.TryGetValue(receivableId, out var rt);
+        var ledgerOwed = rt is null ? 0m : rt.Debit - rt.Credit;
+        var invoices = await db.Invoices.AsNoTracking().Where(i => i.Status == InvoiceStatuses.Issued).Select(i => new { i.Total, Paid = i.Payments.Sum(p => p.Amount) }).ToListAsync(ct);
+        var owed = invoices.Sum(i => i.Total - i.Paid);
+        checks.Add(new("Receivables", "Unpaid tax invoices", ledgerOwed, owed, receivableId != 0 && ledgerOwed == owed));
+
+        var payableId = controls.GetValueOrDefault(PayablesCode);
+        totals.TryGetValue(payableId, out var pt);
+        var ledgerDue = pt is null ? 0m : pt.Credit - pt.Debit;
+        var openBills = await db.FinBills.AsNoTracking().Where(b => b.Status == FinBillStatuses.Open).Select(b => new { b.Total, Paid = db.FinEntries.Where(e => e.BillId == b.Id && e.Status == FinStatuses.Active).Sum(e => (decimal?)e.Amount) ?? 0m }).ToListAsync(ct);
+        var due = openBills.Sum(b => b.Total - b.Paid);
+        checks.Add(new("Payables", "Unpaid supplier bills", ledgerDue, due, payableId != 0 && ledgerDue == due));
+
+        var journalSums = await db.JournalLines.AsNoTracking().GroupBy(l => l.JournalId).Select(g => new { g.Key, Debit = g.Sum(l => l.Debit), Credit = g.Sum(l => l.Credit) }).ToListAsync(ct);
+        var unbalanced = journalSums.Count(j => j.Debit != j.Credit);
+        var debit = journalSums.Sum(j => j.Debit);
+        var credit = journalSums.Sum(j => j.Credit);
+        checks.Add(new("Journals balance", "Every journal", unbalanced, 0m, unbalanced == 0));
+        checks.Add(new("Debits equal credits", "All journals", debit, credit, debit == credit));
+        var manual = await db.Journals.CountAsync(j => j.SourceType == JournalSources.Manual && j.Part == "Post", ct);
+        var warnings = new List<string>();
+        var categoryMappings = await db.FinCategories.AsNoTracking().Where(c => c.LedgerAccountId != null).ToListAsync(ct);
+        if (categoryMappings.Any(c => c.Kind == FinEntryKinds.Expense && c.Name == "Salary Advance" && types[c.LedgerAccountId!.Value] != LedgerTypes.Asset))
+            warnings.Add("Salary advances currently post outside assets. Review recoverable employee advances and correct them with an audited adjustment; existing or locked records have not been reclassified.");
+        var expenseCategories = categoryMappings.Where(c => types[c.LedgerAccountId!.Value] == LedgerTypes.Expense).Select(c => c.Id).ToList();
+        if (await db.FinEntryLines.AnyAsync(l => l.Entry.Status == FinStatuses.Active && expenseCategories.Contains(l.CategoryId) && l.Note != null && l.Note.Contains("deposit"), ct))
+            warnings.Add("An expense line is described as a deposit. Check whether it is refundable and should be a security-deposit asset rather than a cost.");
+        if (await db.FinEntries.AnyAsync(e => e.Status == FinStatuses.Active && e.Kind == FinEntryKinds.Income && e.Notes != null && e.Notes.Contains("advance"), ct))
+            warnings.Add("A receipt is described as an advance. Review whether it belongs in customer advances until the related revenue is earned.");
+        return new(checks.All(c => c.Agrees), checks, journalSums.Count, debit, credit, manual, warnings);
+    }
+
+    // ---- rebuild (before the books go live) ------------------------------------------------------------------------
+
+    /// <summary>Throws the derived journals away and derives them again, for when the mapping changed before go-live. Refused once a journal falls in a locked month.</summary>
+    public async Task<FinResult<LedgerSyncResult>> RebuildAsync(CancellationToken ct)
+    {
+        if (await db.FinMonthLocks.AnyAsync(l => l.IsLocked, ct)) return FinResult<LedgerSyncResult>.Conflict("A month is locked, so the books are settled and cannot be rebuilt. Unlock every month first.");
+        await Gate.WaitAsync(ct);
+        try
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            // The accountant's manual journals (and their reversals) are never thrown away; only what is derived from the records is.
+            await db.JournalLines.Where(l => l.Journal.SourceType != JournalSources.Manual).ExecuteDeleteAsync(ct);
+            await db.Database.ExecuteSqlRawAsync("UPDATE [Journals] SET [ReversesJournalId] = NULL WHERE [SourceType] <> 'Manual'", ct);
+            await db.Journals.Where(j => j.SourceType != JournalSources.Manual).ExecuteDeleteAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
+        finally
+        {
+            Gate.Release();
+        }
+
+        return FinResult<LedgerSyncResult>.Ok(await SyncAsync(ct));
+    }
+}

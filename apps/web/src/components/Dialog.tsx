@@ -14,8 +14,8 @@ interface DialogProps {
   initialFocusRef?: RefObject<HTMLElement | null>;
   /** Id of an element inside the dialog that describes it (read out after the title). */
   descriptionId?: string;
-  /** "sheet" slides up from the bottom edge of a phone screen; the default is a centred modal. */
-  variant?: "center" | "sheet";
+  /** "sheet" slides up from the bottom edge of a phone screen, "drawer" is a full-height panel at the right edge; the default is a centred modal. */
+  variant?: "center" | "sheet" | "drawer";
   /** Width of the centred modal; "wide" suits long forms. */
   size?: "default" | "wide";
 }
@@ -24,6 +24,9 @@ const CENTER_CLASS =
   "m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-card border border-line bg-white p-6 text-ink-800 shadow-card backdrop:bg-ink-900/60";
 const SHEET_CLASS =
   "mx-0 mb-0 mt-auto max-h-[85dvh] w-full max-w-none overflow-y-auto rounded-b-none rounded-t-2xl border border-line bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-ink-800 shadow-lg backdrop:bg-ink-900/60";
+
+const DRAWER_CLASS =
+  "mb-0 ml-auto mr-0 mt-0 h-dvh max-h-dvh w-full max-w-xl overflow-y-auto border-l border-line bg-white p-5 text-ink-800 shadow-lg backdrop:bg-ink-900/60";
 
 /**
  * Modal built on the native <dialog>: showModal() gives the focus trap and an inert page behind it.
@@ -53,6 +56,15 @@ export function Dialog({ open, onClose, title, children, initialFocusRef, descri
     }
   }, [open, initialFocusRef]);
 
+  // A parent may simply stop rendering the dialog instead of closing it: give focus back to the opener in that case too.
+  useEffect(
+    () => () => {
+      const opener = openerRef.current;
+      if (opener?.isConnected) opener.focus();
+    },
+    [],
+  );
+
   function handleKeyDown(event: KeyboardEvent<HTMLDialogElement>) {
     if (event.key === "Escape") {
       event.preventDefault();
@@ -75,15 +87,16 @@ export function Dialog({ open, onClose, title, children, initialFocusRef, descri
     <dialog
       ref={dialogRef}
       aria-labelledby={headingId}
+      data-variant={variant}
       aria-describedby={open ? descriptionId : undefined}
       onKeyDown={handleKeyDown}
       onCancel={handleCancel}
       onClick={handleBackdropClick}
-      className={variant === "sheet" ? SHEET_CLASS : size === "wide" ? CENTER_CLASS.replace("max-w-md", "max-w-3xl") : CENTER_CLASS}
+      className={variant === "sheet" ? SHEET_CLASS : variant === "drawer" ? DRAWER_CLASS : size === "wide" ? CENTER_CLASS.replace("max-w-md", "max-w-3xl") : CENTER_CLASS}
     >
       {variant === "sheet" ? (
         <div className="flex items-center justify-between gap-3">
-          <h2 id={headingId} className="text-lg font-semibold text-ink-900">
+          <h2 id={headingId} className="font-display text-lg font-semibold text-ink-900">
             {title}
           </h2>
           <button
@@ -96,7 +109,7 @@ export function Dialog({ open, onClose, title, children, initialFocusRef, descri
           </button>
         </div>
       ) : (
-        <h2 id={headingId} className="text-xl font-semibold tracking-tight text-ink-900">
+        <h2 id={headingId} className="font-display text-xl font-semibold tracking-tight text-ink-900">
           {title}
         </h2>
       )}

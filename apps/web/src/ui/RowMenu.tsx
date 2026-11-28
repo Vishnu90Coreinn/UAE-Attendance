@@ -22,6 +22,8 @@ interface RowMenuProps {
   /** Shows a labelled button (for example "Export") instead of the "..." icon. */
   triggerText?: string;
   triggerIcon?: LucideIcon;
+  /** Replaces the trigger's own look, for example a quiet link-like trigger or one that stays 44px on a desktop. */
+  triggerClassName?: string;
   /** Disables the whole menu, for example while a request is running. */
   disabled?: boolean;
 }
@@ -30,7 +32,7 @@ interface RowMenuProps {
  * A "..." button with a short list of row actions, so risky ones (delete) sit a deliberate click away from the everyday ones.
  * Closes on Escape, on an outside click and after a choice; arrows move between items.
  */
-export function RowMenu({ label, items, className, triggerText, triggerIcon: TriggerIcon, disabled }: RowMenuProps) {
+export function RowMenu({ label, items, className, triggerText, triggerIcon: TriggerIcon, triggerClassName, disabled }: RowMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -103,9 +105,9 @@ export function RowMenu({ label, items, className, triggerText, triggerIcon: Tri
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
         className={
-          triggerText
+          triggerClassName ?? (triggerText
             ? "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-ink-300 bg-white px-4 text-sm font-medium text-ink-800 hover:bg-ink-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-60 md:min-h-10"
-            : "inline-flex size-11 items-center justify-center rounded-lg text-ink-600 transition-colors hover:bg-ink-100 hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-50 md:size-9"
+            : "inline-flex size-11 items-center justify-center rounded-lg text-ink-600 transition-colors hover:bg-ink-100 hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-50 md:size-9")
         }
       >
         {triggerText ? (

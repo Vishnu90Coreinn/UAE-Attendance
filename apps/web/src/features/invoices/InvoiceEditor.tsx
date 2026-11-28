@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Loader2, Plus, Save, Trash2, X } from "lucide-react";
-import { createInvoice, listInvoiceClients, updateInvoice, type Invoice, type InvoiceClient, type InvoiceInput } from "../../api/invoices";
+import { createInvoice, listInvoiceClients, updateInvoice, type Invoice, type InvoiceClient, type InvoiceInput, type InvoiceVatTreatment } from "../../api/invoices";
 import { getDocumentSettings } from "../../api/documentSettings";
 import { TextField } from "../../components/TextField";
+import { UnsavedChangesGuard } from "../../components/UnsavedChangesGuard";
 import { Button, Card, IconButton, Input, Select, Textarea, Table, TableScroll, THead, Th, TRow, Td } from "../../ui";
 import { errorMessage, fieldErrors, todayInDubai } from "./invoiceUi";
-import { formatMoney, invoiceTotals, lineAmounts } from "./invoiceMath";
+import { formatMoney, invoiceTotals, lineAmounts, VAT_TYPES } from "./invoiceMath";
 
 interface LineDraft {
   description: string;
@@ -34,20 +35,38 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
   const [clientAddress, setClientAddress] = useState(invoice?.clientAddress ?? "");
   const [invoiceDate, setInvoiceDate] = useState(invoice?.invoiceDate ?? todayInDubai());
   const [dueDate, setDueDate] = useState(invoice?.dueDate ?? todayInDubai());
-  const [paymentTerms, setPaymentTerms] = useState(invoice?.paymentTerms ?? "");
+  const [enteredPaymentTerms, setPaymentTerms] = useState<string | null>(null);
   const [lpoRef, setLpoRef] = useState(invoice?.lpoRef ?? "");
   const [pcRef, setPcRef] = useState(invoice?.pcRef ?? "");
   const [project, setProject] = useState(invoice?.project ?? "");
   const [scope, setScope] = useState(invoice?.scope ?? "");
-  const [notes, setNotes] = useState(invoice?.notes ?? "");
+  const [enteredNotes, setNotes] = useState<string | null>(null);
+  const [defaults, setDefaults] = useState({ paymentTerms: "", notes: "" });
+  const originalPaymentTerms = invoice?.paymentTerms ?? defaults.paymentTerms;
+  const originalNotes = invoice?.notes ?? defaults.notes;
+  const paymentTerms = enteredPaymentTerms ?? originalPaymentTerms;
+  const notes = enteredNotes ?? originalNotes;
   const [lines, setLines] = useState<LineDraft[]>(
     invoice
       ? invoice.lines.map((l) => ({ description: l.description, quantity: String(l.quantity), rate: String(l.rate) }))
       : [{ description: "", quantity: "1", rate: "0" }],
   );
+  const [vatTreatment, setVatTreatment] = useState<InvoiceVatTreatment>(invoice?.vatTreatment ?? "Standard");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const draft = JSON.stringify({ clientChoice, clientName, clientTrn, clientAddress, invoiceDate, dueDate, lpoRef, pcRef, project, scope, vatTreatment, lines });
+  const [originalDraft] = useState(draft);
+  const dirty = draft !== originalDraft || paymentTerms !== originalPaymentTerms || notes !== originalNotes;
+  useEffect(() => {
+    if (!dirty) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [dirty]);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,8 +75,7 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
       getDocumentSettings()
         .then((s) => {
           if (cancelled) return;
-          setPaymentTerms(s.defaultPaymentTerms);
-          setNotes(s.defaultInvoiceNotes);
+          setDefaults({ paymentTerms: s.defaultPaymentTerms, notes: s.defaultInvoiceNotes });
         })
         .catch(() => undefined);
     }
@@ -70,10 +88,10 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
     const amounts = lines.map((l) => {
       const q = Number(l.quantity);
       const r = Number(l.rate);
-      return Number.isFinite(q) && Number.isFinite(r) ? lineAmounts(q, r) : { taxable: 0, vat: 0, amount: 0 };
+      return Number.isFinite(q) && Number.isFinite(r) ? lineAmounts(q, r, vatTreatment) : { taxable: 0, vat: 0, amount: 0 };
     });
     return { amounts, ...invoiceTotals(amounts) };
-  }, [lines]);
+  }, [lines, vatTreatment]);
 
   function updateLine(index: number, patch: Partial<LineDraft>) {
     setLines((current) => current.map((l, i) => (i === index ? { ...l, ...patch } : l)));
@@ -102,7 +120,7 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
     if (Object.keys(found).length > 0) return;
     const body: InvoiceInput = {
       clientId: clientChoice === MANUAL ? null : Number(clientChoice),
-      clientName, clientTrn, clientAddress, invoiceDate, dueDate, paymentTerms, lpoRef, pcRef, project, scope, notes,
+      clientName, clientTrn, clientAddress, invoiceDate, dueDate, paymentTerms, lpoRef, pcRef, project, scope, notes, vatTreatment,
       lines: lines.map((l) => ({ description: l.description, quantity: Number(l.quantity), rate: Number(l.rate) })),
     };
     setPending(true);
@@ -120,6 +138,7 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
 
   return (
     <form onSubmit={submit} noValidate aria-label={invoice ? "Edit draft invoice" : "New invoice"} className="space-y-5">
+      <UnsavedChangesGuard dirty={dirty} pending={pending} subject="invoice edits" cancelLabel="Keep editing" />
       <Card className="space-y-4 p-5">
         <h3 className="text-base font-semibold text-ink-900">Client</h3>
         <Select label="Client" value={clientChoice} onChange={(e) => setClientChoice(e.target.value)} error={errors.clientId}>
@@ -132,7 +151,7 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
         </Select>
         {clientChoice === MANUAL ? (
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextField label="Client name" value={clientName} onChange={(e) => setClientName(e.target.value)} error={errors.clientName} maxLength={120} />
+            <TextField label="Client name" hint="A new name is added to your client list when you save." value={clientName} onChange={(e) => setClientName(e.target.value)} error={errors.clientName} maxLength={120} />
             <TextField label="Client TRN" value={clientTrn} onChange={(e) => setClientTrn(e.target.value)} error={errors.clientTrn} maxLength={30} />
             <div className="sm:col-span-2">
               <Textarea label="Client address" rows={2} value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} error={errors.clientAddress} maxLength={250} />
@@ -166,6 +185,15 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
           </Button>
         </div>
         {errors.lines && <p role="alert" className="mt-2 text-sm text-danger">{errors.lines}</p>}
+        <div className="mt-3 max-w-xs">
+          <Select label="VAT" hint="Applies to every line on this invoice." value={vatTreatment} onChange={(e) => setVatTreatment(e.target.value as InvoiceVatTreatment)} error={errors.vatTreatment}>
+            {Object.entries(VAT_TYPES).map(([value, type]) => (
+              <option key={value} value={value}>
+                {type.option}
+              </option>
+            ))}
+          </Select>
+        </div>
         <TableScroll className="mt-3">
           <Table className="min-w-[720px]">
             <caption className="sr-only">Invoice lines</caption>
@@ -174,7 +202,7 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
                 <Th className="w-[38%]">Description</Th>
                 <Th align="right" className="w-24">Area</Th>
                 <Th align="right" className="w-28">Rate (AED)</Th>
-                <Th align="right">VAT 5%</Th>
+                <Th align="right">{VAT_TYPES[vatTreatment].column}</Th>
                 <Th align="right">Amount</Th>
                 <Th className="w-12"><span className="sr-only">Remove</span></Th>
               </TRow>
@@ -203,7 +231,7 @@ export function InvoiceEditor({ invoice, onSaved, onCancel }: Props) {
         </TableScroll>
         <dl className="mt-5 ml-auto w-full max-w-sm space-y-2 rounded-lg bg-ink-50 px-4 py-3 text-sm text-ink-700" aria-label="Totals preview">
           <div className="flex justify-between"><dt>Sub total</dt><dd className="tabular-nums">{formatMoney(preview.subTotal)}</dd></div>
-          <div className="flex justify-between"><dt>VAT (5%)</dt><dd className="tabular-nums">{formatMoney(preview.vatTotal)}</dd></div>
+          <div className="flex justify-between"><dt>{VAT_TYPES[vatTreatment].total}</dt><dd className="tabular-nums">{formatMoney(preview.vatTotal)}</dd></div>
           <div className="flex justify-between border-t border-line pt-2 text-base font-bold text-ink-900"><dt>Total (AED)</dt><dd className="tabular-nums">{formatMoney(preview.total)}</dd></div>
           <p className="pt-1 text-xs text-ink-500">Preview only. The final amounts are calculated when you save.</p>
         </dl>

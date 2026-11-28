@@ -307,8 +307,9 @@ public sealed class StaffController(
 
     [HttpGet("leave/export/{format:regex(^(pdf|excel)$)}")]
     [Authorize(Policy = Policies.ManagerAdminOrHr)]
-    public Task<IActionResult> ExportLeave(string format, [FromQuery] int? year, [FromQuery] string? department, CancellationToken ct) =>
-        Export(() => exports.LeaveBalancesAsync(year, department, Format(format), ct));
+    public Task<IActionResult> ExportLeave(string format, [FromQuery] int? year, [FromQuery] string? department, [FromQuery] string? status, [FromQuery] string? search,
+        [FromQuery] DateOnly? from, [FromQuery] DateOnly? to, CancellationToken ct) =>
+        Export(() => exports.LeaveBalancesAsync(year, department, Format(format), ct, new LeaveExportFilter(status, search, from, to)));
 
     private static AttendanceExportFormat Format(string format) => format == "pdf" ? AttendanceExportFormat.Pdf : AttendanceExportFormat.Excel;
 

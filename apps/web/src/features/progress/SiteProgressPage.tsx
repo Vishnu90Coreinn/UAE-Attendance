@@ -25,7 +25,7 @@ import { FloorAccordion, HandoverCard, ProgressSaveBar } from "./SiteProgressPho
 import { Chip, ChipRow, PAGE_GAP, phoneButton, PhoneTitle } from "../../components/phoneUi";
 import { SummaryBar } from "./SummaryBar";
 import { PhoneToast } from "../../components/PhoneToast";
-import { AttendanceNavigationGuard } from "../attendance/AttendanceNavigationGuard";
+import { UnsavedChangesGuard } from "../../components/UnsavedChangesGuard";
 
 type WirFilter = "all" | "approved" | "approvedComments" | "pending" | "rejected";
 type CompletionFilter = "all" | "Completed" | "InProgress" | "NotStarted";
@@ -329,7 +329,7 @@ export function SiteProgressPage({ guardNavigation = false }: { guardNavigation?
 
     return (
       <section className={`min-w-0 ${PAGE_GAP}`}>
-        {guardNavigation && <AttendanceNavigationGuard dirty={dirty} pending={saving} subject="site progress changes" />}
+        {guardNavigation && <UnsavedChangesGuard dirty={dirty} pending={saving} subject="site progress changes" />}
         <div className="space-y-2">
           <PhoneTitle
             title="Site Progress"
@@ -520,7 +520,7 @@ export function SiteProgressPage({ guardNavigation = false }: { guardNavigation?
 
   return (
     <div className="payroll-page">
-      {guardNavigation && <AttendanceNavigationGuard dirty={dirty} pending={saving} subject="site progress changes" />}
+      {guardNavigation && <UnsavedChangesGuard dirty={dirty} pending={saving} subject="site progress changes" />}
       <div className="payroll-controls">
         <PageHeader
           title="Site Progress"

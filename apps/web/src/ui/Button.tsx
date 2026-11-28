@@ -6,10 +6,10 @@ export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "md" | "sm";
 
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: "bg-brand-600 text-white hover:bg-brand-700 border border-transparent shadow-card",
-  secondary: "bg-white text-ink-800 border border-ink-300 hover:bg-ink-50 hover:border-ink-400",
-  ghost: "bg-transparent text-ink-700 border border-transparent hover:bg-ink-100",
-  danger: "bg-danger text-white hover:bg-red-800 border border-transparent shadow-card",
+  primary: "bg-brand-600 text-white border border-brand-700 hover:bg-brand-700 active:bg-brand-800",
+  secondary: "bg-white text-ink-800 border border-ink-300 hover:border-brand-600 hover:text-brand-700 active:bg-brand-50",
+  ghost: "bg-transparent text-ink-700 border border-transparent hover:bg-brand-50 hover:text-brand-800",
+  danger: "bg-danger text-white border border-red-900 hover:bg-red-800 active:bg-red-900",
 };
 
 /** `md` is 44px (touch safe); `sm` drops to 36px from the md breakpoint up, for dense toolbars. */
@@ -20,7 +20,7 @@ const SIZES: Record<ButtonSize, string> = {
 
 export function buttonClass(variant: ButtonVariant = "primary", size: ButtonSize = "md", extra?: string) {
   return cx(
-    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60",
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-semibold tracking-[0.005em] transition-[background-color,border-color,color,transform] duration-150 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 disabled:active:translate-y-0",
     VARIANTS[variant],
     SIZES[size],
     extra,

@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Role } from "../../api/auth";
 import { useAuth } from "../../contexts/AuthContext";
@@ -21,6 +22,25 @@ function setup(role: Role, trend: unknown = empty, invoices: unknown[] = []) {
     staffLeave: { status: "ready", value: [] },
     invoices: { status: "ready", value: invoices },
     payroll: { status: "ready", value: { period: "2026-11", status: "Draft", totals: { netPay: 0, basicPay: 0, overtimePay: 0, totalDeductions: 0 }, lines: [] } },
+  } as never);
+  render(
+    <MemoryRouter>
+      <DashboardPage />
+    </MemoryRouter>,
+  );
+}
+
+/** The dashboard with only the parts a test cares about changed. */
+function setupWith({ trend, staff = {}, leave = [], invoices = [], lines = [] }: { trend: unknown; staff?: object; leave?: unknown[]; invoices?: unknown[]; lines?: unknown[] }) {
+  vi.mocked(useAuth).mockReturnValue({ status: "signedIn", user: { id: 1, username: "boss", role: "Manager" }, token: "t", login: vi.fn(), logout: vi.fn() });
+  vi.mocked(data.useDashboardData).mockReturnValue({
+    trend: { status: "ready", value: trend },
+    waiting: { status: "ready", value: { submitted: [], rejected: [], submittedTotal: 0, rejectedTotal: 0 } },
+    leave: { status: "ready", value: leave },
+    staff: { status: "ready", value: { date: "2026-11-22", dayType: null, total: 4, signedIn: 3, late: 1, absent: 0, outsideOffice: 0, missingSignOut: 0, onLeave: 0, notInYet: 1, attention: [], ...staff } },
+    staffLeave: { status: "ready", value: [] },
+    invoices: { status: "ready", value: invoices },
+    payroll: { status: "ready", value: { period: "2026-11", status: "Draft", totals: { netPay: 0, basicPay: 0, overtimePay: 0, totalDeductions: 0 }, lines } },
   } as never);
   render(
     <MemoryRouter>
@@ -78,5 +98,46 @@ describe("DashboardPage", () => {
     setup("HR");
     expect(screen.queryByRole("link", { name: "Add worker" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "New invoice" })).not.toBeInTheDocument();
+  });
+});
+
+describe("DashboardPage, today and what waits", () => {
+  const marked = empty.map((d, i) => (i === 6 ? { ...d, present: 5, notRecorded: 0 } : d));
+
+  it("says attendance is not marked yet instead of showing 0%", () => {
+    setupWith({ staff: { signedIn: 0 }, trend: marked.map((d, i) => (i === 6 ? empty[6] : { ...d, present: 3, notRecorded: 2 })) });
+    expect(screen.getByText("Attendance not marked yet")).toBeInTheDocument();
+    expect(screen.getByText(/Attendance isn't marked yet today/)).toBeInTheDocument();
+    expect(screen.queryByText("0%")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "D6 2026-11-07: not recorded" })).toBeInTheDocument();
+  });
+
+  it("switches the quick action off once everybody is marked", () => {
+    setupWith({ trend: marked });
+    expect(screen.getByRole("button", { name: "Attendance marked" })).toBeDisabled();
+    expect(screen.queryByRole("link", { name: "Mark attendance" })).not.toBeInTheDocument();
+  });
+
+  it("lists what waits oldest first and tags the late ones", () => {
+    const request = (id: number, name: string, createdUtc: string, startDate: string, endDate: string) => ({ id, workerName: name, leaveType: "Sick Leave", startDate, endDate, days: 2, createdUtc });
+    setupWith({ trend: marked, leave: [request(1, "Newer", "2999-01-01T00:00:00Z", "2999-12-14", "2999-12-15"), request(2, "Older", "2020-01-01T00:00:00Z", "2020-01-14", "2020-01-15")] });
+    const rows = screen.getAllByRole("link").filter((l) => /Newer|Older/.test(l.textContent ?? ""));
+    expect(rows[0]).toHaveTextContent("Older");
+    expect(rows[0]).toHaveTextContent("Overdue");
+    expect(rows[0]).toHaveTextContent("14–15 Jan · 2 days");
+    expect(rows[1]).not.toHaveTextContent("Overdue");
+  });
+
+  it("keeps pay by name hidden until asked, and splits what is owed by lateness", async () => {
+    const user = userEvent.setup();
+    setupWith({
+      trend: marked,
+      lines: [{ workerName: "Top Earner", netPay: 9000 }],
+      invoices: [{ id: 1, number: "INV-1", status: "Issued", displayStatus: "Issued", isOverdue: true, clientName: "C", project: "", lpoRef: "", invoiceDate: "2020-01-01", dueDate: "2020-02-01", total: 1000, amountPaid: 0, balanceDue: 1000 }],
+    });
+    expect(screen.queryByText("Top Earner")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Show highest net pay" }));
+    expect(screen.getByText("Top Earner")).toBeInTheDocument();
+    expect(screen.getByText("Over 30 days late").nextSibling).toHaveTextContent("1,000.00");
   });
 });

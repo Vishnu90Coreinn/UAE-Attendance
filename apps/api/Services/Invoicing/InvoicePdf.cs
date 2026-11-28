@@ -44,9 +44,10 @@ public sealed class InvoicePdf
             }
 
             var cv = NewPage();
+            var vatColumn = InvoiceVatLabels.For(invoice.VatTreatment).Column;
             var y = Header(cv, invoice, logo);
             y = Parties(cv, invoice, y);
-            y = TableHeader(cv, y);
+            y = TableHeader(cv, y, vatColumn);
             foreach (var line in invoice.Lines)
             {
                 var wrapped = cv.Wrap(line.Description, ColumnRight[1] - ColumnRight[0] - 12, 8.5);
@@ -54,7 +55,7 @@ public sealed class InvoicePdf
                 if (y - height < Bottom + 20)
                 {
                     cv = NewPage();
-                    y = TableHeader(cv, 800);
+                    y = TableHeader(cv, 800, vatColumn);
                 }
                 cv.Text(line.LineNo.ToString(CultureInfo.InvariantCulture), Left + 8, y - 14, 8.5);
                 for (var i = 0; i < wrapped.Count; i++) cv.Text(wrapped[i], ColumnRight[0] + 6, y - 14 - i * 11, 8.5);
@@ -99,7 +100,7 @@ public sealed class InvoicePdf
             cv.Text(cv.Fit(line, 300, 7.8), textLeft, y, 7.8, false, PdfStyle.Muted);
             y -= 10.5;
         }
-        cv.RightText("TAX INVOICE", Right, 797, 16, true, PdfStyle.Teal);
+        cv.RightText(InvoiceVatLabels.For(invoice.VatTreatment).Title.ToUpperInvariant(), Right, 797, 16, true, PdfStyle.Teal);
         cv.RightText(invoice.Number ?? "DRAFT", Right, 780, 10, true);
         var badge = invoice.Status == "Draft" ? "DRAFT" : invoice.Status == "Cancelled" ? "CANCELLED" : invoice.DisplayStatus switch { "Paid" => "PAID", "PartPaid" => "PART PAID", _ => invoice.IsOverdue ? "OVERDUE" : "" };
         if (badge.Length > 0)
@@ -146,7 +147,7 @@ public sealed class InvoicePdf
         return y - height;
     }
 
-    private static double TableHeader(PdfCanvas cv, double top)
+    private static double TableHeader(PdfCanvas cv, double top, string vatColumn)
     {
         var y = top - 14;
         cv.Fill(Left, y - 22, Right - Left, 22, PdfStyle.Teal);
@@ -154,7 +155,7 @@ public sealed class InvoicePdf
         cv.Text("Item & description", ColumnRight[0] + 6, y - 15, 8, true, PdfStyle.White);
         cv.RightText("Area", ColumnRight[2] - 6, y - 15, 8, true, PdfStyle.White);
         cv.RightText("Rate (AED)", ColumnRight[3] - 6, y - 15, 8, true, PdfStyle.White);
-        cv.RightText("VAT 5%", ColumnRight[4] - 6, y - 15, 8, true, PdfStyle.White);
+        cv.RightText(vatColumn, ColumnRight[4] - 6, y - 15, 8, true, PdfStyle.White);
         cv.RightText("Amount", ColumnRight[5] - 6, y - 15, 8, true, PdfStyle.White);
         return y - 22;
     }
@@ -205,7 +206,7 @@ public sealed class InvoicePdf
             y -= 20;
         }
         Row("Sub total", Num(invoice.SubTotal));
-        Row("VAT total (5%)", Num(invoice.VatTotal));
+        Row(InvoiceVatLabels.For(invoice.VatTreatment).Total, Num(invoice.VatTotal));
         Row("Total", "AED " + Num(invoice.Total), true, true);
         if (invoice.Status == "Issued")
         {
@@ -228,7 +229,7 @@ public sealed class InvoicePdf
         cv.RightText("Taxable amount (AED)", 440, y - 12, 8, true);
         cv.RightText("Tax amount (AED)", Right - 8, y - 12, 8, true);
         y -= 18;
-        cv.Text("Standard rate (5%)", Left + 8, y - 13, 8.5);
+        cv.Text(InvoiceVatLabels.For(invoice.VatTreatment).Summary, Left + 8, y - 13, 8.5);
         cv.RightText(Num(invoice.SubTotal), 440, y - 13, 8.5);
         cv.RightText(Num(invoice.VatTotal), Right - 8, y - 13, 8.5);
         y -= 20;

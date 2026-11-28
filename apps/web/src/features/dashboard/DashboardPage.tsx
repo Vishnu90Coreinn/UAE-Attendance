@@ -6,6 +6,7 @@ import {
   DecisionFigure,
   Invoices,
   LeadFigure,
+  nothingRecorded,
   OfficeToday,
   Payroll,
   type QuickAction,
@@ -40,7 +41,13 @@ export function DashboardPage() {
     (leave.status === "ready" ? leave.value.length : 0) +
     (staffLeave?.status === "ready" ? staffLeave.value.length : 0);
   const today = trend.status === "ready" ? trend.value[trend.value.length - 1] : null;
-  const summary = (
+  const officeIn = staff?.status === "ready" ? staff.value.signedIn : 0;
+  const unmarked = !!today && today.total > 0 && nothingRecorded(today) && officeIn === 0;
+  /** Everybody on the site list has a mark for today. */
+  const marked = !!today && today.total > 0 && today.notRecorded === 0;
+  const summary = unmarked ? (
+    <>Attendance isn't marked yet today · {waitingCount > 0 ? `${plural(waitingCount, "item needs", "items need")} your decision` : "Nothing needs your decision"}</>
+  ) : (
     <>
       {today && today.total > 0 ? `${today.present} of ${plural(today.total, "site worker", "site workers")} present today. ` : ""}
       {staff?.status === "ready" && staff.value.total > 0 && !(staff.value.dayType && staff.value.signedIn === 0)
@@ -52,7 +59,7 @@ export function DashboardPage() {
     </>
   );
   const actions: QuickAction[] = [
-    ...(manager ? [{ to: "/attendance", label: "Mark attendance", icon: ClipboardCheck }] : []),
+    ...(manager ? [{ to: "/attendance", label: marked ? "Attendance marked" : "Mark attendance", icon: ClipboardCheck, done: marked }] : []),
     ...(manager ? [{ to: "/workers?new=1", label: "Add worker", icon: UserPlus }] : []),
     ...(manager ? [{ to: "/invoices?new=1", label: "New invoice", icon: FilePlus2 }] : []),
     ...(manager ? [{ to: "/leave?new=1", label: "New leave", icon: CalendarPlus }] : []),
@@ -65,7 +72,7 @@ export function DashboardPage() {
     waitingCount === 0
       ? "Nothing to approve"
       : [
-          submittedDays > 0 ? `Across ${plural(submittedDays, "day", "days")}` : null,
+          submittedDays > 0 ? plural(submittedDays, "attendance approval", "attendance approvals") : null,
           waitingCount - submittedDays > 0 ? plural(waitingCount - submittedDays, "leave request", "leave requests") : null,
         ]
           .filter(Boolean)
@@ -87,8 +94,8 @@ export function DashboardPage() {
         />
 
         <div className="grid gap-px border-t border-ink-300 bg-ink-200 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1fr)]">
-          <div className="sm:col-span-2 lg:col-span-1 [&>a]:h-full">
-            <LeadFigure trend={trend} staff={staff} />
+          <div className="sm:col-span-2 lg:col-span-1 [&>*]:h-full">
+            <LeadFigure trend={trend} staff={staff} canRecord={manager} />
           </div>
           <DecisionFigure
             to={waitingCount > 0 && waiting.status === "ready" && waiting.value.submitted.length === 0 ? "/leave" : "/attendance"}
